@@ -41,29 +41,57 @@ int
 _pthread_cond_wait_timed(pthread_cond_t *cond, pthread_mutex_t *mutex, clockid_t clock,
                          const struct timespec *abstime)
 {
-    unsigned int seq;
-    unsigned int count;
-    int          ret, lock_ret;
+    struct __pthread *self;
+    unsigned int      seq;
+    unsigned int      count;
+    bool              cancel;
+    int               ret, lock_ret;
 
     if (abstime && (abstime->tv_nsec < 0 || abstime->tv_nsec >= 1000000000L))
         return EINVAL;
     if (clock != CLOCK_REALTIME && clock != CLOCK_MONOTONIC)
         return EINVAL;
 
+    self = _pthread_self();
+    cancel = self->cancel_state == PTHREAD_CANCEL_ENABLE;
+
+    /* A request already pending acts with the mutex still held */
+    if (cancel && __atomic_load_n(&self->cancel_pending, __ATOMIC_SEQ_CST))
+        _pthread_cancel_act(self);
+
     seq = __atomic_load_n(&cond->__seq, __ATOMIC_RELAXED);
 
     /* Release a recursive mutex completely, restoring the depth afterwards */
     count = mutex->__count;
     mutex->__count = 0;
+    if (cancel) {
+        self->cancel_mutex_count = count;
+        self->cancel_mutex = mutex;
+    }
     ret = pthread_mutex_unlock(mutex);
     if (ret) {
+        self->cancel_mutex = NULL;
         mutex->__count = count;
         return ret;
     }
 
+    /*
+     * Only now can cancellation act, relocking the mutex first. The
+     * wait stops being a cancellation point before the mutex is
+     * relocked below.
+     */
+    if (cancel) {
+        __atomic_add_fetch(&self->cancel_point, 1, __ATOMIC_SEQ_CST);
+        if (__atomic_load_n(&self->cancel_pending, __ATOMIC_SEQ_CST))
+            _pthread_cancel_act(self);
+    }
     ret = _futex_wait(&cond->__seq, seq, _pthread_cond_pshared(cond), clock, abstime);
     if (ret != ETIMEDOUT)
         ret = 0;
+    if (cancel) {
+        __atomic_sub_fetch(&self->cancel_point, 1, __ATOMIC_SEQ_CST);
+        self->cancel_mutex = NULL;
+    }
 
     lock_ret = _pthread_mutex_lock_timed(mutex, CLOCK_REALTIME, NULL);
     mutex->__count = count;

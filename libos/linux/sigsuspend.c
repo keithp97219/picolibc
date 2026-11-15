@@ -34,12 +34,18 @@
  */
 
 #include "local-sigaction.h"
+#include "local-cancel.h"
 
 int
 sigsuspend(const sigset_t *mask)
 {
     __kernel_sigset_t kmask;
+    void             *cancel;
+    long              ret;
 
     _sigmask_to_linux(&kmask, mask);
-    return _syscall(LINUX_SYS_rt_sigsuspend, &kmask, __KERNEL_NSIG_BYTES);
+    cancel = _cancel_enter();
+    ret = _syscall(LINUX_SYS_rt_sigsuspend, &kmask, __KERNEL_NSIG_BYTES);
+    _cancel_leave(cancel);
+    return (int)ret;
 }

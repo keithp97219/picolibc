@@ -34,18 +34,22 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "local-pthread.h"
+#include "local-cancel.h"
 #include <sys/mman.h>
 
 int
 pthread_join(pthread_t thread, void **value_ptr)
 {
+    struct __pthread *self;
+
     if (thread == _pthread_self())
         return EDEADLK;
     if (__atomic_load_n(&thread->detach_state, __ATOMIC_ACQUIRE) == __PTHREAD_DETACHED)
         return EINVAL;
 
+    self = _cancel_enter();
     _pthread_wait_exit(thread);
+    _cancel_leave(self);
     if (value_ptr)
         *value_ptr = thread->result;
     if (thread->map)

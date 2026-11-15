@@ -42,6 +42,7 @@ pthread_exit(void *value_ptr)
 {
     struct __pthread *self = _pthread_self();
     int               state = __PTHREAD_JOINABLE;
+    _pthread_cleanup_exit(self);
 
     _pthread_specific_exit(self);
     self->result = value_ptr;

@@ -34,6 +34,7 @@
  */
 
 #include "local-linux.h"
+#include "local-cancel.h"
 #include <stdarg.h>
 
 int
@@ -116,5 +117,10 @@ open(const char *path, int flags, ...)
     if (flags & O_TRUNC)
         linux_flags |= LINUX_O_TRUNC;
 #endif
-    return _syscall(LINUX_SYS_openat, LINUX_AT_FDCWD, path, linux_flags | LINUX_O_LARGEFILE, mode);
+    void *cancel = _cancel_enter();
+    long  ret
+        = _syscall(LINUX_SYS_openat, LINUX_AT_FDCWD, path, linux_flags | LINUX_O_LARGEFILE, mode);
+
+    _cancel_leave(cancel);
+    return ret;
 }

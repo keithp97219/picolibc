@@ -76,6 +76,19 @@ _BEGIN_STD_C
 
 #define PTHREAD_BARRIER_SERIAL_THREAD (-1)
 
+/* Cancellation */
+#define PTHREAD_CANCEL_ENABLE       0
+#define PTHREAD_CANCEL_DISABLE      1
+#define PTHREAD_CANCEL_DEFERRED     0
+#define PTHREAD_CANCEL_ASYNCHRONOUS 1
+#define PTHREAD_CANCELED            ((void *)-1)
+
+/* Cleanup handlers live on the stack of the function using them */
+struct __pthread_cleanup {
+    void                      (*__routine)(void *);
+    void                     *__arg;
+    struct __pthread_cleanup *__next;
+};
 /* Thread creation and termination */
 int pthread_create(pthread_t * __restrict, const pthread_attr_t * __restrict, void *(*)(void *),
                    void * __restrict) __picolibc_export;
@@ -85,12 +98,31 @@ int             pthread_detach(pthread_t) __picolibc_export;
 pthread_t       pthread_self(void) __picolibc_export;
 int             pthread_equal(pthread_t, pthread_t) __picolibc_export;
 
+/* Cancellation */
+int             pthread_cancel(pthread_t) __picolibc_export;
+int             pthread_setcancelstate(int, int *) __picolibc_export;
+int             pthread_setcanceltype(int, int *) __picolibc_export;
+void            pthread_testcancel(void) __picolibc_export;
+
+void __pthread_cleanup_push(struct __pthread_cleanup *, void (*)(void *), void *) __picolibc_export;
+void __pthread_cleanup_pop(struct __pthread_cleanup *, int) __picolibc_export;
+
+#define pthread_cleanup_push(routine, arg)                       \
+    do {                                                         \
+        struct __pthread_cleanup __pthread_cleanup;              \
+    __pthread_cleanup_push(&__pthread_cleanup, (routine), (arg))
+
+#define pthread_cleanup_pop(execute)                      \
+    __pthread_cleanup_pop(&__pthread_cleanup, (execute)); \
+    }                                                     \
+    while (0)
+
 /* Thread attributes */
-int             pthread_attr_init(pthread_attr_t *) __picolibc_export;
-int             pthread_attr_destroy(pthread_attr_t *) __picolibc_export;
-int             pthread_attr_getdetachstate(const pthread_attr_t *, int *) __picolibc_export;
-int             pthread_attr_setdetachstate(pthread_attr_t *, int) __picolibc_export;
-int             pthread_attr_getstacksize(const pthread_attr_t             *__restrict, size_t             *__restrict)
+int pthread_attr_init(pthread_attr_t *) __picolibc_export;
+int pthread_attr_destroy(pthread_attr_t *) __picolibc_export;
+int pthread_attr_getdetachstate(const pthread_attr_t *, int *) __picolibc_export;
+int pthread_attr_setdetachstate(pthread_attr_t *, int) __picolibc_export;
+int pthread_attr_getstacksize(const pthread_attr_t * __restrict, size_t * __restrict)
     __picolibc_export;
 int pthread_attr_setstacksize(pthread_attr_t *, size_t) __picolibc_export;
 int pthread_attr_getstack(const pthread_attr_t * __restrict, void ** __restrict,

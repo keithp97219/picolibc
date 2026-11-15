@@ -129,6 +129,15 @@ struct __pthread {
     unsigned short             tpp_count[LINUX_PRIO_RT_MAX + 1];
     unsigned int               tpp_held;
     int                        tpp_base;
+
+    /* Cancellation */
+    struct __pthread_cleanup  *cleanup;
+    int                        cancel_state;
+    int                        cancel_type;
+    int                        cancel_pending;
+    int                        cancel_point; /* depth of blocking cancellation points */
+    pthread_mutex_t           *cancel_mutex; /* relocked when a condition wait is cancelled */
+    unsigned int               cancel_mutex_count;
     struct __pthread_specific *specific;
 };
 
@@ -298,8 +307,19 @@ int                       _pthread_getsched(int tid, int *policy, int *priority)
 
 extern int                _pthread_concurrency;
 
+/*
+ * Cancellation uses a Linux real-time signal which picolibc's signal
+ * numbers never reach, so applications can't block or catch it.
+ */
+#define _PTHREAD_SIGCANCEL 32
+
+__noreturn void _pthread_cancel_act(struct __pthread *self);
+
+/* Run the calling thread's cleanup handlers */
+void            _pthread_cleanup_exit(struct __pthread *self);
+
 /* Queue an exiting detached thread to be unmapped once the kernel is done with it */
-void                      _pthread_zombie(struct __pthread *thread);
+void            _pthread_zombie(struct __pthread *thread);
 
 /* Thread-specific data keys; seq is odd while the key is in use */
 struct _pthread_key {

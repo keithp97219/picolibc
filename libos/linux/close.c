@@ -34,9 +34,14 @@
  */
 
 #include "local-linux.h"
+#include "local-cancel.h"
 
 int
 close(int fd)
 {
-    return _syscall(LINUX_SYS_close, fd);
+    void *cancel = _cancel_enter();
+    long  ret = _syscall(LINUX_SYS_close, fd);
+
+    _cancel_leave(cancel);
+    return ret;
 }

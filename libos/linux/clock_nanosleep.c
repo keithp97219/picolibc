@@ -34,11 +34,13 @@
  */
 
 #include "local-linux.h"
+#include "local-cancel.h"
 #include "local-time.h"
 
 int
 clock_nanosleep(clockid_t id, int flags, const struct timespec *dur, struct timespec *rem)
 {
+    void                           *cancel;
     struct __kernel_timespec_time_t kdur;
     struct __kernel_timespec_time_t krem, *pkrem = NULL;
     int                             kid;
@@ -57,7 +59,9 @@ clock_nanosleep(clockid_t id, int flags, const struct timespec *dur, struct time
     kdur.tv_nsec = dur->tv_nsec;
     if (rem)
         pkrem = &krem;
+    cancel = _cancel_enter();
     ret = _syscall_raw(LINUX_SYS_clock_nanosleep_time_t, kid, kflags, &kdur, pkrem);
+    _cancel_leave(cancel);
     if (ret < 0)
         ret = _syscall_errno(ret);
     /* An interrupted relative sleep reports the time remaining */
