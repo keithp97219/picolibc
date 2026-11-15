@@ -173,6 +173,11 @@ if fs.is_dir(machine_dir)
     'tcsetpgrp.c',
     'tcsetwinsize.c',
     'times.c',
+    'timer_create.c',
+    'timer_delete.c',
+    'timer_getoverrun.c',
+    'timer_gettime.c',
+    'timer_settime.c',
     'ttyname.c',
     'ttyname_r.c',
     'umask.c',
@@ -327,6 +332,7 @@ if fs.is_dir(machine_dir)
       'sem_unlink.c',
       'sem_wait.c',
       '_sem_wait_timed.c',
+      '_timer_thread.c',
     ]
   endif
 
