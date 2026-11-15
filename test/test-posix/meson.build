@@ -78,6 +78,7 @@ if has_os_posix
     'test-execle',
     'test-glob',
     'test-mkdtemp',
+    'test-link',
     'test-mmap',
     'test-pclose',
     'test-popen',
@@ -89,6 +90,7 @@ if has_os_posix
     'test-clock-nanosleep',
     'test-syscall-name',
     'test-sysinfo',
+    'test-shm',
     'test-system',
     'test-time64',
   ]
@@ -112,6 +114,9 @@ if posix_threads
     'test-pthread-mutex',
     'test-pthread-once-key',
     'test-pthread-signal',
+    'test-pthread-barrier',
+    'test-pthread-rwlock',
+    'test-semaphore',
   ]
   tests += pthread_tests
   test_skip_lock_valid += pthread_tests
