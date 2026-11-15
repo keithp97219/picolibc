@@ -67,6 +67,18 @@ mutex_lock_pi(pthread_mutex_t *mutex, int tid, clockid_t clock, const struct tim
     return _futex_lock_pi(&mutex->__state, _pthread_mutex_pshared(mutex), clock, abstime);
 }
 
+static int
+deadlock(clockid_t clock, const struct timespec *abstime)
+{
+    unsigned int never = 0;
+    int          ret;
+
+    do
+        ret = _futex_wait(&never, 0, false, clock, abstime);
+    while (ret != ETIMEDOUT && ret != EINVAL);
+    return ret;
+}
+
 int
 _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock, const struct timespec *abstime)
 {
@@ -92,9 +104,15 @@ _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock, const struct 
             return ret;
     }
 
-    if (protocol == PTHREAD_PRIO_INHERIT)
+    if (protocol == PTHREAD_PRIO_INHERIT) {
         ret = mutex_lock_pi(mutex, tid, clock, abstime);
-    else
+        /*
+         * The kernel reports relocking with EDEADLK, but relocking a
+         * normal mutex must deadlock: wait until the timeout, if any.
+         */
+        if (ret == EDEADLK && mutex->__type == PTHREAD_MUTEX_NORMAL)
+            ret = deadlock(clock, abstime);
+    } else
         ret = mutex_lock_futex(mutex, clock, abstime);
 
     if (ret) {
