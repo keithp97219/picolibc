@@ -116,6 +116,8 @@ if posix_threads
     'test-pthread-signal',
     'test-pthread-barrier',
     'test-pthread-rwlock',
+    'test-pthread-prio',
+    'test-pthread-sched',
     'test-semaphore',
   ]
   tests += pthread_tests
