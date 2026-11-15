@@ -95,6 +95,7 @@ if fs.is_dir(machine_dir)
     'isatty.c',
     'kill.c',
     'killpg.c',
+    'link.c',
     'lseek.c',
     'lstat.c',
     'madvise.c',
