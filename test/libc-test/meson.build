@@ -73,6 +73,14 @@ libc_test_native_skip = [
   'regression/raise-race',
 ]
 
+# qemu's user-mode emulation doesn't support robust futex lists
+if meson.is_cross_build()
+  libc_test_native_skip += [
+    'functional/pthread_robust',
+    'regression/pthread-robust-detach',
+  ]
+endif
+
 libc_test_common = files(['common/print.c', 'common/setrlim.c', 'common/memfill.c', 'common/vmfill.c'])
 libc_test_inc = include_directories('common')
 
