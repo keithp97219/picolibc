@@ -115,6 +115,7 @@ if fs.is_dir(machine_dir)
     'pause.c',
     'pipe.c',
     'poll.c',
+    'ppoll.c',
     'raise.c',
     'read.c',
     'readdir.c',
