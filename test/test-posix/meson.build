@@ -75,6 +75,8 @@ if has_os_posix
     'test-syscall-name',
     'test-sysinfo',
     'test-shm',
+    'test-sigwait',
+    'test-uid',
     'test-system',
     'test-time64',
   ]

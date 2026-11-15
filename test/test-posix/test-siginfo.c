@@ -77,6 +77,7 @@ main(void)
     check(info.si_signo == SIGUSR1, "si_signo");
     check(info.si_code == SI_USER, "si_code from kill");
     check(info.si_pid == getpid(), "si_pid");
+    check(info.si_uid == getuid(), "si_uid");
 
     printf("success\n");
     return 0;
