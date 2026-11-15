@@ -35,6 +35,7 @@
 
 #define _DEFAULT_SOURCE
 #include "local-shm.h"
+#include "local-cancel.h"
 #include <fcntl.h>
 #include <sys/mman.h>
 
@@ -43,10 +44,15 @@ shm_open(const char *name, int oflag, mode_t mode)
 {
     char path[_SHM_PATH_MAX];
     int  ret = _shm_path(path, "", name);
+    int  cancel;
 
     if (ret) {
         errno = ret;
         return -1;
     }
-    return open(path, oflag | O_NOFOLLOW | O_CLOEXEC, mode);
+    /* shm_open is not a cancellation point, though open is */
+    cancel = _cancel_disable();
+    ret = open(path, oflag | O_NOFOLLOW | O_CLOEXEC, mode);
+    _cancel_restore(cancel);
+    return ret;
 }
