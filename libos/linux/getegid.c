@@ -39,5 +39,9 @@
 gid_t
 getegid(void)
 {
+#ifdef LINUX_SYS_getegid32
+    return _syscall(LINUX_SYS_getegid32);
+#else
     return _syscall(LINUX_SYS_getegid);
+#endif
 }
