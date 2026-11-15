@@ -108,6 +108,7 @@ test_skip_lock_valid = []
 if posix_threads
   pthread_tests = [
     'test-pthread',
+    'test-pthread-cancel',
     'test-pthread-cond',
     'test-pthread-exit',
     'test-pthread-exit-thread',
