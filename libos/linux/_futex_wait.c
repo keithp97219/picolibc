@@ -37,21 +37,6 @@
 #include "local-pthread.h"
 
 /*
- * Use the 64-bit time futex call where the kernel has one, so that
- * 32-bit targets don't truncate timeouts.
- */
-#ifdef LINUX_SYS_futex_time64
-#define LINUX_SYS_futex_time_t LINUX_SYS_futex_time64
-struct __kernel_futex_timespec {
-    __int64_t tv_sec;
-    __int64_t tv_nsec;
-};
-#else
-#define LINUX_SYS_futex_time_t  LINUX_SYS_futex
-#define __kernel_futex_timespec __kernel_timespec
-#endif
-
-/*
  * Wait for *addr to change from val, until abstime (measured on clock)
  * if abstime is not NULL.
  */
@@ -66,20 +51,13 @@ _futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t clock,
 
     op = pshared ? 0 : LINUX_FUTEX_PRIVATE_FLAG;
     if (abstime) {
-        if (abstime->tv_nsec < 0 || abstime->tv_nsec >= 1000000000L)
-            return EINVAL;
-        if (abstime->tv_sec < 0)
-            return ETIMEDOUT;
         if (clock == CLOCK_REALTIME)
             op |= LINUX_FUTEX_CLOCK_REALTIME;
         else if (clock != CLOCK_MONOTONIC)
             return EINVAL;
-        /* Clamp to the end of 32-bit time on kernels without 64-bit time */
-        if (sizeof(kts.tv_sec) == 4 && abstime->tv_sec > INT32_MAX)
-            kts.tv_sec = INT32_MAX;
-        else
-            kts.tv_sec = abstime->tv_sec;
-        kts.tv_nsec = abstime->tv_nsec;
+        ret = _futex_timespec(&kts, abstime);
+        if (ret)
+            return ret;
         pkts = &kts;
         op |= LINUX_FUTEX_WAIT_BITSET;
     } else {

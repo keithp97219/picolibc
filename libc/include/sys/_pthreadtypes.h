@@ -67,9 +67,16 @@ typedef struct {
 } pthread_attr_t;
 
 typedef struct {
-    unsigned int __state; /* 0 unlocked, 1 locked, 2 locked with waiters */
+    /*
+     * 0 unlocked, 1 locked, 2 locked with waiters. For priority
+     * inheritance mutexes, the owner's thread id, managed with the
+     * kernel.
+     */
+    unsigned int __state;
     int          __type;
     int          __pshared;
+    int          __protocol;
+    int          __prioceiling;
     int          __owner; /* thread id of the owner, for recursive and error checking mutexes */
     unsigned int __count; /* recursion depth beyond the first lock */
 } pthread_mutex_t;
@@ -77,6 +84,8 @@ typedef struct {
 typedef struct {
     int __type;
     int __pshared;
+    int __protocol;
+    int __prioceiling;
 } pthread_mutexattr_t;
 
 typedef struct {

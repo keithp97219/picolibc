@@ -35,34 +35,74 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
-#include <limits.h>
+
+static int
+mutex_lock_futex(pthread_mutex_t *mutex, clockid_t clock, const struct timespec *abstime)
+{
+    unsigned int state = 0;
+    int          ret;
+
+    if (__atomic_compare_exchange_n(&mutex->__state, &state, 1, false, __ATOMIC_ACQUIRE,
+                                    __ATOMIC_RELAXED))
+        return 0;
+    if (state != 2)
+        state = __atomic_exchange_n(&mutex->__state, 2, __ATOMIC_ACQUIRE);
+    while (state != 0) {
+        ret = _futex_wait(&mutex->__state, 2, _pthread_mutex_pshared(mutex), clock, abstime);
+        if (ret == ETIMEDOUT || ret == EINVAL)
+            return ret;
+        state = __atomic_exchange_n(&mutex->__state, 2, __ATOMIC_ACQUIRE);
+    }
+    return 0;
+}
+
+static int
+mutex_lock_pi(pthread_mutex_t *mutex, int tid, clockid_t clock, const struct timespec *abstime)
+{
+    unsigned int state = 0;
+
+    if (__atomic_compare_exchange_n(&mutex->__state, &state, (unsigned int)tid, false,
+                                    __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+        return 0;
+    return _futex_lock_pi(&mutex->__state, _pthread_mutex_pshared(mutex), clock, abstime);
+}
 
 int
 _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock, const struct timespec *abstime)
 {
-    unsigned int state = 0;
-    int          tid = 0;
-    int          ret;
+    struct __pthread *self = NULL;
+    int               protocol = mutex->__protocol;
+    int               ceiling = mutex->__prioceiling;
+    int               tid = 0;
+    int               ret;
 
+    if (mutex->__type != PTHREAD_MUTEX_NORMAL || protocol != PTHREAD_PRIO_NONE) {
+        self = _pthread_self();
+        tid = self->tid;
+    }
     if (mutex->__type != PTHREAD_MUTEX_NORMAL) {
-        tid = _pthread_self()->tid;
         ret = _pthread_mutex_relock(mutex, tid, EDEADLK);
         if (ret >= 0)
             return ret;
     }
 
-    if (!__atomic_compare_exchange_n(&mutex->__state, &state, 1, false, __ATOMIC_ACQUIRE,
-                                     __ATOMIC_RELAXED)) {
-        if (state != 2)
-            state = __atomic_exchange_n(&mutex->__state, 2, __ATOMIC_ACQUIRE);
-        while (state != 0) {
-            ret = _futex_wait(&mutex->__state, 2, _pthread_mutex_pshared(mutex), clock, abstime);
-            if (ret == ETIMEDOUT || ret == EINVAL)
-                return ret;
-            state = __atomic_exchange_n(&mutex->__state, 2, __ATOMIC_ACQUIRE);
-        }
+    if (protocol == PTHREAD_PRIO_PROTECT) {
+        ret = _pthread_tpp_raise(self, ceiling);
+        if (ret)
+            return ret;
     }
-    if (tid)
+
+    if (protocol == PTHREAD_PRIO_INHERIT)
+        ret = mutex_lock_pi(mutex, tid, clock, abstime);
+    else
+        ret = mutex_lock_futex(mutex, clock, abstime);
+
+    if (ret) {
+        if (protocol == PTHREAD_PRIO_PROTECT)
+            _pthread_tpp_lower(self, ceiling);
+        return ret;
+    }
+    if (mutex->__type != PTHREAD_MUTEX_NORMAL && protocol != PTHREAD_PRIO_INHERIT)
         __atomic_store_n(&mutex->__owner, tid, __ATOMIC_RELAXED);
     return 0;
 }

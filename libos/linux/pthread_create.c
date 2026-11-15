@@ -59,6 +59,16 @@ pthread_start(void *arg)
     struct __pthread *self = arg;
 
     _pthread_current = self;
+
+    /* Wait while the creator sets explicit scheduling; give up if that failed */
+    while (__atomic_load_n(&self->start_wait, __ATOMIC_ACQUIRE))
+        (void)_futex_wait(&self->start_wait, 1, false, CLOCK_REALTIME, NULL);
+    if (self->start_error) {
+        __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
+        for (;;)
+            _syscall(LINUX_SYS_exit, 0);
+    }
+
     (void)_syscall(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &self->sigmask, NULL,
                    __KERNEL_NSIG_BYTES);
     pthread_exit(self->start(self->arg));
@@ -143,6 +153,7 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
     t->map = map;
     t->map_size = map_size;
     t->detach_state = attr->__detachstate;
+    t->start_wait = attr->__inheritsched == PTHREAD_EXPLICIT_SCHED;
 
     /*
      * Block signals until the new thread is running on its own stack;
@@ -163,6 +174,21 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
         munmap(map, map_size);
         errno = save_errno;
         return EAGAIN;
+    }
+
+    if (t->start_wait) {
+        int sched_ret = _pthread_setsched((int)ret, attr->__schedpolicy, attr->__schedpriority);
+
+        t->start_error = sched_ret;
+        __atomic_store_n(&t->start_wait, 0, __ATOMIC_RELEASE);
+        _futex_wake(&t->start_wait, 1, false);
+        if (sched_ret) {
+            /* The thread exits without running; reclaim it */
+            _pthread_wait_exit(t);
+            munmap(map, map_size);
+            errno = save_errno;
+            return sched_ret;
+        }
     }
     errno = save_errno;
     return 0;

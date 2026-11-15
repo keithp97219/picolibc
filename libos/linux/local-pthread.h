@@ -52,6 +52,29 @@
 #define LINUX_FUTEX_CLOCK_REALTIME   256
 #define LINUX_FUTEX_BITSET_MATCH_ANY 0xffffffffU
 
+#define LINUX_FUTEX_LOCK_PI          6
+#define LINUX_FUTEX_UNLOCK_PI        7
+#define LINUX_FUTEX_LOCK_PI2         13
+#define LINUX_FUTEX_TID_MASK         0x3fffffffU
+
+/*
+ * Use the 64-bit time futex call where the kernel has one, so that
+ * 32-bit targets don't truncate timeouts.
+ */
+#ifdef LINUX_SYS_futex_time64
+#define LINUX_SYS_futex_time_t LINUX_SYS_futex_time64
+struct __kernel_futex_timespec {
+    __int64_t tv_sec;
+    __int64_t tv_nsec;
+};
+#else
+#define LINUX_SYS_futex_time_t  LINUX_SYS_futex
+#define __kernel_futex_timespec __kernel_timespec
+#endif
+
+/* Linux real-time priorities */
+#define LINUX_PRIO_RT_MIN 1
+#define LINUX_PRIO_RT_MAX 99
 /* Linux clone flags */
 #define LINUX_CLONE_VM             0x00000100
 #define LINUX_CLONE_FS             0x00000200
@@ -98,6 +121,14 @@ struct __pthread {
     int                        tid;
     int                        detach_state;
 
+    /* Non-zero while a new thread waits for its creator to set its scheduling */
+    unsigned int               start_wait;
+    int                        start_error;
+
+    /* Ceilings of the PTHREAD_PRIO_PROTECT mutexes held, and the priority without them */
+    unsigned short             tpp_count[LINUX_PRIO_RT_MAX + 1];
+    unsigned int               tpp_held;
+    int                        tpp_base;
     struct __pthread_specific *specific;
 };
 
@@ -122,6 +153,13 @@ int  _futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t c
                  const struct timespec *abstime);
 void _futex_wake(unsigned int *addr, int count, bool pshared);
 
+/* Convert an absolute timeout for the kernel: 0, EINVAL or ETIMEDOUT */
+int  _futex_timespec(struct __kernel_futex_timespec *kts, const struct timespec *abstime);
+
+/* Priority inheritance futexes; the word holds the owner's thread id */
+int  _futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock,
+                    const struct timespec *abstime);
+void _futex_unlock_pi(unsigned int *addr, bool pshared);
 /*
  * Futex mutex: __state is 0 when unlocked, 1 when locked and 2 when
  * locked with possible waiters. Recursive and error checking mutexes
@@ -137,6 +175,9 @@ _pthread_mutex_pshared(pthread_mutex_t *mutex)
 static inline int
 _pthread_mutex_owner(pthread_mutex_t *mutex)
 {
+    /* Priority inheritance mutexes hold the owner in the futex word */
+    if (mutex->__protocol == PTHREAD_PRIO_INHERIT)
+        return (int)(__atomic_load_n(&mutex->__state, __ATOMIC_RELAXED) & LINUX_FUTEX_TID_MASK);
     return __atomic_load_n(&mutex->__owner, __ATOMIC_RELAXED);
 }
 
@@ -171,10 +212,20 @@ _pthread_cond_pshared(pthread_cond_t *cond)
     return cond->__pshared == PTHREAD_PROCESS_SHARED;
 }
 
-int _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock,
+/*
+ * Priority protection: count the ceilings of the PTHREAD_PRIO_PROTECT
+ * mutexes a thread holds and run a real-time thread at the highest.
+ */
+int  _pthread_tpp_raise(struct __pthread *self, int ceiling);
+void _pthread_tpp_lower(struct __pthread *self, int ceiling);
+
+/* Unlock, lowering the thread's priority from ceiling for PTHREAD_PRIO_PROTECT */
+int  _pthread_mutex_unlock_ceiling(pthread_mutex_t *mutex, int ceiling);
+
+int  _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock,
+                               const struct timespec *abstime);
+int  _pthread_cond_wait_timed(pthread_cond_t *cond, pthread_mutex_t *mutex, clockid_t clock,
                               const struct timespec *abstime);
-int _pthread_cond_wait_timed(pthread_cond_t *cond, pthread_mutex_t *mutex, clockid_t clock,
-                             const struct timespec *abstime);
 
 /*
  * Reader-writer lock: __state counts readers, or holds
@@ -240,6 +291,12 @@ struct _sem_named {
 
 extern pthread_mutex_t    _sem_named_lock;
 extern struct _sem_named *_sem_named;
+
+/* Scheduling for a thread id; these return 0 or an errno value */
+int                       _pthread_setsched(int tid, int policy, int priority);
+int                       _pthread_getsched(int tid, int *policy, int *priority);
+
+extern int                _pthread_concurrency;
 
 /* Queue an exiting detached thread to be unmapped once the kernel is done with it */
 void                      _pthread_zombie(struct __pthread *thread);

@@ -41,5 +41,7 @@ pthread_mutexattr_init(pthread_mutexattr_t *attr)
 {
     attr->__type = PTHREAD_MUTEX_DEFAULT;
     attr->__pshared = PTHREAD_PROCESS_PRIVATE;
+    attr->__protocol = PTHREAD_PRIO_NONE;
+    attr->__prioceiling = LINUX_PRIO_RT_MIN;
     return 0;
 }

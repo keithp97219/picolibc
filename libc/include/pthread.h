@@ -58,12 +58,18 @@ _BEGIN_STD_C
 #define PTHREAD_PROCESS_SHARED  1
 
 /* Mutex types */
-#define PTHREAD_MUTEX_NORMAL          0
-#define PTHREAD_MUTEX_RECURSIVE       1
-#define PTHREAD_MUTEX_ERRORCHECK      2
-#define PTHREAD_MUTEX_DEFAULT         PTHREAD_MUTEX_NORMAL
+#define PTHREAD_MUTEX_NORMAL     0
+#define PTHREAD_MUTEX_RECURSIVE  1
+#define PTHREAD_MUTEX_ERRORCHECK 2
+#define PTHREAD_MUTEX_DEFAULT    PTHREAD_MUTEX_NORMAL
 
-#define PTHREAD_MUTEX_INITIALIZER     { 0, PTHREAD_MUTEX_DEFAULT, PTHREAD_PROCESS_PRIVATE, 0, 0 }
+/* Mutex protocols */
+#define PTHREAD_PRIO_NONE    0
+#define PTHREAD_PRIO_INHERIT 1
+#define PTHREAD_PRIO_PROTECT 2
+
+#define PTHREAD_MUTEX_INITIALIZER                                                     \
+    { 0, PTHREAD_MUTEX_DEFAULT, PTHREAD_PROCESS_PRIVATE, PTHREAD_PRIO_NONE, 0, 0, 0 }
 #define PTHREAD_COND_INITIALIZER      { 0, CLOCK_REALTIME, PTHREAD_PROCESS_PRIVATE }
 #define PTHREAD_ONCE_INIT             0
 #define PTHREAD_RWLOCK_INITIALIZER    { 0, 0, 0, 0, PTHREAD_PROCESS_PRIVATE }
@@ -93,6 +99,28 @@ int pthread_attr_setstack(pthread_attr_t *, void *, size_t) __picolibc_export;
 int pthread_attr_getguardsize(const pthread_attr_t * __restrict, size_t * __restrict)
     __picolibc_export;
 int pthread_attr_setguardsize(pthread_attr_t *, size_t) __picolibc_export;
+int pthread_attr_getschedparam(const pthread_attr_t * __restrict, struct sched_param * __restrict)
+    __picolibc_export;
+int pthread_attr_setschedparam(pthread_attr_t * __restrict, const struct sched_param * __restrict)
+    __picolibc_export;
+int pthread_attr_getschedpolicy(const pthread_attr_t * __restrict, int * __restrict)
+    __picolibc_export;
+int pthread_attr_setschedpolicy(pthread_attr_t *, int) __picolibc_export;
+int pthread_attr_getinheritsched(const pthread_attr_t * __restrict, int * __restrict)
+    __picolibc_export;
+int pthread_attr_setinheritsched(pthread_attr_t *, int) __picolibc_export;
+int pthread_attr_getscope(const pthread_attr_t * __restrict, int * __restrict) __picolibc_export;
+int pthread_attr_setscope(pthread_attr_t *, int) __picolibc_export;
+
+/* Thread scheduling */
+int pthread_getschedparam(pthread_t, int * __restrict, struct sched_param * __restrict)
+    __picolibc_export;
+int pthread_setschedparam(pthread_t, int, const struct sched_param *) __picolibc_export;
+int pthread_setschedprio(pthread_t, int) __picolibc_export;
+#if __XSI_VISIBLE
+int pthread_getconcurrency(void) __picolibc_export;
+int pthread_setconcurrency(int) __picolibc_export;
+#endif
 
 /* Mutexes */
 int pthread_mutex_init(pthread_mutex_t * __restrict, const pthread_mutexattr_t * __restrict)
@@ -114,6 +142,16 @@ int pthread_mutexattr_settype(pthread_mutexattr_t *, int) __picolibc_export;
 int pthread_mutexattr_getpshared(const pthread_mutexattr_t * __restrict, int * __restrict)
     __picolibc_export;
 int pthread_mutexattr_setpshared(pthread_mutexattr_t *, int) __picolibc_export;
+int pthread_mutexattr_getprotocol(const pthread_mutexattr_t * __restrict, int * __restrict)
+    __picolibc_export;
+int pthread_mutexattr_setprotocol(pthread_mutexattr_t *, int) __picolibc_export;
+int pthread_mutexattr_getprioceiling(const pthread_mutexattr_t * __restrict, int * __restrict)
+    __picolibc_export;
+int pthread_mutexattr_setprioceiling(pthread_mutexattr_t *, int) __picolibc_export;
+int pthread_mutex_getprioceiling(const pthread_mutex_t * __restrict, int * __restrict)
+    __picolibc_export;
+int pthread_mutex_setprioceiling(pthread_mutex_t * __restrict, int, int * __restrict)
+    __picolibc_export;
 
 /* Condition variables */
 int pthread_cond_init(pthread_cond_t * __restrict, const pthread_condattr_t * __restrict)

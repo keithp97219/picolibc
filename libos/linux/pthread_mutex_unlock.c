@@ -40,16 +40,5 @@
 int
 pthread_mutex_unlock(pthread_mutex_t *mutex)
 {
-    if (mutex->__type != PTHREAD_MUTEX_NORMAL) {
-        if (_pthread_mutex_owner(mutex) != _pthread_self()->tid)
-            return EPERM;
-        if (mutex->__count) {
-            mutex->__count--;
-            return 0;
-        }
-        __atomic_store_n(&mutex->__owner, 0, __ATOMIC_RELAXED);
-    }
-    if (__atomic_exchange_n(&mutex->__state, 0, __ATOMIC_RELEASE) == 2)
-        _futex_wake(&mutex->__state, 1, _pthread_mutex_pshared(mutex));
-    return 0;
+    return _pthread_mutex_unlock_ceiling(mutex, mutex->__prioceiling);
 }
