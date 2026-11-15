@@ -55,7 +55,7 @@ pthread_self(void)
      */
     if (!self) {
         self = &_pthread_main;
-        self->tid = (int)_syscall(LINUX_SYS_set_tid_address, &self->tid);
+        self->tid = (int)_syscall_raw(LINUX_SYS_set_tid_address, &self->tid);
         _pthread_current = self;
     }
     return self;

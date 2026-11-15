@@ -53,7 +53,7 @@ _pthread_fork_child(void)
      */
     __LIBC_UNLOCK();
     if (self)
-        self->tid = (int)_syscall(LINUX_SYS_set_tid_address, &self->tid);
+        self->tid = (int)_syscall_raw(LINUX_SYS_set_tid_address, &self->tid);
     _pthread_count = 1;
     _pthread_zombies = NULL;
     _pthread_zombie_lock = init;

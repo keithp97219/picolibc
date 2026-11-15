@@ -334,8 +334,35 @@ void                           _pthread_fork_prepare(void);
 void                           _pthread_fork_parent(void);
 void                           _pthread_fork_child(void);
 
+/*
+ * Thread memory: anonymous mappings made directly, leaving errno
+ * alone. _pthread_map returns NULL on failure.
+ */
+static inline void *
+_pthread_map(size_t size)
+{
+    long ret;
+
+#ifdef LINUX_SYS_mmap2
+    ret = _syscall_raw(LINUX_SYS_mmap2, NULL, size, LINUX_PROT_READ | LINUX_PROT_WRITE,
+                       LINUX_MAP_PRIVATE | LINUX_MAP_ANONYMOUS, -1, 0);
+#else
+    ret = _syscall_raw(LINUX_SYS_mmap, NULL, size, LINUX_PROT_READ | LINUX_PROT_WRITE,
+                       LINUX_MAP_PRIVATE | LINUX_MAP_ANONYMOUS, -1, 0);
+#endif
+    if ((unsigned long)ret >= (unsigned long)-4095)
+        return NULL;
+    return (void *)ret;
+}
+
+static inline void
+_pthread_unmap(void *addr, size_t size)
+{
+    (void)_syscall_raw(LINUX_SYS_munmap, addr, size);
+}
+
 /* Queue an exiting detached thread to be unmapped once the kernel is done with it */
-void                           _pthread_zombie(struct __pthread *thread);
+void _pthread_zombie(struct __pthread *thread);
 
 /* Thread-specific data keys; seq is odd while the key is in use */
 struct _pthread_key {

@@ -66,6 +66,10 @@ void _sigmask_from_linux(sigset_t *set, const __kernel_sigset_t *kset);
 #define LINUX_SI_TKILL   (-6)
 
 void _siginfo_from_linux(siginfo_t *info, const struct __kernel_siginfo *kinfo);
+
+/* Versions returning 0 or an errno value, leaving errno alone */
+int  _sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+int  _sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout, int *sig);
 #define __KERNEL_NSIG_BYTES (sizeof(__kernel_sigset_t))
 
 static inline void

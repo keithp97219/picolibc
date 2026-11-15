@@ -67,14 +67,14 @@ cancel_init(void)
     kact.sa_flags |= LINUX_SA_RESTORER;
     kact.sa_restorer = __sa_restore;
 #endif
-    (void)_syscall(LINUX_SYS_rt_sigaction, _PTHREAD_SIGCANCEL, &kact, NULL, __KERNEL_NSIG_BYTES);
+    (void)_syscall_raw(LINUX_SYS_rt_sigaction, _PTHREAD_SIGCANCEL, &kact, NULL,
+                       __KERNEL_NSIG_BYTES);
 }
 
 int
 pthread_cancel(pthread_t thread)
 {
     struct __pthread *self = _pthread_self();
-    int               save_errno = errno;
     int               tid;
 
     pthread_once(&cancel_once, cancel_init);
@@ -88,7 +88,6 @@ pthread_cancel(pthread_t thread)
     /* Interrupt the thread in case it is blocked; an exited thread needs nothing */
     tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
     if (tid)
-        (void)_syscall(LINUX_SYS_tgkill, getpid(), tid, _PTHREAD_SIGCANCEL);
-    errno = save_errno;
+        (void)_syscall_raw(LINUX_SYS_tgkill, getpid(), tid, _PTHREAD_SIGCANCEL);
     return 0;
 }

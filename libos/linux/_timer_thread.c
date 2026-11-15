@@ -73,11 +73,11 @@ timer_thread(void *arg)
 
     pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
     timer_signal_set(&set);
-    (void)_syscall(LINUX_SYS_rt_sigprocmask, LINUX_SIG_BLOCK, &set, NULL, __KERNEL_NSIG_BYTES);
+    (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_BLOCK, &set, NULL, __KERNEL_NSIG_BYTES);
     sem_post(&t->ready);
 
     for (;;) {
-        if (_syscall(LINUX_SYS_rt_sigtimedwait, &set, &info, NULL, __KERNEL_NSIG_BYTES) < 0)
+        if (_syscall_raw(LINUX_SYS_rt_sigtimedwait, &set, &info, NULL, __KERNEL_NSIG_BYTES) < 0)
             continue;
         if (__atomic_load_n(&t->deleted, __ATOMIC_ACQUIRE))
             break;
@@ -94,7 +94,6 @@ _timer_create_thread(int kclock, const struct sigevent *evp, timer_t *timerid)
     struct __kernel_sigevent kev;
     struct _timer_thread    *t;
     pthread_attr_t           attr;
-    int                      save_errno = errno;
     int                      ret;
 
     t = calloc(1, sizeof(*t));
@@ -123,12 +122,12 @@ _timer_create_thread(int kclock, const struct sigevent *evp, timer_t *timerid)
     kev.sigev_notify = LINUX_SIGEV_THREAD_ID;
     kev.sigev_signo = _TIMER_SIGNAL;
     kev.sigev_tid = t->thread->tid;
-    if (_syscall(LINUX_SYS_timer_create, kclock, &kev, &t->kid) < 0) {
-        ret = errno;
-        errno = save_errno;
+    ret = (int)_syscall_raw(LINUX_SYS_timer_create, kclock, &kev, &t->kid);
+    if (ret < 0) {
+        ret = _syscall_errno(ret);
         /* Tell the helper to exit; it frees the record */
         __atomic_store_n(&t->deleted, 1, __ATOMIC_RELEASE);
-        (void)_syscall(LINUX_SYS_tgkill, getpid(), t->thread->tid, _TIMER_SIGNAL);
+        (void)_syscall_raw(LINUX_SYS_tgkill, getpid(), t->thread->tid, _TIMER_SIGNAL);
         return ret;
     }
 
@@ -156,8 +155,8 @@ _timer_delete_thread(timer_t timerid)
     if (!t)
         return false;
 
-    (void)_syscall(LINUX_SYS_timer_delete, kid);
+    (void)_syscall_raw(LINUX_SYS_timer_delete, kid);
     __atomic_store_n(&t->deleted, 1, __ATOMIC_RELEASE);
-    (void)_syscall(LINUX_SYS_tgkill, getpid(), t->thread->tid, _TIMER_SIGNAL);
+    (void)_syscall_raw(LINUX_SYS_tgkill, getpid(), t->thread->tid, _TIMER_SIGNAL);
     return true;
 }

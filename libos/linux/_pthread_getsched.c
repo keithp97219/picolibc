@@ -41,19 +41,18 @@ int
 _pthread_getsched(int tid, int *policy, int *priority)
 {
     struct __kernel_sched_param kparam;
-    int                         save_errno = errno;
     long                        lpolicy;
     int                         ret = 0;
 
     if (tid == 0)
         return ESRCH;
-    lpolicy = _syscall(LINUX_SYS_sched_getscheduler, tid);
-    if (lpolicy < 0 || _syscall(LINUX_SYS_sched_getparam, tid, &kparam) < 0) {
-        ret = errno;
-    } else {
-        *policy = _sched_policy_from_linux((int)lpolicy);
-        *priority = kparam.sched_priority;
-    }
-    errno = save_errno;
+    lpolicy = _syscall_raw(LINUX_SYS_sched_getscheduler, tid);
+    if (lpolicy < 0)
+        return _syscall_errno(lpolicy);
+    ret = (int)_syscall_raw(LINUX_SYS_sched_getparam, tid, &kparam);
+    if (ret < 0)
+        return _syscall_errno(ret);
+    *policy = _sched_policy_from_linux((int)lpolicy);
+    *priority = kparam.sched_priority;
     return ret;
 }

@@ -39,11 +39,5 @@
 int
 pthread_sigmask(int how, const sigset_t * __restrict set, sigset_t * __restrict oset)
 {
-    int save_errno = errno;
-    int ret = 0;
-
-    if (sigprocmask(how, set, oset) < 0)
-        ret = errno;
-    errno = save_errno;
-    return ret;
+    return _sigprocmask(how, set, oset);
 }

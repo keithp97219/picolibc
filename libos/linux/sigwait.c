@@ -38,19 +38,11 @@
 int
 sigwait(const sigset_t *set, int *sig)
 {
-    int save_errno = errno;
     int ret;
 
     /* sigwait reports errors in its return value and never EINTR */
     do
-        ret = sigtimedwait(set, NULL, NULL);
-    while (ret < 0 && errno == EINTR);
-    if (ret < 0) {
-        ret = errno;
-        errno = save_errno;
-        return ret;
-    }
-    errno = save_errno;
-    *sig = ret;
-    return 0;
+        ret = _sigtimedwait(set, NULL, NULL, sig);
+    while (ret == EINTR);
+    return ret;
 }

@@ -40,10 +40,8 @@ void
 _futex_unlock_pi(unsigned int *addr, bool pshared)
 {
     int op = LINUX_FUTEX_UNLOCK_PI;
-    int save_errno = errno;
 
     if (!pshared)
         op |= LINUX_FUTEX_PRIVATE_FLAG;
-    (void)_syscall(LINUX_SYS_futex, addr, op);
-    errno = save_errno;
+    (void)_syscall_raw(LINUX_SYS_futex, addr, op);
 }

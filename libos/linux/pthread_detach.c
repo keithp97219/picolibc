@@ -35,7 +35,6 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
-#include <sys/mman.h>
 
 int
 pthread_detach(pthread_t thread)
@@ -51,6 +50,6 @@ pthread_detach(pthread_t thread)
     /* The thread is already exiting as a joinable thread; clean it up now */
     _pthread_wait_exit(thread);
     if (thread->map)
-        munmap(thread->map, thread->map_size);
+        _pthread_unmap(thread->map, thread->map_size);
     return 0;
 }
