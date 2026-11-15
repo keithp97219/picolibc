@@ -85,6 +85,7 @@ if has_os_posix
     'test-select',
     'test-pread',
     'test-sysinfo',
+    'test-timer',
     'test-popen',
     'test-poll',
     'test-realpath',
@@ -125,6 +126,7 @@ if posix_threads
     'test-pthread-prio',
     'test-pthread-sched',
     'test-semaphore',
+    'test-timer-thread',
   ]
   tests += pthread_tests
   test_skip_lock_valid += pthread_tests
