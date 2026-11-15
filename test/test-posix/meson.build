@@ -126,7 +126,6 @@ if posix_threads
   test_skip_lock_valid += pthread_tests
 endif
 
-native_thread_dep = dependency('threads', required: false)
 
 test_extra_libs = {}
 
