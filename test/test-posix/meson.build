@@ -100,6 +100,25 @@ if oslib_test_variant == 'linux'
   test_skip += ['test-ftrunc']
 endif
 
+# Thread tests use the library's own locks, not lock-valid.c
+test_skip_lock_valid = []
+
+if posix_threads
+  pthread_tests = [
+    'test-pthread',
+    'test-pthread-cond',
+    'test-pthread-exit',
+    'test-pthread-exit-thread',
+    'test-pthread-mutex',
+    'test-pthread-once-key',
+    'test-pthread-signal',
+  ]
+  tests += pthread_tests
+  test_skip_lock_valid += pthread_tests
+endif
+
+native_thread_dep = dependency('threads', required: false)
+
 test_extra_libs = {}
 
 args_test_posix = []
@@ -148,7 +167,7 @@ foreach params : targets
     t1_src = t1 + '.c'
     test_file_name_arg=['-DTEST_FILE_NAME="' + t1 + target + '.txt"']
 
-    if test_extra_libs.has_key(t1)
+    if test_extra_libs.has_key(t1) or t1 in test_skip_lock_valid
       lock_source = []
     else
       lock_source = test_lock_valid
@@ -216,7 +235,7 @@ if enable_native_tests
 	 executable(t1_name, t1_src,
 		    c_args: native_c_args + test_file_name_arg + ctype_c_args + args_test_posix,
 		    link_args: native_c_args,
-                    dependencies: native_lib_m),
+                    dependencies: [native_lib_m, native_thread_dep]),
          suite: 'test-linux',
          env: test_env
         )
