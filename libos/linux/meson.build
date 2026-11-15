@@ -121,6 +121,7 @@ if fs.is_dir(machine_dir)
     'rewinddir.c',
     'rmdir.c',
     'sbrk.c',
+    'sched_yield.c',
     'setegid.c',
     'setgid.c',
     'setgroups.c',
