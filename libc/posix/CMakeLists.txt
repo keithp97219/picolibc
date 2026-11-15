@@ -36,6 +36,7 @@ picolibc_sources(
   basename.c
   creat.c
   collcmp.c
+  confstr.c
   dirname.c
   endgrent.c
   endpwent.c
@@ -56,6 +57,7 @@ picolibc_sources(
   getgrnam.c
   getgrnam_r.c
   getlogin.c
+  getlogin_r.c
   getpass.c
   getpwent.c
   getpwent_r.c
@@ -67,6 +69,8 @@ picolibc_sources(
   grfile.c
   pwdata.c
   pwfile.c
+  posix_close.c
+  readdir_r.c
   regcomp.c
   regerror.c
   regexec.c

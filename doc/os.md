@@ -97,6 +97,7 @@ Picolibc and which source files reference them.
 
  * int close(int fd)
 
+   + libc/posix/posix_close.c
    + libc/search/hash.c
    + libc/stdio/fdopen.c
    + libc/stdio/fopen.c
@@ -132,6 +133,11 @@ Picolibc and which source files reference them.
    + libc/stdio/freopen.c
    + libc/xdr/xdr_rec.c
 
+ * uid_t getuid(void)
+
+   + libc/posix/getlogin.c
+   + libc/posix/getlogin_r.c
+
  * int open(char *path, int flags, ...)
 
    + libc/search/hash.c
@@ -145,6 +151,10 @@ Picolibc and which source files reference them.
    + libc/search/hash_page.c
    + libc/stdio/fdopen.c
    + libc/stdio/freopen.c
+
+ * struct dirent *readdir(DIR *dirp)
+
+   + libc/posix/readdir_r.c
 
  * int sigprocmask(int how, sigset_t *set, sigset_t *oldset)
 
@@ -299,6 +309,33 @@ API.
 
 ```c
 clock_t times(struct tms *buf);
+```
+
+### posix_close
+
+`posix_close` uses `close`, reporting an interrupted close as
+EINPROGRESS, as close is expected to leave the descriptor closed.
+
+```c
+int close(int fd);
+```
+
+### getlogin, getlogin_r
+
+These look up the real user with picolibc's password database
+functions:
+
+```c
+uid_t getuid(void);
+```
+
+### readdir_r
+
+`readdir_r` copies the entry returned by `readdir`, which the OS
+provides along with `opendir` and `closedir`:
+
+```c
+struct dirent *readdir(DIR *dirp);
 ```
 
 ## Linking with System Library
