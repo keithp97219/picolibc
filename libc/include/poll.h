@@ -38,6 +38,13 @@
 
 #include <sys/cdefs.h>
 #include <sys/_types.h>
+#include <sys/_sigset.h>
+#include <sys/_timespec.h>
+
+#if !defined(_SIGSET_T_DECLARED)
+#define _SIGSET_T_DECLARED
+typedef __sigset_t sigset_t;
+#endif
 
 _BEGIN_STD_C
 
@@ -71,6 +78,9 @@ typedef __size_t nfds_t;
 #endif
 
 int poll(struct pollfd[], nfds_t, int);
+#if __POSIX_VISIBLE >= 202405 || __GNU_VISIBLE
+int ppoll(struct pollfd[], nfds_t, const struct timespec * __restrict, const sigset_t * __restrict);
+#endif
 
 _END_STD_C
 
