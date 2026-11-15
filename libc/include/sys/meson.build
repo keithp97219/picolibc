@@ -78,6 +78,7 @@ inc_sys_headers_all = [
   'types.h',
   'unistd.h',
   'utime.h',
+  'utsname.h',
   'wait.h',
   '_wait.h'
 ]

@@ -76,6 +76,7 @@ picolibc_headers(sys
   types.h
   unistd.h
   utime.h
+  utsname.h
   wait.h
   _wait.h
   )
