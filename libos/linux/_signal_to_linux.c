@@ -49,6 +49,8 @@ _signal_to_linux(int sig)
 
     if (sig == 0)
         return 0;
+    if (SIGRTMIN <= sig && sig <= SIGRTMAX)
+        return sig - SIGRTMIN + LINUX_SIGRTMIN_APP;
     if (sig < 0 || (unsigned)sig >= NUM_SIG)
         return -1;
     ksig = (int)__signal_picolibc_to_linux[sig];

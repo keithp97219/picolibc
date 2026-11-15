@@ -44,6 +44,14 @@
 
 #include <signal.h>
 
+/*
+ * Linux real-time signals 32 and 33 are reserved for the library
+ * (cancellation and SIGEV_THREAD timers); picolibc's SIGRTMIN..SIGRTMAX
+ * use 34..64.
+ */
+#define LINUX_SIGRTMIN_APP 34
+#define LINUX_SIGRTMAX     64
+
 int  _signal_to_linux(int sig);
 int  _signal_from_linux(int sig);
 void _sigmask_to_linux(__kernel_sigset_t *kset, const sigset_t *set);

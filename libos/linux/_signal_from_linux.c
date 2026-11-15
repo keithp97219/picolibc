@@ -41,6 +41,8 @@
 int
 _signal_from_linux(int sig)
 {
+    if (LINUX_SIGRTMIN_APP <= sig && sig <= LINUX_SIGRTMAX)
+        return sig - LINUX_SIGRTMIN_APP + SIGRTMIN;
     if ((unsigned)sig < NUM_SIG)
         return (int)__signal_linux_to_picolibc[sig];
     return SIGINT;
