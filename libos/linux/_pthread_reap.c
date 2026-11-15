@@ -35,7 +35,6 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
-#include <sys/mman.h>
 
 void
 _pthread_reap(void)
@@ -49,7 +48,7 @@ _pthread_reap(void)
     while ((thread = *prev) != NULL) {
         if (__atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE) == 0) {
             *prev = thread->zombie_next;
-            munmap(thread->map, thread->map_size);
+            _pthread_unmap(thread->map, thread->map_size);
         } else {
             prev = &thread->zombie_next;
         }

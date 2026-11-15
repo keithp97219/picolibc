@@ -65,7 +65,6 @@ _futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock, const struct t
     struct __kernel_futex_timespec kts, *pkts = NULL;
     struct timespec                rt;
     int                            op = LINUX_FUTEX_LOCK_PI;
-    int                            save_errno = errno;
     int                            ret;
 
     if (abstime) {
@@ -82,11 +81,10 @@ _futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock, const struct t
         op |= LINUX_FUTEX_PRIVATE_FLAG;
 
     for (;;) {
-        if (_syscall(LINUX_SYS_futex_time_t, addr, op, 0, pkts, NULL, 0) == 0) {
-            ret = 0;
+        ret = (int)_syscall_raw(LINUX_SYS_futex_time_t, addr, op, 0, pkts, NULL, 0);
+        if (ret == 0)
             break;
-        }
-        ret = errno;
+        ret = _syscall_errno(ret);
         if (ret == ENOSYS && (op & ~LINUX_FUTEX_PRIVATE_FLAG) == LINUX_FUTEX_LOCK_PI2) {
             monotonic_to_realtime(&rt, abstime);
             ret = _futex_timespec(&kts, &rt);
@@ -99,6 +97,5 @@ _futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock, const struct t
         if (ret != EAGAIN && ret != EINTR)
             break;
     }
-    errno = save_errno;
     return ret;
 }

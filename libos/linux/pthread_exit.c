@@ -58,5 +58,5 @@ pthread_exit(void *value_ptr)
 
     /* Exit just this thread; the kernel clears and wakes self->tid */
     for (;;)
-        _syscall(LINUX_SYS_exit, 0);
+        _syscall_raw(LINUX_SYS_exit, 0);
 }

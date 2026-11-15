@@ -40,10 +40,8 @@ void
 _futex_wake(unsigned int *addr, int count, bool pshared)
 {
     int op = LINUX_FUTEX_WAKE;
-    int save_errno = errno;
 
     if (!pshared)
         op |= LINUX_FUTEX_PRIVATE_FLAG;
-    (void)_syscall(LINUX_SYS_futex, addr, op, count);
-    errno = save_errno;
+    (void)_syscall_raw(LINUX_SYS_futex, addr, op, count);
 }

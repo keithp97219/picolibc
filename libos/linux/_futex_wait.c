@@ -46,7 +46,6 @@ _futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t clock,
 {
     struct __kernel_futex_timespec kts, *pkts = NULL;
     int                            op;
-    int                            save_errno;
     int                            ret;
 
     op = pshared ? 0 : LINUX_FUTEX_PRIVATE_FLAG;
@@ -64,11 +63,9 @@ _futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t clock,
         op |= LINUX_FUTEX_WAIT;
     }
 
-    save_errno = errno;
-    ret = 0;
-    if (_syscall(LINUX_SYS_futex_time_t, addr, op, val, pkts, NULL, LINUX_FUTEX_BITSET_MATCH_ANY)
-        < 0)
-        ret = errno;
-    errno = save_errno;
-    return ret;
+    ret = (int)_syscall_raw(LINUX_SYS_futex_time_t, addr, op, val, pkts, NULL,
+                            LINUX_FUTEX_BITSET_MATCH_ANY);
+    if (ret < 0)
+        return _syscall_errno(ret);
+    return 0;
 }

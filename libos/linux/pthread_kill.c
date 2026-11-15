@@ -39,7 +39,6 @@
 int
 pthread_kill(pthread_t thread, int sig)
 {
-    int save_errno = errno;
     int tid;
     int ret = 0;
 
@@ -48,8 +47,8 @@ pthread_kill(pthread_t thread, int sig)
     tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
     if (tid == 0)
         return ESRCH;
-    if (_syscall(LINUX_SYS_tgkill, getpid(), tid, sig ? _signal_to_linux(sig) : 0) < 0)
-        ret = errno;
-    errno = save_errno;
+    ret = (int)_syscall_raw(LINUX_SYS_tgkill, getpid(), tid, _signal_to_linux(sig));
+    if (ret < 0)
+        ret = _syscall_errno(ret);
     return ret;
 }

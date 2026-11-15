@@ -39,7 +39,6 @@
 #include <stdalign.h>
 #include <stddef.h>
 #include <string.h>
-#include <sys/mman.h>
 
 #define LINUX_CLONE_PTHREAD                                                                      \
     (LINUX_CLONE_VM | LINUX_CLONE_FS | LINUX_CLONE_FILES | LINUX_CLONE_SIGHAND                   \
@@ -66,11 +65,11 @@ pthread_start(void *arg)
     if (self->start_error) {
         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
         for (;;)
-            _syscall(LINUX_SYS_exit, 0);
+            _syscall_raw(LINUX_SYS_exit, 0);
     }
 
-    (void)_syscall(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &self->sigmask, NULL,
-                   __KERNEL_NSIG_BYTES);
+    (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &self->sigmask, NULL,
+                       __KERNEL_NSIG_BYTES);
     pthread_exit(self->start(self->arg));
 }
 
@@ -94,7 +93,6 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
     void             *tls_arg;
     char              tls_arg_space[__PTHREAD_TLS_ARG_SIZE] __aligned(sizeof(void *));
     __kernel_sigset_t all, old;
-    int               save_errno = errno;
     long              ret;
 
     if (!attr) {
@@ -120,14 +118,12 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
     }
     map_size = round_up(guard_size + stack_size + tls_size + desc_size + align, PTHREAD_PAGE_SIZE);
 
-    map = mmap(NULL, map_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (map == MAP_FAILED) {
-        errno = save_errno;
+    map = _pthread_map(map_size);
+    if (!map)
         return EAGAIN;
-    }
     /* The guard region is best effort */
     if (guard_size)
-        (void)mprotect(map, guard_size, PROT_NONE);
+        (void)_syscall_raw(LINUX_SYS_mprotect, map, guard_size, LINUX_PROT_NONE);
 
     top = (uintptr_t)map + map_size;
     t = (struct __pthread *)round_down(top - desc_size, align);
@@ -160,19 +156,20 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
      * it restores the creator's mask.
      */
     memset(&all, 0xff, sizeof(all));
-    (void)_syscall(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &all, &old, __KERNEL_NSIG_BYTES);
+    (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &all, &old,
+                       __KERNEL_NSIG_BYTES);
     t->sigmask = old;
 
     *thread = t;
     __atomic_fetch_add(&_pthread_count, 1, __ATOMIC_RELAXED);
     ret = _linux_clone(LINUX_CLONE_PTHREAD, sp, &t->tid, &t->tid, tls_arg);
 
-    (void)_syscall(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &old, NULL, __KERNEL_NSIG_BYTES);
+    (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &old, NULL,
+                       __KERNEL_NSIG_BYTES);
 
     if (ret < 0) {
         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
-        munmap(map, map_size);
-        errno = save_errno;
+        _pthread_unmap(map, map_size);
         return EAGAIN;
     }
 
@@ -185,11 +182,9 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
         if (sched_ret) {
             /* The thread exits without running; reclaim it */
             _pthread_wait_exit(t);
-            munmap(map, map_size);
-            errno = save_errno;
+            _pthread_unmap(map, map_size);
             return sched_ret;
         }
     }
-    errno = save_errno;
     return 0;
 }

@@ -42,15 +42,14 @@ _pthread_setsched(int tid, int policy, int priority)
 {
     struct __kernel_sched_param kparam = { .sched_priority = priority };
     int                         lpolicy = _sched_policy_to_linux(policy);
-    int                         save_errno = errno;
     int                         ret = 0;
 
     if (lpolicy < 0)
         return EINVAL;
     if (tid == 0)
         return ESRCH;
-    if (_syscall(LINUX_SYS_sched_setscheduler, tid, lpolicy, &kparam) < 0)
-        ret = errno;
-    errno = save_errno;
+    ret = (int)_syscall_raw(LINUX_SYS_sched_setscheduler, tid, lpolicy, &kparam);
+    if (ret < 0)
+        ret = _syscall_errno(ret);
     return ret;
 }

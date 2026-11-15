@@ -34,52 +34,16 @@
  */
 
 #include "local-sigaction.h"
-#include "local-time.h"
-#include "local-cancel.h"
-#include <stdint.h>
-
-/* Use the 64-bit time call where the kernel has one */
-#ifdef LINUX_SYS_rt_sigtimedwait_time64
-#define LINUX_SYS_rt_sigtimedwait_time_t LINUX_SYS_rt_sigtimedwait_time64
-struct __kernel_sigtimedwait_timespec {
-    __int64_t tv_sec;
-    __int64_t tv_nsec;
-};
-#else
-#define LINUX_SYS_rt_sigtimedwait_time_t LINUX_SYS_rt_sigtimedwait
-#define __kernel_sigtimedwait_timespec   __kernel_timespec
-#endif
 
 int
 sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout)
 {
-    __kernel_sigset_t                     kset;
-    struct __kernel_siginfo               kinfo;
-    struct __kernel_sigtimedwait_timespec kts, *pkts = NULL;
-    void                                 *cancel;
-    long                                  ret;
+    int sig;
+    int ret = _sigtimedwait(set, info, timeout, &sig);
 
-    if (timeout) {
-        if (timeout->tv_nsec < 0 || timeout->tv_nsec >= 1000000000L) {
-            errno = EINVAL;
-            return -1;
-        }
-        /* Clamp to the end of 32-bit time on kernels without 64-bit time */
-        if (sizeof(kts.tv_sec) == 4 && timeout->tv_sec > INT32_MAX)
-            kts.tv_sec = INT32_MAX;
-        else
-            kts.tv_sec = timeout->tv_sec;
-        kts.tv_nsec = timeout->tv_nsec;
-        pkts = &kts;
-    }
-    _sigmask_to_linux(&kset, set);
-
-    cancel = _cancel_enter();
-    ret = _syscall(LINUX_SYS_rt_sigtimedwait_time_t, &kset, &kinfo, pkts, __KERNEL_NSIG_BYTES);
-    _cancel_leave(cancel);
-    if (ret < 0)
+    if (ret) {
+        errno = ret;
         return -1;
-    if (info)
-        _siginfo_from_linux(info, &kinfo);
-    return _signal_from_linux((int)ret);
+    }
+    return sig;
 }

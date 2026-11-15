@@ -38,33 +38,11 @@
 int
 sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 {
-    __kernel_sigset_t kset = {}, *pset = NULL, koldset, *poldset = NULL;
-    int               ret;
+    int ret = _sigprocmask(how, set, oldset);
 
-    switch (how) {
-    case SIG_BLOCK:
-        how = LINUX_SIG_BLOCK;
-        break;
-    case SIG_UNBLOCK:
-        how = LINUX_SIG_UNBLOCK;
-        break;
-    case SIG_SETMASK:
-        how = LINUX_SIG_SETMASK;
-        break;
-    default:
-        errno = EINVAL;
+    if (ret) {
+        errno = ret;
         return -1;
     }
-    if (set) {
-        _sigmask_to_linux(&kset, set);
-        pset = &kset;
-    }
-    if (oldset)
-        poldset = &koldset;
-    ret = _syscall(LINUX_SYS_rt_sigprocmask, how, pset, poldset, __KERNEL_NSIG_BYTES);
-    if (ret < 0)
-        return ret;
-    if (oldset)
-        _sigmask_from_linux(oldset, &koldset);
-    return ret;
+    return 0;
 }
