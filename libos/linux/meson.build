@@ -131,6 +131,8 @@ if fs.is_dir(machine_dir)
     'setpgid.c',
     'setrlimit.c',
     'setuid.c',
+    'shm_open.c',
+    'shm_unlink.c',
     'sigaction.c',
     'signal.c',
     '_sigmask_from_linux.c',
