@@ -72,10 +72,38 @@ _cancel_leave(struct __pthread *self)
         __atomic_sub_fetch(&self->cancel_point, 1, __ATOMIC_SEQ_CST);
 }
 
+/*
+ * Library functions which aren't cancellation points themselves but
+ * call ones which are hold cancellation off around those calls.
+ */
+static inline int
+_cancel_disable(void)
+{
+    struct __pthread *self = _pthread_current;
+    int               old;
+
+    if (!self)
+        return PTHREAD_CANCEL_ENABLE;
+    old = self->cancel_state;
+    self->cancel_state = PTHREAD_CANCEL_DISABLE;
+    return old;
+}
+
+static inline void
+_cancel_restore(int old)
+{
+    struct __pthread *self = _pthread_current;
+
+    if (self)
+        self->cancel_state = old;
+}
+
 #else
 
-#define _cancel_enter()     ((void *)0)
-#define _cancel_leave(self) ((void)(self))
+#define _cancel_disable()    0
+#define _cancel_restore(old) ((void)(old))
+#define _cancel_enter()      ((void *)0)
+#define _cancel_leave(self)  ((void)(self))
 
 #endif
 

@@ -36,6 +36,7 @@
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
 #include "local-shm.h"
+#include "local-cancel.h"
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -140,8 +141,10 @@ sem_open(const char *name, int oflag, ...)
     char     path[_SHM_PATH_MAX];
     mode_t   mode = 0;
     unsigned value = 0;
+    sem_t   *sem;
     int      fd;
     int      ret;
+    int      cancel;
 
     if (oflag & O_CREAT) {
         va_list ap;
@@ -162,20 +165,28 @@ sem_open(const char *name, int oflag, ...)
         return SEM_FAILED;
     }
 
+    /* sem_open is not a cancellation point, though open, write and close are */
+    cancel = _cancel_disable();
     for (;;) {
         if ((oflag & (O_CREAT | O_EXCL)) != (O_CREAT | O_EXCL)) {
             fd = open(path, O_RDWR | O_NOFOLLOW | O_CLOEXEC);
             if (fd >= 0)
                 break;
-            if (errno != ENOENT || !(oflag & O_CREAT))
+            if (errno != ENOENT || !(oflag & O_CREAT)) {
+                _cancel_restore(cancel);
                 return SEM_FAILED;
+            }
         }
         fd = sem_create(path, mode, value);
         if (fd >= 0)
             break;
         /* Lost a race with another creator; open theirs unless O_EXCL */
-        if (errno != EEXIST || (oflag & O_EXCL))
+        if (errno != EEXIST || (oflag & O_EXCL)) {
+            _cancel_restore(cancel);
             return SEM_FAILED;
+        }
     }
-    return sem_map(fd);
+    sem = sem_map(fd);
+    _cancel_restore(cancel);
+    return sem;
 }
