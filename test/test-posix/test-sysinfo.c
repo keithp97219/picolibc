@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/utsname.h>
 #include <unistd.h>
 
 /* Allow testing readdir_r, which other C libraries mark deprecated */
@@ -54,7 +55,7 @@
 #define TEST_FILE_NAME "SYSINFO.DIR"
 #endif
 
-/* confstr, secure_getenv, getlogin_r, readdir_r and posix_close */
+/* uname, confstr, secure_getenv, getlogin_r, readdir_r and posix_close */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -67,12 +68,16 @@
 int
 main(void)
 {
-    char          buf[256];
-    size_t        len;
-    int           ret;
-    DIR          *dir;
-    struct dirent entry, *result;
-    int           seen = 0;
+    struct utsname name;
+    char           buf[256];
+    size_t         len;
+    int            ret;
+    DIR           *dir;
+    struct dirent  entry, *result;
+    int            seen = 0;
+
+    check(uname(&name) == 0, "uname");
+    check(name.sysname[0] && name.release[0] && name.machine[0], "uname fields");
 
     len = confstr(_CS_PATH, NULL, 0);
     check(len > 1, "confstr length");
