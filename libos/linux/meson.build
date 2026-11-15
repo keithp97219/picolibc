@@ -176,6 +176,7 @@ if fs.is_dir(machine_dir)
     'ttyname.c',
     'ttyname_r.c',
     'umask.c',
+    'uname.c',
     'unlink.c',
     'vfork.c',
     'wait3.c',
