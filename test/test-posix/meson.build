@@ -82,6 +82,7 @@ if has_os_posix
     'test-mmap',
     'test-pclose',
     'test-sbrk-blocked',
+    'test-rtsig',
     'test-select',
     'test-pread',
     'test-sysinfo',
