@@ -39,6 +39,7 @@
 #include "local-sigaction.h"
 #include "local-time.h"
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdbool.h>
 #include <limits.h>
 #include <stdint.h>
@@ -220,6 +221,25 @@ _pthread_rwlock_try(pthread_rwlock_t *rwlock, bool write, int tid)
 
 int _pthread_rwlock_lock_timed(pthread_rwlock_t *rwlock, bool write, clockid_t clock,
                                const struct timespec *abstime);
+
+/*
+ * Semaphores: waiters register in __waiters and sleep on __value while
+ * it is zero; sem_post wakes one when there are waiters. Returns 0 or
+ * an errno value.
+ */
+int _sem_wait_timed(sem_t *sem, clockid_t clock, const struct timespec *abstime);
+
+/* Named semaphores mapped by this process */
+struct _sem_named {
+    struct _sem_named *next;
+    sem_t             *sem;
+    __dev_t            dev;
+    __ino_t            ino;
+    unsigned int       refs;
+};
+
+extern pthread_mutex_t    _sem_named_lock;
+extern struct _sem_named *_sem_named;
 
 /* Queue an exiting detached thread to be unmapped once the kernel is done with it */
 void                      _pthread_zombie(struct __pthread *thread);

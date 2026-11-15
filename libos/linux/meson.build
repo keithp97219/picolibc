@@ -260,6 +260,19 @@ if fs.is_dir(machine_dir)
       '_pthread_wait_exit.c',
       '_pthread_zombie.c',
       '_pthread_zombies.c',
+      'sem_clockwait.c',
+      'sem_close.c',
+      'sem_destroy.c',
+      'sem_getvalue.c',
+      'sem_init.c',
+      '_sem_named.c',
+      'sem_open.c',
+      'sem_post.c',
+      'sem_timedwait.c',
+      'sem_trywait.c',
+      'sem_unlink.c',
+      'sem_wait.c',
+      '_sem_wait_timed.c',
     ]
   endif
 

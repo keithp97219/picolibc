@@ -49,6 +49,7 @@
 #define __PTHREAD_DESTRUCTOR_ITERATIONS 4
 #define __PTHREAD_KEYS_MAX              128
 #define __PTHREAD_STACK_MIN             16384
+#define __SEM_VALUE_MAX                 0x7fffffff
 
 struct __pthread;
 
