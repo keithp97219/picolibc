@@ -89,6 +89,31 @@ typedef struct {
     int         __pshared;
 } pthread_condattr_t;
 
+typedef struct {
+    unsigned int __state; /* number of readers, or UINT_MAX when write locked */
+    unsigned int __seq;   /* advanced when the lock is released with waiters */
+    unsigned int __waiters;
+    int          __writer; /* thread id of the writer */
+    int          __pshared;
+} pthread_rwlock_t;
+
+typedef struct {
+    int __pshared;
+} pthread_rwlockattr_t;
+
+typedef struct {
+    unsigned int __count;
+    unsigned int __waiting;
+    unsigned int __seq; /* advanced as each group of threads leaves */
+    int          __pshared;
+} pthread_barrier_t;
+
+typedef struct {
+    int __pshared;
+} pthread_barrierattr_t;
+
+typedef volatile int pthread_spinlock_t;
+
 typedef int          pthread_once_t;
 
 typedef unsigned int pthread_key_t;
