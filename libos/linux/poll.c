@@ -35,111 +35,27 @@
 
 #include "local-time.h"
 #include "local-cancel.h"
+#include "local-poll.h"
 #include <poll.h>
 #include <stdint.h>
-
-static inline short
-picolibc_to_linux(short e)
-{
-    short r = 0;
-    if (e & POLLIN)
-        r |= LINUX_POLLIN;
-    if (e & POLLPRI)
-        r |= LINUX_POLLPRI;
-    if (e & POLLOUT)
-        r |= LINUX_POLLOUT;
-
-    if (e & POLLERR)
-        r |= LINUX_POLLERR;
-    if (e & POLLHUP)
-        r |= LINUX_POLLHUP;
-    if (e & POLLNVAL)
-        r |= LINUX_POLLNVAL;
-
-    if (e & POLLRDNORM)
-        r |= LINUX_POLLRDNORM;
-    if (e & POLLRDBAND)
-        r |= LINUX_POLLRDBAND;
-    if (e & POLLWRNORM)
-        r |= LINUX_POLLWRNORM;
-    if (e & POLLWRBAND)
-        r |= LINUX_POLLWRBAND;
-
-    if (e & POLLMSG)
-        r |= LINUX_POLLMSG;
-    if (e & POLLREMOVE)
-        r |= LINUX_POLLREMOVE;
-    if (e & POLLRDHUP)
-        r |= LINUX_POLLRDHUP;
-
-    return r;
-}
-
-static inline short
-linux_to_picolibc(short e)
-{
-    short r = 0;
-    if (e & LINUX_POLLIN)
-        r |= POLLIN;
-    if (e & LINUX_POLLPRI)
-        r |= POLLPRI;
-    if (e & LINUX_POLLOUT)
-        r |= POLLOUT;
-
-    if (e & LINUX_POLLERR)
-        r |= POLLERR;
-    if (e & LINUX_POLLHUP)
-        r |= POLLHUP;
-    if (e & LINUX_POLLNVAL)
-        r |= POLLNVAL;
-
-    if (e & LINUX_POLLRDNORM)
-        r |= POLLRDNORM;
-    if (e & LINUX_POLLRDBAND)
-        r |= POLLRDBAND;
-    if (e & LINUX_POLLWRNORM)
-        r |= POLLWRNORM;
-    if (e & LINUX_POLLWRBAND)
-        r |= POLLWRBAND;
-
-    if (e & LINUX_POLLMSG)
-        r |= POLLMSG;
-    if (e & LINUX_POLLREMOVE)
-        r |= POLLREMOVE;
-    if (e & LINUX_POLLRDHUP)
-        r |= POLLRDHUP;
-
-    return r;
-}
 
 int
 poll(struct pollfd *fds, nfds_t nfds, int timeout)
 {
-    nfds_t n;
-    int    ret;
-    void  *cancel;
+    void *cancel;
+    int   ret;
 
-    /* map from picolibc to linux */
-    for (n = 0; n < nfds; n++)
-        fds[n].events = picolibc_to_linux(fds[n].events);
-
-#ifdef LINUX_SYS_poll
+    _poll_fds_to_linux(fds, nfds);
     cancel = _cancel_enter();
+#ifdef LINUX_SYS_poll
     ret = _syscall(LINUX_SYS_poll, fds, nfds, timeout);
-    _cancel_leave(cancel);
 #else
     /* A negative timeout waits forever */
     struct __kernel_timespec tmo
         = { .tv_sec = timeout / 1000, .tv_nsec = ((uint64_t)timeout % 1000) * 1000000UL };
-    cancel = _cancel_enter();
     ret = _syscall(LINUX_SYS_ppoll, fds, nfds, timeout < 0 ? NULL : &tmo, NULL, 0);
-    _cancel_leave(cancel);
 #endif
-
-    /* revert the events changes, and map the results of every entry */
-    for (n = 0; n < nfds; n++) {
-        fds[n].events = linux_to_picolibc(fds[n].events);
-        fds[n].revents = linux_to_picolibc(fds[n].revents);
-    }
+    _cancel_leave(cancel);
+    _poll_fds_from_linux(fds, nfds);
     return ret;
 }
