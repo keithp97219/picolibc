@@ -245,6 +245,8 @@ option('malloc-small-bucket', type: 'integer', value: 0,
 
 option('single-thread', type: 'boolean', value: false,
        description: 'disable support for multiple threads')
+option('posix-threads', type: 'combo', choices: ['auto', 'true', 'false'], value: 'auto',
+       description: 'Provide POSIX threads and install pthread.h. "auto" enables them for the linux OS layer on machines with thread support')
 
 #
 # Dynamic loading (libdl) options
