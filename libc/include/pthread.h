@@ -249,6 +249,9 @@ int   pthread_spin_lock(pthread_spinlock_t *) __picolibc_export;
 int   pthread_spin_trylock(pthread_spinlock_t *) __picolibc_export;
 int   pthread_spin_unlock(pthread_spinlock_t *) __picolibc_export;
 
+/* Fork handlers */
+int   pthread_atfork(void (*)(void), void (*)(void), void (*)(void)) __picolibc_export;
+
 /* Dynamic package initialization */
 int   pthread_once(pthread_once_t *, void (*)(void)) __picolibc_export;
 

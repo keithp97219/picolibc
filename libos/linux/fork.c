@@ -33,7 +33,11 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <picolibc.h>
 #include "local-sigaction.h"
+#ifdef __PICOLIBC_PTHREADS
+#include "local-pthread.h"
+#endif
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -43,12 +47,24 @@ static bool forked;
 pid_t
 fork(void)
 {
+    pid_t ret;
+
     forked = true;
-#ifdef LINUX_SYS_fork
-    return _syscall(LINUX_SYS_fork);
-#else
-    return _syscall(LINUX_SYS_clone, __LINUX_SIGCHLD, 0, 0, 0, 0);
+#ifdef __PICOLIBC_PTHREADS
+    _pthread_fork_prepare();
 #endif
+#ifdef LINUX_SYS_fork
+    ret = _syscall(LINUX_SYS_fork);
+#else
+    ret = _syscall(LINUX_SYS_clone, __LINUX_SIGCHLD, 0, 0, 0, 0);
+#endif
+#ifdef __PICOLIBC_PTHREADS
+    if (ret == 0)
+        _pthread_fork_child();
+    else
+        _pthread_fork_parent();
+#endif
+    return ret;
 }
 
 int

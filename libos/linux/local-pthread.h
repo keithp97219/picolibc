@@ -318,8 +318,24 @@ __noreturn void _pthread_cancel_act(struct __pthread *self);
 /* Run the calling thread's cleanup handlers */
 void            _pthread_cleanup_exit(struct __pthread *self);
 
+/* Fork handlers registered with pthread_atfork */
+struct _pthread_atfork {
+    void (*prepare)(void);
+    void (*parent)(void);
+    void (*child)(void);
+};
+
+extern pthread_mutex_t         _pthread_atfork_lock;
+extern struct _pthread_atfork *_pthread_atfork;
+extern size_t                  _pthread_atfork_count;
+
+/* Called by fork around the system call */
+void                           _pthread_fork_prepare(void);
+void                           _pthread_fork_parent(void);
+void                           _pthread_fork_child(void);
+
 /* Queue an exiting detached thread to be unmapped once the kernel is done with it */
-void            _pthread_zombie(struct __pthread *thread);
+void                           _pthread_zombie(struct __pthread *thread);
 
 /* Thread-specific data keys; seq is odd while the key is in use */
 struct _pthread_key {
