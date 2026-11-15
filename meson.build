@@ -1583,7 +1583,21 @@ conf_data.set('__STRCMP_PAIR', strcmp_pair, description: 'Use RISC-V paired-word
 conf_data.set('__GLOBAL_ERRNO', get_option('newlib-global-errno'), description: 'use global errno variable')
 conf_data.set('__INIT_FINI_ARRAY', get_option('initfini-array'), description: 'Support INIT_ARRAY linker sections')
 conf_data.set('__INIT_FINI_FUNCS', get_option('initfini'), description: 'Support _init() and _fini() functions')
+# POSIX threads are implemented by an OS layer; libos/linux supports
+# them on these machines
+posix_threads_linux_machines = ['x86']
+posix_threads_possible = thread_local_storage and not get_option('single-thread')
+if get_option('posix-threads') == 'auto'
+  posix_threads = (posix_threads_possible and get_option('os-linux')
+                   and host_cpu_family in posix_threads_linux_machines)
+else
+  posix_threads = get_option('posix-threads') == 'true'
+  if posix_threads and not posix_threads_possible
+    error('posix-threads requires thread local storage and multi-thread support')
+  endif
+endif
 conf_data.set('__THREAD_LOCAL_STORAGE', thread_local_storage, description: 'use thread local storage')
+conf_data.set('__PICOLIBC_PTHREADS', posix_threads, description: 'POSIX threads are available')
 conf_data.set('__THREAD_LOCAL_STORAGE_API', thread_local_storage and have_picolibc_tls_api, description: '_set_tls and _init_tls functions available')
 conf_data.set('__THREAD_LOCAL_STORAGE_RP2040', get_option('tls-rp2040'),
               description: 'Use Raspberry Pi RP2040 CPUID register to index thread local storage value')

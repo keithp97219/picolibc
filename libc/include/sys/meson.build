@@ -83,6 +83,10 @@ inc_sys_headers_all = [
   '_wait.h'
 ]
 
+if posix_threads
+  inc_sys_headers_all += ['_pthreadtypes.h']
+endif
+
 inc_sys_headers = []
 foreach file : inc_sys_headers_all
   if file in inc_sys_headers_machine

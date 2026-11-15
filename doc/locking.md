@@ -33,11 +33,16 @@ avoiding the need for locking:
 
 ## Configuration options controlling locking
 
-There is only one configuration option related to locking:
+There are two configuration options related to locking:
 
  * single-thread. When 'true', all locking operations are elided from
    the library. Re-entrant usage of the library will result in
    undefined behavior.
+
+ * posix-threads. When enabled, the OS layer provides POSIX threads
+   and implements the retargetable locking API below with POSIX
+   thread mutexes, replacing the stubs. libos/linux supports this on
+   x86, where 'auto' turns it on.
 
 Atomics will still be used as defined above, so disabling locking
 will still allow safe re-entrancy for those parts of the library.

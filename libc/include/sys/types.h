@@ -249,6 +249,15 @@ typedef __int64_t sbintime_t;
 #include <sys/features.h>
 #include <machine/types.h>
 
+/*
+ * POSIX thread types, when the C library or the OS provides them
+ */
+#if defined(__has_include)
+#if __has_include(<sys/_pthreadtypes.h>)
+#include <sys/_pthreadtypes.h>
+#endif
+#endif
+
 #endif /* !__need_inttypes */
 
 #undef __need_inttypes

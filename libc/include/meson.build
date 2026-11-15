@@ -114,6 +114,10 @@ endif
 
 inc_headers += ['picotls.h']
 
+if posix_threads
+  inc_headers += ['pthread.h']
+endif
+
 if enable_libdl
   inc_headers += ['dlfcn.h']
 endif

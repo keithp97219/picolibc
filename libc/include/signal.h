@@ -329,6 +329,13 @@ int sigpending(sigset_t *) __picolibc_export;
 int sigprocmask(int, const sigset_t *, sigset_t *) __picolibc_export;
 int __fallback_sigprocmask(int, const sigset_t *, sigset_t *) __picolibc_export;
 #endif
+#if __POSIX_VISIBLE >= 199506L && defined(__has_include)
+#if __has_include(<sys/_pthreadtypes.h>)
+#include <sys/_pthreadtypes.h>
+int pthread_kill(pthread_t, int) __picolibc_export;
+int pthread_sigmask(int, const sigset_t * __restrict, sigset_t * __restrict) __picolibc_export;
+#endif
+#endif
 #if __POSIX_VISIBLE >= 199309L
 int sigqueue(__pid_t, int, const union sigval) __picolibc_export;
 #endif

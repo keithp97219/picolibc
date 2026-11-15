@@ -183,6 +183,7 @@ locking as described in [locking.md](locking.md).
 | ------                      | ------- | -----------                                                                          |
 | single-thread               | false   | Disable support for locks                                                            |
 | stdio-locking               | false   | Perform POSIX-conforming per-file locking for all stdio operations (ignored when single-thread is true) |
+| posix-threads               | auto    | Provide POSIX threads (`<pthread.h>`) and real library locks from the OS layer. 'auto' enables them for os-linux on machines with thread support (currently x86); requires thread local storage and not single-thread |
 
 ### Thread local storage options
 
