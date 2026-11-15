@@ -39,5 +39,9 @@
 int
 setuid(uid_t uid)
 {
+#ifdef LINUX_SYS_setuid32
+    return _syscall(LINUX_SYS_setuid32, uid);
+#else
     return _syscall(LINUX_SYS_setuid, uid);
+#endif
 }

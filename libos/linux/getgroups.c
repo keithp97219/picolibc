@@ -39,5 +39,9 @@
 int
 getgroups(int size, gid_t *list)
 {
+#ifdef LINUX_SYS_getgroups32
+    return _syscall(LINUX_SYS_getgroups32, size, list);
+#else
     return _syscall(LINUX_SYS_getgroups, size, list);
+#endif
 }

@@ -39,5 +39,9 @@
 uid_t
 geteuid(void)
 {
+#ifdef LINUX_SYS_geteuid32
+    return _syscall(LINUX_SYS_geteuid32);
+#else
     return _syscall(LINUX_SYS_geteuid);
+#endif
 }

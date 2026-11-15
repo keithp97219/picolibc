@@ -40,5 +40,9 @@
 int
 setgroups(int size, const gid_t *list)
 {
+#ifdef LINUX_SYS_setgroups32
+    return _syscall(LINUX_SYS_setgroups32, size, list);
+#else
     return _syscall(LINUX_SYS_setgroups, size, list);
+#endif
 }

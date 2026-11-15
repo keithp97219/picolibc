@@ -39,5 +39,9 @@
 int
 setgid(gid_t gid)
 {
+#ifdef LINUX_SYS_setgid32
+    return _syscall(LINUX_SYS_setgid32, gid);
+#else
     return _syscall(LINUX_SYS_setgid, gid);
+#endif
 }
