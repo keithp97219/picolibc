@@ -43,6 +43,8 @@ pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t
     mutex->__state = 0;
     mutex->__type = attr ? attr->__type : PTHREAD_MUTEX_DEFAULT;
     mutex->__pshared = attr ? attr->__pshared : PTHREAD_PROCESS_PRIVATE;
+    mutex->__protocol = attr ? attr->__protocol : PTHREAD_PRIO_NONE;
+    mutex->__prioceiling = attr ? attr->__prioceiling : LINUX_PRIO_RT_MIN;
     mutex->__owner = 0;
     mutex->__count = 0;
     return 0;

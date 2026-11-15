@@ -40,20 +40,35 @@
 int
 pthread_mutex_trylock(pthread_mutex_t *mutex)
 {
-    unsigned int state = 0;
-    int          tid = 0;
-    int          ret;
+    struct __pthread *self = NULL;
+    int               protocol = mutex->__protocol;
+    int               ceiling = mutex->__prioceiling;
+    unsigned int      state = 0;
+    int               tid = 0;
+    int               ret;
 
+    if (mutex->__type != PTHREAD_MUTEX_NORMAL || protocol != PTHREAD_PRIO_NONE) {
+        self = _pthread_self();
+        tid = self->tid;
+    }
     if (mutex->__type != PTHREAD_MUTEX_NORMAL) {
-        tid = _pthread_self()->tid;
         ret = _pthread_mutex_relock(mutex, tid, EBUSY);
         if (ret >= 0)
             return ret;
     }
-    if (!__atomic_compare_exchange_n(&mutex->__state, &state, 1, false, __ATOMIC_ACQUIRE,
-                                     __ATOMIC_RELAXED))
+    if (protocol == PTHREAD_PRIO_PROTECT) {
+        ret = _pthread_tpp_raise(self, ceiling);
+        if (ret)
+            return ret;
+    }
+    if (!__atomic_compare_exchange_n(&mutex->__state, &state,
+                                     protocol == PTHREAD_PRIO_INHERIT ? (unsigned int)tid : 1,
+                                     false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
+        if (protocol == PTHREAD_PRIO_PROTECT)
+            _pthread_tpp_lower(self, ceiling);
         return EBUSY;
-    if (tid)
+    }
+    if (mutex->__type != PTHREAD_MUTEX_NORMAL && protocol != PTHREAD_PRIO_INHERIT)
         __atomic_store_n(&mutex->__owner, tid, __ATOMIC_RELAXED);
     return 0;
 }
