@@ -51,6 +51,11 @@ typedef __off_t off_t;
 #define _OFF_T_DECLARED
 #endif
 
+#ifndef _MODE_T_DECLARED
+typedef __mode_t mode_t;
+#define _MODE_T_DECLARED
+#endif
+
 /*
  * Protection flags (prot argument to mmap / mprotect).
  */
@@ -140,6 +145,8 @@ int   munlock(const void *addr, size_t len);
 int   mlockall(int flags);
 int   munlockall(void);
 int   posix_madvise(void *addr, size_t len, int advice);
+int   shm_open(const char *name, int oflag, mode_t mode);
+int   shm_unlink(const char *name);
 #if __GNU_VISIBLE
 int madvise(void *addr, size_t len, int advice);
 #endif
