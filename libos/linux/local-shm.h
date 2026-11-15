@@ -46,8 +46,9 @@
 
 /*
  * Build the file name for a shared memory object or named semaphore.
- * Names must start with '/' and contain no other '/'. Returns 0 or an
- * errno value.
+ * Portable names start with '/' and contain no other '/'; as with
+ * other Linux C libraries, the leading '/' is optional. Returns 0 or
+ * an errno value.
  */
 static inline int
 _shm_path(char *path, const char *prefix, const char *name)
@@ -55,9 +56,8 @@ _shm_path(char *path, const char *prefix, const char *name)
     size_t prefix_len = strlen(prefix);
     size_t name_len;
 
-    if (name[0] != '/')
-        return EINVAL;
-    name++;
+    while (name[0] == '/')
+        name++;
     name_len = strlen(name);
     if (name_len == 0 || strchr(name, '/') != NULL)
         return EINVAL;
