@@ -470,7 +470,11 @@ if enable_native_tests
   endforeach
 endif
 
+# Native thread tests link with the host's thread library
+native_thread_dep = dependency('threads', required: false)
+
 subdir('libc-testsuite')
+subdir('libc-test')
 subdir('test-ctype')
 subdir('test-iconv')
 subdir('test-posix')

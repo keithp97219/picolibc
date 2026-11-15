@@ -1,0 +1,15 @@
+These tests come from musl's libc-test
+
+	https://wiki.musl-libc.org/libc-test.html
+	git://nsz.repo.hu:49100/repo/libc-test (mirrored at
+	https://repo.or.cz/libc-test.git)
+
+at commit 63e36e934e8f2bedf645303a90b64098e2af6c8f (2026-11-01). They
+are covered by the MIT license in COPYRIGHT; AUTHORS lists the
+contributors.
+
+Picolibc uses the thread, semaphore and TLS tests from src/functional
+and src/regression, along with the parts of src/common they need,
+reformatted with picolibc's clang-format configuration but otherwise
+unchanged. To update, copy the same files from a newer libc-test, run
+clang-format on them and record the new commit here.
