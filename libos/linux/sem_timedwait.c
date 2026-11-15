@@ -34,14 +34,17 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "local-pthread.h"
+#include "local-cancel.h"
 
 int
 sem_timedwait(sem_t * __restrict sem, const struct timespec * __restrict abstime)
 {
-    int ret;
+    struct __pthread *self;
+    int               ret;
 
+    self = _cancel_enter();
     ret = _sem_wait_timed(sem, CLOCK_REALTIME, abstime);
+    _cancel_leave(self);
     if (ret) {
         errno = ret;
         return -1;

@@ -34,18 +34,21 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "local-pthread.h"
+#include "local-cancel.h"
 
 int
 sem_clockwait(sem_t * __restrict sem, clockid_t clock, const struct timespec * __restrict abstime)
 {
-    int ret;
+    struct __pthread *self;
+    int               ret;
 
     if (clock != CLOCK_REALTIME && clock != CLOCK_MONOTONIC) {
         errno = EINVAL;
         return -1;
     }
+    self = _cancel_enter();
     ret = _sem_wait_timed(sem, clock, abstime);
+    _cancel_leave(self);
     if (ret) {
         errno = ret;
         return -1;

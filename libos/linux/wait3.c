@@ -34,12 +34,14 @@
  */
 
 #include "local-sigaction.h"
+#include "local-cancel.h"
 #include "local-time.h"
 #include <sys/wait.h>
 
 pid_t
 wait3(int *wstatus, int options, struct rusage *rusage)
 {
+    void *cancel;
     int   koptions = 0;
     pid_t ret;
     int   kstatus;
@@ -62,7 +64,9 @@ wait3(int *wstatus, int options, struct rusage *rusage)
         koptions |= LINUX_WCONTINUED;
     if (rusage)
         pusage = &kusage;
+    cancel = _cancel_enter();
     ret = _syscall(LINUX_SYS_wait4, -1, &kstatus, koptions, pusage);
+    _cancel_leave(cancel);
     if (ret != (pid_t)-1) {
         if (WIFSIGNALED(kstatus))
             kstatus = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus)));

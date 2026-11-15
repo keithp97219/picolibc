@@ -34,6 +34,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "local-linux.h"
+#include "local-cancel.h"
 #include <sys/mman.h>
 
 int
@@ -48,5 +49,9 @@ msync(void *addr, size_t len, int flags)
     if (flags & MS_INVALIDATE)
         linux_flags |= LINUX_MS_INVALIDATE;
 
-    return (int)_syscall(LINUX_SYS_msync, addr, len, linux_flags);
+    void *cancel = _cancel_enter();
+    long  ret = (int)_syscall(LINUX_SYS_msync, addr, len, linux_flags);
+
+    _cancel_leave(cancel);
+    return ret;
 }

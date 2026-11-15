@@ -34,6 +34,7 @@
  */
 
 #include "local-time.h"
+#include "local-cancel.h"
 #include <poll.h>
 #include <stdint.h>
 
@@ -116,18 +117,23 @@ poll(struct pollfd *fds, nfds_t nfds, int timeout)
 {
     nfds_t n;
     int    ret;
+    void  *cancel;
 
     /* map from picolibc to linux */
     for (n = 0; n < nfds; n++)
         fds[n].events = picolibc_to_linux(fds[n].events);
 
 #ifdef LINUX_SYS_poll
+    cancel = _cancel_enter();
     ret = _syscall(LINUX_SYS_poll, fds, nfds, timeout);
+    _cancel_leave(cancel);
 #else
     /* A negative timeout waits forever */
     struct __kernel_timespec tmo
         = { .tv_sec = timeout / 1000, .tv_nsec = ((uint64_t)timeout % 1000) * 1000000UL };
+    cancel = _cancel_enter();
     ret = _syscall(LINUX_SYS_ppoll, fds, nfds, timeout < 0 ? NULL : &tmo, NULL, 0);
+    _cancel_leave(cancel);
 #endif
 
     /* revert the events changes, and map the results of every entry */
