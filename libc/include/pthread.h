@@ -58,14 +58,17 @@ _BEGIN_STD_C
 #define PTHREAD_PROCESS_SHARED  1
 
 /* Mutex types */
-#define PTHREAD_MUTEX_NORMAL      0
-#define PTHREAD_MUTEX_RECURSIVE   1
-#define PTHREAD_MUTEX_ERRORCHECK  2
-#define PTHREAD_MUTEX_DEFAULT     PTHREAD_MUTEX_NORMAL
+#define PTHREAD_MUTEX_NORMAL          0
+#define PTHREAD_MUTEX_RECURSIVE       1
+#define PTHREAD_MUTEX_ERRORCHECK      2
+#define PTHREAD_MUTEX_DEFAULT         PTHREAD_MUTEX_NORMAL
 
-#define PTHREAD_MUTEX_INITIALIZER { 0, PTHREAD_MUTEX_DEFAULT, PTHREAD_PROCESS_PRIVATE, 0, 0 }
-#define PTHREAD_COND_INITIALIZER  { 0, CLOCK_REALTIME, PTHREAD_PROCESS_PRIVATE }
-#define PTHREAD_ONCE_INIT         0
+#define PTHREAD_MUTEX_INITIALIZER     { 0, PTHREAD_MUTEX_DEFAULT, PTHREAD_PROCESS_PRIVATE, 0, 0 }
+#define PTHREAD_COND_INITIALIZER      { 0, CLOCK_REALTIME, PTHREAD_PROCESS_PRIVATE }
+#define PTHREAD_ONCE_INIT             0
+#define PTHREAD_RWLOCK_INITIALIZER    { 0, 0, 0, 0, PTHREAD_PROCESS_PRIVATE }
+
+#define PTHREAD_BARRIER_SERIAL_THREAD (-1)
 
 /* Thread creation and termination */
 int pthread_create(pthread_t * __restrict, const pthread_attr_t * __restrict, void *(*)(void *),
@@ -131,7 +134,50 @@ int pthread_condattr_getclock(const pthread_condattr_t * __restrict, clockid_t *
 int pthread_condattr_setclock(pthread_condattr_t *, clockid_t) __picolibc_export;
 int pthread_condattr_getpshared(const pthread_condattr_t * __restrict, int * __restrict)
     __picolibc_export;
-int   pthread_condattr_setpshared(pthread_condattr_t *, int) __picolibc_export;
+int pthread_condattr_setpshared(pthread_condattr_t *, int) __picolibc_export;
+
+/* Reader-writer locks */
+int pthread_rwlock_init(pthread_rwlock_t * __restrict, const pthread_rwlockattr_t * __restrict)
+    __picolibc_export;
+int pthread_rwlock_destroy(pthread_rwlock_t *) __picolibc_export;
+int pthread_rwlock_rdlock(pthread_rwlock_t *) __picolibc_export;
+int pthread_rwlock_tryrdlock(pthread_rwlock_t *) __picolibc_export;
+int pthread_rwlock_timedrdlock(pthread_rwlock_t * __restrict, const struct timespec * __restrict)
+    __picolibc_export;
+int pthread_rwlock_clockrdlock(pthread_rwlock_t * __restrict, clockid_t,
+                               const struct timespec * __restrict) __picolibc_export;
+int pthread_rwlock_wrlock(pthread_rwlock_t *) __picolibc_export;
+int pthread_rwlock_trywrlock(pthread_rwlock_t *) __picolibc_export;
+int pthread_rwlock_timedwrlock(pthread_rwlock_t * __restrict, const struct timespec * __restrict)
+    __picolibc_export;
+int pthread_rwlock_clockwrlock(pthread_rwlock_t * __restrict, clockid_t,
+                               const struct timespec * __restrict) __picolibc_export;
+int pthread_rwlock_unlock(pthread_rwlock_t *) __picolibc_export;
+
+int pthread_rwlockattr_init(pthread_rwlockattr_t *) __picolibc_export;
+int pthread_rwlockattr_destroy(pthread_rwlockattr_t *) __picolibc_export;
+int pthread_rwlockattr_getpshared(const pthread_rwlockattr_t * __restrict, int * __restrict)
+    __picolibc_export;
+int pthread_rwlockattr_setpshared(pthread_rwlockattr_t *, int) __picolibc_export;
+
+/* Barriers */
+int pthread_barrier_init(pthread_barrier_t * __restrict, const pthread_barrierattr_t * __restrict,
+                         unsigned) __picolibc_export;
+int pthread_barrier_destroy(pthread_barrier_t *) __picolibc_export;
+int pthread_barrier_wait(pthread_barrier_t *) __picolibc_export;
+
+int pthread_barrierattr_init(pthread_barrierattr_t *) __picolibc_export;
+int pthread_barrierattr_destroy(pthread_barrierattr_t *) __picolibc_export;
+int pthread_barrierattr_getpshared(const pthread_barrierattr_t * __restrict, int * __restrict)
+    __picolibc_export;
+int   pthread_barrierattr_setpshared(pthread_barrierattr_t *, int) __picolibc_export;
+
+/* Spin locks */
+int   pthread_spin_init(pthread_spinlock_t *, int) __picolibc_export;
+int   pthread_spin_destroy(pthread_spinlock_t *) __picolibc_export;
+int   pthread_spin_lock(pthread_spinlock_t *) __picolibc_export;
+int   pthread_spin_trylock(pthread_spinlock_t *) __picolibc_export;
+int   pthread_spin_unlock(pthread_spinlock_t *) __picolibc_export;
 
 /* Dynamic package initialization */
 int   pthread_once(pthread_once_t *, void (*)(void)) __picolibc_export;

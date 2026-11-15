@@ -170,13 +170,59 @@ _pthread_cond_pshared(pthread_cond_t *cond)
     return cond->__pshared == PTHREAD_PROCESS_SHARED;
 }
 
-int  _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock,
-                               const struct timespec *abstime);
-int  _pthread_cond_wait_timed(pthread_cond_t *cond, pthread_mutex_t *mutex, clockid_t clock,
+int _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock,
                               const struct timespec *abstime);
+int _pthread_cond_wait_timed(pthread_cond_t *cond, pthread_mutex_t *mutex, clockid_t clock,
+                             const struct timespec *abstime);
+
+/*
+ * Reader-writer lock: __state counts readers, or holds
+ * _PTHREAD_RWLOCK_WRITER while write locked. Waiters register in
+ * __waiters and sleep on __seq, which unlock advances when there are
+ * waiters. Readers are preferred, so a thread can always take
+ * another read lock.
+ */
+#define _PTHREAD_RWLOCK_WRITER UINT_MAX
+
+static inline bool
+_pthread_rwlock_pshared(pthread_rwlock_t *rwlock)
+{
+    return rwlock->__pshared == PTHREAD_PROCESS_SHARED;
+}
+
+/* Try to take the lock once: 0 on success, EBUSY, EAGAIN or EDEADLK otherwise */
+static inline int
+_pthread_rwlock_try(pthread_rwlock_t *rwlock, bool write, int tid)
+{
+    unsigned int state = __atomic_load_n(&rwlock->__state, __ATOMIC_RELAXED);
+
+    if (__atomic_load_n(&rwlock->__writer, __ATOMIC_RELAXED) == tid)
+        return EDEADLK;
+    for (;;) {
+        if (write) {
+            if (state != 0)
+                return EBUSY;
+        } else {
+            if (state == _PTHREAD_RWLOCK_WRITER)
+                return EBUSY;
+            if (state == _PTHREAD_RWLOCK_WRITER - 1)
+                return EAGAIN;
+        }
+        if (__atomic_compare_exchange_n(&rwlock->__state, &state,
+                                        write ? _PTHREAD_RWLOCK_WRITER : state + 1, false,
+                                        __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
+            if (write)
+                __atomic_store_n(&rwlock->__writer, tid, __ATOMIC_RELAXED);
+            return 0;
+        }
+    }
+}
+
+int _pthread_rwlock_lock_timed(pthread_rwlock_t *rwlock, bool write, clockid_t clock,
+                               const struct timespec *abstime);
 
 /* Queue an exiting detached thread to be unmapped once the kernel is done with it */
-void _pthread_zombie(struct __pthread *thread);
+void                      _pthread_zombie(struct __pthread *thread);
 
 /* Thread-specific data keys; seq is odd while the key is in use */
 struct _pthread_key {
