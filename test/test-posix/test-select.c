@@ -1,0 +1,127 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _GNU_SOURCE /* glibc declares ppoll only for _GNU_SOURCE */
+#include <errno.h>
+#include <poll.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/select.h>
+#include <time.h>
+#include <unistd.h>
+
+/* select, pselect, poll and ppoll on a pipe */
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+int
+main(void)
+{
+    int             fds[2];
+    fd_set          rset, wset;
+    struct timeval  tv;
+    struct timespec ts;
+    struct pollfd   pfd[2];
+    sigset_t        mask;
+    char            c;
+
+    check(pipe(fds) == 0, "pipe");
+
+    /* Nothing to read: select times out and clears the set */
+    FD_ZERO(&rset);
+    FD_SET(fds[0], &rset);
+    tv.tv_sec = 0;
+    tv.tv_usec = 20000;
+    check(select(fds[0] + 1, &rset, NULL, NULL, &tv) == 0, "select times out");
+    check(!FD_ISSET(fds[0], &rset), "select clears the set");
+
+    /* The write end is ready for writing */
+    FD_ZERO(&rset);
+    FD_ZERO(&wset);
+    FD_SET(fds[0], &rset);
+    FD_SET(fds[1], &wset);
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    check(select(fds[1] + 1, &rset, &wset, NULL, &tv) == 1, "select write ready");
+    check(!FD_ISSET(fds[0], &rset) && FD_ISSET(fds[1], &wset), "select ready set");
+
+    check(write(fds[1], "x", 1) == 1, "write");
+
+    FD_ZERO(&rset);
+    FD_SET(fds[0], &rset);
+    check(select(fds[0] + 1, &rset, NULL, NULL, NULL) == 1, "select read ready");
+    check(FD_ISSET(fds[0], &rset), "select read set");
+
+    check(select(-1, NULL, NULL, NULL, NULL) == -1 && errno == EINVAL, "select bad nfds");
+
+    /* pselect with a signal mask */
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGUSR1);
+    FD_ZERO(&rset);
+    FD_SET(fds[0], &rset);
+    ts.tv_sec = 1;
+    ts.tv_nsec = 0;
+    check(pselect(fds[0] + 1, &rset, NULL, NULL, &ts, &mask) == 1, "pselect read ready");
+    check(FD_ISSET(fds[0], &rset), "pselect read set");
+
+    /* poll, including the entry after one with no events */
+    pfd[0].fd = fds[1];
+    pfd[0].events = POLLIN;
+    pfd[1].fd = fds[0];
+    pfd[1].events = POLLIN;
+    check(poll(pfd, 2, -1) == 1, "poll waiting forever");
+    check(pfd[0].revents == 0 && (pfd[1].revents & POLLIN), "poll revents");
+    check(pfd[0].events == POLLIN && pfd[1].events == POLLIN, "poll keeps events");
+
+    ts.tv_sec = 0;
+    ts.tv_nsec = 0;
+    check(ppoll(pfd, 2, &ts, &mask) == 1 && (pfd[1].revents & POLLIN), "ppoll ready");
+
+    check(read(fds[0], &c, 1) == 1 && c == 'x', "read");
+    ts.tv_nsec = 20 * 1000 * 1000;
+    check(ppoll(&pfd[1], 1, &ts, NULL) == 0 && pfd[1].revents == 0, "ppoll times out");
+    ts.tv_nsec = -1;
+    check(ppoll(&pfd[1], 1, &ts, NULL) == -1 && errno == EINVAL, "ppoll bad timeout");
+
+    printf("success\n");
+    return 0;
+}
