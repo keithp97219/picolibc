@@ -176,7 +176,7 @@ int   getgroups(int __gidsetsize, gid_t __grouplist[]) __picolibc_export;
 long gethostid(void) __picolibc_export;
 #endif
 char *getlogin(void) __picolibc_export;
-#if defined(_POSIX_THREAD_SAFE_FUNCTIONS)
+#if __POSIX_VISIBLE >= 199506
 int getlogin_r(char *name, size_t namesize) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || (__XSI_VISIBLE && __POSIX_VISIBLE < 200112)

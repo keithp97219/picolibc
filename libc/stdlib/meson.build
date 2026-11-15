@@ -121,6 +121,7 @@ srcs_stdlib = [
     'rpmatch.c',
     'sb_charsets.c',
     'seed48.c',
+    'secure_getenv.c',
     'setenv.c',
     'sjtouc.c',
     'srand.c',
