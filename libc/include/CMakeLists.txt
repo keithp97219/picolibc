@@ -69,6 +69,7 @@ picolibc_headers(""
   math.h
   memory.h
   monetary.h
+  mqueue.h
   ndbm.h
   newlib.h
   paths.h
