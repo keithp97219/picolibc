@@ -201,9 +201,9 @@ char *asctime_r(const struct tm * __restrict, char[__restrict_arr __min_size(__A
 
 clock_t clock(void) __picolibc_export;
 
-#if defined(_POSIX_CPUTIME)
+#if __POSIX_VISIBLE >= 200112
 int clock_getcpuclockid(pid_t pid, clockid_t *clock_id) __picolibc_export;
-#endif /* _POSIX_CPUTIME */
+#endif
 
 #if __POSIX_VISIBLE
 int clock_getres(clockid_t clock_id, struct timespec *res) __picolibc_export;
