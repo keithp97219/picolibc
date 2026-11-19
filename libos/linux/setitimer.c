@@ -56,6 +56,16 @@ setitimer(int which, const struct itimerval *new_value, struct itimerval *old_va
         return -1;
     }
 
+    /*
+     * The kernel's itimerval holds seconds in a long, and Linux has no
+     * 64-bit version of setitimer
+     */
+    if ((long)new_value->it_value.tv_sec != new_value->it_value.tv_sec
+        || (long)new_value->it_interval.tv_sec != new_value->it_interval.tv_sec) {
+        errno = EINVAL;
+        return -1;
+    }
+
     MAP_ITV(&kit, new_value);
 
     if (old_value)
