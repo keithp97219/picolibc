@@ -44,6 +44,25 @@
 #include <stdint.h>
 #include <time.h>
 
+/*
+ * The timer_settime and timer_gettime system calls, paired with an
+ * itimerspec that matches them: the 64-bit time ones on 32-bit
+ * architectures that have them, like the clock_* calls in local-time.h
+ */
+#ifdef LINUX_SYS_timer_settime64
+#define LINUX_SYS_timer_settime_time_t LINUX_SYS_timer_settime64
+#define LINUX_SYS_timer_gettime_time_t LINUX_SYS_timer_gettime64
+
+struct __kernel_itimerspec_time_t {
+    struct __kernel_timespec_time_t it_interval;
+    struct __kernel_timespec_time_t it_value;
+};
+#else
+#define LINUX_SYS_timer_settime_time_t LINUX_SYS_timer_settime
+#define LINUX_SYS_timer_gettime_time_t LINUX_SYS_timer_gettime
+#define __kernel_itimerspec_time_t     __kernel_itimerspec
+#endif
+
 /* Linux sigev_notify values */
 #define LINUX_SIGEV_SIGNAL    0
 #define LINUX_SIGEV_NONE      1

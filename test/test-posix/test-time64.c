@@ -93,6 +93,30 @@ check_long_sleeps(void)
 }
 
 static void
+check_abs_timer(void)
+{
+    struct sigevent   sev = { 0 };
+    struct itimerspec its = { 0 }, cur;
+    struct timespec   now;
+    timer_t           timer;
+    time_t            expire;
+
+    if (sizeof(time_t) < 8)
+        return;
+
+    /* An absolute expiry in 2040, past the end of 32-bit time */
+    expire = (time_t)2208988800LL;
+    sev.sigev_notify = SIGEV_NONE;
+    check(timer_create(CLOCK_REALTIME, &sev, &timer) == 0, "timer_create");
+    its.it_value.tv_sec = expire;
+    check(timer_settime(timer, TIMER_ABSTIME, &its, NULL) == 0, "timer_settime past 2038");
+    check(clock_gettime(CLOCK_REALTIME, &now) == 0, "clock_gettime");
+    check(timer_gettime(timer, &cur) == 0, "timer_gettime");
+    check(cur.it_value.tv_sec > expire - now.tv_sec - 60, "timer kept its expiry past 2038");
+    check(timer_delete(timer) == 0, "timer_delete");
+}
+
+static void
 check_itimers(void)
 {
 #ifdef __PICOLIBC__
@@ -151,6 +175,7 @@ main(void)
 {
     check(signal(SIGALRM, on_alarm) != SIG_ERR, "signal");
     check_long_sleeps();
+    check_abs_timer();
     check_itimers();
     check_wait3_rusage();
     printf("success\n");
