@@ -37,6 +37,12 @@
 #ifndef _SYS__SIGSET_H_
 #define _SYS__SIGSET_H_
 
-typedef unsigned long __sigset_t;
+#include <machine/_default_types.h>
+
+/*
+ * A bit per signal, with room for the real-time signals. Bit 0 is
+ * unused.
+ */
+typedef __uint64_t __sigset_t;
 
 #endif /* !_SYS__SIGSET_H_ */

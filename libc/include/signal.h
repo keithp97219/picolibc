@@ -213,7 +213,11 @@ struct sigevent {
 #define SIGLOST   29    /* resource lost (eg, record-lock lost) */
 #define SIGUSR1   30    /* user defined signal 1 */
 #define SIGUSR2   31    /* user defined signal 2 */
-#define _NSIG     32
+#define _NSIG     64
+
+/* Real-time signals */
+#define SIGRTMIN 32
+#define SIGRTMAX 62
 
 #ifdef __GNU_VISIBLE
 #define NSIG _NSIG

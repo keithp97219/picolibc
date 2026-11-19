@@ -26,6 +26,10 @@
 #ifndef SSIZE_MAX
 #define SSIZE_MAX __SSIZE_MAX__
 #endif
+/* Number of real-time signals, SIGRTMIN through SIGRTMAX */
+#ifndef RTSIG_MAX
+#define RTSIG_MAX 31
+#endif
 #endif
 
 /* if do not have #include_next support, then we
