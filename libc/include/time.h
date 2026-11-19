@@ -132,21 +132,19 @@ typedef __pid_t pid_t; /* process id */
 
 /* Manifest Constants, P1003.4b/D8, p. 55 */
 
-#if defined(_POSIX_CPUTIME)
+#if __POSIX_VISIBLE >= 200112
 
 /* When used in a clock or timer function call, this is interpreted as
    the identifier of the CPU_time clock associated with the PROCESS
-   making the function call.  */
+   making the function call. Whether the OS provides it is up to
+   _POSIX_CPUTIME. */
 
 #define CLOCK_PROCESS_CPUTIME_ID (2)
 
-#endif
-
-#if defined(_POSIX_THREAD_CPUTIME)
-
 /*  When used in a clock or timer function call, this is interpreted as
     the identifier of the CPU_time clock associated with the THREAD
-    making the function call.  */
+    making the function call. Whether the OS provides it is up to
+    _POSIX_THREAD_CPUTIME. */
 
 #define CLOCK_THREAD_CPUTIME_ID (3)
 
@@ -164,13 +162,11 @@ typedef __pid_t pid_t; /* process id */
 
 #if __GNU_VISIBLE
 
-#define CLOCK_MONOTONIC_RAW      (5)
-#define CLOCK_MONOTONIC_COARSE   (6)
-#define CLOCK_BOOTTIME           (7)
-#define CLOCK_REALTIME_ALARM     (8)
-#define CLOCK_BOOTTIME_ALARM     (9)
-#define CLOCK_PROCESS_CPUTIME_ID (10)
-#define CLOCK_THREAD_CPUTIME_ID  (11)
+#define CLOCK_MONOTONIC_RAW    (5)
+#define CLOCK_MONOTONIC_COARSE (6)
+#define CLOCK_BOOTTIME         (7)
+#define CLOCK_REALTIME_ALARM   (8)
+#define CLOCK_BOOTTIME_ALARM   (9)
 
 #endif
 
