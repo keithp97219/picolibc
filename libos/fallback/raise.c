@@ -56,7 +56,7 @@ __fallback_raise(int sig)
         /* Mark signal as no longer pending */
         sigdelset(&_sig_pending, sig);
 
-        _sig_func_ptr func = _sig_func[sig];
+        _sig_func_ptr func = sig < _SIG_FUNC_COUNT ? _sig_func[sig] : SIG_DFL;
 
         if (func == SIG_IGN)
             break;

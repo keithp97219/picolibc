@@ -41,14 +41,14 @@
 #define __fallback_sigprocmask sigprocmask
 #endif
 
-_sig_func_ptr _sig_func[_NSIG];
+_sig_func_ptr _sig_func[_SIG_FUNC_COUNT];
 sigset_t      _sig_mask;
 sigset_t      _sig_pending;
 
 _sig_func_ptr
 __fallback_signal(int sig, _sig_func_ptr func)
 {
-    if (sig < 0 || sig >= _NSIG) {
+    if (sig < 0 || sig >= _SIG_FUNC_COUNT) {
         errno = EINVAL;
         return SIG_ERR;
     }
