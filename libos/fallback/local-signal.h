@@ -41,7 +41,17 @@
 #include <signal.h>
 #include <unistd.h>
 
-extern _sig_func_ptr _sig_func[_NSIG];
+/*
+ * Handlers for the standard signals only. Real-time signals can't be
+ * caught here; raising one takes the default action.
+ */
+#ifdef SIGRTMIN
+#define _SIG_FUNC_COUNT SIGRTMIN
+#else
+#define _SIG_FUNC_COUNT _NSIG
+#endif
+
+extern _sig_func_ptr _sig_func[_SIG_FUNC_COUNT];
 extern sigset_t      _sig_mask;
 extern sigset_t      _sig_pending;
 
