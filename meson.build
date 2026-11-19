@@ -1585,7 +1585,7 @@ conf_data.set('__INIT_FINI_ARRAY', get_option('initfini-array'), description: 'S
 conf_data.set('__INIT_FINI_FUNCS', get_option('initfini'), description: 'Support _init() and _fini() functions')
 # POSIX threads are implemented by an OS layer; libos/linux supports
 # them on these machines
-posix_threads_linux_machines = ['x86']
+posix_threads_linux_machines = ['aarch64', 'arm', 'x86']
 posix_threads_possible = thread_local_storage and not get_option('single-thread')
 if get_option('posix-threads') == 'auto'
   posix_threads = (posix_threads_possible and get_option('os-linux')
