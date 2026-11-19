@@ -106,6 +106,11 @@ picolibc_headers(""
   wordexp.h
   )
 
+# For compatibility with libc++'s __mbstate_t.h
+picolibc_headers("bits/types"
+  bits/types/mbstate_t.h
+  )
+
 if(${__HAVE_COMPLEX})
   picolibc_headers(""
     complex.h

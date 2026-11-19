@@ -49,9 +49,11 @@ picolibc_headers(sys
   iconvnls.h
   _initfini.h
   _intsup.h
+  ioctl.h
   _leastint.h
   _locale.h
   lock.h
+  mman.h
   param.h
   queue.h
   resource.h
