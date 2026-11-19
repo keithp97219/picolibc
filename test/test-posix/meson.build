@@ -97,6 +97,7 @@ test_skip_lock_valid = []
 
 if posix_threads
   pthread_tests = [
+    'test-cpuclock',
     'test-pthread',
     'test-pthread-atfork',
     'test-pthread-cancel',
