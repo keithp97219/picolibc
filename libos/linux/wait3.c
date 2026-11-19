@@ -34,6 +34,7 @@
  */
 
 #include "local-sigaction.h"
+#include "local-time.h"
 #include <sys/wait.h>
 
 pid_t
@@ -42,9 +43,15 @@ wait3(int *wstatus, int options, struct rusage *rusage)
     int   koptions = 0;
     pid_t ret;
     int   kstatus;
+    /*
+     * The kernel's struct rusage: two timevals in the kernel's layout,
+     * which differs from picolibc's on 32-bit architectures, then
+     * fourteen longs picolibc doesn't report.
+     */
     struct {
-        struct rusage usage;
-        long          space[16];
+        struct __kernel_timeval ru_utime;
+        struct __kernel_timeval ru_stime;
+        long                    ru_other[14];
     } kusage, *pusage = NULL;
 
     if (options & WNOHANG)
@@ -62,8 +69,10 @@ wait3(int *wstatus, int options, struct rusage *rusage)
         else if (WIFSTOPPED(kstatus))
             kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
         *wstatus = kstatus;
-        if (rusage)
-            *rusage = kusage.usage;
+        if (rusage) {
+            SIMPLE_MAP_TIMEVAL(&rusage->ru_utime, &kusage.ru_utime);
+            SIMPLE_MAP_TIMEVAL(&rusage->ru_stime, &kusage.ru_stime);
+        }
     }
     return ret;
 }
