@@ -99,9 +99,23 @@ struct __kernel_timespec_time_t {
  */
 #define LINUX_CLOCK_INVALID 0x7fffffff
 
+/*
+ * Linux's per-process and per-thread CPU-time clocks: ~id << 3, with
+ * CPUCLOCK_SCHED in the low bits and bit 2 set for a thread. They're
+ * negative, so in clockid_t they have the top bit set, which none of
+ * picolibc's fixed clock ids do; they pass through to the kernel as is.
+ */
+#define LINUX_CPUCLOCK_SCHED     2
+#define LINUX_CPUCLOCK_PERTHREAD 4
+#define LINUX_CPUCLOCK(id, perthread)                       \
+    ((int)(~(unsigned int)(id) << 3) | LINUX_CPUCLOCK_SCHED \
+     | ((perthread) ? LINUX_CPUCLOCK_PERTHREAD : 0))
+
 #define MAP_CLOCK_ID(kid, id)                     \
     do {                                          \
-        if (id == CLOCK_MONOTONIC)                \
+        if ((long)(id) < 0)                       \
+            kid = (int)(long)(id);                \
+        else if (id == CLOCK_MONOTONIC)           \
             kid = LINUX_CLOCK_MONOTONIC;          \
         else if (id == CLOCK_PROCESS_CPUTIME_ID)  \
             kid = LINUX_CLOCK_PROCESS_CPUTIME_ID; \

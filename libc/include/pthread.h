@@ -145,6 +145,7 @@ int pthread_attr_getscope(const pthread_attr_t * __restrict, int * __restrict) _
 int pthread_attr_setscope(pthread_attr_t *, int) __picolibc_export;
 
 /* Thread scheduling */
+int pthread_getcpuclockid(pthread_t, clockid_t *) __picolibc_export;
 int pthread_getschedparam(pthread_t, int * __restrict, struct sched_param * __restrict)
     __picolibc_export;
 int pthread_setschedparam(pthread_t, int, const struct sched_param *) __picolibc_export;
