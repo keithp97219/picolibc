@@ -38,9 +38,9 @@
 int
 timer_gettime(timer_t timerid, struct itimerspec *value)
 {
-    struct __kernel_itimerspec kvalue;
+    struct __kernel_itimerspec_time_t kvalue;
 
-    if (_syscall(LINUX_SYS_timer_gettime, _timer_id(timerid), &kvalue) < 0)
+    if (_syscall(LINUX_SYS_timer_gettime_time_t, _timer_id(timerid), &kvalue) < 0)
         return -1;
     value->it_interval.tv_sec = kvalue.it_interval.tv_sec;
     value->it_interval.tv_nsec = kvalue.it_interval.tv_nsec;

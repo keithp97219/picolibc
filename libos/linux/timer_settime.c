@@ -36,7 +36,7 @@
 #include "local-timer.h"
 
 static int
-timespec_to_linux(struct __kernel_timespec *kts, const struct timespec *ts)
+timespec_to_linux(struct __kernel_timespec_time_t *kts, const struct timespec *ts)
 {
     if (ts->tv_nsec < 0 || ts->tv_nsec >= 1000000000L) {
         errno = EINVAL;
@@ -55,8 +55,8 @@ int
 timer_settime(timer_t timerid, int flags, const struct itimerspec * __restrict value,
               struct itimerspec * __restrict ovalue)
 {
-    struct __kernel_itimerspec kvalue, kovalue;
-    int                        kflags = 0;
+    struct __kernel_itimerspec_time_t kvalue, kovalue;
+    int                               kflags = 0;
 
     if (flags & ~TIMER_ABSTIME) {
         errno = EINVAL;
@@ -67,7 +67,7 @@ timer_settime(timer_t timerid, int flags, const struct itimerspec * __restrict v
     if (timespec_to_linux(&kvalue.it_interval, &value->it_interval) < 0
         || timespec_to_linux(&kvalue.it_value, &value->it_value) < 0)
         return -1;
-    if (_syscall(LINUX_SYS_timer_settime, _timer_id(timerid), kflags, &kvalue,
+    if (_syscall(LINUX_SYS_timer_settime_time_t, _timer_id(timerid), kflags, &kvalue,
                  ovalue ? &kovalue : NULL)
         < 0)
         return -1;
