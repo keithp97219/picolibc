@@ -106,6 +106,25 @@
 #define LINUX_B9600          13
 #define LINUX_B19200         14
 #define LINUX_B38400         15
+#define LINUX_B57600         4097
+#define LINUX_B115200        4098
+#define LINUX_B230400        4099
+#define LINUX_B460800        4100
+#define LINUX_B500000        4101
+#define LINUX_B576000        4102
+#define LINUX_B921600        4103
+#define LINUX_B1000000       4104
+#define LINUX_B1152000       4105
+#define LINUX_B1500000       4106
+#define LINUX_B2000000       4107
+#define LINUX_B2500000       4108
+#define LINUX_B3000000       4109
+#define LINUX_B3500000       4110
+#define LINUX_B4000000       4111
+#define LINUX_CBAUD          4111
+#define LINUX_BOTHER         4096
+#define LINUX_CIBAUD         269418496
+#define LINUX_IBSHIFT        16
 
 #define LINUX_CSIZE          48
 #define LINUX_CS5            0

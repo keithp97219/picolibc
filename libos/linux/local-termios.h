@@ -150,4 +150,79 @@ _speed_from_kernel(__kernel_speed_t speed)
     return (speed_t)speed;
 }
 
+/*
+ * The kernel takes the speeds from the CBAUD and CIBAUD bits of
+ * c_cflag, and uses c_ispeed and c_ospeed only for BOTHER
+ */
+static inline __kernel_tcflag_t
+_speed_to_cbaud(speed_t speed)
+{
+    switch (speed) {
+    case B0:
+        return LINUX_B0;
+    case B50:
+        return LINUX_B50;
+    case B75:
+        return LINUX_B75;
+    case B110:
+        return LINUX_B110;
+    case B134:
+        return LINUX_B134;
+    case B150:
+        return LINUX_B150;
+    case B200:
+        return LINUX_B200;
+    case B300:
+        return LINUX_B300;
+    case B600:
+        return LINUX_B600;
+    case B1200:
+        return LINUX_B1200;
+    case B1800:
+        return LINUX_B1800;
+    case B2400:
+        return LINUX_B2400;
+    case B4800:
+        return LINUX_B4800;
+    case B9600:
+        return LINUX_B9600;
+    case B19200:
+        return LINUX_B19200;
+    case B38400:
+        return LINUX_B38400;
+    case B57600:
+        return LINUX_B57600;
+    case B115200:
+        return LINUX_B115200;
+    case B230400:
+        return LINUX_B230400;
+    case B460800:
+        return LINUX_B460800;
+    case B500000:
+        return LINUX_B500000;
+    case B576000:
+        return LINUX_B576000;
+    case B921600:
+        return LINUX_B921600;
+    case B1000000:
+        return LINUX_B1000000;
+    case B1152000:
+        return LINUX_B1152000;
+    case B1500000:
+        return LINUX_B1500000;
+    case B2000000:
+        return LINUX_B2000000;
+    case B2500000:
+        return LINUX_B2500000;
+    case B3000000:
+        return LINUX_B3000000;
+    case B3500000:
+        return LINUX_B3500000;
+    case B4000000:
+        return LINUX_B4000000;
+    default:
+        return LINUX_BOTHER;
+    }
+}
+
 #endif /* _LOCAL_TERMIOS_H_ */

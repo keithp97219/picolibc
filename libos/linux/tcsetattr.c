@@ -92,5 +92,11 @@ tcsetattr(int fd, int actions, const struct termios *termios)
 
     MAP_STRUCT;
 
+    /* An input speed of B0 leaves CIBAUD zero, which means the output speed */
+    ktermios.c_cflag &= ~(LINUX_CBAUD | LINUX_CIBAUD);
+    ktermios.c_cflag |= _speed_to_cbaud(termios->c_ospeed);
+    if (termios->c_ispeed != B0)
+        ktermios.c_cflag |= _speed_to_cbaud(termios->c_ispeed) << LINUX_IBSHIFT;
+
     return _syscall(LINUX_SYS_ioctl, fd, cmd, &ktermios);
 }
