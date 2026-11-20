@@ -55,16 +55,30 @@ algorithm as <<rand>>.
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include "local.h"
 
 __THREAD_LOCAL uint64_t _rand_next = 1;
 
+/* The state array initstate or setstate selected, or NULL for _rand_next */
+char                   *__random_state;
+
 long int
 random(void)
 {
+    uint64_t next;
+
+    if (__random_state)
+        memcpy(&next, __random_state, sizeof(next));
+    else
+        next = _rand_next;
     /* This multiplier was obtained from Knuth, D.E., "The Art of
        Computer Programming," Vol 2, Seminumerical Algorithms, Third
        Edition, Addison-Wesley, 1998, p. 106 (line 26) & p. 108 */
-    _rand_next = _rand_next * 6364136223846793005ULL + 1;
-    return (long int)((_rand_next >> 32) & 0x7fffffffL);
+    next = next * 6364136223846793005ULL + 1;
+    if (__random_state)
+        memcpy(__random_state, &next, sizeof(next));
+    else
+        _rand_next = next;
+    return (long int)((next >> 32) & 0x7fffffffL);
 }

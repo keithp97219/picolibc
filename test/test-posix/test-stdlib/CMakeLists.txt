@@ -35,6 +35,7 @@
 
 set(tests
   test-grantpt
+  test-initstate
   test-mkdtemp
   test-posix_openpt
   test-ptsname

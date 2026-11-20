@@ -68,6 +68,10 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #endif
 
 _BEGIN_STD_C
+void   insque(void *, void *) __picolibc_export;
+void  *lfind(const void *, const void *, size_t *, size_t, __compar_fn_t) __picolibc_export;
+void  *lsearch(const void *, void *, size_t *, size_t, __compar_fn_t) __picolibc_export;
+void   remque(void *) __picolibc_export;
 int    hcreate(size_t) __picolibc_export;
 void   hdestroy(void) __picolibc_export;
 ENTRY *hsearch(ENTRY, ACTION) __picolibc_export;

@@ -62,6 +62,7 @@ picolibc_sources(
   getsubopt.c
   imaxabs.c
   imaxdiv.c
+  initstate.c
   itoa.c
   jitouc.c
   jrand48.c
@@ -96,6 +97,7 @@ picolibc_sources(
   seed48.c
   secure_getenv.c
   setenv.c
+  setstate.c
   sjtouc.c
   srand.c
   srand48.c

@@ -25,6 +25,8 @@ extern uint32_t __environ_sequence;
 #endif
 
 extern __THREAD_LOCAL uint64_t _rand_next;
+extern char                   *__random_state;
+extern char                    __random_builtin[8];
 
 #ifdef __AVR__
 typedef unsigned int uwchar_t;

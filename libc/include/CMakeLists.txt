@@ -54,7 +54,9 @@ picolibc_headers(""
   fastmath.h
   fcntl.h
   fenv.h
+  fmtmsg.h
   fnmatch.h
+  ftw.h
   getopt.h
   glob.h
   grp.h
