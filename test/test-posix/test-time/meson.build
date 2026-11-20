@@ -37,5 +37,6 @@ dir_tests = [
   'test-clock_getcpuclockid',
   'test-clock_nanosleep',
   'test-time',
+  'test-time_h',
   'test-timer_create',
 ]
