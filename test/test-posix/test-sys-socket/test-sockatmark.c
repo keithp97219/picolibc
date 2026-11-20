@@ -107,7 +107,7 @@ tcp_pair(int *client, int *server)
 int
 main(void)
 {
-    int  client, server, on = 1;
+    int  client, server, on = 1, fd, fds[2];
     char buf[8];
 
     tcp_pair(&client, &server);
@@ -115,14 +115,38 @@ main(void)
     check(setsockopt(server, SOL_SOCKET, SO_OOBINLINE, &on, sizeof(on)) == 0, "SO_OOBINLINE");
     check(send(client, "ab", 2, 0) == 2, "data");
     check(send(client, "!", 1, MSG_OOB) == 1, "out-of-band");
+    /* Data before the mark */
+    check(recv(server, buf, 2, MSG_PEEK | MSG_WAITALL) == 2, "data arrived");
+    check(sockatmark(server) == 0, "data precedes the mark");
     /* Read up to the mark */
     check(recv(server, buf, 2, MSG_WAITALL) == 2, "before the mark");
     while (sockatmark(server) == 0)
         ;
+    /* Asking doesn't remove the mark */
     check(sockatmark(server) == 1, "at the mark");
+    check(sockatmark(server) == 1, "still at the mark");
     check(recv(server, buf, 1, 0) == 1 && buf[0] == '!', "the out-of-band byte");
+    check(sockatmark(server) == 0, "past the mark");
     check(sockatmark(-1) == -1 && errno == EBADF, "EBADF");
     check(close(client) == 0 && close(server) == 0, "close");
+
+    /* Not a socket */
+    check(pipe(fds) == 0, "pipe");
+    errno = 0;
+    check(sockatmark(fds[0]) == -1 && errno == ENOTTY, "ENOTTY");
+    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
+
+    /* Sockets without out-of-band marks are never at one; glibc passes on Linux's ENOTTY */
+#ifndef __GLIBC__
+    fd = make_socket(AF_INET, SOCK_DGRAM);
+    check(sockatmark(fd) == 0, "UDP");
+    check(close(fd) == 0, "close");
+    check(socketpair(AF_UNIX, SOCK_DGRAM, 0, fds) == 0, "socketpair");
+    check(sockatmark(fds[0]) == 0, "AF_UNIX datagrams");
+    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
+#else
+    (void)fd;
+#endif
     printf("success\n");
     return 0;
 }
