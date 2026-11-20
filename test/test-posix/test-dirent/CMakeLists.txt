@@ -38,6 +38,7 @@ set(tests
   test-dirent_h
   test-dirfd
   test-fdopendir
+  test-opendir
   test-posix_getdents
   test-readdir
   test-readdir_r
