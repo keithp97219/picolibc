@@ -52,6 +52,12 @@ clock_nanosleep(clockid_t id, int flags, const struct timespec *dur, struct time
      * errno alone, so use _syscall_raw. The kernel checks the clock
      * and the time.
      */
+    /*
+     * POSIX requires EINVAL for the calling thread's CPU-time clock;
+     * Linux reports EOPNOTSUPP for CLOCK_THREAD_CPUTIME_ID
+     */
+    if (id == CLOCK_THREAD_CPUTIME_ID)
+        return EINVAL;
     MAP_CLOCK_ID(kid, id);
     if (flags == TIMER_ABSTIME)
         kflags = LINUX_TIMER_ABSTIME;
