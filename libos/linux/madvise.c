@@ -59,18 +59,27 @@ _posix_advice_to_linux(int advice)
  * posix_madvise: POSIX.1-2008.
  *
  * Unlike most POSIX functions, posix_madvise() returns an error code
- * directly rather than setting errno and returning -1.  The syscall
- * trampoline sets errno and returns -1 on failure, so we read errno
- * back out and return it directly.
+ * directly rather than setting errno and returning -1.
  */
 int
 posix_madvise(void *addr, size_t len, int advice)
 {
-    int linux_advice = _posix_advice_to_linux(advice);
+    int  linux_advice = _posix_advice_to_linux(advice);
+    long ret;
+
     if (linux_advice < 0)
         return EINVAL;
-    int ret = (int)_syscall(LINUX_SYS_madvise, addr, len, linux_advice);
+    /*
+     * Linux's MADV_DONTNEED discards the contents of private pages,
+     * but posix_madvise must not change what the memory holds. Only
+     * check the range, which msync with MS_ASYNC does without
+     * touching anything.
+     */
+    if (advice == POSIX_MADV_DONTNEED)
+        ret = _syscall_raw(LINUX_SYS_msync, addr, len, LINUX_MS_ASYNC);
+    else
+        ret = _syscall_raw(LINUX_SYS_madvise, addr, len, linux_advice);
     if (ret < 0)
-        return errno;
+        return _syscall_errno(ret);
     return 0;
 }
