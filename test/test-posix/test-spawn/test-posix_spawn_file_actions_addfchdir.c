@@ -91,7 +91,9 @@ int
 main(void)
 {
     posix_spawn_file_actions_t fa;
-    int                        dfd;
+    char                      *argv[] = { "sh", "-c", "exit 0", NULL };
+    pid_t                      pid;
+    int                        dfd, fd;
 
     if (access("/bin/sh", X_OK) != 0) {
         printf("no /bin/sh, skipping\n");
@@ -106,6 +108,21 @@ main(void)
     check(posix_spawn_file_actions_addfchdir(&fa, -1) == EBADF, "EBADF");
     check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
     check(close(dfd) == 0, "close");
+
+    /* A failed fchdir is reported */
+    check(fcntl(20, F_GETFD) < 0, "fd 20 closed");
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_addfchdir(&fa, 20) == 0, "addfchdir closed");
+    check(posix_spawn(&pid, "/bin/sh", &fa, NULL, argv, environ) == EBADF, "fchdir EBADF");
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+    fd = open("/bin/sh", O_RDONLY);
+    check(fd >= 0, "open file");
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_addfchdir(&fa, fd) == 0, "addfchdir file");
+    check(posix_spawn(&pid, "/bin/sh", &fa, NULL, argv, environ) == ENOTDIR, "fchdir ENOTDIR");
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+    check(close(fd) == 0, "close file");
+
     check(chdir(dir) == 0 && access("here", F_OK) == 0, "created after fchdir");
     check(unlink("here") == 0 && chdir("..") == 0 && rmdir(dir) == 0, "cleanup");
     printf("success\n");

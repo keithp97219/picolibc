@@ -91,6 +91,9 @@ main(void)
 {
     posix_spawn_file_actions_t fa;
     char                       buf[8];
+    char                      *argv[] = { "sh", "-c", "exit 0", NULL };
+    pid_t                      pid;
+    long                       open_max;
     int                        fds[2];
 
     if (access("/bin/sh", X_OK) != 0) {
@@ -113,6 +116,19 @@ main(void)
     check(exited(run("echo kept >&8", &fa, NULL), 0), "kept open");
     check(read(fds[0], buf, 5) == 5 && memcmp(buf, "kept\n", 5) == 0, "output");
     check(posix_spawn_file_actions_adddup2(&fa, -1, 3) == EBADF, "EBADF");
+    check(posix_spawn_file_actions_adddup2(&fa, 3, -1) == EBADF, "EBADF new");
+    open_max = sysconf(_SC_OPEN_MAX);
+    if (open_max > 0 && open_max < 0x7fffffff) {
+        check(posix_spawn_file_actions_adddup2(&fa, (int)open_max, 3) == EBADF, "EBADF max");
+        check(posix_spawn_file_actions_adddup2(&fa, 3, (int)open_max) == EBADF, "EBADF new max");
+    }
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+
+    /* Duplicating a closed descriptor fails in posix_spawn */
+    check(fcntl(20, F_GETFD) < 0, "fd 20 closed");
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_adddup2(&fa, 20, 21) == 0, "adddup2 closed");
+    check(posix_spawn(&pid, "/bin/sh", &fa, NULL, argv, environ) == EBADF, "dup2 EBADF");
     check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
     check(close(8) == 0 && close(fds[0]) == 0 && close(fds[1]) == 0, "close");
     printf("success\n");

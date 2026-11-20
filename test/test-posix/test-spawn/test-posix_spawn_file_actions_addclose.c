@@ -90,7 +90,10 @@ int
 main(void)
 {
     posix_spawn_file_actions_t fa;
-    int                        fds[2];
+    char                      *argv[] = { "sh", "-c", "exit 0", NULL };
+    pid_t                      pid;
+    long                       open_max;
+    int                        fds[2], ret, status;
 
     if (access("/bin/sh", X_OK) != 0) {
         printf("no /bin/sh, skipping\n");
@@ -104,6 +107,39 @@ main(void)
     check(!exited(run("echo x >&9", &fa, NULL), 0), "closed in the child");
     check(posix_spawn_file_actions_addclose(&fa, -1) == EBADF, "EBADF");
     check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+
+    /* Actions run in the order they were added */
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_addclose(&fa, 9) == 0, "addclose");
+    check(posix_spawn_file_actions_adddup2(&fa, fds[1], 9) == 0, "adddup2");
+    check(exited(run("echo x >&9", &fa, NULL), 0), "close then dup2");
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_adddup2(&fa, fds[1], 9) == 0, "adddup2");
+    check(posix_spawn_file_actions_addclose(&fa, 9) == 0, "addclose");
+    check(!exited(run("echo x >&9", &fa, NULL), 0), "dup2 then close");
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+
+    /* Closing an in-range descriptor that is already closed is ignored */
+    check(fcntl(20, F_GETFD) < 0, "fd 20 closed");
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_addclose(&fa, 20) == 0, "addclose closed");
+    check(exited(run("exit 0", &fa, NULL), 0), "closed fd ignored");
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+
+    /* One out of range fails, either now or in posix_spawn */
+    open_max = sysconf(_SC_OPEN_MAX);
+    if (open_max > 0 && open_max < 0x7fffffff) {
+        check(posix_spawn_file_actions_init(&fa) == 0, "init");
+        ret = posix_spawn_file_actions_addclose(&fa, (int)open_max);
+        if (ret == 0) {
+            ret = posix_spawn(&pid, "/bin/sh", &fa, NULL, argv, environ);
+            if (ret == 0)
+                check(waitpid(pid, &status, 0) == pid, "waitpid");
+        }
+        check(ret == EBADF, "close out of range");
+        check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+    }
     check(close(9) == 0 && close(fds[0]) == 0 && close(fds[1]) == 0, "close");
     printf("success\n");
     return 0;

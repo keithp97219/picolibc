@@ -59,8 +59,10 @@ test_skip_native += [
 if host_cpu_family not in ['x86', 'x86_64']
   test_skip_native += [
     'test-posix_spawn',
+    'test-posix_spawn_file_actions_adddup2',
     'test-posix_spawn_file_actions_addopen',
     'test-posix_spawnattr_setpgroup',
+    'test-posix_spawnattr_setschedpolicy',
     'test-posix_spawnp',
   ]
 endif

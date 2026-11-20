@@ -50,6 +50,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -91,6 +92,11 @@ int
 main(void)
 {
     posix_spawn_file_actions_t fa;
+    char                       name[sizeof(dir)];
+    char                       path[64];
+    char                      *argv[] = { "prog", NULL };
+    pid_t                      pid;
+    int                        fd, status;
 
     if (access("/bin/sh", X_OK) != 0) {
         printf("no /bin/sh, skipping\n");
@@ -98,13 +104,46 @@ main(void)
     }
     check(mkdtemp(dir) != NULL, "mkdtemp");
     check(posix_spawn_file_actions_init(&fa) == 0, "init");
-    check(posix_spawn_file_actions_addchdir(&fa, dir) == 0, "addchdir");
+    /* The path is copied */
+    strcpy(name, dir);
+    check(posix_spawn_file_actions_addchdir(&fa, name) == 0, "addchdir");
+    memset(name, 'x', sizeof(name) - 1);
     check(posix_spawn_file_actions_addopen(&fa, 1, "here", O_WRONLY | O_CREAT, 0600) == 0,
           "addopen");
     check(exited(run("echo x", &fa, NULL), 0), "child");
     check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
-    check(chdir(dir) == 0 && access("here", F_OK) == 0, "opened after chdir");
-    check(unlink("here") == 0 && chdir("..") == 0 && rmdir(dir) == 0, "cleanup");
+    snprintf(path, sizeof(path), "%s/here", dir);
+    check(access(path, F_OK) == 0 && unlink(path) == 0, "opened after chdir");
+
+    /*
+     * A relative chdir follows the ones before it, and a relative
+     * program path is found from the final directory
+     */
+    snprintf(path, sizeof(path), "%s/sub", dir);
+    check(mkdir(path, 0700) == 0, "mkdir");
+    snprintf(path, sizeof(path), "%s/sub/prog", dir);
+    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0700);
+    check(fd >= 0 && write(fd, "#!/bin/sh\nexit 5\n", 18) == 18 && close(fd) == 0, "prog");
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_addchdir(&fa, dir) == 0, "addchdir");
+    check(posix_spawn_file_actions_addchdir(&fa, "sub") == 0, "addchdir relative");
+    check(posix_spawn(&pid, "prog", &fa, NULL, argv, environ) == 0, "relative path");
+    check(waitpid(pid, &status, 0) == pid && exited(status, 5), "relative path status");
+    /* posix_spawnp searches relative PATH entries from there too */
+    check(setenv("PATH", ".", 1) == 0, "setenv");
+    check(posix_spawnp(&pid, "prog", &fa, NULL, argv, environ) == 0, "relative PATH");
+    check(waitpid(pid, &status, 0) == pid && exited(status, 5), "relative PATH status");
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+    check(unlink(path) == 0, "unlink prog");
+    snprintf(path, sizeof(path), "%s/sub", dir);
+    check(rmdir(path) == 0, "rmdir sub");
+
+    /* A failed chdir is reported */
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_addchdir(&fa, "/nonexistent/directory") == 0, "addchdir");
+    check(posix_spawn(&pid, "/bin/sh", &fa, NULL, argv, environ) == ENOENT, "ENOENT");
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+    check(rmdir(dir) == 0, "cleanup");
     printf("success\n");
     return 0;
 }

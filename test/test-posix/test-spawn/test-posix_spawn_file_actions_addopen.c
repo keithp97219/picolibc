@@ -50,6 +50,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -87,11 +88,56 @@ exited(int status, int code)
 
 static char dir[] = "tmp-XXXXXX";
 
+#define NFILE 32
+
+/*
+ * An open action closes its descriptor before opening the file, so it
+ * works with every descriptor in use. Fill all but the top two, which
+ * posix_spawn may use itself; a dup2 action fills the one below.
+ */
+static void
+check_full(void)
+{
+    posix_spawn_file_actions_t fa;
+    struct rlimit              old, lim;
+    char                       ours[NFILE] = { 0 };
+    int                        fd, base;
+
+    check(getrlimit(RLIMIT_NOFILE, &old) == 0, "getrlimit");
+    if (old.rlim_cur < NFILE)
+        return;
+    lim = old;
+    lim.rlim_cur = NFILE;
+    check(setrlimit(RLIMIT_NOFILE, &lim) == 0, "setrlimit");
+    base = open("out", O_RDONLY);
+    check(base >= 0, "open base");
+    while ((fd = dup(base)) >= 0)
+        ours[fd] = 1;
+    check(errno == EMFILE, "EMFILE");
+    check(ours[NFILE - 1] && ours[NFILE - 2], "top two ours");
+    check(close(NFILE - 1) == 0 && close(NFILE - 2) == 0, "close top");
+    ours[NFILE - 1] = ours[NFILE - 2] = 0;
+
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_adddup2(&fa, base, NFILE - 2) == 0, "adddup2");
+    check(posix_spawn_file_actions_addopen(&fa, 0, "out", O_RDONLY, 0) == 0, "addopen");
+    check(exited(run("exit 0", &fa, NULL), 0), "open with all in use");
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+
+    for (fd = 0; fd < NFILE; fd++)
+        if (ours[fd])
+            check(close(fd) == 0, "close");
+    check(close(base) == 0, "close base");
+    check(setrlimit(RLIMIT_NOFILE, &old) == 0, "restore rlimit");
+}
+
 int
 main(void)
 {
     posix_spawn_file_actions_t fa;
     char                       buf[8];
+    char                       name[] = "out";
+    long                       open_max;
     int                        fd;
 
     if (access("/bin/sh", X_OK) != 0) {
@@ -100,13 +146,16 @@ main(void)
     }
     check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
     check(posix_spawn_file_actions_init(&fa) == 0, "init");
-    check(posix_spawn_file_actions_addopen(&fa, 1, "out", O_WRONLY | O_CREAT | O_TRUNC, 0600) == 0,
+    check(posix_spawn_file_actions_addopen(&fa, 1, name, O_WRONLY | O_CREAT | O_TRUNC, 0600) == 0,
           "addopen");
+    /* The path was copied */
+    name[0] = 'x';
     check(exited(run("echo hello", &fa, NULL), 0), "child");
     check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
     fd = open("out", O_RDONLY);
     check(fd >= 0 && read(fd, buf, 6) == 6 && memcmp(buf, "hello\n", 6) == 0, "output");
     check(close(fd) == 0, "close");
+    check_full();
 
     /* A failed open is reported by posix_spawn */
     check(posix_spawn_file_actions_init(&fa) == 0, "init");
@@ -118,6 +167,10 @@ main(void)
         check(posix_spawn(&pid, "/bin/sh", &fa, NULL, argv, environ) == ENOENT, "ENOENT");
     }
     check(posix_spawn_file_actions_addopen(&fa, -1, "x", O_RDONLY, 0) == EBADF, "EBADF");
+    open_max = sysconf(_SC_OPEN_MAX);
+    if (open_max > 0 && open_max < 0x7fffffff)
+        check(posix_spawn_file_actions_addopen(&fa, (int)open_max, "x", O_RDONLY, 0) == EBADF,
+              "EBADF max");
     check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
 
     /*
