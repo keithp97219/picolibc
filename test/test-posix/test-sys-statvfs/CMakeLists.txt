@@ -33,4 +33,13 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need the OS fallback library, which the CMake build doesn't have
+# test-statvfs needs the OS fallback library, which the CMake build doesn't have
+
+set(tests
+  test-sys_statvfs_h
+  )
+
+foreach(test IN LISTS tests)
+  picolibc_test(${test})
+  set_tests_properties(${test} PROPERTIES LABELS test-sys-statvfs)
+endforeach()
