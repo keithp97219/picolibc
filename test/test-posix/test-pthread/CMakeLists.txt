@@ -49,6 +49,7 @@ set(tests
   test-pthread_h_sync
   test-pthread_h_threads
   test-pthread_key_create
+  test-pthread_key_delete
   test-pthread_kill
   test-pthread_mutex_consistent
   test-pthread_mutex_lock
