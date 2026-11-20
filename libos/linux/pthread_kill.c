@@ -40,14 +40,17 @@ int
 pthread_kill(pthread_t thread, int sig)
 {
     int tid;
+    int ksig;
     int ret = 0;
 
-    if ((unsigned)sig >= NSIG)
+    ksig = _signal_to_linux(sig);
+    if (ksig < 0)
         return EINVAL;
     tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
+    /* A thread which has exited but not been joined is not an error */
     if (tid == 0)
-        return ESRCH;
-    ret = (int)_syscall_raw(LINUX_SYS_tgkill, getpid(), tid, _signal_to_linux(sig));
+        return 0;
+    ret = (int)_syscall_raw(LINUX_SYS_tgkill, getpid(), tid, ksig);
     if (ret < 0)
         ret = _syscall_errno(ret);
     return ret;
