@@ -11,6 +11,16 @@
 
 _BEGIN_STD_C
 
+#ifndef _UINT16_T_DECLARED
+typedef __uint16_t uint16_t;
+#define _UINT16_T_DECLARED
+#endif
+
+#ifndef _UINT32_T_DECLARED
+typedef __uint32_t uint32_t;
+#define _UINT32_T_DECLARED
+#endif
+
 /* The byte order functions, also defined as macros below */
 __uint32_t(htonl)(__uint32_t) __picolibc_export;
 __uint16_t(htons)(__uint16_t) __picolibc_export;
