@@ -22,7 +22,7 @@
 
 /*
 FUNCTION
-<<mktemp>>, <<mkstemp>>, <<mkstemps>>,
+<<mktemp>>, <<mkstemp>>, <<mkstemps>>, <<mkostemp>>,
 <<mkostemps>>---generate unused file name
 
 INDEX
@@ -32,6 +32,8 @@ INDEX
 INDEX
         mkstemps
 INDEX
+        mkostemp
+INDEX
         mkostemps
 
 SYNOPSIS
@@ -39,14 +41,15 @@ SYNOPSIS
         char *mktemp(char *<[path]>);
         int mkstemp(char *<[path]>);
         int mkstemps(char *<[path]>, int suffixlen);
+        int mkostemp(char *<[path]>, int flags);
         int mkostemps(char *<[path]>, int suffixlen, int flags);
 
 DESCRIPTION
-<<mktemp>>, <<mkstemp>>, <<mkstemps>>, and <<mkostemps>> attempt to
+<<mktemp>>, <<mkstemp>>, <<mkstemps>>, <<mkostemp>> and <<mkostemps>> attempt to
 generate a file name that is not yet in use for any existing file.
 <<mkstemp>>, <<mkstemps>> and <mkostemps>> create the file and open it
 for reading and writing; <<mktemp>> simply generates the file name
-(making <<mktemp>> a security risk). <<mkostemps>> allow the addition
+(making <<mktemp>> a security risk). <<mkostemp>> and <<mkostemps>> allow the addition
 of other <<open>> flags, such as <<O_CLOEXEC>>, <<O_APPEND>>, or
 <<O_SYNC>>.  On platforms with a separate text mode, <<mkstemp>>
 forces <<O_BINARY>>, while <<mkostemp>> allows the choice between
@@ -202,4 +205,10 @@ mkostemps(char *template, int suffixlen, int flags)
 
     flags &= (O_APPEND | O_CLOEXEC | O_SYNC | O_BINARY | O_TEXT);
     return (_gettemp(template, suffixlen, &fd, flags) ? fd : -1);
+}
+
+int
+mkostemp(char *template, int flags)
+{
+    return mkostemps(template, 0, flags);
 }
