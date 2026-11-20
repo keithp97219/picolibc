@@ -69,6 +69,7 @@ srcs_posix = [
   'getpwnam_r.c',
   'getpwuid.c',
   'getpwuid_r.c',
+  'glob.c',
   'grdata.c',
   'grfile.c',
   'pwdata.c',

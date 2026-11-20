@@ -76,6 +76,7 @@ if has_os_posix
   tests += [
     'test-alarm',
     'test-execle',
+    'test-glob',
     'test-mkdtemp',
     'test-mmap',
     'test-pclose',
