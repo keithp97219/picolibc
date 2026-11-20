@@ -42,13 +42,16 @@ mq_timedreceive(mqd_t mqdes, char * __restrict msg, size_t len, unsigned * __res
     struct __kernel_timespec_time_t kts, *pkts = NULL;
     void                           *cancel;
     long                            ret;
+    int                             bad_nsec = 0;
 
     if (abs_timeout) {
-        _mq_timeout(&kts, abs_timeout);
+        bad_nsec = _mq_timeout(&kts, abs_timeout);
         pkts = &kts;
     }
     cancel = _cancel_enter();
     ret = _syscall(LINUX_SYS_mq_timedreceive_time_t, mqdes, msg, len, prio, pkts);
     _cancel_leave(cancel);
+    if (ret < 0 && bad_nsec && errno == ETIMEDOUT)
+        errno = EINVAL;
     return (ssize_t)ret;
 }

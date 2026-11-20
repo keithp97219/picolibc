@@ -42,13 +42,16 @@ mq_timedsend(mqd_t mqdes, const char *msg, size_t len, unsigned prio,
     struct __kernel_timespec_time_t kts, *pkts = NULL;
     void                           *cancel;
     long                            ret;
+    int                             bad_nsec = 0;
 
     if (abs_timeout) {
-        _mq_timeout(&kts, abs_timeout);
+        bad_nsec = _mq_timeout(&kts, abs_timeout);
         pkts = &kts;
     }
     cancel = _cancel_enter();
     ret = _syscall(LINUX_SYS_mq_timedsend_time_t, mqdes, msg, len, prio, pkts);
     _cancel_leave(cancel);
+    if (ret < 0 && bad_nsec && errno == ETIMEDOUT)
+        errno = EINVAL;
     return (int)ret;
 }

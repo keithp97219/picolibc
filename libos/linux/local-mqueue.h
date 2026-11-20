@@ -72,11 +72,23 @@ _mq_name(const char *name)
     return name + 1;
 }
 
-static inline void
+/*
+ * POSIX rejects a bad tv_nsec only when the call would block, and a
+ * deadline before the epoch has simply passed. Linux rejects both
+ * before looking at the queue, so hand it a deadline that has already
+ * passed instead. Returns whether a resulting ETIMEDOUT should be
+ * reported as EINVAL.
+ */
+static inline int
 _mq_timeout(struct __kernel_timespec_time_t *kts, const struct timespec *ts)
 {
     kts->tv_sec = ts->tv_sec;
     kts->tv_nsec = ts->tv_nsec;
+    if (ts->tv_sec >= 0 && ts->tv_nsec >= 0 && ts->tv_nsec < 1000000000L)
+        return 0;
+    kts->tv_sec = 0;
+    kts->tv_nsec = 0;
+    return ts->tv_nsec < 0 || ts->tv_nsec >= 1000000000L;
 }
 
 static inline void
