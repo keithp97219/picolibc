@@ -43,6 +43,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -109,9 +110,12 @@ tcp_pair(int *client, int *server)
 int
 main(void)
 {
-    struct iovec iov[2];
+    static char  big[16];
+    struct iovec iov[3], *many;
     char         a[3], b[8];
-    int          fds[2];
+    int          fds[2], client, server, i;
+    long         iov_max = sysconf(_SC_IOV_MAX);
+    volatile int negative = -1;
 
     check(pipe(fds) == 0, "pipe");
     check(write(fds[1], "abcdefg", 7) == 7, "write");
@@ -122,9 +126,55 @@ main(void)
     check(readv(fds[0], iov, 2) == 7, "readv");
     check(memcmp(a, "abc", 3) == 0 && memcmp(b, "defg", 4) == 0, "contents");
     check(readv(-1, iov, 2) == -1 && errno == EBADF, "EBADF");
-    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
+    /* As read: non-blocking, and end of file */
+    check(fcntl(fds[0], F_SETFL, O_NONBLOCK) == 0, "O_NONBLOCK");
+    errno = 0;
+    check(readv(fds[0], iov, 2) == -1 && (errno == EAGAIN || errno == EWOULDBLOCK), "EAGAIN");
+    check(close(fds[1]) == 0, "close write end");
+    check(readv(fds[0], iov, 2) == 0, "end of file");
+
+    /* Bad counts */
+    /* volatile, as the compiler rejects a constant negative count */
+    errno = 0;
+    check(readv(fds[0], iov, negative) == -1 && errno == EINVAL, "negative count");
+    /* IOV_MAX is an XSI name in <limits.h> */
+    if (iov_max > 0) {
+        many = calloc((size_t)iov_max + 1, sizeof(*many));
+        check(many != NULL, "calloc");
+        for (i = 0; i <= iov_max; i++) {
+            many[i].iov_base = a;
+            many[i].iov_len = 1;
+        }
+        errno = 0;
+        check(readv(fds[0], many, (int)iov_max + 1) == -1 && errno == EINVAL, "more than IOV_MAX");
+        free(many);
+    }
+    /* Linux shortens the transfer, and glibc passes that on */
+#ifndef __GLIBC__
+    iov[0].iov_base = big;
+    iov[0].iov_len = (size_t)SSIZE_MAX / 2 + 1;
+    iov[1].iov_base = big;
+    iov[1].iov_len = (size_t)SSIZE_MAX / 2 + 1;
+    errno = 0;
+    check(readv(fds[0], iov, 2) == -1 && errno == EINVAL, "total overflows");
+#else
+    (void)big;
+#endif
+    check(close(fds[0]) == 0, "close");
+
+    /* Sockets too */
+    tcp_pair(&client, &server);
+    check(write(client, "xyzw", 4) == 4, "write socket");
+    iov[0].iov_base = a;
+    iov[0].iov_len = 1;
+    iov[1].iov_base = a + 1;
+    iov[1].iov_len = 0;
+    iov[2].iov_base = b;
+    iov[2].iov_len = 3;
+    check(recv(server, b, 4, MSG_PEEK | MSG_WAITALL) == 4, "arrived");
+    check(readv(server, iov, 3) == 4 && a[0] == 'x' && memcmp(b, "yzw", 3) == 0, "socket readv");
+    check(close(client) == 0 && close(server) == 0, "close");
     (void)make_socket;
-    (void)tcp_pair;
     printf("success\n");
     return 0;
 }
