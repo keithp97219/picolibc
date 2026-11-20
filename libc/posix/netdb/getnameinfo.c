@@ -43,8 +43,8 @@ int
 getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __restrict host,
             socklen_t hostlen, char * __restrict serv, socklen_t servlen, int flags)
 {
-    const void *addr;
-    int         family, port;
+    const void *addr, *lookup_addr;
+    int         family, lookup_family, port;
     char        buf[INET6_ADDRSTRLEN];
 
     if (flags & ~__GNI_FLAGS)
@@ -68,11 +68,28 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
     if ((!host || !hostlen) && (!serv || !servlen))
         return EAI_NONAME;
 
+    /*
+     * Mapped and compatible addresses are named for their IPv4 address,
+     * and the unspecified address has no name
+     */
+    lookup_family = family;
+    lookup_addr = addr;
+    if (family == AF_INET6) {
+        const struct in6_addr *a6 = addr;
+
+        if (IN6_IS_ADDR_V4MAPPED(a6) || IN6_IS_ADDR_V4COMPAT(a6)) {
+            lookup_family = AF_INET;
+            lookup_addr = &a6->s6_addr[12];
+        } else if (IN6_IS_ADDR_UNSPECIFIED(a6)) {
+            lookup_family = AF_UNSPEC;
+        }
+    }
+
     if (host && hostlen) {
         bool named = false;
 
-        if (!(flags & NI_NUMERICHOST)) {
-            named = __netdb_host_name(family, addr, host, hostlen);
+        if (!(flags & NI_NUMERICHOST) && lookup_family != AF_UNSPEC) {
+            named = __netdb_host_name(lookup_family, lookup_addr, host, hostlen);
             if (named && (flags & NI_NOFQDN)) {
                 char *dot = strchr(host, '.');
 
