@@ -42,6 +42,7 @@ picolibc_sources(
   endgrent.c
   endpwent.c
   execl.c
+  execle.c
   execlp.c
   execv.c
   execvp.c
