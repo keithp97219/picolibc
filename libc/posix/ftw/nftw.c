@@ -48,6 +48,7 @@ typedef int (*__nftw_fn)(const char *, const struct stat *, int, struct FTW *);
 struct __nftw {
     __nftw_fn fn;
     int       flags;
+    int       fd_limit;
     dev_t     dev;
     char      path[PATH_MAX];
     char      cwd[PATH_MAX]; /* the starting directory, for FTW_CHDIR */
@@ -86,6 +87,48 @@ __nftw_call(struct __nftw *w, const struct stat *st, int type, struct FTW *ftw)
     return w->fn(w->path, st, type, ftw);
 }
 
+/*
+ * Reads the rest of the directory into memory, as NUL-terminated names
+ * one after another, so its descriptor can be closed before descending.
+ */
+static char *
+__nftw_names(DIR *dir, size_t *size)
+{
+    char          *names = NULL, *n;
+    size_t         used = 0, alloc = 0, nlen;
+    struct dirent *ent;
+
+    for (;;) {
+        errno = 0;
+        ent = readdir(dir);
+        if (!ent) {
+            if (errno) {
+                free(names);
+                return NULL;
+            }
+            break;
+        }
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+            continue;
+        nlen = strlen(ent->d_name) + 1;
+        if (alloc - used < nlen) {
+            alloc = alloc * 2 + nlen + 256;
+            n = realloc(names, alloc);
+            if (!n) {
+                free(names);
+                return NULL;
+            }
+            names = n;
+        }
+        memcpy(names + used, ent->d_name, nlen);
+        used += nlen;
+    }
+    if (!names)
+        names = malloc(1);
+    *size = used;
+    return names;
+}
+
 static int
 __nftw_walk(struct __nftw *w, size_t len, int base, int level, struct __nftw_dir *up)
 {
@@ -95,6 +138,8 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level, struct __nftw_dir
     int               type, ret, sep;
     DIR              *dir;
     struct dirent    *ent;
+    char             *names = NULL;
+    size_t            nsize = 0, npos = 0;
 
     if ((w->flags & FTW_PHYS) ? lstat(w->path, &st) : stat(w->path, &st)) {
         int error = errno;
@@ -138,24 +183,46 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level, struct __nftw_dir
             return ret;
         }
     }
+
+    /*
+     * Each level being read holds one descriptor; at the last one
+     * fd_limit allows, read the directory and close it before descending.
+     */
+    if (level + 1 >= w->fd_limit) {
+        names = __nftw_names(dir, &nsize);
+        closedir(dir);
+        dir = NULL;
+        if (!names)
+            return -1;
+    }
+
     here.dev = st.st_dev;
     here.ino = st.st_ino;
     here.up = up;
     ret = 0;
     sep = len && w->path[len - 1] != '/';
     while (!ret) {
-        size_t start = len + (size_t)sep, nlen;
+        size_t      start = len + (size_t)sep, nlen;
+        const char *name;
 
-        errno = 0;
-        ent = readdir(dir);
-        if (!ent) {
-            if (errno)
-                ret = -1;
-            break;
+        if (dir) {
+            errno = 0;
+            ent = readdir(dir);
+            if (!ent) {
+                if (errno)
+                    ret = -1;
+                break;
+            }
+            name = ent->d_name;
+            if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+                continue;
+        } else {
+            if (npos >= nsize)
+                break;
+            name = names + npos;
+            npos += strlen(name) + 1;
         }
-        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-            continue;
-        nlen = strlen(ent->d_name);
+        nlen = strlen(name);
         if (start + nlen >= sizeof(w->path)) {
             errno = ENAMETOOLONG;
             ret = -1;
@@ -163,11 +230,13 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level, struct __nftw_dir
         }
         if (sep)
             w->path[len] = '/';
-        memcpy(w->path + start, ent->d_name, nlen + 1);
+        memcpy(w->path + start, name, nlen + 1);
         ret = __nftw_walk(w, start + nlen, (int)start, level + 1, &here);
         w->path[len] = '\0';
     }
-    closedir(dir);
+    if (dir)
+        closedir(dir);
+    free(names);
     if (!ret && (w->flags & FTW_DEPTH))
         ret = __nftw_call(w, &st, FTW_DP, &ftw);
     return ret;
@@ -182,8 +251,6 @@ nftw(const char *path, __nftw_fn fn, int fd_limit, int flags)
     const char    *slash;
     int            ret;
 
-    /* Directories are read one at a time, so fd_limit is never reached */
-    (void)fd_limit;
     if (len >= PATH_MAX) {
         errno = ENAMETOOLONG;
         return -1;
@@ -193,6 +260,8 @@ nftw(const char *path, __nftw_fn fn, int fd_limit, int flags)
         return -1;
     w->fn = fn;
     w->flags = flags;
+    /* At least one descriptor is needed to read any directory */
+    w->fd_limit = fd_limit < 1 ? 1 : fd_limit;
     memcpy(w->path, path, len + 1);
     w->dev = (flags & FTW_PHYS ? lstat(path, &st) : stat(path, &st)) == 0 ? st.st_dev : 0;
     if ((flags & FTW_CHDIR) && !getcwd(w->cwd, sizeof(w->cwd))) {
