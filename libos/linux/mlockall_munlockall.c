@@ -41,6 +41,10 @@ mlockall(int flags)
 {
     int linux_flags = 0;
 
+    if (flags & ~(MCL_CURRENT | MCL_FUTURE | MCL_ONFAULT)) {
+        errno = EINVAL;
+        return -1;
+    }
     if (flags & MCL_CURRENT)
         linux_flags |= LINUX_MCL_CURRENT;
     if (flags & MCL_FUTURE)
