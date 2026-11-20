@@ -258,6 +258,7 @@ if fs.is_dir(machine_dir)
 
   if posix_threads
     srcs_os_linux += [
+      '__aio_signal.c',
       '_futex_lock_pi.c',
       '_futex_timespec.c',
       '_futex_unlock_pi.c',
