@@ -34,8 +34,95 @@
  */
 
 #include "local-linux.h"
+#include "local-cancel.h"
 #include <fcntl.h>
 #include <stdarg.h>
+
+/*
+ * Record locks use 64-bit offsets everywhere: 32-bit targets need the
+ * fcntl64 call with its own lock commands. The open file description
+ * lock commands are the same on all targets.
+ */
+#if __SIZEOF_LONG__ == 8
+#define LINUX_SYS_fcntl_lock LINUX_SYS_fcntl
+#define LINUX_F_GETLK_64     5
+#define LINUX_F_SETLK_64     6
+#define LINUX_F_SETLKW_64    7
+#else
+#define LINUX_SYS_fcntl_lock LINUX_SYS_fcntl64
+#define LINUX_F_GETLK_64     12
+#define LINUX_F_SETLK_64     13
+#define LINUX_F_SETLKW_64    14
+#endif
+#define LINUX_F_OFD_GETLK_64  36
+#define LINUX_F_OFD_SETLK_64  37
+#define LINUX_F_OFD_SETLKW_64 38
+
+#define LINUX_F_RDLCK         0
+#define LINUX_F_WRLCK         1
+#define LINUX_F_UNLCK         2
+
+struct __kernel_flock64 {
+    short     l_type;
+    short     l_whence;
+    __int64_t l_start;
+    __int64_t l_len;
+    int       l_pid;
+};
+
+static int
+_fcntl_lock(int fd, int kop, struct flock *fl)
+{
+    struct __kernel_flock64 kfl;
+    void                   *cancel;
+    long                    ret;
+
+    switch (fl->l_type) {
+    case F_RDLCK:
+        kfl.l_type = LINUX_F_RDLCK;
+        break;
+    case F_WRLCK:
+        kfl.l_type = LINUX_F_WRLCK;
+        break;
+    case F_UNLCK:
+        kfl.l_type = LINUX_F_UNLCK;
+        break;
+    default:
+        errno = EINVAL;
+        return -1;
+    }
+    kfl.l_whence = fl->l_whence;
+    kfl.l_start = fl->l_start;
+    kfl.l_len = fl->l_len;
+    kfl.l_pid = fl->l_pid;
+
+    /* Waiting for a lock is a cancellation point */
+    cancel = (kop == LINUX_F_SETLKW_64 || kop == LINUX_F_OFD_SETLKW_64) ? _cancel_enter() : NULL;
+    ret = _syscall(LINUX_SYS_fcntl_lock, fd, kop, &kfl);
+    if (cancel)
+        _cancel_leave(cancel);
+    if (ret < 0)
+        return -1;
+
+    if (kop == LINUX_F_GETLK_64 || kop == LINUX_F_OFD_GETLK_64) {
+        switch (kfl.l_type) {
+        case LINUX_F_RDLCK:
+            fl->l_type = F_RDLCK;
+            break;
+        case LINUX_F_WRLCK:
+            fl->l_type = F_WRLCK;
+            break;
+        default:
+            fl->l_type = F_UNLCK;
+            break;
+        }
+        fl->l_whence = kfl.l_whence;
+        fl->l_start = kfl.l_start;
+        fl->l_len = kfl.l_len;
+        fl->l_pid = kfl.l_pid;
+    }
+    return (int)ret;
+}
 
 int
 fcntl(int fd, int op, ...)
@@ -67,8 +154,24 @@ fcntl(int fd, int op, ...)
         op = LINUX_F_SETFL;
         arg = 1;
         break;
+    case F_GETLK:
     case F_SETLK:
-        return 0;
+    case F_SETLKW:
+    case F_OFD_GETLK:
+    case F_OFD_SETLK:
+    case F_OFD_SETLKW: {
+        static const int kops[] = {
+            [F_GETLK] = LINUX_F_GETLK_64,         [F_SETLK] = LINUX_F_SETLK_64,
+            [F_SETLKW] = LINUX_F_SETLKW_64,       [F_OFD_GETLK] = LINUX_F_OFD_GETLK_64,
+            [F_OFD_SETLK] = LINUX_F_OFD_SETLK_64, [F_OFD_SETLKW] = LINUX_F_OFD_SETLKW_64,
+        };
+        struct flock *fl;
+
+        va_start(ap, op);
+        fl = va_arg(ap, struct flock *);
+        va_end(ap);
+        return _fcntl_lock(fd, kops[op], fl);
+    }
     default:
         errno = EINVAL;
         return -1;

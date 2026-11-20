@@ -35,6 +35,7 @@
 
 set(tests
   test-fcntl
+  test-fcntl-locks
   test-openat
   test-posix_fadvise
   test-posix_fallocate
