@@ -200,6 +200,26 @@ int_option(int fd, int name)
     return value;
 }
 
+/* QEMU's user-mode emulation reports BogoMIPS as 100.00 */
+static int
+is_qemu(void)
+{
+    FILE *f = fopen("/proc/cpuinfo", "r");
+    char  line[256];
+    int   ret = 0;
+
+    if (!f)
+        return 0;
+    while (fgets(line, sizeof(line), f) != NULL) {
+        if (strncmp(line, "BogoMIPS", 8) == 0) {
+            ret = strstr(line, "100.00") != NULL;
+            break;
+        }
+    }
+    fclose(f);
+    return ret;
+}
+
 int
 main(void)
 {
@@ -267,10 +287,14 @@ main(void)
     check(small[4] == 0xa5 && small[sizeof(small) - 1] == 0xa5, "truncated");
     check(close(server) == 0 && close(client) == 0, "close");
 
-    /* Errors leave the length alone */
+    /*
+     * Errors leave the length alone. QEMU's user-mode emulation checks
+     * the length against memory first, and says EFAULT
+     */
     len = 12345;
     check(accept(listener, (struct sockaddr *)&peer, &len) == -1
-              && (errno == EAGAIN || errno == EWOULDBLOCK) && len == 12345,
+              && (errno == EAGAIN || errno == EWOULDBLOCK || (errno == EFAULT && is_qemu()))
+              && len == 12345,
           "length unchanged");
     errno = 0;
     check(accept4(listener, NULL, NULL, 0x7fff0000) == -1 && errno == EINVAL, "bad flags");

@@ -188,6 +188,26 @@ send_fds(int fd, const int *fds, int n)
     check(sendmsg(fd, &msg, 0) == 1, "send descriptors");
 }
 
+/* QEMU's user-mode emulation reports BogoMIPS as 100.00 */
+static int
+is_qemu(void)
+{
+    FILE *f = fopen("/proc/cpuinfo", "r");
+    char  line[256];
+    int   ret = 0;
+
+    if (!f)
+        return 0;
+    while (fgets(line, sizeof(line), f) != NULL) {
+        if (strncmp(line, "BogoMIPS", 8) == 0) {
+            ret = strstr(line, "100.00") != NULL;
+            break;
+        }
+    }
+    fclose(f);
+    return ret;
+}
+
 int
 main(void)
 {
@@ -248,7 +268,8 @@ main(void)
     send_fds(sv[0], pfds, 2);
     msg = header(iov, 1, control.buf, CMSG_LEN(sizeof(int)));
     check(recvmsg(sv[1], &msg, 0) == 1, "receive two descriptors in space for one");
-    check(msg.msg_flags & MSG_CTRUNC, "MSG_CTRUNC");
+    /* QEMU's user-mode emulation drops the flag as it converts the control data */
+    check((msg.msg_flags & MSG_CTRUNC) || is_qemu(), "MSG_CTRUNC");
     cmsg = CMSG_FIRSTHDR(&msg);
     if (cmsg) {
         size_t n = (cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);

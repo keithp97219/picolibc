@@ -170,8 +170,11 @@ main(void)
     check(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == 0, "SO_RCVTIMEO");
     len = sizeof(got);
     check(getsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &got, &len) == 0, "get SO_RCVTIMEO");
-    /* QEMU's user-mode emulation reports nothing for this option */
-    if (len != 0 || !qemu)
+    /*
+     * QEMU's user-mode emulation reports nothing for the timeouts, or,
+     * for the 64-bit time options 32-bit targets use, an unconverted value
+     */
+    if (!qemu)
         check(len == sizeof(got) && got.tv_sec == 0 && got.tv_usec >= 90000
                   && got.tv_usec <= 110000,
               "timeout value");
@@ -179,7 +182,7 @@ main(void)
     memset(&got, 0xa5, sizeof(got));
     len = sizeof(got.tv_sec);
     check(getsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &got, &len) == 0, "short SO_RCVTIMEO");
-    if (len != 0 || !qemu)
+    if (!qemu)
         check(len == sizeof(got.tv_sec) && got.tv_sec == 0, "truncated timeout");
     len = 2;
     value = -1;
@@ -196,7 +199,7 @@ main(void)
     check(setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) == 0, "SO_SNDTIMEO");
     len = sizeof(got);
     check(getsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &got, &len) == 0, "get SO_SNDTIMEO");
-    if (len != 0 || !qemu)
+    if (!qemu)
         check(got.tv_sec == 1 && got.tv_usec == 0, "send timeout value");
     /* Microseconds out of range don't fit */
     tv.tv_usec = 1000000;
