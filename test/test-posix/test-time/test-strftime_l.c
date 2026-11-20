@@ -1,0 +1,212 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _XOPEN_SOURCE 800
+#include <time.h>
+
+/* strftime and strftime_l: POSIX conversions, flags, widths and errors */
+
+#include <errno.h>
+#include <locale.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+/* glibc doesn't set errno when the result doesn't fit */
+#ifdef __PICOLIBC__
+#define IS_ERANGE(e) ((e) == ERANGE)
+#else
+#define IS_ERANGE(e) 1
+#endif
+
+/* glibc takes %z and %Z from tm_gmtoff and tm_zone; picolibc from TZ */
+static void
+set_zone(struct tm *tm, long gmtoff, const char *zone)
+{
+#if defined(__PICOLIBC__) || defined(__USE_MISC)
+    tm->tm_gmtoff = gmtoff;
+    tm->tm_zone = zone;
+#elif defined(__GLIBC__)
+    tm->__tm_gmtoff = gmtoff;
+    tm->__tm_zone = zone;
+#else
+    (void)tm;
+    (void)gmtoff;
+    (void)zone;
+#endif
+}
+
+/* Not a literal, to avoid the empty format warning */
+static const char *empty = "";
+
+static struct tm
+date(int year, int mon, int mday, int wday, int yday)
+{
+    struct tm tm;
+
+    memset(&tm, 0, sizeof(tm));
+    tm.tm_year = year - 1900;
+    tm.tm_mon = mon - 1;
+    tm.tm_mday = mday;
+    tm.tm_wday = wday;
+    tm.tm_yday = yday;
+    tm.tm_hour = 13;
+    tm.tm_min = 5;
+    tm.tm_sec = 9;
+    return tm;
+}
+
+static void
+fmt(const struct tm *tm, const char *f, const char *want)
+{
+    char   buf[64];
+    size_t n;
+
+    errno = 1234;
+    n = strftime(buf, sizeof(buf), f, tm);
+    if (n != strlen(want) || strcmp(buf, want) != 0) {
+        printf("strftime(\"%s\"): got \"%s\" (%zu), want \"%s\"\n", f, buf, n, want);
+        exit(1);
+    }
+    /* errno is unchanged on success */
+    check(errno == 1234, f);
+}
+
+int
+main(void)
+{
+    struct tm tm;
+    char      buf[64];
+    locale_t  loc;
+
+    check(setenv("TZ", "EST5EDT,M3.2.0,M11.1.0", 1) == 0, "setenv");
+    tzset();
+
+    /* Saturday 2nd January 1999 and Tuesday 30th December 1997 */
+    tm = date(1999, 1, 2, 6, 1);
+    fmt(&tm, "%a %A %b %B %h", "Sat Saturday Jan January Jan");
+    fmt(&tm, "%C %d %D %e %F", "19 02 01/02/99  2 1999-01-02");
+    fmt(&tm, "%g %G %V", "98 1998 53");
+    fmt(&tm, "%H %I %j %m %M %n %p %r", "13 01 002 01 05 \n PM 01:05:09 PM");
+    fmt(&tm, "%R %S %t %T %u %U %w %W", "13:05 09 \t 13:05:09 6 00 6 00");
+    fmt(&tm, "%y %Y %%", "99 1999 %");
+    fmt(&tm, "%c", "Sat Jan  2 13:05:09 1999");
+    fmt(&tm, "%x %X", "01/02/99 13:05:09");
+    tm = date(1997, 12, 30, 2, 363);
+    fmt(&tm, "%G %V %g", "1998 01 98");
+    tm = date(2025, 1, 5, 0, 4);
+    fmt(&tm, "%u %w %U %W", "7 0 01 00");
+
+    /* %s, %z and %Z with tm_isdst */
+    tm = date(2025, 7, 1, 2, 181);
+    tm.tm_isdst = 1;
+    set_zone(&tm, -4 * 3600, "EDT");
+    fmt(&tm, "%s", "1751389509");
+    fmt(&tm, "%z %Z", "-0400 EDT");
+    tm.tm_isdst = 0;
+    tm.tm_mon = 0;
+    tm.tm_yday = 0;
+    set_zone(&tm, -5 * 3600, "EST");
+    fmt(&tm, "%z %Z", "-0500 EST");
+    tm.tm_isdst = -1;
+    fmt(&tm, "[%z]", "[]");
+
+    /* E and O fall back to the plain conversions in the POSIX locale */
+    tm = date(1999, 1, 2, 6, 1);
+    fmt(&tm, "%Ec|%EC|%Ex|%EX|%Ey|%EY", "Sat Jan  2 13:05:09 1999|19|01/02/99|13:05:09|99|1999");
+    fmt(&tm, "%Od %Oe %OH %OI %Om %OM %OS", "02  2 13 01 01 05 09");
+    fmt(&tm, "%Ou %OU %OV %Ow %OW %Oy", "6 00 53 6 00 99");
+
+#ifdef __PICOLIBC__
+    /* POSIX.1-2024 flags and widths (glibc ignores the + flag) */
+    tm = date(1970, 1, 1, 4, 0);
+    fmt(&tm, "%+4Y", "1970");
+    tm = date(270, 1, 1, 0, 0);
+    fmt(&tm, "%+4Y|%C%y|%+5Y|%+3C%y", "0270|0270|+0270|+0270");
+    tm = date(17, 1, 1, 0, 0);
+    fmt(&tm, "%C%y", "0017");
+    tm = date(12345, 1, 1, 0, 0);
+    fmt(&tm, "%Y|%+4Y|%05Y|%+5Y|%+3C%y|%06Y|%04C%y",
+        "12345|+12345|12345|+12345|+12345|012345|012345");
+    tm = date(2025, 3, 4, 2, 62);
+    fmt(&tm, "%+12F|%012F|%10F|%+13F", "+02025-03-04|002025-03-04|2025-03-04|+002025-03-04");
+    fmt(&tm, "%+6G|%06G", "+02025|002025");
+    /* %C is two digits for years 0 to 9999 (glibc gives one) */
+    tm = date(999, 1, 1, 0, 0);
+    fmt(&tm, "%C", "09");
+#endif
+
+    /* ERANGE when the result and its NUL don't fit */
+    tm = date(2025, 3, 4, 2, 62);
+    errno = 0;
+    check(strftime(buf, 10, "%Y-%m-%d", &tm) == 0 && IS_ERANGE(errno), "ERANGE");
+    errno = 0;
+    check(strftime(buf, 10, "abcdefghij", &tm) == 0 && IS_ERANGE(errno), "ERANGE, ordinary chars");
+    check(strftime(buf, 11, "%Y-%m-%d", &tm) == 10 && strcmp(buf, "2025-03-04") == 0, "just fits");
+    memset(buf, 'x', sizeof(buf));
+    errno = 0;
+    check(strftime(buf, 0, "abc", &tm) == 0 && IS_ERANGE(errno), "maxsize 0");
+    check(buf[0] == 'x', "nothing written with maxsize 0");
+    /* An empty result is a success */
+    errno = 1234;
+    check(strftime(buf, sizeof(buf), empty, &tm) == 0 && buf[0] == '\0' && errno == 1234, "empty");
+
+    /* strftime_l uses the given locale */
+    loc = newlocale(LC_ALL_MASK, "POSIX", (locale_t)0);
+    check(loc != (locale_t)0, "newlocale");
+    check(strftime_l(buf, sizeof(buf), "%a %b %e %Y", &tm, loc) == 15
+              && strcmp(buf, "Tue Mar  4 2025") == 0,
+          "strftime_l");
+    errno = 0;
+    check(strftime_l(buf, 4, "%Y-", &tm, loc) == 0 && IS_ERANGE(errno), "strftime_l ERANGE");
+    freelocale(loc);
+
+    /* strftime uses the TZ in effect, as though by tzset */
+    check(setenv("TZ", "JST-9", 1) == 0, "setenv");
+    tm = date(2025, 3, 4, 2, 62);
+    set_zone(&tm, 9 * 3600, "JST");
+    fmt(&tm, "%Z %z", "JST +0900");
+
+    printf("success\n");
+    return 0;
+}
