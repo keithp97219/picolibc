@@ -33,6 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #define _DEFAULT_SOURCE
+#define _GNU_SOURCE /* glibc declares mkostemp only for _GNU_SOURCE */
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -136,6 +138,19 @@ main(void)
     check(f != NULL, "fopen w");
     fputs(MESSAGE, f);
     fclose(f);
+    f = NULL;
+    check_contents(template, 1);
+    (void)remove(template);
+
+    /* Create temp file with extra open flags */
+    strcpy(template, NAME_TEMPLATE);
+    i_ret = mkostemp(template, O_APPEND);
+    check(i_ret >= 0, "mkostemp");
+    f = fdopen(i_ret, "a");
+    check(f != NULL, "fopen a");
+    fputs(MESSAGE, f);
+    fclose(f);
+    f = NULL;
     check_contents(template, 1);
     (void)remove(template);
 
