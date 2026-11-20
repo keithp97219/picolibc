@@ -79,6 +79,9 @@ sysconf(int name)
     case _SC_DELAYTIMER_MAX:
         /* The kernel's timer overrun counts saturate at INT_MAX */
         return INT_MAX;
+    case _SC_TTY_NAME_MAX:
+        /* Room for the /dev/pts/N and /dev/ttyXXX names ttyname returns */
+        return 32;
     case _SC_MQ_PRIO_MAX:
         /* The kernel's MQ_PRIO_MAX */
         return 32768;
