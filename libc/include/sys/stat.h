@@ -187,6 +187,13 @@ int utimensat(int, const char *, const struct timespec[2], int);
 #endif
 
 #if __POSIX_VISIBLE >= 200809
+/*
+ * tv_nsec values for futimens and utimensat: set the time to now, or
+ * leave it alone. They match Linux's.
+ */
+#define UTIME_NOW  ((1L << 30) - 1L)
+#define UTIME_OMIT ((1L << 30) - 2L)
+
 int futimens(int, const struct timespec[2]);
 #endif
 
