@@ -42,6 +42,7 @@ set(tests
   test-sig2str
   test-sigaction
   test-sigaltstack
+  test-sigismember
   test-signal
   test-signal_h
   test-sigpending
