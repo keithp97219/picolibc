@@ -35,8 +35,13 @@
 
 #include "local-mqueue.h"
 
+/* Message queue descriptors are file descriptors; refuse to close any other kind */
 int
 mq_close(mqd_t mqdes)
 {
+    struct __kernel_mq_attr kattr;
+
+    if (_syscall(LINUX_SYS_mq_getsetattr, mqdes, NULL, &kattr) < 0)
+        return -1;
     return (int)_syscall(LINUX_SYS_close, mqdes);
 }
