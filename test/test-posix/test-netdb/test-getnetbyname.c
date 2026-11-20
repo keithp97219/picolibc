@@ -104,6 +104,35 @@ tcp_pair(int *client, int *server)
     check(close(listener) == 0, "close listener");
 }
 
+#define MAX_FDS 64
+
+/* Records which descriptors are open */
+static void
+open_fds(unsigned char *open)
+{
+    int fd;
+
+    for (fd = 0; fd < MAX_FDS; fd++)
+        open[fd] = fcntl(fd, F_GETFD) >= 0;
+}
+
+/* Counts the descriptors opened since 'before', failing if any lacks FD_CLOEXEC */
+static int
+new_fds(const unsigned char *before)
+{
+    int fd, n = 0;
+
+    for (fd = 0; fd < MAX_FDS; fd++) {
+        int flags = fcntl(fd, F_GETFD);
+
+        if (flags < 0 || before[fd])
+            continue;
+        check(flags & FD_CLOEXEC, "FD_CLOEXEC");
+        n++;
+    }
+    return n;
+}
+
 int
 main(void)
 {
@@ -125,6 +154,44 @@ main(void)
     }
     endnetent();
     check(getnetbyname("no-such-network-here") == NULL, "missing");
+
+    /* The network number is in host byte order */
+    n = getnetbyname("loopback");
+    if (n)
+        check(n->n_net == 127 || n->n_net == 0x7f000000, "loopback number");
+
+    /* The address type must match too */
+    setnetent(0);
+    n = getnetent();
+    if (n) {
+        uint32_t net = n->n_net;
+
+        check(getnetbyaddr(net, AF_INET6) == NULL, "address type");
+    }
+
+    /* setnetent and endnetent start again from the first entry, with FD_CLOEXEC */
+    {
+        unsigned char before[MAX_FDS];
+        char          first[256];
+
+        endnetent();
+        open_fds(before);
+        setnetent(1);
+        n = getnetent();
+        if (n) {
+            snprintf(first, sizeof(first), "%s", n->n_name);
+            (void)getnetent();
+            (void)new_fds(before);
+            setnetent(0);
+            n = getnetent();
+            check(n && strcmp(n->n_name, first) == 0, "setnetent rewinds");
+            endnetent();
+            check(new_fds(before) == 0, "endnetent closes");
+            n = getnetent();
+            check(n && strcmp(n->n_name, first) == 0, "endnetent rewinds");
+        }
+        endnetent();
+    }
     (void)make_socket;
     (void)tcp_pair;
     printf("success\n");
