@@ -178,6 +178,8 @@ __spawn_child(const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *att
 
             switch (act->kind) {
             case __SPAWN_OPEN:
+                /* An open descriptor is closed before the file is opened */
+                close(act->fd);
                 fd = open(act->path, act->oflag, act->mode);
                 if (fd < 0)
                     return errno;
