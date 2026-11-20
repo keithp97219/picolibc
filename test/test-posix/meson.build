@@ -76,6 +76,7 @@ if has_os_posix
     'test-pclose',
     'test-popen',
     'test-poll',
+    'test-realpath',
     'test-sbrk-blocked',
     'test-siginfo',
     'test-sigsuspend',

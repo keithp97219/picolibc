@@ -75,6 +75,7 @@ picolibc_sources(
   pwfile.c
   posix_close.c
   readdir_r.c
+  realpath.c
   regcomp.c
   regerror.c
   regexec.c

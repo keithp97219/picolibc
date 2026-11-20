@@ -305,7 +305,7 @@ void *
 reallocf(void *, size_t)
 __warn_unused_result __alloc_size(2) __picolibc_export;
 #endif
-#if __BSD_VISIBLE || __XSI_VISIBLE >= 4
+#if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 202405
 char *realpath(const char * __restrict path, char * __restrict resolved_path) __picolibc_export;
 #endif
 #if __BSD_VISIBLE
