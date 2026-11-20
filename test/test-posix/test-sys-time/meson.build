@@ -35,5 +35,6 @@
 
 dir_tests = [
   'test-setitimer',
+  'test-sys_time_h',
   'test-utimes',
 ]
