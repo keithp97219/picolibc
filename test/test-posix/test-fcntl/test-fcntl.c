@@ -43,6 +43,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -60,7 +61,9 @@
 int
 main(void)
 {
-    int fds[2], fd, flags;
+    int  fds[2], fd, fd2, fd3, flags;
+    long open_max;
+    char buf[1];
 
     check(pipe(fds) == 0, "pipe");
 
@@ -89,8 +92,65 @@ main(void)
     check(fd >= 10 && (fcntl(fd, F_GETFD) & FD_CLOEXEC), "F_DUPFD_CLOEXEC");
     check(close(fd) == 0, "close");
 
+    /* The descriptor flags belong to one descriptor; the status flags are shared */
+    fd = fcntl(fds[0], F_DUPFD, 0);
+    check(fd >= 0 && !(fcntl(fd, F_GETFD) & FD_CLOEXEC) && (fcntl(fds[0], F_GETFD) & FD_CLOEXEC),
+          "FD_CLOEXEC is per descriptor");
+    check(fcntl(fd, F_GETFL) & O_NONBLOCK, "the duplicate shares the status flags");
+    check(fcntl(fd, F_SETFL, 0) == 0 && !(fcntl(fds[0], F_GETFL) & O_NONBLOCK),
+          "F_SETFL on the duplicate");
+    check(close(fd) == 0, "close");
+
+    /* F_SETFL ignores the access mode and creation flags */
+    check(fcntl(fds[0], F_SETFL, O_RDWR | O_CREAT | O_TRUNC | O_NONBLOCK) == 0, "F_SETFL ignored");
+    flags = fcntl(fds[0], F_GETFL);
+    check((flags & O_ACCMODE) == O_RDONLY && (flags & O_NONBLOCK), "access mode unchanged");
+
+    /* F_DUPFD returns the lowest available descriptor at or above arg */
+    fd = fcntl(fds[1], F_DUPFD, 20);
+    check(fd == 20 || fcntl(20, F_GETFD) >= 0, "F_DUPFD 20");
+    fd2 = fcntl(fds[1], F_DUPFD, fd);
+    check(fd2 > fd, "F_DUPFD skips descriptors in use");
+    check(close(fd) == 0, "close");
+    fd3 = fcntl(fds[1], F_DUPFD, fd);
+    check(fd3 == fd, "F_DUPFD reuses the lowest free descriptor");
+    check(close(fd2) == 0 && close(fd3) == 0, "close");
+
+    /* The duplicate shares the open file description, so writes go to the same pipe */
+    fd = fcntl(fds[1], F_DUPFD_CLOEXEC, 0);
+    check(fd >= 0 && write(fd, "x", 1) == 1, "write through the duplicate");
+    check(read(fds[0], buf, 1) == 1 && buf[0] == 'x', "read what the duplicate wrote");
+    check(close(fd) == 0, "close");
+
+    /* F_DUPFD errors */
+    errno = 0;
+    check(fcntl(fds[1], F_DUPFD, -1) == -1 && errno == EINVAL, "F_DUPFD EINVAL negative");
+    errno = 0;
+    check(fcntl(fds[1], F_DUPFD_CLOEXEC, -1) == -1 && errno == EINVAL,
+          "F_DUPFD_CLOEXEC EINVAL negative");
+    open_max = sysconf(_SC_OPEN_MAX);
+    if (open_max > 0 && open_max < INT_MAX) {
+        errno = 0;
+        check(fcntl(fds[1], F_DUPFD, (int)open_max) == -1 && errno == EINVAL,
+              "F_DUPFD EINVAL at OPEN_MAX");
+        errno = 0;
+        check(fcntl(fds[1], F_DUPFD, (int)open_max - 1) == (int)open_max - 1,
+              "F_DUPFD just below OPEN_MAX");
+        errno = 0;
+        check(fcntl(fds[1], F_DUPFD, (int)open_max - 1) == -1 && errno == EMFILE,
+              "F_DUPFD EMFILE when no descriptor at or above arg is free");
+        check(close((int)open_max - 1) == 0, "close");
+    }
+
+    /* An unknown command */
+    errno = 0;
+    check(fcntl(fds[0], 12345) == -1 && errno == EINVAL, "EINVAL command");
+
     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
+    errno = 0;
     check(fcntl(fds[0], F_GETFL) == -1 && errno == EBADF, "EBADF");
+    errno = 0;
+    check(fcntl(fds[0], F_DUPFD, 0) == -1 && errno == EBADF, "F_DUPFD EBADF");
     printf("success\n");
     return 0;
 }
