@@ -37,6 +37,6 @@ dir_tests = []
 
 if has_os_posix
   dir_tests += [
-    'test-mq_open',
+    'test-mq_notify',
   ]
 endif

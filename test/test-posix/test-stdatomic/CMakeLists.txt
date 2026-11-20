@@ -34,7 +34,7 @@
 #
 
 set(tests
-  test-stdatomic-functions
+  test-atomic_flag_test_and_set
   )
 
 foreach(test IN LISTS tests)

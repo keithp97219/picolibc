@@ -34,8 +34,8 @@
 #
 
 dir_tests = [
-  'test-stdatomic-functions',
+  'test-atomic_flag_test_and_set',
 ]
 
 # glibc leaves the atomic functions to libatomic, which may not be installed
-test_skip_native += ['test-stdatomic-functions']
+test_skip_native += ['test-atomic_flag_test_and_set']
