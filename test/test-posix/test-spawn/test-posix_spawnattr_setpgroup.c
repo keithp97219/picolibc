@@ -37,10 +37,11 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                  \
-    || ((defined(_POSIX_SPAWN) && _POSIX_SPAWN > 0)                                         \
-        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)      \
-        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0))
+#if !defined(__PICOLIBC__)                                                                 \
+    || ((defined(_POSIX_SPAWN) && _POSIX_SPAWN > 0)                                        \
+        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)     \
+        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0) \
+        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0))
 
 #include <errno.h>
 #include <fcntl.h>
@@ -84,27 +85,77 @@ exited(int status, int code)
     return WIFEXITED(status) && WEXITSTATUS(status) == code;
 }
 
+/* Starts a shell that waits for input on 'in' */
+static int
+start(pid_t *pid, const posix_spawnattr_t *attr, int in)
+{
+    posix_spawn_file_actions_t fa;
+    char                      *argv[] = { "sh", "-c", "read x", NULL };
+    int                        ret;
+
+    check(posix_spawn_file_actions_init(&fa) == 0, "init");
+    check(posix_spawn_file_actions_adddup2(&fa, in, 0) == 0, "adddup2");
+    ret = posix_spawn(pid, "/bin/sh", &fa, attr, argv, environ);
+    check(posix_spawn_file_actions_destroy(&fa) == 0, "destroy");
+    return ret;
+}
+
 int
 main(void)
 {
     posix_spawnattr_t attr;
-    char             *argv[] = { "sh", "-c", "sleep 1", NULL };
-    pid_t             pid, pgroup = -1;
-    int               status;
+    pid_t             pid[4], pgroup = -1;
+    int               fds[2], status, ret, i, n = 3;
 
     if (access("/bin/sh", X_OK) != 0) {
         printf("no /bin/sh, skipping\n");
         return 77;
     }
+    /* Each child waits until the pipe closes */
+    check(pipe(fds) == 0 && fcntl(fds[1], F_SETFD, FD_CLOEXEC) == 0, "pipe");
+
+    /* Without SETPGROUP or SETSID, the child stays in the parent's group */
+    check(start(&pid[0], NULL, fds[0]) == 0, "posix_spawn");
+    check(getpgid(pid[0]) == getpgrp(), "parent's process group");
+
     check(posix_spawnattr_init(&attr) == 0, "init");
     check(posix_spawnattr_getpgroup(&attr, &pgroup) == 0 && pgroup == 0, "default");
     check(posix_spawnattr_setpgroup(&attr, 0) == 0, "setpgroup");
     check(posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETPGROUP) == 0, "setflags");
-    check(posix_spawn(&pid, "/bin/sh", NULL, &attr, argv, environ) == 0, "posix_spawn");
-    check(getpgid(pid) == pid, "own process group");
-    check(waitpid(pid, &status, 0) == pid && exited(status, 0), "status");
+    check(start(&pid[1], &attr, fds[0]) == 0, "posix_spawn");
+    check(getpgid(pid[1]) == pid[1], "own process group");
+
+    /* A non-zero spawn-pgroup names the group to join */
+    check(posix_spawnattr_setpgroup(&attr, pid[1]) == 0, "setpgroup");
+    check(posix_spawnattr_getpgroup(&attr, &pgroup) == 0 && pgroup == pid[1], "getpgroup");
+    check(start(&pid[2], &attr, fds[0]) == 0, "posix_spawn");
+    check(getpgid(pid[2]) == pid[1], "joined process group");
+
+    /*
+     * SETSID makes the child lead a new session and process group; glibc
+     * only defines POSIX_SPAWN_SETSID for _GNU_SOURCE
+     */
+#if defined(__PICOLIBC__) || defined(POSIX_SPAWN_SETSID)
+    check(posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID) == 0, "setflags");
+    check(start(&pid[n], &attr, fds[0]) == 0, "posix_spawn");
+    check(getsid(pid[n]) == pid[n] && getpgid(pid[n]) == pid[n], "new session");
+    n++;
+#endif
+
+    check(close(fds[1]) == 0, "close");
+    for (i = 0; i < n; i++)
+        check(waitpid(pid[i], &status, 0) == pid[i], "waitpid");
+    check(close(fds[0]) == 0, "close");
+
+    /* A setpgid failure is reported */
+    check(posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETPGROUP) == 0, "setflags");
+    ret = posix_spawnattr_setpgroup(&attr, -1);
+    if (ret == 0)
+        ret = start(&pid[0], &attr, 0);
+    check(ret == EINVAL, "EINVAL");
     check(posix_spawnattr_destroy(&attr) == 0, "destroy");
     (void)run;
+    (void)exited;
     printf("success\n");
     return 0;
 }

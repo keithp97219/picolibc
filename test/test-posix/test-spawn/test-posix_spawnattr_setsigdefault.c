@@ -98,6 +98,11 @@ main(void)
     check(signal(SIGUSR1, SIG_IGN) != SIG_ERR, "ignore SIGUSR1");
     check(exited(run("kill -USR1 $$; exit 3", NULL, NULL), 3), "inherited");
     check(posix_spawnattr_init(&attr) == 0, "init");
+    /* The default is an empty set */
+    check(posix_spawnattr_getsigdefault(&attr, &got) == 0, "get default");
+    check(!sigismember(&got, SIGUSR1) && !sigismember(&got, SIGINT) && !sigismember(&got, SIGTERM)
+              && !sigismember(&got, SIGCHLD) && !sigismember(&got, SIGHUP),
+          "default empty");
     sigemptyset(&set);
     sigaddset(&set, SIGUSR1);
     check(posix_spawnattr_setsigdefault(&attr, &set) == 0, "setsigdefault");

@@ -92,7 +92,9 @@ main(void)
 {
     posix_spawnattr_t  attr;
     struct sched_param param, got;
-    int                policy = -1;
+    char              *argv[] = { "sh", "-c", "exit 0", NULL };
+    pid_t              pid;
+    int                policy = -1, ret;
 
     if (access("/bin/sh", X_OK) != 0) {
         printf("no /bin/sh, skipping\n");
@@ -108,6 +110,22 @@ main(void)
           "getschedparam");
     check(posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSCHEDULER) == 0, "setflags");
     check(exited(run("exit 0", NULL, &attr), 0), "child");
+
+    /* SETSCHEDULER reports a policy sched_setscheduler rejects */
+    ret = posix_spawnattr_setschedpolicy(&attr, -1);
+    if (ret == 0)
+        ret = posix_spawn(&pid, "/bin/sh", NULL, &attr, argv, environ);
+    check(ret == EINVAL, "bad policy");
+
+    /* SETSCHEDPARAM alone keeps the parent's policy and sets the parameters */
+    if (sched_getscheduler(0) == SCHED_OTHER) {
+        check(posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSCHEDPARAM) == 0, "setflags");
+        check(exited(run("exit 0", NULL, &attr), 0), "SETSCHEDPARAM");
+        /* and reports parameters sched_setparam rejects */
+        param.sched_priority = sched_get_priority_max(SCHED_OTHER) + 1;
+        check(posix_spawnattr_setschedparam(&attr, &param) == 0, "setschedparam");
+        check(posix_spawn(&pid, "/bin/sh", NULL, &attr, argv, environ) == EINVAL, "bad param");
+    }
     check(posix_spawnattr_destroy(&attr) == 0, "destroy");
     printf("success\n");
     return 0;
