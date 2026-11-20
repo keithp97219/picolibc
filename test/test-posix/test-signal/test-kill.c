@@ -45,9 +45,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
-/* kill with signal 0 only checks the process */
+/* kill checks and sends signals */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -57,12 +58,63 @@
         }                                              \
     } while (0)
 
+static volatile sig_atomic_t caught;
+
+static void
+handler(int sig)
+{
+    caught = sig;
+}
+
 int
 main(void)
 {
+    struct sigaction act;
+    pid_t            child;
+    int              status;
+
     check(kill(getpid(), 0) == 0, "kill with signal 0");
     errno = 0;
     check(kill(getpid(), -1) == -1 && errno == EINVAL, "kill with a negative signal");
+    errno = 0;
+    check(kill(getpid(), SIGRTMAX + 1) == -1 && errno == EINVAL, "kill past SIGRTMAX");
+
+    /* The signal is delivered to the sender before kill returns */
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = handler;
+    sigemptyset(&act.sa_mask);
+    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
+    check(kill(getpid(), SIGUSR1) == 0 && caught == SIGUSR1, "delivered before kill returns");
+
+    /* pid 0 is the caller's process group */
+    caught = 0;
+    check(kill(0, SIGUSR1) == 0 && caught == SIGUSR1, "kill to the process group");
+    caught = 0;
+    check(kill(-getpgrp(), SIGUSR1) == 0 && caught == SIGUSR1, "kill to -pgrp");
+
+#if !defined(__PICOLIBC__)                                                             \
+    || (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
+    /* ESRCH once the process is gone */
+    child = fork();
+    check(child >= 0, "fork");
+    if (child == 0)
+        _exit(0);
+    check(waitpid(child, &status, 0) == child, "waitpid");
+    errno = 0;
+    check(kill(child, 0) == -1 && errno == ESRCH, "ESRCH");
+#else
+    (void)child;
+    (void)status;
+#endif
+
+    /*
+     * EPERM for a process of another user. init usually runs as root,
+     * but in a container it may be ours, and then the call succeeds.
+     */
+    if (geteuid() != 0 && getuid() != 0) {
+        errno = 0;
+        check(kill(1, 0) == 0 || errno == EPERM, "EPERM");
+    }
 
     printf("success\n");
     return 0;
