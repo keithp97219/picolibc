@@ -122,7 +122,7 @@ __aio_check_sigevent(const struct sigevent *sev)
     case SIGEV_THREAD:
         return 0;
     case SIGEV_SIGNAL:
-        if (sev->sigev_signo > 0 && sev->sigev_signo < NSIG)
+        if (sev->sigev_signo > 0 && sev->sigev_signo < _NSIG)
             return 0;
         break;
     }

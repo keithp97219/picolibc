@@ -52,7 +52,7 @@ mq_notify(mqd_t mqdes, const struct sigevent *sev)
         kev.sigev_notify = LINUX_SIGEV_NONE;
         break;
     case SIGEV_SIGNAL:
-        if (sev->sigev_signo <= 0 || sev->sigev_signo >= NSIG) {
+        if (sev->sigev_signo <= 0 || sev->sigev_signo >= _NSIG) {
             errno = EINVAL;
             return -1;
         }

@@ -43,7 +43,7 @@ sigqueue(pid_t pid, int sig, const union sigval value)
     struct __kernel_siginfo kinfo;
     int                     ksig;
 
-    if ((unsigned)sig >= NSIG) {
+    if ((unsigned)sig >= _NSIG) {
         errno = EINVAL;
         return -1;
     }

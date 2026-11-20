@@ -54,7 +54,7 @@ timer_create(clockid_t clock_id, struct sigevent * __restrict evp, timer_t * __r
             kev.sigev_notify = LINUX_SIGEV_NONE;
             break;
         case SIGEV_SIGNAL:
-            if (evp->sigev_signo <= 0 || evp->sigev_signo >= NSIG) {
+            if (evp->sigev_signo <= 0 || evp->sigev_signo >= _NSIG) {
                 errno = EINVAL;
                 return -1;
             }

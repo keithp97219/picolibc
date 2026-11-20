@@ -114,7 +114,7 @@ __spawn_child(const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *att
      */
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = SIG_DFL;
-    for (sig = 1; sig < NSIG; sig++) {
+    for (sig = 1; sig < _NSIG; sig++) {
         if (sig == SIGKILL || sig == SIGSTOP)
             continue;
         if (sigaction(sig, NULL, &old) < 0)
