@@ -1,0 +1,29 @@
+From 21359748bbafeb6c94065ee4dd3ab21e9bc5a284 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:34:40 +0000
+Subject: [PATCH 01/18] libos/linux: Keep B0 as the input speed in cfsetispeed
+
+cfsetispeed replaced B0 with the output speed, so cfgetispeed didn't
+return the value set. POSIX gives B0 its meaning in tcsetattr, which
+takes the input speed from the output speed.
+---
+ libos/linux/cfsetispeed.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/libos/linux/cfsetispeed.c b/libos/linux/cfsetispeed.c
+index f6cd73549d..18c125e1ce 100644
+--- a/libos/linux/cfsetispeed.c
++++ b/libos/linux/cfsetispeed.c
+@@ -38,8 +38,7 @@
+ int
+ cfsetispeed(struct termios *termios, speed_t speed)
+ {
+-    if (speed == 0)
+-        speed = termios->c_ospeed;
++    /* B0 stays B0 here; tcsetattr gives it the output speed */
+     termios->c_ispeed = speed;
+     return 0;
+ }
+-- 
+2.47.3
+

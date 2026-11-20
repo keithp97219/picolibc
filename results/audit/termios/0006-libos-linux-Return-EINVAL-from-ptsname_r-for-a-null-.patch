@@ -1,0 +1,28 @@
+From d07a003f117759bb547c793ca40176e9f87d6384 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:34:52 +0000
+Subject: [PATCH 06/18] libos/linux: Return EINVAL from ptsname_r for a null
+ name
+
+POSIX requires EINVAL when name is a null pointer; ptsname_r passed it
+to snprintf.
+---
+ libos/linux/ptsname_r.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/libos/linux/ptsname_r.c b/libos/linux/ptsname_r.c
+index b5232b212b..11318a94b8 100644
+--- a/libos/linux/ptsname_r.c
++++ b/libos/linux/ptsname_r.c
+@@ -44,6 +44,8 @@ ptsname_r(int fd, char *buf, size_t buflen)
+     long         ret;
+     int          len;
+ 
++    if (buf == NULL)
++        return EINVAL;
+     ret = _syscall_raw(LINUX_SYS_ioctl, fd, LINUX_TIOCGPTN, &n);
+     if (ret < 0) {
+         ret = _syscall_errno(ret);
+-- 
+2.47.3
+

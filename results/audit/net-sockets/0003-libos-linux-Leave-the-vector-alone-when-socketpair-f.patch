@@ -1,0 +1,35 @@
+From 8f46e31a46ba9d3f772168b915f59a0f0a85210f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 03/41] libos/linux: Leave the vector alone when socketpair
+ fails
+
+Linux stores both descriptors in the caller's array before it creates
+the sockets, so a failing call (EOPNOTSUPP, EMFILE, ...) left numbers
+there. POSIX: on error "the contents of socket_vector shall be left
+unmodified". Pass the kernel a local array.
+---
+ libos/linux/socketpair.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/socketpair.c b/libos/linux/socketpair.c
+index 4f392ce4f9..8612942bba 100644
+--- a/libos/linux/socketpair.c
++++ b/libos/linux/socketpair.c
+@@ -39,5 +39,12 @@
+ int
+ socketpair(int domain, int type, int protocol, int sv[2])
+ {
+-    return (int)_syscall(LINUX_SYS_socketpair, domain, type, protocol, sv);
++    /* Linux stores the descriptors before it knows the call will work */
++    int fds[2];
++
++    if (_syscall(LINUX_SYS_socketpair, domain, type, protocol, fds) < 0)
++        return -1;
++    sv[0] = fds[0];
++    sv[1] = fds[1];
++    return 0;
+ }
+-- 
+2.47.3
+

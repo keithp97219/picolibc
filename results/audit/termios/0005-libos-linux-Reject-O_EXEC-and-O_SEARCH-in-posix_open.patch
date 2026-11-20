@@ -1,0 +1,29 @@
+From 01523283e9e4e65e5aef777583b64ed0bab1a2bd Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:34:52 +0000
+Subject: [PATCH 05/18] libos/linux: Reject O_EXEC and O_SEARCH in posix_openpt
+
+O_ACCMODE now covers O_EXEC and O_SEARCH, so posix_openpt passed them to
+open and returned an O_PATH descriptor that isn't a manager. Allow only
+the three classic access modes.
+---
+ libos/linux/posix_openpt.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/posix_openpt.c b/libos/linux/posix_openpt.c
+index f73c6dda18..c0feeb1d1e 100644
+--- a/libos/linux/posix_openpt.c
++++ b/libos/linux/posix_openpt.c
+@@ -39,7 +39,8 @@
+ int
+ posix_openpt(int flags)
+ {
+-    if (flags & ~(O_ACCMODE | O_NOCTTY | O_CLOEXEC)) {
++    /* O_ACCMODE also covers O_EXEC and O_SEARCH, which would give an O_PATH descriptor */
++    if (flags & ~(O_RDONLY | O_WRONLY | O_RDWR | O_NOCTTY | O_CLOEXEC)) {
+         errno = EINVAL;
+         return -1;
+     }
+-- 
+2.47.3
+

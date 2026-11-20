@@ -1,0 +1,78 @@
+From b927158ff79791fedf9c32406e8385aa971d4f5a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 12/41] libos/linux: Check msg_iovlen and the total length in
+ sendmsg and recvmsg
+
+POSIX: both shall fail with [EMSGSIZE] if msg_iovlen "is less than or
+equal to 0, or is greater than {IOV_MAX}", and with [EINVAL] if "The
+sum of the iov_len values overflows an ssize_t". Linux accepts an empty
+array and shortens an overflowing one.
+---
+ libos/linux/recvmsg.c | 12 ++++++++++--
+ libos/linux/sendmsg.c | 12 ++++++++++--
+ 2 files changed, 20 insertions(+), 4 deletions(-)
+
+diff --git a/libos/linux/recvmsg.c b/libos/linux/recvmsg.c
+index b847eff5c2..4390d26247 100644
+--- a/libos/linux/recvmsg.c
++++ b/libos/linux/recvmsg.c
+@@ -33,7 +33,7 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#include "local-linux.h"
++#include "local-uio.h"
+ #include "local-cancel.h"
+ #include <sys/socket.h>
+ #include <errno.h>
+@@ -56,7 +56,15 @@ recvmsg(int fd, struct msghdr *msg, int flags)
+     }
+ #endif
+     cancel = _cancel_enter();
+-    ret = _syscall(LINUX_SYS_recvmsg, fd, msg, flags);
++    /* The kernel accepts an empty array and clamps the total length */
++    if (msg && (msg->msg_iovlen <= 0 || msg->msg_iovlen > IOV_MAX)) {
++        errno = EMSGSIZE;
++        ret = -1;
++    } else if (msg && !_iov_total_fits(msg->msg_iov, msg->msg_iovlen)) {
++        ret = -1;
++    } else {
++        ret = _syscall(LINUX_SYS_recvmsg, fd, msg, flags);
++    }
+     _cancel_leave(cancel);
+ #ifdef __SOCKET_PADDED
+     if (user && ret >= 0) {
+diff --git a/libos/linux/sendmsg.c b/libos/linux/sendmsg.c
+index 9ae6e7f280..a679051d63 100644
+--- a/libos/linux/sendmsg.c
++++ b/libos/linux/sendmsg.c
+@@ -33,7 +33,7 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#include "local-linux.h"
++#include "local-uio.h"
+ #include "local-cancel.h"
+ #include <sys/socket.h>
+ #include <errno.h>
+@@ -74,7 +74,15 @@ sendmsg(int fd, const struct msghdr *msg, int flags)
+     }
+ #endif
+     cancel = _cancel_enter();
+-    ret = _syscall(LINUX_SYS_sendmsg, fd, msg, flags);
++    /* The kernel accepts an empty array and clamps the total length */
++    if (msg && (msg->msg_iovlen <= 0 || msg->msg_iovlen > IOV_MAX)) {
++        errno = EMSGSIZE;
++        ret = -1;
++    } else if (msg && !_iov_total_fits(msg->msg_iov, msg->msg_iovlen)) {
++        ret = -1;
++    } else {
++        ret = _syscall(LINUX_SYS_sendmsg, fd, msg, flags);
++    }
+     _cancel_leave(cancel);
+     return (ssize_t)ret;
+ }
+-- 
+2.47.3
+

@@ -1,0 +1,39 @@
+From 5a8c53ef110d84453a892850cff00636ce61d896 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:23 +0000
+Subject: [PATCH 01/41] libos/linux: Keep <endian.h>'s names out of
+ <sys/socket.h>
+
+<sys/_socket.h> included <machine/endian.h> for the byte order, which
+defined htobe16, be32toh and the rest in <sys/socket.h> and
+<netinet/in.h>, names POSIX reserves for <endian.h> only. Use the
+compiler's __BYTE_ORDER__ instead.
+---
+ libos/linux/include/sys/_socket.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libos/linux/include/sys/_socket.h b/libos/linux/include/sys/_socket.h
+index cabed80bb4..da0d00967c 100644
+--- a/libos/linux/include/sys/_socket.h
++++ b/libos/linux/include/sys/_socket.h
+@@ -43,7 +43,6 @@
+ 
+ #include <sys/cdefs.h>
+ #include <sys/_types.h>
+-#include <machine/endian.h>
+ 
+ #ifndef _SA_FAMILY_T_DECLARED
+ #define _SA_FAMILY_T_DECLARED
+@@ -70,7 +69,8 @@ struct sockaddr_storage {
+  * POSIX makes msg_iovlen an int and msg_controllen a socklen_t, while
+  * the 64-bit kernel reads size_t; pad them to match.
+  */
+-#if __SIZEOF_POINTER__ == 8 && _BYTE_ORDER == _LITTLE_ENDIAN
++/* The compiler's byte order; <machine/endian.h> would define more names */
++#if __SIZEOF_POINTER__ == 8 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+ #define __SOCKET_PAD_BEFORE(name)
+ #define __SOCKET_PAD_AFTER(name) int name;
+ #elif __SIZEOF_POINTER__ == 8
+-- 
+2.47.3
+

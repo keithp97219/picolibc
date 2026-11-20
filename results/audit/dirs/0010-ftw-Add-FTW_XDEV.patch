@@ -1,0 +1,42 @@
+From 0a655899a70f8fb3945a6c4aea9d5f3b0e50524a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:29:40 +0000
+Subject: [PATCH 10/21] ftw: Add FTW_XDEV
+
+POSIX.1-2024 adds FTW_XDEV: nftw reports a directory with another
+device ID than the starting path, but nothing below it.
+---
+ libc/include/ftw.h    | 1 +
+ libc/posix/ftw/nftw.c | 4 ++++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/libc/include/ftw.h b/libc/include/ftw.h
+index 39f279f65b..560f0a20f2 100644
+--- a/libc/include/ftw.h
++++ b/libc/include/ftw.h
+@@ -63,6 +63,7 @@ struct FTW {
+ #define FTW_MOUNT 0x02 /* Stay on the starting file system */
+ #define FTW_DEPTH 0x04 /* Visit directories after their contents */
+ #define FTW_CHDIR 0x08 /* Change to each directory before reading it */
++#define FTW_XDEV  0x10 /* Don't descend into other file systems */
+ 
+ int nftw(const char *, int (*)(const char *, const struct stat *, int, struct FTW *), int, int)
+     __picolibc_export;
+diff --git a/libc/posix/ftw/nftw.c b/libc/posix/ftw/nftw.c
+index b23b8ad09f..91f5bb28a4 100644
+--- a/libc/posix/ftw/nftw.c
++++ b/libc/posix/ftw/nftw.c
+@@ -170,6 +170,10 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level, struct __nftw_dir
+         if (a->dev == st.st_dev && a->ino == st.st_ino)
+             return (w->flags & FTW_DEPTH) ? 0 : __nftw_call(w, &st, FTW_D, &ftw);
+ 
++    /* FTW_XDEV reports a directory on another file system, but not its contents */
++    if ((w->flags & FTW_XDEV) && level > 0 && st.st_dev != w->dev)
++        return __nftw_call(w, &st, FTW_D, &ftw);
++
+     dir = opendir(w->path);
+     if (!dir) {
+         if (errno == EACCES)
+-- 
+2.47.3
+

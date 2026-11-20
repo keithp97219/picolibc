@@ -1,0 +1,60 @@
+From 3da155d50487c742b95aaa397c490ebfdccf6444 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 08/41] libos/linux: Report ENOTCONN from shutdown of an
+ unconnected AF_UNIX socket
+
+POSIX: shutdown shall fail with [ENOTCONN] if "The socket is not
+connected". Linux does that for TCP and UDP but shuts down AF_UNIX
+sockets without a peer. Listening sockets stay allowed, as Linux
+allows them for TCP.
+---
+ libos/linux/shutdown.c | 28 ++++++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/libos/linux/shutdown.c b/libos/linux/shutdown.c
+index 4844b34f66..a33ac38edf 100644
+--- a/libos/linux/shutdown.c
++++ b/libos/linux/shutdown.c
+@@ -34,10 +34,38 @@
+  */
+ 
+ #include "local-linux.h"
++#include <linux/linux-errno.h>
++#include <stdbool.h>
+ #include <sys/socket.h>
+ 
++/*
++ * Linux shuts down AF_UNIX sockets that aren't connected; other
++ * families report ENOTCONN. Listening sockets stay allowed, as for TCP.
++ */
++static bool
++_unconnected_local(int fd)
++{
++    struct sockaddr_storage ss;
++    int                     value;
++    socklen_t               len = sizeof(ss);
++
++    if (_syscall_raw(LINUX_SYS_getpeername, fd, &ss, &len) != -LINUX_ENOTCONN)
++        return false;
++    len = sizeof(value);
++    if (_syscall_raw(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_DOMAIN, &value, &len) != 0
++        || value != AF_UNIX)
++        return false;
++    len = sizeof(value);
++    return _syscall_raw(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_ACCEPTCONN, &value, &len) == 0
++        && value == 0;
++}
++
+ int
+ shutdown(int fd, int how)
+ {
++    if ((how == SHUT_RD || how == SHUT_WR || how == SHUT_RDWR) && _unconnected_local(fd)) {
++        errno = ENOTCONN;
++        return -1;
++    }
+     return (int)_syscall(LINUX_SYS_shutdown, fd, how);
+ }
+-- 
+2.47.3
+

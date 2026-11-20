@@ -1,0 +1,50 @@
+From e291b5e36afb17b0cd827d66b627f0d43008f54a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:34:52 +0000
+Subject: [PATCH 03/18] libos/linux: Define cfsetspeed rather than a second
+ cfsetospeed
+
+cfsetspeed.c defined cfsetospeed, setting both speeds, so which
+cfsetospeed a program got depended on the archive order and cfsetspeed
+didn't exist. Name the function cfsetspeed and declare it, as the BSDs
+and glibc do, when BSD extensions are visible.
+---
+ libc/include/sys/termios.h | 4 ++++
+ libos/linux/cfsetspeed.c   | 3 ++-
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/libc/include/sys/termios.h b/libc/include/sys/termios.h
+index ee453de6a3..8f67b4a3f9 100644
+--- a/libc/include/sys/termios.h
++++ b/libc/include/sys/termios.h
+@@ -212,6 +212,10 @@ int     tcsendbreak(int, int);
+ int     tcsetattr(int, int, const struct termios *);
+ int     tcsetwinsize(int, const struct winsize *);
+ 
++#if __BSD_VISIBLE
++int cfsetspeed(struct termios *, speed_t);
++#endif
++
+ _END_STD_C
+ 
+ #endif
+diff --git a/libos/linux/cfsetspeed.c b/libos/linux/cfsetspeed.c
+index 72e8ba87fd..d70ec02a66 100644
+--- a/libos/linux/cfsetspeed.c
++++ b/libos/linux/cfsetspeed.c
+@@ -33,10 +33,11 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
++#define _DEFAULT_SOURCE
+ #include <termios.h>
+ 
+ int
+-cfsetospeed(struct termios *termios, speed_t speed)
++cfsetspeed(struct termios *termios, speed_t speed)
+ {
+     termios->c_ospeed = speed;
+     termios->c_ispeed = speed;
+-- 
+2.47.3
+

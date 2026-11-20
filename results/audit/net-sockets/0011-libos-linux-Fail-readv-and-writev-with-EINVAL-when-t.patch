@@ -1,0 +1,151 @@
+From f39277a42450a9c4d5bf3298ca1fe08d64850c87 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 11/41] libos/linux: Fail readv and writev with EINVAL when the
+ lengths overflow
+
+POSIX: readv and writev shall fail with [EINVAL] if "The sum of the
+iov_len values in the iov array overflowed an ssize_t"; for writev
+"no data shall be transferred". Linux shortens such a transfer (or
+says EFAULT); add up the lengths first.
+---
+ libos/linux/local-uio.h | 65 +++++++++++++++++++++++++++++++++++++++++
+ libos/linux/readv.c     | 14 ++++++---
+ libos/linux/writev.c    | 14 ++++++---
+ 3 files changed, 85 insertions(+), 8 deletions(-)
+ create mode 100644 libos/linux/local-uio.h
+
+diff --git a/libos/linux/local-uio.h b/libos/linux/local-uio.h
+new file mode 100644
+index 0000000000..89aeb6c62f
+--- /dev/null
++++ b/libos/linux/local-uio.h
+@@ -0,0 +1,65 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#ifndef _LOCAL_UIO_H_
++#define _LOCAL_UIO_H_
++
++#include "local-linux.h"
++#include <limits.h>
++#include <stdbool.h>
++#include <sys/uio.h>
++
++/*
++ * The kernel quietly shortens a transfer whose lengths add up past
++ * SSIZE_MAX, where POSIX requires EINVAL. Checks an array whose count
++ * the kernel would accept; returns false with errno set when the sum
++ * overflows.
++ */
++static inline bool
++_iov_total_fits(const struct iovec *iov, int iovcnt)
++{
++    size_t total = 0;
++
++    for (int i = 0; i < iovcnt; i++) {
++        if (iov[i].iov_len > (size_t)SSIZE_MAX - total) {
++            errno = EINVAL;
++            return false;
++        }
++        total += iov[i].iov_len;
++    }
++    return true;
++}
++
++#endif /* _LOCAL_UIO_H_ */
+diff --git a/libos/linux/readv.c b/libos/linux/readv.c
+index 15414bb56f..08adc82f3f 100644
+--- a/libos/linux/readv.c
++++ b/libos/linux/readv.c
+@@ -33,15 +33,21 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#include "local-linux.h"
++#include "local-uio.h"
+ #include "local-cancel.h"
+-#include <sys/uio.h>
+ 
+ ssize_t
+ readv(int fd, const struct iovec *iov, int iovcnt)
+ {
+-    void *cancel = _cancel_enter();
+-    long  ret = _syscall(LINUX_SYS_readv, fd, iov, iovcnt);
++    void *cancel;
++    long  ret;
++
++    cancel = _cancel_enter();
++    if (iovcnt > 0 && iovcnt <= IOV_MAX && !_iov_total_fits(iov, iovcnt)) {
++        _cancel_leave(cancel);
++        return -1;
++    }
++    ret = _syscall(LINUX_SYS_readv, fd, iov, iovcnt);
+ 
+     _cancel_leave(cancel);
+     return (ssize_t)ret;
+diff --git a/libos/linux/writev.c b/libos/linux/writev.c
+index 9de00ba4d8..e720d12ec5 100644
+--- a/libos/linux/writev.c
++++ b/libos/linux/writev.c
+@@ -33,15 +33,21 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#include "local-linux.h"
++#include "local-uio.h"
+ #include "local-cancel.h"
+-#include <sys/uio.h>
+ 
+ ssize_t
+ writev(int fd, const struct iovec *iov, int iovcnt)
+ {
+-    void *cancel = _cancel_enter();
+-    long  ret = _syscall(LINUX_SYS_writev, fd, iov, iovcnt);
++    void *cancel;
++    long  ret;
++
++    cancel = _cancel_enter();
++    if (iovcnt > 0 && iovcnt <= IOV_MAX && !_iov_total_fits(iov, iovcnt)) {
++        _cancel_leave(cancel);
++        return -1;
++    }
++    ret = _syscall(LINUX_SYS_writev, fd, iov, iovcnt);
+ 
+     _cancel_leave(cancel);
+     return (ssize_t)ret;
+-- 
+2.47.3
+

@@ -1,0 +1,31 @@
+From 573bf6a8c48c8621482dddb31bb81b2399a8793a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:23 +0000
+Subject: [PATCH 02/41] libos/linux: Make CMSG_NXTHDR of a null pointer give
+ the first header
+
+POSIX.1-2024: with a null cmsg, CMSG_NXTHDR "shall be equivalent to
+CMSG_FIRSTHDR(mhdr)". It dereferenced the pointer.
+---
+ libos/linux/include/sys/_socket.h | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/include/sys/_socket.h b/libos/linux/include/sys/_socket.h
+index da0d00967c..072725dc1e 100644
+--- a/libos/linux/include/sys/_socket.h
++++ b/libos/linux/include/sys/_socket.h
+@@ -118,8 +118,10 @@ struct cmsghdr {
+     ((size_t)(mhdr)->msg_controllen >= sizeof(struct cmsghdr) \
+          ? (struct cmsghdr *)(mhdr)->msg_control              \
+          : (struct cmsghdr *)0)
++/* A null cmsg gives the first header */
+ #define CMSG_NXTHDR(mhdr, cmsg)                                                            \
+-    ((cmsg)->cmsg_len < sizeof(struct cmsghdr)                                             \
++    (!(cmsg) ? CMSG_FIRSTHDR(mhdr)                                                         \
++         : (cmsg)->cmsg_len < sizeof(struct cmsghdr)                                       \
+              || __CMSG_ALIGN((cmsg)->cmsg_len) + sizeof(struct cmsghdr)                    \
+                  >= (size_t)((unsigned char *)(mhdr)->msg_control + (mhdr)->msg_controllen \
+                              - (unsigned char *)(cmsg))                                    \
+-- 
+2.47.3
+

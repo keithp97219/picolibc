@@ -1,0 +1,99 @@
+From 0b6b3d09ae9ac81a58ef26d363b08b69bdfce3a6 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 04/41] libos/linux: Report EPROTOTYPE or EPROTONOSUPPORT for
+ unknown types and protocols
+
+Linux says EINVAL from socket and socketpair for a type or flag it
+doesn't know and for an out-of-range protocol, none of which POSIX
+lists. Map it to EPROTOTYPE (the type isn't supported) or
+EPROTONOSUPPORT (the protocol isn't).
+---
+ libos/linux/local-socket.h | 16 ++++++++++++++++
+ libos/linux/socket.c       | 11 ++++++++---
+ libos/linux/socketpair.c   | 11 +++++++----
+ 3 files changed, 31 insertions(+), 7 deletions(-)
+
+diff --git a/libos/linux/local-socket.h b/libos/linux/local-socket.h
+index 91c11eaae7..623825f27c 100644
+--- a/libos/linux/local-socket.h
++++ b/libos/linux/local-socket.h
+@@ -45,6 +45,22 @@
+ #define LINUX_SIOCGIFNAME  0x8910
+ #define LINUX_SIOCGIFINDEX 0x8933
+ 
++/* One past the largest socket type the kernel knows */
++#define LINUX_SOCK_MAX 11
++
++/*
++ * Linux says EINVAL for a socket type it doesn't know, or a type with
++ * unknown flags, and for an out-of-range protocol number. POSIX has
++ * EPROTOTYPE and EPROTONOSUPPORT for those.
++ */
++static inline int
++_socket_einval(int type)
++{
++    int base = type & ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
++
++    return base <= 0 || base >= LINUX_SOCK_MAX ? EPROTOTYPE : EPROTONOSUPPORT;
++}
++
+ /* The 64-bit timeout SO_RCVTIMEO and SO_SNDTIMEO use on 32-bit targets */
+ struct __kernel_sock_timeval {
+     __int64_t tv_sec;
+diff --git a/libos/linux/socket.c b/libos/linux/socket.c
+index 0c93e1a7fe..7ec4b3809b 100644
+--- a/libos/linux/socket.c
++++ b/libos/linux/socket.c
+@@ -33,11 +33,16 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#include "local-linux.h"
+-#include <sys/socket.h>
++#include "local-socket.h"
++#include <linux/linux-errno.h>
+ 
+ int
+ socket(int domain, int type, int protocol)
+ {
+-    return (int)_syscall(LINUX_SYS_socket, domain, type, protocol);
++    long ret = _syscall_raw(LINUX_SYS_socket, domain, type, protocol);
++
++    if (ret >= 0)
++        return (int)ret;
++    errno = ret == -LINUX_EINVAL ? _socket_einval(type) : _syscall_errno(ret);
++    return -1;
+ }
+diff --git a/libos/linux/socketpair.c b/libos/linux/socketpair.c
+index 8612942bba..c7e97fb112 100644
+--- a/libos/linux/socketpair.c
++++ b/libos/linux/socketpair.c
+@@ -33,17 +33,20 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#include "local-linux.h"
+-#include <sys/socket.h>
++#include "local-socket.h"
++#include <linux/linux-errno.h>
+ 
+ int
+ socketpair(int domain, int type, int protocol, int sv[2])
+ {
+     /* Linux stores the descriptors before it knows the call will work */
+-    int fds[2];
++    int  fds[2];
++    long ret = _syscall_raw(LINUX_SYS_socketpair, domain, type, protocol, fds);
+ 
+-    if (_syscall(LINUX_SYS_socketpair, domain, type, protocol, fds) < 0)
++    if (ret < 0) {
++        errno = ret == -LINUX_EINVAL ? _socket_einval(type) : _syscall_errno(ret);
+         return -1;
++    }
+     sv[0] = fds[0];
+     sv[1] = fds[1];
+     return 0;
+-- 
+2.47.3
+

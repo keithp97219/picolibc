@@ -1,0 +1,81 @@
+From 857050570517cd542bdd03d5fcfb220a75c97b3b Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:34:52 +0000
+Subject: [PATCH 04/18] termios: Show the output delay masks only for XSI
+
+NLDLY, CRDLY, TABDLY, BSDLY, FFDLY and their values are XSI, and
+outside the prefixes <termios.h> reserves, so a strictly POSIX
+program may use those names.
+---
+ libc/include/sys/termios.h | 48 +++++++++++++++++++++-----------------
+ 1 file changed, 26 insertions(+), 22 deletions(-)
+
+diff --git a/libc/include/sys/termios.h b/libc/include/sys/termios.h
+index 8f67b4a3f9..9af42b2477 100644
+--- a/libc/include/sys/termios.h
++++ b/libc/include/sys/termios.h
+@@ -98,28 +98,6 @@ struct winsize {
+ #define ONLRET    0x0010
+ #define OFDEL     0x0020
+ #define OFILL     0x0040
+-#define NLDLY     0x0080
+-#define NL0       0x0000
+-#define NL1       0x0080
+-#define CRDLY     0x0300
+-#define CR0       0x0000
+-#define CR1       0x0100
+-#define CR2       0x0200
+-#define CR3       0x0300
+-#define TABDLY    0x0c00
+-#define TAB0      0x0000
+-#define TAB1      0x0400
+-#define TAB2      0x0800
+-#define TAB3      0x0c00
+-#define BSDLY     0x1000
+-#define BS0       0x0000
+-#define BS1       0x1000
+-#define VTDLY     0x2000
+-#define VT0       0x0000
+-#define VT1       0x2000
+-#define FFDLY     0x4000
+-#define FF0       0x0000
+-#define FF1       0x4000
+ 
+ #define B0        0U
+ #define B50       50U
+@@ -198,6 +176,32 @@ struct winsize {
+ #define TCOOFF    2
+ #define TCOON     3
+ 
++/* The output delays are XSI */
++#if __XSI_VISIBLE
++#define NLDLY  0x0080
++#define NL0    0x0000
++#define NL1    0x0080
++#define CRDLY  0x0300
++#define CR0    0x0000
++#define CR1    0x0100
++#define CR2    0x0200
++#define CR3    0x0300
++#define TABDLY 0x0c00
++#define TAB0   0x0000
++#define TAB1   0x0400
++#define TAB2   0x0800
++#define TAB3   0x0c00
++#define BSDLY  0x1000
++#define BS0    0x0000
++#define BS1    0x1000
++#define VTDLY  0x2000
++#define VT0    0x0000
++#define VT1    0x2000
++#define FFDLY  0x4000
++#define FF0    0x0000
++#define FF1    0x4000
++#endif
++
+ speed_t cfgetispeed(const struct termios *);
+ speed_t cfgetospeed(const struct termios *);
+ int     cfsetispeed(struct termios *, speed_t);
+-- 
+2.47.3
+

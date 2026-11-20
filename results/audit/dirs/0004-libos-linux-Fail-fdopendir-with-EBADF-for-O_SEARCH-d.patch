@@ -1,0 +1,43 @@
+From 7b4689291e5a769e5401a918e4b86faab403106d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:29:08 +0000
+Subject: [PATCH 04/21] libos/linux: Fail fdopendir with EBADF for O_SEARCH
+ descriptors
+
+fdopendir must fail with EBADF when the descriptor isn't open for
+reading. picolibc's O_SEARCH is Linux's O_PATH, which fstat accepts, so
+fdopendir returned a stream whose reads all failed.
+---
+ libos/linux/fdopendir.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/libos/linux/fdopendir.c b/libos/linux/fdopendir.c
+index 739ff0cef8..089e412eff 100644
+--- a/libos/linux/fdopendir.c
++++ b/libos/linux/fdopendir.c
+@@ -42,6 +42,7 @@ fdopendir(int fd)
+ {
+     struct stat st;
+     DIR        *dir;
++    long        flags;
+ 
+     if (fstat(fd, &st) < 0)
+         return NULL;
+@@ -49,6 +50,14 @@ fdopendir(int fd)
+         errno = ENOTDIR;
+         return NULL;
+     }
++    /* An O_SEARCH (O_PATH) descriptor can't read the directory */
++    flags = _syscall(LINUX_SYS_fcntl, fd, LINUX_F_GETFL);
++    if (flags < 0)
++        return NULL;
++    if (flags & LINUX_O_PATH) {
++        errno = EBADF;
++        return NULL;
++    }
+     dir = calloc(1, sizeof(DIR));
+     if (!dir)
+         return NULL;
+-- 
+2.47.3
+

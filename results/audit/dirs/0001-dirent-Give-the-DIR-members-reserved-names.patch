@@ -1,0 +1,246 @@
+From 130241842db3308aa987f9630640e44c10a2eda6 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:28:47 +0000
+Subject: [PATCH 01/21] dirent: Give the DIR members reserved names
+
+DIR's members were fd, offset, count, dirent, buf and align, so an
+application that defines a macro with one of those names before
+including <dirent.h> failed to compile. POSIX reserves only the d_
+prefix there.
+---
+ libc/include/sys/dirent.h                         | 13 +++++++------
+ libc/posix/dirent/dirfd.c                         |  4 ++--
+ libos/linux/closedir.c                            |  2 +-
+ libos/linux/fdopendir.c                           |  2 +-
+ libos/linux/opendir.c                             |  2 +-
+ libos/linux/readdir.c                             | 15 ++++++++-------
+ libos/linux/rewinddir.c                           |  6 +++---
+ libos/linux/seekdir.c                             |  6 +++---
+ libos/linux/telldir.c                             |  8 ++++----
+ libos/semihost/machine/hexagon/hexagon_closedir.c |  2 +-
+ libos/semihost/machine/hexagon/hexagon_opendir.c  |  2 +-
+ libos/semihost/machine/hexagon/hexagon_readdir.c  | 12 ++++++------
+ 12 files changed, 38 insertions(+), 36 deletions(-)
+
+diff --git a/libc/include/sys/dirent.h b/libc/include/sys/dirent.h
+index a3c9aa1f84..b6ccd66673 100644
+--- a/libc/include/sys/dirent.h
++++ b/libc/include/sys/dirent.h
+@@ -66,14 +66,15 @@ struct posix_dent {
+     char          d_name[];
+ };
+ 
++/* The members use reserved names, as applications may define macros with any others */
+ typedef struct {
+-    int           fd;
+-    size_t        offset;
+-    size_t        count;
+-    struct dirent dirent;
++    int           __dd_fd;
++    size_t        __dd_offset;
++    size_t        __dd_count;
++    struct dirent __dd_dirent;
+     union {
+-        char       buf[512];
+-        __uint64_t align;
++        char       __dd_buf[512];
++        __uint64_t __dd_align;
+     };
+ } DIR;
+ 
+diff --git a/libc/posix/dirent/dirfd.c b/libc/posix/dirent/dirfd.c
+index c0ad219522..6a756c1f9c 100644
+--- a/libc/posix/dirent/dirfd.c
++++ b/libc/posix/dirent/dirfd.c
+@@ -40,9 +40,9 @@
+ int
+ dirfd(DIR *dirp)
+ {
+-    if (dirp->fd < 0) {
++    if (dirp->__dd_fd < 0) {
+         errno = ENOTSUP;
+         return -1;
+     }
+-    return dirp->fd;
++    return dirp->__dd_fd;
+ }
+diff --git a/libos/linux/closedir.c b/libos/linux/closedir.c
+index 4fd6d471ca..341ff1fe85 100644
+--- a/libos/linux/closedir.c
++++ b/libos/linux/closedir.c
+@@ -41,7 +41,7 @@
+ int
+ closedir(DIR *dir)
+ {
+-    close(dir->fd);
++    close(dir->__dd_fd);
+     free(dir);
+     return 0;
+ }
+diff --git a/libos/linux/fdopendir.c b/libos/linux/fdopendir.c
+index 5196208f19..739ff0cef8 100644
+--- a/libos/linux/fdopendir.c
++++ b/libos/linux/fdopendir.c
+@@ -52,6 +52,6 @@ fdopendir(int fd)
+     dir = calloc(1, sizeof(DIR));
+     if (!dir)
+         return NULL;
+-    dir->fd = fd;
++    dir->__dd_fd = fd;
+     return dir;
+ }
+diff --git a/libos/linux/opendir.c b/libos/linux/opendir.c
+index 60f5c1a863..67b28060d2 100644
+--- a/libos/linux/opendir.c
++++ b/libos/linux/opendir.c
+@@ -51,6 +51,6 @@ opendir(const char *name)
+         free(dir);
+         return NULL;
+     }
+-    dir->fd = fd;
++    dir->__dd_fd = fd;
+     return dir;
+ }
+diff --git a/libos/linux/readdir.c b/libos/linux/readdir.c
+index af5e656c56..c3459f61ec 100644
+--- a/libos/linux/readdir.c
++++ b/libos/linux/readdir.c
+@@ -45,17 +45,18 @@ readdir(DIR *dir)
+     struct __kernel_dirent64 *k_dirent;
+     struct dirent            *dirent;
+ 
+-    if (dir->offset == dir->count) {
+-        ssize_t ret = _syscall(LINUX_SYS_getdents64, dir->fd, dir->buf, sizeof(dir->buf));
++    if (dir->__dd_offset == dir->__dd_count) {
++        ssize_t ret
++            = _syscall(LINUX_SYS_getdents64, dir->__dd_fd, dir->__dd_buf, sizeof(dir->__dd_buf));
+         if (ret <= 0)
+             return NULL;
+-        dir->offset = 0;
+-        dir->count = (size_t)ret;
++        dir->__dd_offset = 0;
++        dir->__dd_count = (size_t)ret;
+     }
+-    k_dirent = (struct __kernel_dirent64 *)(dir->buf + dir->offset);
+-    dir->offset += k_dirent->d_reclen;
++    k_dirent = (struct __kernel_dirent64 *)(dir->__dd_buf + dir->__dd_offset);
++    dir->__dd_offset += k_dirent->d_reclen;
+ 
+-    dirent = &dir->dirent;
++    dirent = &dir->__dd_dirent;
+     dirent->d_ino = (ino_t)k_dirent->d_ino;
+ 
+     MAP_DT(dirent->d_type, k_dirent->d_type);
+diff --git a/libos/linux/rewinddir.c b/libos/linux/rewinddir.c
+index 567685d168..0c806570fe 100644
+--- a/libos/linux/rewinddir.c
++++ b/libos/linux/rewinddir.c
+@@ -40,8 +40,8 @@
+ void
+ rewinddir(DIR *dir)
+ {
+-    (void)lseek(dir->fd, 0, 0);
++    (void)lseek(dir->__dd_fd, 0, 0);
+     /* Discard the entries read before the rewind */
+-    dir->offset = 0;
+-    dir->count = 0;
++    dir->__dd_offset = 0;
++    dir->__dd_count = 0;
+ }
+diff --git a/libos/linux/seekdir.c b/libos/linux/seekdir.c
+index fde233f7dc..02b9443303 100644
+--- a/libos/linux/seekdir.c
++++ b/libos/linux/seekdir.c
+@@ -38,7 +38,7 @@
+ void
+ seekdir(DIR *dir, long loc)
+ {
+-    (void)lseek(dir->fd, loc, SEEK_SET);
+-    dir->offset = 0;
+-    dir->count = 0;
++    (void)lseek(dir->__dd_fd, loc, SEEK_SET);
++    dir->__dd_offset = 0;
++    dir->__dd_count = 0;
+ }
+diff --git a/libos/linux/telldir.c b/libos/linux/telldir.c
+index 7c3ceeaccd..b3b50ca648 100644
+--- a/libos/linux/telldir.c
++++ b/libos/linux/telldir.c
+@@ -41,17 +41,17 @@ telldir(DIR *dir)
+ {
+     __int64_t pos;
+ 
+-    if (dir->offset == dir->count) {
+-        pos = lseek(dir->fd, 0, SEEK_CUR);
++    if (dir->__dd_offset == dir->__dd_count) {
++        pos = lseek(dir->__dd_fd, 0, SEEK_CUR);
+     } else {
+         /* The kernel's offset of the entry readdir returned last */
+         struct __kernel_dirent64 *k;
+         size_t                    off = 0;
+ 
+         do {
+-            k = (struct __kernel_dirent64 *)(dir->buf + off);
++            k = (struct __kernel_dirent64 *)(dir->__dd_buf + off);
+             off += k->d_reclen;
+-        } while (off < dir->offset);
++        } while (off < dir->__dd_offset);
+         pos = k->d_off;
+     }
+     if (pos != (long)pos) {
+diff --git a/libos/semihost/machine/hexagon/hexagon_closedir.c b/libos/semihost/machine/hexagon/hexagon_closedir.c
+index ea46c02ecd..892c701b2e 100644
+--- a/libos/semihost/machine/hexagon/hexagon_closedir.c
++++ b/libos/semihost/machine/hexagon/hexagon_closedir.c
+@@ -43,7 +43,7 @@ int
+ closedir(DIR *dir)
+ {
+     register uintptr_t r0 __asm__("r0") = SYS_CLOSEDIR;
+-    register uintptr_t r1 __asm__("r1") = (uintptr_t)dir->fd;
++    register uintptr_t r1 __asm__("r1") = (uintptr_t)dir->__dd_fd;
+     __asm__ __volatile__(SWI : "=r"(r0), "=r"(r1) : "r"(r0), "r"(r1));
+     int retval = (int)r0;
+     free(dir);
+diff --git a/libos/semihost/machine/hexagon/hexagon_opendir.c b/libos/semihost/machine/hexagon/hexagon_opendir.c
+index d385bf9c80..fc3c453482 100644
+--- a/libos/semihost/machine/hexagon/hexagon_opendir.c
++++ b/libos/semihost/machine/hexagon/hexagon_opendir.c
+@@ -53,6 +53,6 @@ opendir(const char *name)
+     DIR *dir = calloc(1, sizeof(DIR));
+     if (!dir)
+         return 0;
+-    dir->fd = (int)r0;
++    dir->__dd_fd = (int)r0;
+     return dir;
+ }
+diff --git a/libos/semihost/machine/hexagon/hexagon_readdir.c b/libos/semihost/machine/hexagon/hexagon_readdir.c
+index 1b79c7aef1..558c26b2e3 100644
+--- a/libos/semihost/machine/hexagon/hexagon_readdir.c
++++ b/libos/semihost/machine/hexagon/hexagon_readdir.c
+@@ -54,7 +54,7 @@ readdir(DIR *dir)
+ {
+     struct __semihost_dirent shd;
+     register uintptr_t       r0 __asm__("r0") = SYS_READDIR;
+-    register uintptr_t       r1 __asm__("r1") = (uintptr_t)dir->fd;
++    register uintptr_t       r1 __asm__("r1") = (uintptr_t)dir->__dd_fd;
+     register uintptr_t       r2 __asm__("r2") = (uintptr_t)&shd;
+     __asm__ __volatile__(SWI : "=r"(r0), "=r"(r1) : "r"(r0), "r"(r1), "r"(r2));
+     if (r0 == 0) {
+@@ -63,9 +63,9 @@ readdir(DIR *dir)
+             hexagon_semihost_errno((int)r1);
+         return 0;
+     }
+-    dir->dirent.d_ino = (ino_t)shd.d_ino;
+-    dir->dirent.d_type = DT_UNKNOWN;
+-    strncpy(dir->dirent.d_name, shd.d_name, sizeof(dir->dirent.d_name) - 1);
+-    dir->dirent.d_name[sizeof(dir->dirent.d_name) - 1] = '\0';
+-    return &dir->dirent;
++    dir->__dd_dirent.d_ino = (ino_t)shd.d_ino;
++    dir->__dd_dirent.d_type = DT_UNKNOWN;
++    strncpy(dir->__dd_dirent.d_name, shd.d_name, sizeof(dir->__dd_dirent.d_name) - 1);
++    dir->__dd_dirent.d_name[sizeof(dir->__dd_dirent.d_name) - 1] = '\0';
++    return &dir->__dd_dirent;
+ }
+-- 
+2.47.3
+

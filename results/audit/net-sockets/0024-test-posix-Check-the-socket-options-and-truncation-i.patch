@@ -1,0 +1,205 @@
+From cb47eda775f3d40cf00478dfb2e8a29797b3ddfc Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:56:09 +0000
+Subject: [PATCH 24/41] test-posix: Check the socket options and truncation in
+ getsockopt and setsockopt
+
+Each SO_ option, short buffers truncating the value, EDOM, EINVAL,
+ENOPROTOOPT, ENOTSOCK and EBADF.
+---
+ .../test-sys-socket/test-setsockopt.c         | 134 +++++++++++++++++-
+ 1 file changed, 127 insertions(+), 7 deletions(-)
+
+diff --git a/test/test-posix/test-sys-socket/test-setsockopt.c b/test/test-posix/test-sys-socket/test-setsockopt.c
+index 2390831889..216493faa0 100644
+--- a/test/test-posix/test-sys-socket/test-setsockopt.c
++++ b/test/test-posix/test-sys-socket/test-setsockopt.c
+@@ -34,6 +34,10 @@
+  */
+ 
+ #define _POSIX_C_SOURCE 202405L
++/* glibc defines SO_DOMAIN and SO_PROTOCOL only with _GNU_SOURCE */
++#ifdef TEST_GLIBC
++#define _GNU_SOURCE
++#endif
+ #include <unistd.h>
+ 
+ /* Without the system support this test needs, it is skipped */
+@@ -45,6 +49,7 @@
+ #include <fcntl.h>
+ #include <netdb.h>
+ #include <netinet/in.h>
++#include <stdbool.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -106,44 +111,159 @@ tcp_pair(int *client, int *server)
+ 
+ #include <sys/time.h>
+ 
++/* QEMU's user-mode emulation, which handles some options itself */
++static bool
++is_qemu(void)
++{
++    FILE *f = fopen("/proc/cpuinfo", "r");
++    char  line[256];
++    bool  ret = false;
++
++    if (!f)
++        return false;
++    while (fgets(line, sizeof(line), f) != NULL) {
++        if (strncmp(line, "BogoMIPS", 8) == 0) {
++            ret = strstr(line, "100.00") != NULL;
++            break;
++        }
++    }
++    fclose(f);
++    return ret;
++}
++
++static int
++get_int(int fd, int name)
++{
++    int       value = -1;
++    socklen_t len = sizeof(value);
++
++    check(getsockopt(fd, SOL_SOCKET, name, &value, &len) == 0 && len == sizeof(value),
++          "getsockopt");
++    return value;
++}
++
++/* Turn a boolean option on and off */
++static void
++flip(int fd, int name)
++{
++    int on = 1, off = 0;
++
++    check(setsockopt(fd, SOL_SOCKET, name, &on, sizeof(on)) == 0 && get_int(fd, name) != 0,
++          "option on");
++    check(setsockopt(fd, SOL_SOCKET, name, &off, sizeof(off)) == 0 && get_int(fd, name) == 0,
++          "option off");
++}
++
+ int
+ main(void)
+ {
+     struct timeval tv = { 0, 100000 }, got;
+     struct linger  linger = { 1, 5 }, glinger;
+     socklen_t      len;
+-    int            fd = make_socket(AF_INET, SOCK_DGRAM), on = 1, value;
++    int            fd = make_socket(AF_INET, SOCK_DGRAM), on = 1, value, tcp, fds[2];
+     char           buf[4];
++    bool           qemu = is_qemu();
+ 
+     check(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == 0, "SO_REUSEADDR");
+     len = sizeof(value);
+     check(getsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &value, &len) == 0 && value != 0, "get");
+-
+     check(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == 0, "SO_RCVTIMEO");
+     len = sizeof(got);
+     check(getsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &got, &len) == 0, "get SO_RCVTIMEO");
+     /* QEMU's user-mode emulation reports nothing for this option */
+-    if (len != 0)
+-        check(got.tv_sec == 0 && got.tv_usec >= 90000 && got.tv_usec <= 110000, "timeout value");
++    if (len != 0 || !qemu)
++        check(len == sizeof(got) && got.tv_sec == 0 && got.tv_usec >= 90000
++                  && got.tv_usec <= 110000,
++              "timeout value");
++    /* A short buffer gets the start of the value */
++    memset(&got, 0xa5, sizeof(got));
++    len = sizeof(got.tv_sec);
++    check(getsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &got, &len) == 0, "short SO_RCVTIMEO");
++    if (len != 0 || !qemu)
++        check(len == sizeof(got.tv_sec) && got.tv_sec == 0, "truncated timeout");
++    len = 2;
++    value = -1;
++    check(getsockopt(fd, SOL_SOCKET, SO_TYPE, &value, &len) == 0 && len <= 2, "short SO_TYPE");
+     {
+         struct sockaddr_in sin = loopback();
+-
+         check(bind(fd, (struct sockaddr *)&sin, sizeof(sin)) == 0, "bind");
+     }
+     /* The receive times out */
+     check(recv(fd, buf, sizeof(buf), 0) == -1 && (errno == EAGAIN || errno == EWOULDBLOCK),
+           "timed out");
+-
++    tv.tv_sec = 1;
++    tv.tv_usec = 0;
++    check(setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) == 0, "SO_SNDTIMEO");
++    len = sizeof(got);
++    check(getsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &got, &len) == 0, "get SO_SNDTIMEO");
++    if (len != 0 || !qemu)
++        check(got.tv_sec == 1 && got.tv_usec == 0, "send timeout value");
++    /* Microseconds out of range don't fit */
++    tv.tv_usec = 1000000;
++    errno = 0;
++    check(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1 && errno == EDOM, "EDOM");
+     check(setsockopt(fd, SOL_SOCKET, SO_LINGER, &linger, sizeof(linger)) == 0, "SO_LINGER");
+     len = sizeof(glinger);
+     check(getsockopt(fd, SOL_SOCKET, SO_LINGER, &glinger, &len) == 0, "get SO_LINGER");
+     check(glinger.l_onoff != 0 && glinger.l_linger == 5, "linger value");
+-
++    errno = 0;
++    check(setsockopt(fd, SOL_SOCKET, SO_LINGER, &linger, 1) == -1 && errno == EINVAL,
++          "short SO_LINGER");
+     len = sizeof(value);
+     check(getsockopt(fd, SOL_SOCKET, SO_ERROR, &value, &len) == 0 && value == 0, "SO_ERROR");
+     check(getsockopt(fd, SOL_SOCKET, 12345, &value, &len) == -1 && errno == ENOPROTOOPT,
+           "ENOPROTOOPT");
++    errno = 0;
++    check(setsockopt(fd, SOL_SOCKET, 12345, &on, sizeof(on)) == -1
++              && (errno == ENOPROTOOPT || errno == EINVAL),
++          "set ENOPROTOOPT");
++
++    /* The read-only options describe the socket */
++    check(get_int(fd, SO_TYPE) == SOCK_DGRAM, "SO_TYPE");
++    check(get_int(fd, SO_DOMAIN) == AF_INET, "SO_DOMAIN");
++    check(get_int(fd, SO_PROTOCOL) == IPPROTO_UDP, "SO_PROTOCOL");
++    check(get_int(fd, SO_ACCEPTCONN) == 0, "SO_ACCEPTCONN");
++    (void)get_int(fd, SO_DEBUG);
++    /* Boolean options */
++    flip(fd, SO_BROADCAST);
++    flip(fd, SO_DONTROUTE);
++    flip(fd, SO_REUSEADDR);
++    tcp = make_socket(AF_INET, SOCK_STREAM);
++    flip(tcp, SO_KEEPALIVE);
++    flip(tcp, SO_OOBINLINE);
++    /* Sizes may be adjusted, but not below what was asked */
++    value = 65536;
++    check(setsockopt(tcp, SOL_SOCKET, SO_RCVBUF, &value, sizeof(value)) == 0
++              && get_int(tcp, SO_RCVBUF) >= value,
++          "SO_RCVBUF");
++    check(setsockopt(tcp, SOL_SOCKET, SO_SNDBUF, &value, sizeof(value)) == 0
++              && get_int(tcp, SO_SNDBUF) >= value,
++          "SO_SNDBUF");
++    value = 4;
++    check(setsockopt(tcp, SOL_SOCKET, SO_RCVLOWAT, &value, sizeof(value)) == 0
++              && get_int(tcp, SO_RCVLOWAT) == 4,
++          "SO_RCVLOWAT");
++    check(get_int(tcp, SO_SNDLOWAT) >= 1, "SO_SNDLOWAT");
++    check(get_int(tcp, SO_PROTOCOL) == IPPROTO_TCP, "TCP protocol");
++    check(close(tcp) == 0, "close");
+     check(close(fd) == 0, "close");
++
++    /* Not sockets */
++    check(pipe(fds) == 0, "pipe");
++    len = sizeof(value);
++    errno = 0;
++    check(getsockopt(fds[0], SOL_SOCKET, SO_TYPE, &value, &len) == -1 && errno == ENOTSOCK,
++          "getsockopt ENOTSOCK");
++    errno = 0;
++    check(setsockopt(fds[0], SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1 && errno == ENOTSOCK,
++          "setsockopt ENOTSOCK");
++    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
++    errno = 0;
++    check(getsockopt(-1, SOL_SOCKET, SO_TYPE, &value, &len) == -1 && errno == EBADF,
++          "getsockopt EBADF");
++    errno = 0;
++    check(setsockopt(-1, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1 && errno == EBADF,
++          "setsockopt EBADF");
+     (void)tcp_pair;
+     printf("success\n");
+     return 0;
+-- 
+2.47.3
+

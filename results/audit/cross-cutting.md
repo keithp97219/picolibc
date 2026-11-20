@@ -179,3 +179,106 @@ Append yours under a heading naming the unit.
   unsupported file systems by writing, so ENOTSUP checks are picolibc-only.
 - `<sys/stat.h>` declares lstat and mknod under `defined(__BSD_VISIBLE)`, which is
   always true: one more instance of the `#ifdef __X_VISIBLE` mistake already listed.
+
+## From net-sockets (arm64 host)
+
+- **Host security software kills some test binaries.** This host runs
+  endpoint security software. It sent SIGKILL, in the middle of a
+  socket call, to test programs named `*.elf` that combined many socket calls
+  with signals repeatedly interrupting a blocking call (a POSIX timer, or a
+  child sending SIGUSR1); the same binary without the `.elf` suffix ran to the
+  end every time. meson shows it as "killed by signal 9 SIGKILL" with no
+  output. The net-sockets tests were restructured until it stopped (fork-based
+  interrupter, recvfrom split from recv). Other units writing EINTR tests
+  around sockets may hit it; nothing on the host should be changed.
+- **Every header leaks wint_t and MALLOC_ALIGNMENT in strict mode.**
+  `<sys/_types.h>` asks `<stddef.h>` for `__need_wint_t`, and `<sys/config.h>`
+  defines `MALLOC_ALIGNMENT`, so even `<sys/uio.h>` with only
+  `_POSIX_C_SOURCE 202405L` defines both. (Every header also gets size_t this
+  way, which is harmless but means "header X defines size_t" can't be tested
+  in isolation.)
+- **sysconf(_SC_IOV_MAX) in libos/fallback** returns `_XOPEN_IOV_MAX` (16) while
+  `<limits.h>` defines IOV_MAX as 1024 on every target. Fixed for Linux only
+  (libos/linux/sysconf.c returns IOV_MAX); unistd-config should decide for the
+  fallback (POSIX: when IOV_MAX is defined, it is the actual limit).
+- **FD_SETSIZE is 64**, like OPEN_MAX; Linux descriptors routinely go higher, so
+  select can't watch them. Changing it changes the size of fd_set.
+- **Library-level argument checks in cancellation points** must come after
+  `_cancel_enter()`: test-pthread_testcancel probes recvmsg and sendmsg with an
+  empty msghdr, and an early EMSGSIZE return skipped the pending cancel. Units
+  adding validation to readv/writev/sendmsg-style wrappers should check after
+  entering the cancellation point.
+- **glibc 2.43 gaps for this area** (native tests guard them): accept4, ppoll,
+  SO_DOMAIN and SO_PROTOCOL need `_GNU_SOURCE`; `<poll.h>` doesn't define
+  sigset_t; msg_iovlen, msg_controllen and cmsg_len are size_t;
+  CMSG_NXTHDR(mhdr, NULL) crashes; select accepts nfds > FD_SETSIZE; and with
+  64-bit time on 32-bit targets struct timeval's tv_usec isn't suseconds_t.
+
+## From termios (arm64 host)
+
+- **O_TTY_INIT = 0 is not conforming on Linux.** The files unit asked termios to
+  assess this. Linux serial drivers keep termios between opens, so non-standard flags
+  (IUCLC, OLCUC, XCASE, the line discipline) survive from the last user, and a zero
+  O_TTY_INIT promises a reset that never happens. A fix means a non-zero, picolibc-only
+  O_TTY_INIT that open/openat handle in user space by clearing the Linux-only flags on
+  terminals other than ptys. Whether the device is open elsewhere doesn't matter, since
+  POSIX leaves that case unspecified. It needs a decision on the flag value and the
+  list of flags, and it can't be tested without a serial device. Separately, Linux
+  never resets a pty subsidiary on reopen (it does so only when the manager is opened),
+  so the pty half of that open() rule can't hold either.
+- **sysconf limits from libos/fallback that are too small for Linux:**
+  `_SC_TTY_NAME_MAX` was 9, shorter than `/dev/pts/N`; fixed here to 32 in
+  libos/linux/sysconf.c. This is the same pattern as `_SC_DELAYTIMER_MAX` (time unit);
+  unistd-config should check the remaining `_SC_*` values against Linux.
+- **The terminal access check (SIGTTOU/EIO) is missing for tcsetwinsize** in the
+  kernel (TIOCSWINSZ), and may be missing for other new Issue 8 calls. Linux applies it
+  only to the ioctls listed in tty_ioctl and n_tty_ioctl_helper.
+- **glibc 2.43 gaps for this area:** no tcgetwinsize/tcsetwinsize; `struct winsize`
+  only in `<sys/ioctl.h>`; ptsname_r crashes on a null name (and declares it non-null,
+  so pass NULL through a volatile pointer); ttyname_r returns ENODEV, not ERANGE, for a
+  buffer one byte short; no O_TTY_INIT.
+- **Test-writing lesson for process-group tests:** a grandchild that waits to be
+  orphaned must get its parent's PID from before the fork. `getppid()` called in the
+  child can already return the new reaper, and then the child waits forever. When
+  `poll` on a tty is used as a readiness wait, note that with VMIN>1 and VTIME=0 it
+  waits for MIN bytes, not one.
+- **The posix_openpt O_ACCMODE note from the files unit is resolved:** posix_openpt now
+  rejects O_SEARCH and O_EXEC with EINVAL.
+
+## From dirs (arm64 host)
+
+- **Public structures with plain member names.** `DIR` had members named `fd`,
+  `offset`, `count`, `dirent`, `buf` and `align`, so an application macro with
+  one of those names, defined before `#include <dirent.h>`, broke the header.
+  POSIX reserves only the header's own prefixes (`d_` here). Fixed for DIR
+  (`__dd_` names). Other units should check structures that picolibc defines but
+  POSIX leaves opaque or only partly specifies (FILE, glob_t extras, the
+  pthread types, sem_t, mqd_t and so on) the same way: define a macro with each
+  member name before including the header.
+- **The Linux configurations skipped three picolibc tests.**
+  `test/test-posix/test-dirent/meson.build` skipped the picolibc builds of
+  test-readdir, test-dirfd and test-scandir whenever `native-tests` was on. Every
+  Linux configuration turns it on, so those tests never ran against picolibc on
+  Linux. The skip was meant for the `use-stdlib` native configuration, and that
+  is now the condition. No other test directory has the same pattern.
+- **32-bit long against 64-bit kernel offsets.** telldir returned -1/EOVERFLOW
+  for directory offsets above LONG_MAX on armhf. That always happens under
+  qemu-user on x86_64, because the host kernel gives 64-bit ext4 hashes, and on
+  real hardware it happens for tmpfs offsets set with lseek. It is now fixed with
+  a cookie table. Any other interface that squeezes an off_t into long (ftell,
+  fseek) has the same shape and is already covered by the off_t/long rules there.
+  With the fix, test-telldir should now pass under qemu on armhf too, instead of
+  skipping.
+- **glibc 2.43 gaps in this area** (guarded with `__GLIBC__` in the tests):
+  - It has no posix_getdents, struct posix_dent, reclen_t, DT_MQ/DT_SEM/DT_SHM
+    or FTW_XDEV.
+  - It defines DT_BLK…DT_UNKNOWN only with `_DEFAULT_SOURCE`, although POSIX.1-2024
+    requires them in `<dirent.h>`.
+  - Its FTW_* values are enumerators, so they can't be used in `#if`.
+  - Its `<libgen.h>` defines basename as `__xpg_basename`, so after
+    `#undef basename` nothing is declared.
+  - nftw skips every directory it has already visited, not only the ones that
+    would be inside themselves: a link to a sibling directory isn't walked, and a
+    link to a parent isn't reported without FTW_DEPTH.
+  - glibc's FTW_ACTIONRETVAL is 16, the same value as picolibc's new FTW_XDEV.
+    This is harmless, but worth knowing when comparing traces.

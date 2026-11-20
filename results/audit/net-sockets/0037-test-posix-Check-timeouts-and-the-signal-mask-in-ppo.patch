@@ -1,0 +1,110 @@
+From 6294bb4346b7ede2e6034b5057f89a8e5010a629 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:56:24 +0000
+Subject: [PATCH 37/41] test-posix: Check timeouts and the signal mask in ppoll
+
+Invalid and very long timeouts, negative descriptors, and the mask
+replacing the caller's during the call and being restored after.
+---
+ test/test-posix/test-poll/test-ppoll.c | 68 ++++++++++++++++++++++++--
+ 1 file changed, 63 insertions(+), 5 deletions(-)
+
+diff --git a/test/test-posix/test-poll/test-ppoll.c b/test/test-posix/test-poll/test-ppoll.c
+index 2dc2255be6..b6ceac277f 100644
+--- a/test/test-posix/test-poll/test-ppoll.c
++++ b/test/test-posix/test-poll/test-ppoll.c
+@@ -50,6 +50,7 @@
+ #include <signal.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <time.h>
+ #include <unistd.h>
+ 
+@@ -63,14 +64,24 @@
+         }                                              \
+     } while (0)
+ 
++static volatile sig_atomic_t caught;
++
++static void
++on_usr1(int sig)
++{
++    (void)sig;
++    caught++;
++}
++
+ int
+ main(void)
+ {
+-    int             fds[2];
+-    struct pollfd   pfd[2];
+-    struct timespec ts;
+-    sigset_t        mask;
+-    char            c;
++    int              fds[2];
++    struct pollfd    pfd[2];
++    struct timespec  ts;
++    sigset_t         mask, old, now;
++    struct sigaction act;
++    char             c;
+ 
+     check(pipe(fds) == 0, "pipe");
+     check(write(fds[1], "x", 1) == 1, "write");
+@@ -91,6 +102,53 @@ main(void)
+     ts.tv_nsec = -1;
+     errno = 0;
+     check(ppoll(&pfd[1], 1, &ts, NULL) == -1 && errno == EINVAL, "ppoll bad timeout");
++    ts.tv_nsec = 1000000000;
++    errno = 0;
++    check(ppoll(&pfd[1], 1, &ts, NULL) == -1 && errno == EINVAL, "ppoll too many nanoseconds");
++    ts.tv_sec = -1;
++    ts.tv_nsec = 0;
++    errno = 0;
++    check(ppoll(&pfd[1], 1, &ts, NULL) == -1 && errno == EINVAL, "ppoll negative timeout");
++
++    /* A long timeout, with something ready, is limited rather than rejected */
++    check(write(fds[1], "z", 1) == 1, "write");
++    ts.tv_sec = (time_t)1 << (sizeof(time_t) * 8 - 2);
++    ts.tv_nsec = 999999999;
++    check(ppoll(&pfd[1], 1, &ts, NULL) == 1 && pfd[1].revents == POLLIN, "long timeout");
++    ts.tv_sec = 31 * 24 * 60 * 60;
++    check(ppoll(&pfd[1], 1, &ts, NULL) == 1 && pfd[1].revents == POLLIN, "31 days");
++    check(read(fds[0], &c, 1) == 1, "read");
++    /* A negative descriptor is ignored */
++    pfd[0].fd = -1;
++    pfd[0].events = POLLIN;
++    pfd[0].revents = POLLIN;
++    ts.tv_sec = 0;
++    ts.tv_nsec = 0;
++    check(ppoll(pfd, 1, &ts, NULL) == 0 && pfd[0].revents == 0, "negative descriptor");
++
++    /*
++     * The mask replaces the caller's during the call: a blocked, pending
++     * SIGUSR1 is delivered, which interrupts it, and the old mask comes back
++     */
++    memset(&act, 0, sizeof(act));
++    act.sa_handler = on_usr1;
++    sigemptyset(&act.sa_mask);
++    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
++    sigemptyset(&mask);
++    sigaddset(&mask, SIGUSR1);
++    check(sigprocmask(SIG_BLOCK, &mask, &old) == 0, "block SIGUSR1");
++    check(raise(SIGUSR1) == 0 && caught == 0, "pending");
++    sigemptyset(&mask);
++    errno = 0;
++    check(ppoll(&pfd[1], 1, NULL, &mask) == -1 && errno == EINTR && caught == 1, "EINTR");
++    check(sigprocmask(SIG_BLOCK, NULL, &now) == 0 && sigismember(&now, SIGUSR1), "mask restored");
++    /* A mask that keeps it blocked leaves it pending */
++    check(raise(SIGUSR1) == 0, "raise");
++    sigaddset(&mask, SIGUSR1);
++    ts.tv_nsec = 1000000;
++    check(ppoll(&pfd[1], 1, &ts, &mask) == 0 && caught == 1, "still blocked");
++    check(sigprocmask(SIG_SETMASK, &old, NULL) == 0 && caught == 2, "delivered after");
++    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
+ 
+     printf("success\n");
+     return 0;
+-- 
+2.47.3
+

@@ -1,0 +1,29 @@
+From 3dfc7e0f6b70f86f69a41388a3ff44508010cc35 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 05/41] libos/linux: Treat a negative listen backlog as 0
+
+POSIX: "If listen() is called with a backlog argument value that is
+less than 0, the function behaves as if it had been called with a
+backlog argument value of 0." Linux casts it to unsigned and uses
+SOMAXCONN.
+---
+ libos/linux/listen.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libos/linux/listen.c b/libos/linux/listen.c
+index 52b1d64bad..e9a403a554 100644
+--- a/libos/linux/listen.c
++++ b/libos/linux/listen.c
+@@ -39,5 +39,8 @@
+ int
+ listen(int fd, int backlog)
+ {
++    /* Linux takes a negative backlog as the largest one */
++    if (backlog < 0)
++        backlog = 0;
+     return (int)_syscall(LINUX_SYS_listen, fd, backlog);
+ }
+-- 
+2.47.3
+

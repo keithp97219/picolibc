@@ -1,0 +1,120 @@
+From 565fb3cdeaa71c8b506143716452be5bddd4c3b3 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:29:08 +0000
+Subject: [PATCH 06/21] libos/linux: Report every directory position from
+ telldir
+
+telldir has no errors, but where long is 32 bits it failed with
+EOVERFLOW for kernel offsets above LONG_MAX: tmpfs positions set with
+lseek, or every ext4 position for a 32-bit program emulated on a 64-bit
+kernel. Such positions are now kept in a table in the DIR and reported
+as negative values, which seekdir looks up.
+---
+ libc/include/sys/dirent.h |  2 ++
+ libos/linux/closedir.c    |  1 +
+ libos/linux/seekdir.c     |  7 ++++++-
+ libos/linux/telldir.c     | 37 +++++++++++++++++++++++++++++++++----
+ 4 files changed, 42 insertions(+), 5 deletions(-)
+
+diff --git a/libc/include/sys/dirent.h b/libc/include/sys/dirent.h
+index 86678befea..9bf45f8cfc 100644
+--- a/libc/include/sys/dirent.h
++++ b/libc/include/sys/dirent.h
+@@ -75,6 +75,8 @@ typedef struct {
+     size_t        __dd_offset;
+     size_t        __dd_count;
+     struct dirent __dd_dirent;
++    __int64_t    *__dd_tell; /* telldir positions that don't fit in long */
++    size_t        __dd_ntell;
+     union {
+         char       __dd_buf[512];
+         __uint64_t __dd_align;
+diff --git a/libos/linux/closedir.c b/libos/linux/closedir.c
+index 341ff1fe85..87101bca3e 100644
+--- a/libos/linux/closedir.c
++++ b/libos/linux/closedir.c
+@@ -42,6 +42,7 @@ int
+ closedir(DIR *dir)
+ {
+     close(dir->__dd_fd);
++    free(dir->__dd_tell);
+     free(dir);
+     return 0;
+ }
+diff --git a/libos/linux/seekdir.c b/libos/linux/seekdir.c
+index 02b9443303..7833b4af9a 100644
+--- a/libos/linux/seekdir.c
++++ b/libos/linux/seekdir.c
+@@ -38,7 +38,12 @@
+ void
+ seekdir(DIR *dir, long loc)
+ {
+-    (void)lseek(dir->__dd_fd, loc, SEEK_SET);
++    __int64_t pos = loc;
++
++    /* telldir reports positions that don't fit in long as -2 - index */
++    if (loc < -1 && (unsigned long)(-2 - loc) < dir->__dd_ntell)
++        pos = dir->__dd_tell[-2 - loc];
++    (void)lseek(dir->__dd_fd, pos, SEEK_SET);
+     dir->__dd_offset = 0;
+     dir->__dd_count = 0;
+ }
+diff --git a/libos/linux/telldir.c b/libos/linux/telldir.c
+index b3b50ca648..8e60fad456 100644
+--- a/libos/linux/telldir.c
++++ b/libos/linux/telldir.c
+@@ -34,8 +34,15 @@
+  */
+ 
+ #include "local-dirent.h"
++#include <limits.h>
++#include <stdlib.h>
+ 
+-/* The position of the next entry readdir will return */
++/*
++ * The position of the next entry readdir will return. Where long is
++ * narrower than the kernel's offsets, positions that don't fit are kept
++ * in a table and reported as negative values, which no kernel position
++ * (always non-negative) can be.
++ */
+ long
+ telldir(DIR *dir)
+ {
+@@ -54,9 +61,31 @@ telldir(DIR *dir)
+         } while (off < dir->__dd_offset);
+         pos = k->d_off;
+     }
+-    if (pos != (long)pos) {
+-        errno = EOVERFLOW;
++    if (pos >= 0 && pos == (long)pos)
++        return (long)pos;
++    if (pos < 0)
+         return -1;
++#if __SIZEOF_LONG__ < 8
++    {
++        size_t     i;
++        __int64_t *tell;
++
++        for (i = 0; i < dir->__dd_ntell; i++)
++            if (dir->__dd_tell[i] == pos)
++                return -2 - (long)i;
++        if (dir->__dd_ntell >= (size_t)LONG_MAX - 1) {
++            errno = EOVERFLOW;
++            return -1;
++        }
++        tell = realloc(dir->__dd_tell, (dir->__dd_ntell + 1) * sizeof(*tell));
++        if (!tell)
++            return -1;
++        tell[dir->__dd_ntell] = pos;
++        dir->__dd_tell = tell;
++        return -2 - (long)dir->__dd_ntell++;
+     }
+-    return (long)pos;
++#else
++    errno = EOVERFLOW;
++    return -1;
++#endif
+ }
+-- 
+2.47.3
+

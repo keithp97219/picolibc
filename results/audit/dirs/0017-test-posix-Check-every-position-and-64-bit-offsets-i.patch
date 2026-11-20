@@ -1,0 +1,120 @@
+From c8c87ae148a3e851dfd36022a0de8cbc8da84179 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:30:09 +0000
+Subject: [PATCH 17/21] test-posix: Check every position and 64-bit offsets in
+ telldir
+
+---
+ test/test-posix/test-dirent/test-telldir.c | 67 +++++++++++++++++++++-
+ 1 file changed, 65 insertions(+), 2 deletions(-)
+
+diff --git a/test/test-posix/test-dirent/test-telldir.c b/test/test-posix/test-dirent/test-telldir.c
+index 87f9303a3d..561333f12a 100644
+--- a/test/test-posix/test-dirent/test-telldir.c
++++ b/test/test-posix/test-dirent/test-telldir.c
+@@ -61,11 +61,50 @@
+ 
+ static char dir[] = "tmp-XXXXXX";
+ 
++/*
++ * A position that doesn't fit in a 32-bit long still works. tmpfs lets
++ * a directory's offset be set anywhere, and fdopendir starts from it.
++ */
++static void
++big_offset(void)
++{
++    char  shm[] = "/dev/shm/telldir-XXXXXX";
++    off_t big = (off_t)1 << 32;
++    long  pos;
++    DIR  *d;
++    int   fd;
++
++    if (sizeof(off_t) < 8 || mkdtemp(shm) == NULL) {
++        printf("no 64-bit offsets or /dev/shm, skipping the large position check\n");
++        return;
++    }
++    fd = open(shm, O_RDONLY | O_DIRECTORY);
++    check(fd >= 0, "open");
++    if (lseek(fd, big, SEEK_SET) != big) {
++        printf("can't seek the directory to 2^32, skipping the large position check\n");
++        check(close(fd) == 0 && rmdir(shm) == 0, "cleanup");
++        return;
++    }
++    d = fdopendir(fd);
++    check(d != NULL, "fdopendir");
++    errno = 0;
++    pos = telldir(d);
++    check(pos != -1, "telldir at 2^32");
++    check(readdir(d) == NULL, "nothing at 2^32");
++    seekdir(d, pos);
++    check(telldir(d) == pos, "telldir after seekdir at 2^32");
++#ifdef __PICOLIBC__
++    /* picolibc's seekdir sets the descriptor's offset at once */
++    check(lseek(dirfd(d), 0, SEEK_CUR) == big, "seekdir back to 2^32");
++#endif
++    check(closedir(d) == 0 && rmdir(shm) == 0, "cleanup");
++}
++
+ int
+ main(void)
+ {
+     char           names[8][16], again[16];
+-    long           pos;
++    long           pos, positions[9];
+     DIR           *d;
+     struct dirent *ent;
+     int            i, n = 0;
+@@ -86,18 +125,41 @@ main(void)
+         check(readdir(d) != NULL, "readdir");
+     errno = 0;
+     pos = telldir(d);
++#ifdef __GLIBC__
+     if (pos == -1 && errno == EOVERFLOW) {
+-        /* A 32-bit program emulated on a 64-bit kernel sees 64-bit offsets */
++        /* glibc fails when a 32-bit program emulated on a 64-bit kernel sees 64-bit offsets */
+         printf("directory offsets don't fit in long here, skipping\n");
+         return 77;
+     }
++#endif
+     check(pos != -1, "telldir");
+     while ((ent = readdir(d)) != NULL && n < 8)
+         strcpy(names[n++], ent->d_name);
+     check(n == 5, "the rest");
+     seekdir(d, pos);
++    check(telldir(d) == pos, "telldir after seekdir");
+     ent = readdir(d);
+     check(ent && strcmp(ent->d_name, names[0]) == 0, "seekdir");
++
++    /* Every position returns to its own entry, in any order */
++    rewinddir(d);
++    n = 0;
++    for (;;) {
++        positions[n] = telldir(d);
++        check(positions[n] != -1, "telldir");
++        if ((ent = readdir(d)) == NULL)
++            break;
++        check(n < 8, "entries");
++        strcpy(names[n++], ent->d_name);
++    }
++    check(n == 8, "every entry");
++    for (i = n - 1; i >= 0; i--) {
++        seekdir(d, positions[i]);
++        ent = readdir(d);
++        check(ent && strcmp(ent->d_name, names[i]) == 0, "seekdir to each position");
++    }
++    seekdir(d, positions[n]);
++    check(readdir(d) == NULL, "seekdir to the end");
+     rewinddir(d);
+     n = 0;
+     while ((ent = readdir(d)) != NULL)
+@@ -109,6 +171,7 @@ main(void)
+         check(unlink(again) == 0, "unlink");
+     }
+     check(chdir("..") == 0 && rmdir(dir) == 0, "cleanup");
++    big_offset();
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

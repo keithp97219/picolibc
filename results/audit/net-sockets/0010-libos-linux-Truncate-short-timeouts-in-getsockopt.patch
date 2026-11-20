@@ -1,0 +1,56 @@
+From 8aff93f6e0d838d59af0aa5d650c9aa4249ba716 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 10/41] libos/linux: Truncate short timeouts in getsockopt
+
+On 32-bit targets getsockopt converts SO_RCVTIMEO and SO_SNDTIMEO from
+the kernel's 64-bit form and said EINVAL for a buffer shorter than a
+struct timeval. POSIX: "If the size of the option value is greater
+than option_len, the value stored ... shall be silently truncated."
+---
+ libos/linux/getsockopt.c | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/libos/linux/getsockopt.c b/libos/linux/getsockopt.c
+index bd228ee19d..15ee83fa54 100644
+--- a/libos/linux/getsockopt.c
++++ b/libos/linux/getsockopt.c
+@@ -35,6 +35,7 @@
+ 
+ #include "local-socket.h"
+ #include <sys/time.h>
++#include <string.h>
+ 
+ int
+ getsockopt(int fd, int level, int name, void * __restrict value, socklen_t * __restrict len)
+@@ -42,19 +43,18 @@ getsockopt(int fd, int level, int name, void * __restrict value, socklen_t * __r
+ #if __SIZEOF_LONG__ != 8
+     /* The kernel's 64-bit timeouts have a 64-bit tv_usec */
+     if (level == SOL_SOCKET && (name == SO_RCVTIMEO || name == SO_SNDTIMEO)) {
+-        struct timeval              *tv = value;
+-        struct __kernel_sock_timeval ktv;
++        struct timeval               tv;
++        struct __kernel_sock_timeval ktv = { 0, 0 };
+         socklen_t                    klen = sizeof(ktv);
+ 
+-        if (*len < sizeof(*tv)) {
+-            errno = EINVAL;
+-            return -1;
+-        }
+         if (_syscall(LINUX_SYS_getsockopt, fd, level, name, &ktv, &klen) < 0)
+             return -1;
+-        tv->tv_sec = ktv.tv_sec;
+-        tv->tv_usec = (suseconds_t)ktv.tv_usec;
+-        *len = sizeof(*tv);
++        tv.tv_sec = ktv.tv_sec;
++        tv.tv_usec = (suseconds_t)ktv.tv_usec;
++        /* A shorter buffer gets the start of the value */
++        if (*len > sizeof(tv))
++            *len = sizeof(tv);
++        memcpy(value, &tv, *len);
+         return 0;
+     }
+ #endif
+-- 
+2.47.3
+

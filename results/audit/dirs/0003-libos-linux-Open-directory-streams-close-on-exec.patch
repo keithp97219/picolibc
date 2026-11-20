@@ -1,0 +1,28 @@
+From 5a626bbb37445f5108173944105a8e89f01d8301 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:29:08 +0000
+Subject: [PATCH 03/21] libos/linux: Open directory streams close-on-exec
+
+POSIX.1-2024: opendir allocates its descriptor "as if the O_DIRECTORY
+and O_CLOEXEC flags were passed to open()". nftw's descriptors, which
+must be close-on-exec too, come from opendir.
+---
+ libos/linux/opendir.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libos/linux/opendir.c b/libos/linux/opendir.c
+index 67b28060d2..9700d8f069 100644
+--- a/libos/linux/opendir.c
++++ b/libos/linux/opendir.c
+@@ -46,7 +46,7 @@ opendir(const char *name)
+     dir = calloc(1, sizeof(DIR));
+     if (!dir)
+         return NULL;
+-    fd = _syscall(LINUX_SYS_openat, LINUX_AT_FDCWD, name, LINUX_O_DIRECTORY);
++    fd = _syscall(LINUX_SYS_openat, LINUX_AT_FDCWD, name, LINUX_O_DIRECTORY | LINUX_O_CLOEXEC);
+     if (fd < 0) {
+         free(dir);
+         return NULL;
+-- 
+2.47.3
+

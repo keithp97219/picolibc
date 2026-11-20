@@ -1,0 +1,245 @@
+From c6998079e0562dcfb41bebf07351025d07b72e8a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:30:08 +0000
+Subject: [PATCH 16/21] test-posix: Check small buffers, types, offsets and
+ errors in posix_getdents
+
+---
+ .../test-dirent/test-posix_getdents.c         | 183 ++++++++++++------
+ 1 file changed, 126 insertions(+), 57 deletions(-)
+
+diff --git a/test/test-posix/test-dirent/test-posix_getdents.c b/test/test-posix/test-dirent/test-posix_getdents.c
+index 444df6e01e..7a2b109404 100644
+--- a/test/test-posix/test-dirent/test-posix_getdents.c
++++ b/test/test-posix/test-dirent/test-posix_getdents.c
+@@ -37,101 +37,170 @@
+ #include <unistd.h>
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if !defined(__PICOLIBC__)                                                         \
+-    || (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)
++#if !defined(__PICOLIBC__)                                                                  \
++    || (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0           \
++        && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS) && __PICOLIBC_POSIX_SYMBOLIC_LINKS > 0)
+ 
+ #include <dirent.h>
+ #include <errno.h>
+ #include <fcntl.h>
++#include <limits.h>
++#include <stddef.h>
+ #include <stdint.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <sys/stat.h>
+-#include <unistd.h>
+-
+-#ifndef TEST_FILE_NAME
+-#define TEST_FILE_NAME "GETDENTS.DIR"
+-#endif
+ 
+-/* posix_getdents returns aligned records for every entry */
++/*
++ * posix_getdents returns aligned records for every entry once, with the
++ * types and serial numbers of the entries themselves, in buffers as
++ * small as a posix_dent plus NAME_MAX, and reports its errors.
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+         if (!(condition)) {                            \
+             printf("%s: %s\n", (message), #condition); \
+-            cleanup();                                 \
+             exit(1);                                   \
+         }                                              \
+     } while (0)
+ 
+-#ifdef __PICOLIBC__
++#ifndef __GLIBC__
++static char dir[] = "tmp-XXXXXX";
++
++static char longname[NAME_MAX + 1];
++
++#define NNAMES 7
++static const char         *names[NNAMES] = { ".", "..", "a", "sub", "lnk", "fifo", longname };
++static const unsigned char types[NNAMES]
++    = { DT_DIR, DT_DIR, DT_REG, DT_DIR, DT_LNK, DT_FIFO, DT_REG };
++
++static union {
++    char        bytes[4096];
++    max_align_t align;
++} buf;
++
++/* Reads the directory from fd's offset with nbyte buffers, counting each name */
+ static void
+-cleanup(void)
++read_all(int fd, size_t nbyte, int seen[NNAMES])
+ {
+-    (void)unlink(TEST_FILE_NAME "/a");
+-    (void)unlink(TEST_FILE_NAME "/bb");
+-    (void)unlink(TEST_FILE_NAME "/ccc");
+-    (void)rmdir(TEST_FILE_NAME);
++    ssize_t n;
++
++    while ((n = posix_getdents(fd, buf.bytes, nbyte, 0)) > 0) {
++        check((size_t)n <= nbyte, "fits in nbyte");
++        for (ssize_t off = 0; off < n;) {
++            struct posix_dent *d = (struct posix_dent *)(buf.bytes + off);
++            struct stat        st;
++            int                i;
++
++            check(d->d_reclen > 0 && off + (ssize_t)d->d_reclen <= n, "d_reclen");
++            check(d->d_reclen % _Alignof(struct posix_dent) == 0, "d_reclen alignment");
++            check(d->d_name[0] != '\0', "no empty names");
++            check(strlen(d->d_name) < d->d_reclen - offsetof(struct posix_dent, d_name),
++                  "name inside the record");
++            for (i = 0; i < NNAMES; i++)
++                if (strcmp(d->d_name, names[i]) == 0)
++                    break;
++            check(i < NNAMES, "only the files made here");
++            seen[i]++;
++            check(d->d_type == types[i] || d->d_type == DT_UNKNOWN, "d_type (of a link itself)");
++            if (i != 1) {
++                check(lstat(d->d_name, &st) == 0, "lstat");
++                check(d->d_ino == st.st_ino, "d_ino (of a link itself)");
++            }
++            off += d->d_reclen;
++        }
++    }
++    check(n == 0, "end of directory");
+ }
+ #endif
+ 
+ int
+ main(void)
+ {
+-#ifndef __PICOLIBC__
+-    /* POSIX.1-2024; glibc lacks it */
++#ifdef __GLIBC__
++    /* POSIX.1-2024; glibc 2.43 lacks it */
+     printf("no posix_getdents, skipping\n");
+     return 77;
+ #else
+-    static const char * const names[] = { "a", "bb", "ccc" };
+-    union {
+-        char       bytes[1024];
+-        __uint64_t align;
+-    } buf;
+-    ssize_t n;
+-    int     seen = 0;
+-    int     fd, dirfd;
+-
+-    cleanup();
+-    check(mkdir(TEST_FILE_NAME, 0700) == 0, "mkdir");
+-    for (int i = 0; i < 3; i++) {
+-        char path[64];
+-
+-        snprintf(path, sizeof(path), TEST_FILE_NAME "/%s", names[i]);
+-        fd = open(path, O_WRONLY | O_CREAT, 0600);
+-        check(fd >= 0 && close(fd) == 0, "create entry");
+-    }
+-    dirfd = open(TEST_FILE_NAME, O_RDONLY | O_DIRECTORY);
+-    check(dirfd >= 0, "open directory");
++    int    seen[NNAMES];
++    int    fd, fd2, i;
++    size_t small = sizeof(struct posix_dent) + NAME_MAX + 1;
++
++    check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
++    memset(longname, 'n', NAME_MAX);
++    fd = open("a", O_WRONLY | O_CREAT, 0600);
++    check(fd >= 0 && close(fd) == 0, "create");
++    fd = open(longname, O_WRONLY | O_CREAT, 0600);
++    check(fd >= 0 && close(fd) == 0, "create a NAME_MAX name");
++    check(mkdir("sub", 0700) == 0 && symlink("a", "lnk") == 0 && mkfifo("fifo", 0600) == 0,
++          "mkdir, symlink, mkfifo");
++
++    fd = open(".", O_RDONLY | O_DIRECTORY);
++    check(fd >= 0, "open directory");
++
++    /* Only flags of zero are defined */
+     errno = 0;
+-    check(posix_getdents(dirfd, buf.bytes, sizeof(buf.bytes), 1) == -1 && errno == EINVAL,
+-          "posix_getdents flags");
++    check(posix_getdents(fd, buf.bytes, sizeof(buf.bytes), 1) == -1 && errno == EINVAL, "flags");
++    /* Too small for any entry */
+     errno = 0;
+-    check(posix_getdents(dirfd, buf.bytes, 8, 0) == -1 && errno == EINVAL,
+-          "posix_getdents buffer too small");
+-    while ((n = posix_getdents(dirfd, buf.bytes, sizeof(buf.bytes), 0)) > 0) {
+-        for (ssize_t off = 0; off < n;) {
+-            struct posix_dent *d = (struct posix_dent *)(buf.bytes + off);
++    check(posix_getdents(fd, buf.bytes, 8, 0) == -1 && errno == EINVAL, "EINVAL buffer too small");
++    check(lseek(fd, 0, SEEK_SET) == 0, "rewind");
++
++    /* A large buffer, then one just over a posix_dent plus NAME_MAX, each entry once */
++    for (size_t nbyte = sizeof(buf.bytes); nbyte >= small; nbyte = nbyte == small ? 0 : small) {
++        memset(seen, 0, sizeof(seen));
++        check(lseek(fd, 0, SEEK_SET) == 0, "rewind");
++        read_all(fd, nbyte, seen);
++        for (i = 0; i < NNAMES; i++)
++            check(seen[i] == 1, "each entry once, dot and dot-dot included");
++    }
+ 
+-            check(d->d_reclen > 0 && off + (ssize_t)d->d_reclen <= n, "d_reclen");
+-            check(d->d_reclen % _Alignof(struct posix_dent) == 0, "d_reclen alignment");
+-            for (int i = 0; i < 3; i++)
+-                if (strcmp(d->d_name, names[i]) == 0) {
+-                    check(d->d_type == DT_REG || d->d_type == DT_UNKNOWN, "d_type");
+-                    seen |= 1 << i;
+-                }
+-            off += d->d_reclen;
+-        }
++    /* At the end, 0 again; reading continues from the offset */
++    check(posix_getdents(fd, buf.bytes, sizeof(buf.bytes), 0) == 0, "0 at the end");
++    check(lseek(fd, 0, SEEK_SET) == 0, "rewind");
++    {
++        ssize_t n = posix_getdents(fd, buf.bytes, small, 0);
++        int     first[NNAMES] = { 0 };
++        int     rest[NNAMES] = { 0 };
++
++        check(n > 0, "at least one entry");
++        for (ssize_t off = 0; off < n; off += ((struct posix_dent *)(buf.bytes + off))->d_reclen)
++            for (i = 0; i < NNAMES; i++)
++                if (strcmp(((struct posix_dent *)(buf.bytes + off))->d_name, names[i]) == 0)
++                    first[i]++;
++        read_all(fd, sizeof(buf.bytes), rest);
++        for (i = 0; i < NNAMES; i++)
++            check(first[i] + rest[i] == 1, "the offset follows the last entry returned");
+     }
+-    check(n == 0, "posix_getdents end of directory");
+-    check(seen == 0x7, "posix_getdents found every name");
+-    check(close(dirfd) == 0, "close directory");
+-    cleanup();
++
++    /* Errors */
++    errno = 0;
++    check(posix_getdents(-1, buf.bytes, sizeof(buf.bytes), 0) == -1 && errno == EBADF, "EBADF");
++    fd2 = open("a", O_RDONLY);
++    check(fd2 >= 0, "open file");
++    errno = 0;
++    check(posix_getdents(fd2, buf.bytes, sizeof(buf.bytes), 0) == -1 && errno == ENOTDIR,
++          "ENOTDIR");
++    check(close(fd2) == 0, "close");
++#ifdef O_SEARCH
++    fd2 = open(".", O_SEARCH | O_DIRECTORY);
++    check(fd2 >= 0, "open O_SEARCH");
++    errno = 0;
++    check(posix_getdents(fd2, buf.bytes, sizeof(buf.bytes), 0) == -1 && errno == EBADF,
++          "EBADF not open for reading");
++    check(close(fd2) == 0, "close");
+ #endif
++    check(close(fd) == 0, "close directory");
+ 
++    check(unlink("a") == 0 && unlink(longname) == 0 && unlink("lnk") == 0 && unlink("fifo") == 0
++              && rmdir("sub") == 0,
++          "remove");
++    check(chdir("..") == 0 && rmdir(dir) == 0, "cleanup");
+     printf("success\n");
+     return 0;
++#endif
+ }
+ 
+ #else
+-- 
+2.47.3
+

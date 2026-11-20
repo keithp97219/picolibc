@@ -1,0 +1,33 @@
+From 8f835daef28e7de87ad394a35f24ee74648a22d5 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 14/41] libos/linux: Don't report POLLOUT along with POLLHUP
+ from poll
+
+Linux reports a socket shut down in both directions (a closed AF_UNIX
+peer, a refused TCP connect) as writable too. POSIX on POLLHUP: "This
+event and POLLOUT are mutually-exclusive".
+---
+ libos/linux/local-poll.h | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/libos/linux/local-poll.h b/libos/linux/local-poll.h
+index 16027c17fc..89b270e101 100644
+--- a/libos/linux/local-poll.h
++++ b/libos/linux/local-poll.h
+@@ -149,6 +149,12 @@ _poll_fds_from_linux(struct pollfd *fds, nfds_t nfds)
+     for (nfds_t n = 0; n < nfds; n++) {
+         fds[n].events = _poll_events_from_linux(fds[n].events);
+         fds[n].revents = _poll_events_from_linux(fds[n].revents);
++        /*
++         * Linux reports sockets shut down in both directions as
++         * writable too; POSIX makes POLLHUP and POLLOUT exclusive
++         */
++        if (fds[n].revents & POLLHUP)
++            fds[n].revents &= ~(POLLOUT | POLLWRNORM);
+     }
+ }
+ 
+-- 
+2.47.3
+

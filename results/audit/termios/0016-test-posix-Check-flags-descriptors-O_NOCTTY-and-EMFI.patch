@@ -1,0 +1,113 @@
+From 76b6786672d350b01dc9863a1f74fc4042696c06 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:35:26 +0000
+Subject: [PATCH 16/18] test-posix: Check flags, descriptors, O_NOCTTY and
+ EMFILE in posix_openpt
+
+---
+ .../test-stdlib/test-posix_openpt.c           | 65 ++++++++++++++++++-
+ 1 file changed, 62 insertions(+), 3 deletions(-)
+
+diff --git a/test/test-posix/test-stdlib/test-posix_openpt.c b/test/test-posix/test-stdlib/test-posix_openpt.c
+index 38b70877f0..eb4fba2e3b 100644
+--- a/test/test-posix/test-stdlib/test-posix_openpt.c
++++ b/test/test-posix/test-stdlib/test-posix_openpt.c
+@@ -41,18 +41,23 @@
+ /* Without the system support this test needs, it is skipped */
+ #if !defined(__PICOLIBC__)                                                                  \
+     || ((defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && __PICOLIBC_POSIX_DEVICE_SPECIFIC > 0) \
+-        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0))
++        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0)                    \
++        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0))
+ 
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <sys/resource.h>
+ #include <sys/wait.h>
+ #include <termios.h>
+ #include <unistd.h>
+ 
+-/* posix_openpt opens a pseudo-terminal manager */
++/*
++ * posix_openpt opens a pseudo-terminal manager with the flags it is
++ * given, and fails with EMFILE when no descriptor is free
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -85,14 +90,68 @@ open_pty(int *subsidiary)
+ int
+ main(void)
+ {
+-    int subsidiary, manager = open_pty(&subsidiary);
++    int   subsidiary, manager = open_pty(&subsidiary);
++    int   other, next, status;
++    pid_t pid;
+ 
+     check(isatty(manager) && isatty(subsidiary), "terminals");
+     check(write(manager, "hi\n", 3) == 3, "write manager");
+ #ifdef __PICOLIBC__
+     /* POSIX allows, but doesn't require, rejecting other flags */
+     check(posix_openpt(O_RDWR | O_TRUNC) == -1 && errno == EINVAL, "bad flag");
++    errno = 0;
++    check(posix_openpt(O_RDWR | O_SEARCH) == -1 && errno == EINVAL, "O_SEARCH");
++    errno = 0;
++    check(posix_openpt(O_EXEC) == -1 && errno == EINVAL, "O_EXEC");
+ #endif
++
++    /* The access mode and FD_CLOEXEC follow oflag */
++    check((fcntl(manager, F_GETFL) & O_ACCMODE) == O_RDWR, "O_RDWR");
++    check(!(fcntl(manager, F_GETFD) & FD_CLOEXEC), "no FD_CLOEXEC");
++    other = posix_openpt(O_RDWR | O_NOCTTY | O_CLOEXEC);
++    check(other >= 0, "O_CLOEXEC");
++    check(fcntl(other, F_GETFD) & FD_CLOEXEC, "FD_CLOEXEC set");
++    check(isatty(other), "a terminal with O_CLOEXEC");
++    check(close(other) == 0, "close");
++
++    /* The lowest free descriptor */
++    other = dup(0);
++    check(other >= 0 && close(other) == 0, "lowest free descriptor");
++    next = posix_openpt(O_RDWR | O_NOCTTY);
++    check(next == other, "lowest descriptor used");
++    check(close(next) == 0, "close");
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct rlimit rl;
++
++        /* With O_NOCTTY a session leader gets no controlling terminal */
++        if (setsid() == (pid_t)-1)
++            _exit(1);
++        other = posix_openpt(O_RDWR | O_NOCTTY);
++        if (other < 0)
++            _exit(2);
++        errno = 0;
++        if (tcgetsid(other) != (pid_t)-1 || errno != ENOTTY)
++            _exit(3);
++
++        /* EMFILE once the descriptors allowed are all open */
++        if (getrlimit(RLIMIT_NOFILE, &rl) != 0)
++            _exit(4);
++        rl.rlim_cur = (rlim_t)other + 1;
++        if (setrlimit(RLIMIT_NOFILE, &rl) != 0)
++            _exit(5);
++        errno = 0;
++        if (posix_openpt(O_RDWR | O_NOCTTY) != -1 || errno != EMFILE)
++            _exit(6);
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "child");
++    if (WEXITSTATUS(status) != 0)
++        printf("child check %d\n", WEXITSTATUS(status));
++    check(WEXITSTATUS(status) == 0, "O_NOCTTY and EMFILE");
+     check(close(subsidiary) == 0 && close(manager) == 0, "close");
+     printf("success\n");
+     return 0;
+-- 
+2.47.3
+

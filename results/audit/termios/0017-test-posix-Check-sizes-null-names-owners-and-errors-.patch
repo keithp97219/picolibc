@@ -1,0 +1,127 @@
+From a12465c3261344fe6dc930c05dd2484e2d430a37 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:35:26 +0000
+Subject: [PATCH 17/18] test-posix: Check sizes, null names, owners and errors
+ for the pseudo-terminal functions
+
+ptsname_r's exact sizes, null name, EBADF and TTY_NAME_MAX; the owner
+and mode grantpt gives; and subsidiaries and bad descriptors in grantpt,
+ptsname and unlockpt.
+---
+ test/test-posix/test-stdlib/test-grantpt.c   | 18 ++++++++++++
+ test/test-posix/test-stdlib/test-ptsname.c   |  2 ++
+ test/test-posix/test-stdlib/test-ptsname_r.c | 31 +++++++++++++++++++-
+ test/test-posix/test-stdlib/test-unlockpt.c  |  1 +
+ 4 files changed, 51 insertions(+), 1 deletion(-)
+
+diff --git a/test/test-posix/test-stdlib/test-grantpt.c b/test/test-posix/test-stdlib/test-grantpt.c
+index 543290a8c7..b204353c62 100644
+--- a/test/test-posix/test-stdlib/test-grantpt.c
++++ b/test/test-posix/test-stdlib/test-grantpt.c
+@@ -48,6 +48,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <sys/stat.h>
+ #include <sys/wait.h>
+ #include <termios.h>
+ #include <unistd.h>
+@@ -89,6 +90,23 @@ main(void)
+     int fds[2];
+ 
+     check(grantpt(manager) == 0, "grantpt");
++
++    /*
++     * The subsidiary belongs to the real user ID, readable and writable by
++     * it. Whether the group can write comes from the devpts mount's mode
++     * option, which neither picolibc nor glibc changes, so it isn't checked
++     */
++    {
++        struct stat st;
++        char       *name = ptsname(manager);
++
++        check(name != NULL && stat(name, &st) == 0, "stat subsidiary");
++        check(st.st_uid == getuid(), "owned by the real user ID");
++        check((st.st_mode & (S_IRUSR | S_IWUSR)) == (S_IRUSR | S_IWUSR),
++              "owner can read and write");
++        check((st.st_mode & (S_IRGRP | S_IXGRP | S_IRWXO | S_IXUSR)) == 0, "no other permissions");
++    }
++    check(grantpt(subsidiary) == -1 && errno == EINVAL, "a subsidiary isn't a manager");
+     check(pipe(fds) == 0, "pipe");
+     check(grantpt(fds[0]) == -1 && errno == EINVAL, "EINVAL");
+     check(grantpt(-1) == -1 && errno == EBADF, "EBADF");
+diff --git a/test/test-posix/test-stdlib/test-ptsname.c b/test/test-posix/test-stdlib/test-ptsname.c
+index 0f18f2bc44..3f08fe85f6 100644
+--- a/test/test-posix/test-stdlib/test-ptsname.c
++++ b/test/test-posix/test-stdlib/test-ptsname.c
+@@ -92,6 +92,8 @@ main(void)
+     check(name != NULL && strncmp(name, "/dev/", 5) == 0, "a device name");
+     check(pipe(fds) == 0, "pipe");
+     check(ptsname(fds[0]) == NULL, "not a manager");
++    check(ptsname(subsidiary) == NULL, "a subsidiary isn't a manager");
++    check(ptsname(-1) == NULL, "not a descriptor");
+     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close pipe");
+     check(close(subsidiary) == 0 && close(manager) == 0, "close");
+     printf("success\n");
+diff --git a/test/test-posix/test-stdlib/test-ptsname_r.c b/test/test-posix/test-stdlib/test-ptsname_r.c
+index a70562a0d8..1f25e15be7 100644
+--- a/test/test-posix/test-stdlib/test-ptsname_r.c
++++ b/test/test-posix/test-stdlib/test-ptsname_r.c
+@@ -92,12 +92,41 @@ main(void)
+     int  subsidiary, manager = open_pty(&subsidiary);
+     int  fds[2];
+     char name[64];
++    char * volatile null_name = NULL;
++    size_t len;
+ 
+     check(ptsname_r(manager, name, sizeof(name)) == 0, "ptsname_r");
+     check(strcmp(name, ptsname(manager)) == 0, "matches ptsname");
++    len = strlen(name);
+     check(ptsname_r(manager, name, 4) == ERANGE, "ERANGE");
++    check(ptsname_r(manager, name, len) == ERANGE, "no room for the null");
++    check(ptsname_r(manager, name, len + 1) == 0 && strlen(name) == len, "just enough room");
++#ifndef __GLIBC__
++    /*
++     * glibc crashes on a null name. The volatile pointer keeps compilers
++     * that know the argument as non-null quiet
++     */
++    check(ptsname_r(manager, null_name, sizeof(name)) == EINVAL, "null name");
++    check(ptsname_r(manager, null_name, 0) == EINVAL, "null name and no size");
++#else
++    (void)null_name;
++#endif
++    check(ptsname_r(-1, name, sizeof(name)) == EBADF, "EBADF");
++#ifdef _SC_TTY_NAME_MAX
++    check(sysconf(_SC_TTY_NAME_MAX) < 0 || strlen(name) < (size_t)sysconf(_SC_TTY_NAME_MAX),
++          "TTY_NAME_MAX");
++#endif
+     check(pipe(fds) == 0, "pipe");
+-    check(ptsname_r(fds[0], name, sizeof(name)) != 0, "not a manager");
++    {
++        int ret = ptsname_r(fds[0], name, sizeof(name));
++
++        check(ret == EINVAL || ret == ENOTTY, "not a manager");
++    }
++    {
++        int ret = ptsname_r(subsidiary, name, sizeof(name));
++
++        check(ret == EINVAL || ret == ENOTTY, "a subsidiary isn't a manager");
++    }
+     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close pipe");
+     check(close(subsidiary) == 0 && close(manager) == 0, "close");
+     printf("success\n");
+diff --git a/test/test-posix/test-stdlib/test-unlockpt.c b/test/test-posix/test-stdlib/test-unlockpt.c
+index 590e669509..7ba93e858b 100644
+--- a/test/test-posix/test-stdlib/test-unlockpt.c
++++ b/test/test-posix/test-stdlib/test-unlockpt.c
+@@ -104,6 +104,7 @@ main(void)
+     check(close(fds[0]) == 0, "close");
+     check(pipe(fds) == 0, "pipe");
+     check(unlockpt(fds[0]) == -1 && errno == EINVAL, "EINVAL");
++    check(unlockpt(-1) == -1 && errno == EBADF, "EBADF");
+     check(close(fds[0]) == 0 && close(fds[1]) == 0 && close(manager) == 0, "close");
+     (void)open_pty;
+     printf("success\n");
+-- 
+2.47.3
+

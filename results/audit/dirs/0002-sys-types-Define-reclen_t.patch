@@ -1,0 +1,47 @@
+From 0f9f37e2e97aed050c4e71905e840c7d78a13381 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:28:57 +0000
+Subject: [PATCH 02/21] sys/types: Define reclen_t
+
+POSIX.1-2024 adds reclen_t to <sys/types.h>; picolibc defined it only
+in <dirent.h>.
+---
+ libc/include/sys/dirent.h | 5 ++++-
+ libc/include/sys/types.h  | 5 +++++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/libc/include/sys/dirent.h b/libc/include/sys/dirent.h
+index b6ccd66673..86678befea 100644
+--- a/libc/include/sys/dirent.h
++++ b/libc/include/sys/dirent.h
+@@ -46,7 +46,10 @@ typedef __ino_t ino_t; /* inode number */
+ #define _INO_T_DECLARED
+ #endif
+ 
+-typedef size_t reclen_t;
++#ifndef _RECLEN_T_DECLARED
++typedef __size_t reclen_t;
++#define _RECLEN_T_DECLARED
++#endif
+ 
+ #ifndef _SSIZE_T_DECLARED
+ typedef __ssize_t ssize_t;
+diff --git a/libc/include/sys/types.h b/libc/include/sys/types.h
+index 490434224e..ac77af6922 100644
+--- a/libc/include/sys/types.h
++++ b/libc/include/sys/types.h
+@@ -129,6 +129,11 @@ typedef __blksize_t blksize_t;
+ #define _BLKSIZE_T_DECLARED
+ #endif
+ 
++#ifndef _RECLEN_T_DECLARED
++typedef __size_t reclen_t;
++#define _RECLEN_T_DECLARED
++#endif
++
+ #ifndef _CLOCK_T_DECLARED
+ typedef __clock_t clock_t;
+ #define _CLOCK_T_DECLARED
+-- 
+2.47.3
+

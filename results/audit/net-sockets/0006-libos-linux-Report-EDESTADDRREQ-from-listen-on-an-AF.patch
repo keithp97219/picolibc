@@ -1,0 +1,66 @@
+From a7a2fac6c7ff7404668c1c41be308213a55fc2c0 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 06/41] libos/linux: Report EDESTADDRREQ from listen on an
+ AF_UNIX socket without a name
+
+POSIX: listen shall fail with [EDESTADDRREQ] when "The socket is not
+bound to a local address, and the protocol does not support listening
+on an unbound socket". Linux says EINVAL, which POSIX keeps for a
+connected socket; check for an unnamed, unconnected AF_UNIX socket.
+---
+ libos/linux/listen.c | 32 +++++++++++++++++++++++++++++++-
+ 1 file changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/listen.c b/libos/linux/listen.c
+index e9a403a554..87a22c3923 100644
+--- a/libos/linux/listen.c
++++ b/libos/linux/listen.c
+@@ -34,13 +34,43 @@
+  */
+ 
+ #include "local-linux.h"
++#include <linux/linux-errno.h>
++#include <stdbool.h>
+ #include <sys/socket.h>
+ 
++/* An AF_UNIX socket with neither a name nor a peer */
++static bool
++_unbound_local(int fd)
++{
++    struct sockaddr_storage ss;
++    int                     domain;
++    socklen_t               len = sizeof(domain);
++
++    if (_syscall_raw(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_DOMAIN, &domain, &len) != 0
++        || domain != AF_UNIX)
++        return false;
++    len = sizeof(ss);
++    if (_syscall_raw(LINUX_SYS_getsockname, fd, &ss, &len) != 0 || len > sizeof(sa_family_t))
++        return false;
++    len = sizeof(ss);
++    return _syscall_raw(LINUX_SYS_getpeername, fd, &ss, &len) == -LINUX_ENOTCONN;
++}
++
+ int
+ listen(int fd, int backlog)
+ {
++    long ret;
++
+     /* Linux takes a negative backlog as the largest one */
+     if (backlog < 0)
+         backlog = 0;
+-    return (int)_syscall(LINUX_SYS_listen, fd, backlog);
++    ret = _syscall_raw(LINUX_SYS_listen, fd, backlog);
++    if (ret == 0)
++        return 0;
++    /* Linux says EINVAL for an AF_UNIX socket without a name */
++    if (ret == -LINUX_EINVAL && _unbound_local(fd))
++        errno = EDESTADDRREQ;
++    else
++        errno = _syscall_errno(ret);
++    return -1;
+ }
+-- 
+2.47.3
+

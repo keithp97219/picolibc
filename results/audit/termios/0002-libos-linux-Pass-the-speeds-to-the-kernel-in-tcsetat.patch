@@ -1,0 +1,304 @@
+From 36cad1ccfbae2a958b57670f92adfdac238ed3c1 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:34:40 +0000
+Subject: [PATCH 02/18] libos/linux: Pass the speeds to the kernel in tcsetattr
+
+The kernel takes the speeds from the CBAUD and CIBAUD bits of c_cflag
+and reads c_ispeed and c_ospeed only for BOTHER, so tcsetattr left the
+speeds unchanged. Encode them there, with BOTHER for speeds that have
+no code, and leave CIBAUD zero for an input speed of B0 so the kernel
+uses the output speed.
+---
+ libos/linux/local-termios.h                   | 75 +++++++++++++++++++
+ .../machine/aarch64/linux/linux-termios.h     | 19 +++++
+ libos/linux/machine/arm/linux/linux-termios.h | 19 +++++
+ .../machine/hexagon/linux/linux-termios.h     | 19 +++++
+ .../linux/machine/i686/linux/linux-termios.h  | 19 +++++
+ .../machine/x86_64/linux/linux-termios.h      | 19 +++++
+ libos/linux/tcsetattr.c                       |  6 ++
+ libos/linux/utils/make-termios.c              | 19 +++++
+ 8 files changed, 195 insertions(+)
+
+diff --git a/libos/linux/local-termios.h b/libos/linux/local-termios.h
+index 01024f3cec..6504219927 100644
+--- a/libos/linux/local-termios.h
++++ b/libos/linux/local-termios.h
+@@ -150,4 +150,79 @@ _speed_from_kernel(__kernel_speed_t speed)
+     return (speed_t)speed;
+ }
+ 
++/*
++ * The kernel takes the speeds from the CBAUD and CIBAUD bits of
++ * c_cflag, and uses c_ispeed and c_ospeed only for BOTHER
++ */
++static inline __kernel_tcflag_t
++_speed_to_cbaud(speed_t speed)
++{
++    switch (speed) {
++    case B0:
++        return LINUX_B0;
++    case B50:
++        return LINUX_B50;
++    case B75:
++        return LINUX_B75;
++    case B110:
++        return LINUX_B110;
++    case B134:
++        return LINUX_B134;
++    case B150:
++        return LINUX_B150;
++    case B200:
++        return LINUX_B200;
++    case B300:
++        return LINUX_B300;
++    case B600:
++        return LINUX_B600;
++    case B1200:
++        return LINUX_B1200;
++    case B1800:
++        return LINUX_B1800;
++    case B2400:
++        return LINUX_B2400;
++    case B4800:
++        return LINUX_B4800;
++    case B9600:
++        return LINUX_B9600;
++    case B19200:
++        return LINUX_B19200;
++    case B38400:
++        return LINUX_B38400;
++    case B57600:
++        return LINUX_B57600;
++    case B115200:
++        return LINUX_B115200;
++    case B230400:
++        return LINUX_B230400;
++    case B460800:
++        return LINUX_B460800;
++    case B500000:
++        return LINUX_B500000;
++    case B576000:
++        return LINUX_B576000;
++    case B921600:
++        return LINUX_B921600;
++    case B1000000:
++        return LINUX_B1000000;
++    case B1152000:
++        return LINUX_B1152000;
++    case B1500000:
++        return LINUX_B1500000;
++    case B2000000:
++        return LINUX_B2000000;
++    case B2500000:
++        return LINUX_B2500000;
++    case B3000000:
++        return LINUX_B3000000;
++    case B3500000:
++        return LINUX_B3500000;
++    case B4000000:
++        return LINUX_B4000000;
++    default:
++        return LINUX_BOTHER;
++    }
++}
++
+ #endif /* _LOCAL_TERMIOS_H_ */
+diff --git a/libos/linux/machine/aarch64/linux/linux-termios.h b/libos/linux/machine/aarch64/linux/linux-termios.h
+index 36e801e2e7..682fe923ae 100644
+--- a/libos/linux/machine/aarch64/linux/linux-termios.h
++++ b/libos/linux/machine/aarch64/linux/linux-termios.h
+@@ -106,6 +106,25 @@
+ #define LINUX_B9600          13
+ #define LINUX_B19200         14
+ #define LINUX_B38400         15
++#define LINUX_B57600         4097
++#define LINUX_B115200        4098
++#define LINUX_B230400        4099
++#define LINUX_B460800        4100
++#define LINUX_B500000        4101
++#define LINUX_B576000        4102
++#define LINUX_B921600        4103
++#define LINUX_B1000000       4104
++#define LINUX_B1152000       4105
++#define LINUX_B1500000       4106
++#define LINUX_B2000000       4107
++#define LINUX_B2500000       4108
++#define LINUX_B3000000       4109
++#define LINUX_B3500000       4110
++#define LINUX_B4000000       4111
++#define LINUX_CBAUD          4111
++#define LINUX_BOTHER         4096
++#define LINUX_CIBAUD         269418496
++#define LINUX_IBSHIFT        16
+ 
+ #define LINUX_CSIZE          48
+ #define LINUX_CS5            0
+diff --git a/libos/linux/machine/arm/linux/linux-termios.h b/libos/linux/machine/arm/linux/linux-termios.h
+index 36e801e2e7..682fe923ae 100644
+--- a/libos/linux/machine/arm/linux/linux-termios.h
++++ b/libos/linux/machine/arm/linux/linux-termios.h
+@@ -106,6 +106,25 @@
+ #define LINUX_B9600          13
+ #define LINUX_B19200         14
+ #define LINUX_B38400         15
++#define LINUX_B57600         4097
++#define LINUX_B115200        4098
++#define LINUX_B230400        4099
++#define LINUX_B460800        4100
++#define LINUX_B500000        4101
++#define LINUX_B576000        4102
++#define LINUX_B921600        4103
++#define LINUX_B1000000       4104
++#define LINUX_B1152000       4105
++#define LINUX_B1500000       4106
++#define LINUX_B2000000       4107
++#define LINUX_B2500000       4108
++#define LINUX_B3000000       4109
++#define LINUX_B3500000       4110
++#define LINUX_B4000000       4111
++#define LINUX_CBAUD          4111
++#define LINUX_BOTHER         4096
++#define LINUX_CIBAUD         269418496
++#define LINUX_IBSHIFT        16
+ 
+ #define LINUX_CSIZE          48
+ #define LINUX_CS5            0
+diff --git a/libos/linux/machine/hexagon/linux/linux-termios.h b/libos/linux/machine/hexagon/linux/linux-termios.h
+index 36e801e2e7..682fe923ae 100644
+--- a/libos/linux/machine/hexagon/linux/linux-termios.h
++++ b/libos/linux/machine/hexagon/linux/linux-termios.h
+@@ -106,6 +106,25 @@
+ #define LINUX_B9600          13
+ #define LINUX_B19200         14
+ #define LINUX_B38400         15
++#define LINUX_B57600         4097
++#define LINUX_B115200        4098
++#define LINUX_B230400        4099
++#define LINUX_B460800        4100
++#define LINUX_B500000        4101
++#define LINUX_B576000        4102
++#define LINUX_B921600        4103
++#define LINUX_B1000000       4104
++#define LINUX_B1152000       4105
++#define LINUX_B1500000       4106
++#define LINUX_B2000000       4107
++#define LINUX_B2500000       4108
++#define LINUX_B3000000       4109
++#define LINUX_B3500000       4110
++#define LINUX_B4000000       4111
++#define LINUX_CBAUD          4111
++#define LINUX_BOTHER         4096
++#define LINUX_CIBAUD         269418496
++#define LINUX_IBSHIFT        16
+ 
+ #define LINUX_CSIZE          48
+ #define LINUX_CS5            0
+diff --git a/libos/linux/machine/i686/linux/linux-termios.h b/libos/linux/machine/i686/linux/linux-termios.h
+index 36e801e2e7..682fe923ae 100644
+--- a/libos/linux/machine/i686/linux/linux-termios.h
++++ b/libos/linux/machine/i686/linux/linux-termios.h
+@@ -106,6 +106,25 @@
+ #define LINUX_B9600          13
+ #define LINUX_B19200         14
+ #define LINUX_B38400         15
++#define LINUX_B57600         4097
++#define LINUX_B115200        4098
++#define LINUX_B230400        4099
++#define LINUX_B460800        4100
++#define LINUX_B500000        4101
++#define LINUX_B576000        4102
++#define LINUX_B921600        4103
++#define LINUX_B1000000       4104
++#define LINUX_B1152000       4105
++#define LINUX_B1500000       4106
++#define LINUX_B2000000       4107
++#define LINUX_B2500000       4108
++#define LINUX_B3000000       4109
++#define LINUX_B3500000       4110
++#define LINUX_B4000000       4111
++#define LINUX_CBAUD          4111
++#define LINUX_BOTHER         4096
++#define LINUX_CIBAUD         269418496
++#define LINUX_IBSHIFT        16
+ 
+ #define LINUX_CSIZE          48
+ #define LINUX_CS5            0
+diff --git a/libos/linux/machine/x86_64/linux/linux-termios.h b/libos/linux/machine/x86_64/linux/linux-termios.h
+index 36e801e2e7..682fe923ae 100644
+--- a/libos/linux/machine/x86_64/linux/linux-termios.h
++++ b/libos/linux/machine/x86_64/linux/linux-termios.h
+@@ -106,6 +106,25 @@
+ #define LINUX_B9600          13
+ #define LINUX_B19200         14
+ #define LINUX_B38400         15
++#define LINUX_B57600         4097
++#define LINUX_B115200        4098
++#define LINUX_B230400        4099
++#define LINUX_B460800        4100
++#define LINUX_B500000        4101
++#define LINUX_B576000        4102
++#define LINUX_B921600        4103
++#define LINUX_B1000000       4104
++#define LINUX_B1152000       4105
++#define LINUX_B1500000       4106
++#define LINUX_B2000000       4107
++#define LINUX_B2500000       4108
++#define LINUX_B3000000       4109
++#define LINUX_B3500000       4110
++#define LINUX_B4000000       4111
++#define LINUX_CBAUD          4111
++#define LINUX_BOTHER         4096
++#define LINUX_CIBAUD         269418496
++#define LINUX_IBSHIFT        16
+ 
+ #define LINUX_CSIZE          48
+ #define LINUX_CS5            0
+diff --git a/libos/linux/tcsetattr.c b/libos/linux/tcsetattr.c
+index bc4c8f4ae6..42f9c9c02c 100644
+--- a/libos/linux/tcsetattr.c
++++ b/libos/linux/tcsetattr.c
+@@ -92,5 +92,11 @@ tcsetattr(int fd, int actions, const struct termios *termios)
+ 
+     MAP_STRUCT;
+ 
++    /* An input speed of B0 leaves CIBAUD zero, which means the output speed */
++    ktermios.c_cflag &= ~(LINUX_CBAUD | LINUX_CIBAUD);
++    ktermios.c_cflag |= _speed_to_cbaud(termios->c_ospeed);
++    if (termios->c_ispeed != B0)
++        ktermios.c_cflag |= _speed_to_cbaud(termios->c_ispeed) << LINUX_IBSHIFT;
++
+     return _syscall(LINUX_SYS_ioctl, fd, cmd, &ktermios);
+ }
+diff --git a/libos/linux/utils/make-termios.c b/libos/linux/utils/make-termios.c
+index e682f6b6a4..817d921180 100644
+--- a/libos/linux/utils/make-termios.c
++++ b/libos/linux/utils/make-termios.c
+@@ -114,6 +114,25 @@ main(void)
+     printf("#define LINUX_B9600 %d\n", B9600);
+     printf("#define LINUX_B19200 %d\n", B19200);
+     printf("#define LINUX_B38400 %d\n", B38400);
++    printf("#define LINUX_B57600 %d\n", B57600);
++    printf("#define LINUX_B115200 %d\n", B115200);
++    printf("#define LINUX_B230400 %d\n", B230400);
++    printf("#define LINUX_B460800 %d\n", B460800);
++    printf("#define LINUX_B500000 %d\n", B500000);
++    printf("#define LINUX_B576000 %d\n", B576000);
++    printf("#define LINUX_B921600 %d\n", B921600);
++    printf("#define LINUX_B1000000 %d\n", B1000000);
++    printf("#define LINUX_B1152000 %d\n", B1152000);
++    printf("#define LINUX_B1500000 %d\n", B1500000);
++    printf("#define LINUX_B2000000 %d\n", B2000000);
++    printf("#define LINUX_B2500000 %d\n", B2500000);
++    printf("#define LINUX_B3000000 %d\n", B3000000);
++    printf("#define LINUX_B3500000 %d\n", B3500000);
++    printf("#define LINUX_B4000000 %d\n", B4000000);
++    printf("#define LINUX_CBAUD %d\n", CBAUD);
++    printf("#define LINUX_BOTHER %d\n", BOTHER);
++    printf("#define LINUX_CIBAUD %d\n", CIBAUD);
++    printf("#define LINUX_IBSHIFT %d\n", IBSHIFT);
+     printf("\n");
+     printf("#define LINUX_CSIZE %d\n", CSIZE);
+     printf("#define LINUX_CS5 %d\n", CS5);
+-- 
+2.47.3
+

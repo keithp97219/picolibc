@@ -1,0 +1,29 @@
+From 349b16b9b6565401d586b3ac09e64049a6aebb9f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:34:53 +0000
+Subject: [PATCH 07/18] libos/linux: Report a TTY_NAME_MAX that holds the
+ terminal names
+
+sysconf(_SC_TTY_NAME_MAX) gave the POSIX minimum of 9, shorter than the
+/dev/pts/N names ptsname and ttyname return. Report 32, as glibc does.
+---
+ libos/linux/sysconf.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libos/linux/sysconf.c b/libos/linux/sysconf.c
+index b2e036eb06..824ace8fba 100644
+--- a/libos/linux/sysconf.c
++++ b/libos/linux/sysconf.c
+@@ -76,6 +76,9 @@ sysconf(int name)
+     case _SC_DELAYTIMER_MAX:
+         /* The kernel's timer overrun counts saturate at INT_MAX */
+         return INT_MAX;
++    case _SC_TTY_NAME_MAX:
++        /* Room for the /dev/pts/N and /dev/ttyXXX names ttyname returns */
++        return 32;
+     case _SC_MQ_PRIO_MAX:
+         /* The kernel's MQ_PRIO_MAX */
+         return 32768;
+-- 
+2.47.3
+

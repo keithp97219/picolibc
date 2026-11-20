@@ -1,0 +1,37 @@
+From 16a610ebae944cfef35bf0fb5134cd44f73f1d09 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:51:48 +0000
+Subject: [PATCH 07/41] libos/linux: Report EDESTADDRREQ from bind with no
+ AF_UNIX address
+
+POSIX: for AF_UNIX, bind shall fail with [EDESTADDRREQ] or [EISDIR] if
+"The address argument is a null pointer". Linux says EINVAL or EFAULT.
+---
+ libos/linux/bind.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/libos/linux/bind.c b/libos/linux/bind.c
+index d38d4387de..4aacb8a485 100644
+--- a/libos/linux/bind.c
++++ b/libos/linux/bind.c
+@@ -39,5 +39,17 @@
+ int
+ bind(int fd, const struct sockaddr *addr, socklen_t len)
+ {
++    /* Linux says EFAULT or EINVAL; POSIX wants EDESTADDRREQ for AF_UNIX */
++    if (!addr) {
++        int       domain;
++        socklen_t dlen = sizeof(domain);
++
++        if (_syscall(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_DOMAIN, &domain, &dlen) < 0)
++            return -1;
++        if (domain == AF_UNIX) {
++            errno = EDESTADDRREQ;
++            return -1;
++        }
++    }
+     return (int)_syscall(LINUX_SYS_bind, fd, addr, len);
+ }
+-- 
+2.47.3
+

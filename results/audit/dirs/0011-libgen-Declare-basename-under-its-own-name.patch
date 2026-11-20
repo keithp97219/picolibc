@@ -1,0 +1,40 @@
+From 71cd96a190545460f60a30fa745acbd6888c3f6b Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:29:48 +0000
+Subject: [PATCH 11/21] libgen: Declare basename under its own name
+
+<libgen.h> defined basename as __xpg_basename and declared only that,
+so after "#undef basename" there was no declaration of basename.
+"The use of #undef to remove any macro definition will also ensure
+that an actual function is referred to." The __xpg_basename form is
+kept for when <string.h> has already declared the GNU version.
+---
+ libc/include/libgen.h | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/libc/include/libgen.h b/libc/include/libgen.h
+index 2487561d75..6a1b3fc15c 100644
+--- a/libc/include/libgen.h
++++ b/libc/include/libgen.h
+@@ -21,9 +21,17 @@ _BEGIN_STD_C
+    #undef basename will still let you invoke the underlying function.  However,
+    this also implies that the POSIX version is used in this case.  That's made
+    sure here. */
++#if defined(basename)
++/* <string.h> declared the GNU version first */
+ #undef basename
+ #define basename __xpg_basename
+-char *basename(char *) __asm__(__ASMNAME("basename"));
++char *basename(char *) _ASMNAME("basename");
++#else
++/* Declared under its own name so that #undef basename still finds it;
++   defining it as itself keeps <string.h> from adding the GNU version */
++char *basename(char *);
++#define basename basename
++#endif
+ char *dirname(char *);
+ 
+ _END_STD_C
+-- 
+2.47.3
+

@@ -1,0 +1,31 @@
+From bdea700a0849b1ab7bc295d7a09948cec8a957be Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 22:30:08 +0000
+Subject: [PATCH 12/21] test-posix: Run the readdir, dirfd and scandir tests on
+ Linux
+
+They were skipped whenever native tests were enabled, which every Linux
+configuration does, rather than only in the native configuration that
+reads directories through the host's struct dirent.
+---
+ test/test-posix/test-dirent/meson.build | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/test/test-posix/test-dirent/meson.build b/test/test-posix/test-dirent/meson.build
+index 9d6a861168..0c9c8b32b8 100644
+--- a/test/test-posix/test-dirent/meson.build
++++ b/test/test-posix/test-dirent/meson.build
+@@ -44,8 +44,8 @@ dir_tests = [
+   'test-telldir',
+ ]
+ 
+-# The native build reads directories through the host's struct dirent
+-if enable_native_tests
++# The native configuration reads directories through the host's struct dirent
++if use_stdlib
+   test_skip += ['test-readdir', 'test-dirfd', 'test-scandir']
+ endif
+ 
+-- 
+2.47.3
+
