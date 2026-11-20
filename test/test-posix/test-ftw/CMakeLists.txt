@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-ftw_h
   test-nftw
   )
 

@@ -34,5 +34,6 @@
 #
 
 dir_tests = [
+  'test-ftw_h',
   'test-nftw',
 ]
