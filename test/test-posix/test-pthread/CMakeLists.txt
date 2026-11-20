@@ -40,6 +40,7 @@ set(tests
   test-pthread_cancel
   test-pthread_cond_timedwait
   test-pthread_cond_wait
+  test-pthread_condattr_setpshared
   test-pthread_create
   test-pthread_exit
   test-pthread_getcpuclockid
