@@ -38,5 +38,19 @@
 int
 tcflush(int fd, int queue_selector)
 {
+    switch (queue_selector) {
+    case TCIFLUSH:
+        queue_selector = LINUX_TCIFLUSH;
+        break;
+    case TCOFLUSH:
+        queue_selector = LINUX_TCOFLUSH;
+        break;
+    case TCIOFLUSH:
+        queue_selector = LINUX_TCIOFLUSH;
+        break;
+    default:
+        errno = EINVAL;
+        return -1;
+    }
     return _syscall(LINUX_SYS_ioctl, fd, LINUX_TCFLSH, queue_selector);
 }
