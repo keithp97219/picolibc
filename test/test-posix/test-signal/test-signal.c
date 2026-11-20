@@ -66,5 +66,41 @@ main(void)
         printf("caught %d instead of SIGUSR1(%d)\n", caught_usr1, SIGUSR1);
         return 1;
     }
+
+    /* signal returns the func of the most recent call, without touching errno */
+    errno = 12345;
+    if (signal(SIGUSR1, SIG_IGN) != handle_usr1 || errno != 12345) {
+        printf("signal didn't return the previous handler\n");
+        return 1;
+    }
+    caught_usr1 = 0;
+    raise(SIGUSR1);
+    if (caught_usr1 != 0) {
+        printf("SIG_IGN didn't ignore the signal\n");
+        return 1;
+    }
+    if (signal(SIGUSR1, SIG_DFL) != SIG_IGN) {
+        printf("signal didn't return SIG_IGN\n");
+        return 1;
+    }
+
+#if !defined(__PICOLIBC__) || (defined(__PICOLIBC_POSIX_SIGNALS) && __PICOLIBC_POSIX_SIGNALS > 0)
+    /* Invalid signals, and catching or ignoring SIGKILL, are EINVAL */
+    errno = 0;
+    if (signal(-1, handle_usr1) != SIG_ERR || errno != EINVAL) {
+        printf("signal(-1) didn't fail with EINVAL\n");
+        return 1;
+    }
+    errno = 0;
+    if (signal(SIGKILL, handle_usr1) != SIG_ERR || errno != EINVAL) {
+        printf("catching SIGKILL didn't fail with EINVAL\n");
+        return 1;
+    }
+    errno = 0;
+    if (signal(SIGSTOP, SIG_IGN) != SIG_ERR || errno != EINVAL) {
+        printf("ignoring SIGSTOP didn't fail with EINVAL\n");
+        return 1;
+    }
+#endif
     return 0;
 }
