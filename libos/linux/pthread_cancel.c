@@ -45,6 +45,9 @@ cancel_handler(int sig)
     struct __pthread *self = _pthread_current;
 
     (void)sig;
+    /* The same signal asks each thread to repeat a credential change */
+    if (self && __atomic_exchange_n(&self->setxid_pending, 0, __ATOMIC_ACQ_REL))
+        _pthread_setxid_act();
     if (!self || self->cancel_state != PTHREAD_CANCEL_ENABLE
         || !__atomic_load_n(&self->cancel_pending, __ATOMIC_SEQ_CST))
         return;
@@ -71,13 +74,19 @@ cancel_init(void)
                        __KERNEL_NSIG_BYTES);
 }
 
+void
+_pthread_sigcancel_init(void)
+{
+    pthread_once(&cancel_once, cancel_init);
+}
+
 int
 pthread_cancel(pthread_t thread)
 {
     struct __pthread *self = _pthread_self();
     int               tid;
 
-    pthread_once(&cancel_once, cancel_init);
+    _pthread_sigcancel_init();
     __atomic_store_n(&thread->cancel_pending, 1, __ATOMIC_SEQ_CST);
     if (thread == self) {
         if (self->cancel_state == PTHREAD_CANCEL_ENABLE

@@ -52,4 +52,9 @@ _pthread_fork_reset(void)
     _pthread_count = 1;
     _pthread_zombies = NULL;
     _pthread_zombie_lock = init;
+    _pthread_all_lock = init;
+    _pthread_all = NULL;
+    _pthread_main_listed = true;
+    if (self)
+        _pthread_all_add(self);
 }

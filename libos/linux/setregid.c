@@ -40,8 +40,8 @@ int
 setregid(gid_t rgid, gid_t egid)
 {
 #ifdef LINUX_SYS_setregid32
-    return (int)_syscall(LINUX_SYS_setregid32, rgid, egid);
+    return (int)_syscall_setxid(LINUX_SYS_setregid32, (long)rgid, (long)egid, 0);
 #else
-    return (int)_syscall(LINUX_SYS_setregid, rgid, egid);
+    return (int)_syscall_setxid(LINUX_SYS_setregid, (long)rgid, (long)egid, 0);
 #endif
 }

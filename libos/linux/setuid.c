@@ -40,8 +40,8 @@ int
 setuid(uid_t uid)
 {
 #ifdef LINUX_SYS_setuid32
-    return _syscall(LINUX_SYS_setuid32, uid);
+    return (int)_syscall_setxid(LINUX_SYS_setuid32, (long)uid, 0, 0);
 #else
-    return _syscall(LINUX_SYS_setuid, uid);
+    return (int)_syscall_setxid(LINUX_SYS_setuid, (long)uid, 0, 0);
 #endif
 }

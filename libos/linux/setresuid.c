@@ -40,8 +40,8 @@ int
 setresuid(uid_t ruid, uid_t euid, uid_t suid)
 {
 #ifdef LINUX_SYS_setresuid32
-    return (int)_syscall(LINUX_SYS_setresuid32, ruid, euid, suid);
+    return (int)_syscall_setxid(LINUX_SYS_setresuid32, (long)ruid, (long)euid, (long)suid);
 #else
-    return (int)_syscall(LINUX_SYS_setresuid, ruid, euid, suid);
+    return (int)_syscall_setxid(LINUX_SYS_setresuid, (long)ruid, (long)euid, (long)suid);
 #endif
 }

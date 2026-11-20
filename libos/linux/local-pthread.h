@@ -117,6 +117,11 @@ struct __pthread {
     /* Detached threads waiting to be unmapped once they have exited */
     struct __pthread          *zombie_next;
 
+    /* The running threads, for changing every thread's credentials */
+    struct __pthread          *all_next;
+    struct __pthread          *all_prev;
+    unsigned int               setxid_pending;
+
     /* Signal mask for the new thread */
     __kernel_sigset_t          sigmask;
 
@@ -413,6 +418,46 @@ _pthread_key_seq(pthread_key_t key)
 
 /* Detached threads which have exited but are not yet unmapped */
 extern pthread_mutex_t   _pthread_zombie_lock;
+
+/*
+ * The running threads. pthread_create holds the lock from before it
+ * blocks signals until the new thread is listed, so a credential
+ * change sees every thread, and every thread it sees can take its
+ * signal.
+ */
+extern pthread_mutex_t   _pthread_all_lock;
+extern struct __pthread *_pthread_all;
+extern bool              _pthread_main_listed;
+
+static inline void
+_pthread_all_add(struct __pthread *t)
+{
+    t->all_prev = NULL;
+    t->all_next = _pthread_all;
+    if (_pthread_all)
+        _pthread_all->all_prev = t;
+    _pthread_all = t;
+}
+
+static inline void
+_pthread_all_remove(struct __pthread *t)
+{
+    if (t->all_prev)
+        t->all_prev->all_next = t->all_next;
+    else if (_pthread_all == t)
+        _pthread_all = t->all_next;
+    else
+        return;
+    if (t->all_next)
+        t->all_next->all_prev = t->all_prev;
+    t->all_next = t->all_prev = NULL;
+}
+
+/* Repeats the current credential change in the calling thread; see _syscall_setxid */
+void                     _pthread_setxid_act(void);
+
+/* Installs the handler for _PTHREAD_SIGCANCEL, which also carries credential changes */
+void                     _pthread_sigcancel_init(void);
 extern struct __pthread *_pthread_zombies;
 
 /* Unmap detached threads which have exited */

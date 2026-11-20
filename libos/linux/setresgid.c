@@ -40,8 +40,8 @@ int
 setresgid(gid_t rgid, gid_t egid, gid_t sgid)
 {
 #ifdef LINUX_SYS_setresgid32
-    return (int)_syscall(LINUX_SYS_setresgid32, rgid, egid, sgid);
+    return (int)_syscall_setxid(LINUX_SYS_setresgid32, (long)rgid, (long)egid, (long)sgid);
 #else
-    return (int)_syscall(LINUX_SYS_setresgid, rgid, egid, sgid);
+    return (int)_syscall_setxid(LINUX_SYS_setresgid, (long)rgid, (long)egid, (long)sgid);
 #endif
 }

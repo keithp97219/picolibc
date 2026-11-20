@@ -63,6 +63,12 @@ pthread_start(void *arg)
     while (__atomic_load_n(&self->start_wait, __ATOMIC_ACQUIRE))
         (void)_futex_wait(&self->start_wait, 1, false, CLOCK_REALTIME, NULL);
     if (self->start_error) {
+        __kernel_sigset_t cancel = {};
+
+        /* Take any credential change sent meanwhile before leaving */
+        __kernel_sigset_set_mask(&cancel, _PTHREAD_SIGCANCEL);
+        (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_UNBLOCK, &cancel, NULL,
+                           __KERNEL_NSIG_BYTES);
         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
         for (;;)
             _syscall_raw(LINUX_SYS_exit, 0);
@@ -153,8 +159,10 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
 
     /*
      * Block signals until the new thread is running on its own stack;
-     * it restores the creator's mask.
+     * it restores the creator's mask. Take the thread list lock first,
+     * so a credential change can't wait on this thread meanwhile.
      */
+    pthread_mutex_lock(&_pthread_all_lock);
     memset(&all, 0xff, sizeof(all));
     (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &all, &old,
                        __KERNEL_NSIG_BYTES);
@@ -166,6 +174,15 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
 
     (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &old, NULL,
                        __KERNEL_NSIG_BYTES);
+
+    if (ret >= 0) {
+        if (!_pthread_main_listed) {
+            _pthread_all_add(&_pthread_main);
+            _pthread_main_listed = true;
+        }
+        _pthread_all_add(t);
+    }
+    pthread_mutex_unlock(&_pthread_all_lock);
 
     if (ret < 0) {
         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
@@ -182,6 +199,9 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
         if (sched_ret) {
             /* The thread exits without running; reclaim it */
             _pthread_wait_exit(t);
+            pthread_mutex_lock(&_pthread_all_lock);
+            _pthread_all_remove(t);
+            pthread_mutex_unlock(&_pthread_all_lock);
             _pthread_unmap(map, map_size);
             return sched_ret;
         }

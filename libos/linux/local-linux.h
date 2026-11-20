@@ -65,6 +65,17 @@ long _syscall(long sys_call, ...);
 long _syscall_raw(long sys_call, ...);
 int  _syscall_errno(long ret);
 
+/*
+ * Credential changes: Linux makes them per thread, so with threads
+ * every thread repeats the change. Returns like _syscall.
+ */
+#ifdef __PICOLIBC_PTHREADS
+long _pthread_setxid(long nr, long a, long b, long c);
+#define _syscall_setxid(nr, a, b, c) _pthread_setxid(nr, a, b, c)
+#else
+#define _syscall_setxid(nr, a, b, c) _syscall(nr, a, b, c)
+#endif
+
 /* Translate the directory descriptor of the *at functions */
 static inline int
 _at_fd_to_linux(int fd)
