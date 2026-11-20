@@ -1,0 +1,292 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+/* posix_openpt, grantpt, unlockpt and ptsname are XSI interfaces */
+#define _XOPEN_SOURCE 800
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                                  \
+    || ((defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && __PICOLIBC_POSIX_DEVICE_SPECIFIC > 0) \
+        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0))
+
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+#include <termios.h>
+#include <time.h>
+#include <unistd.h>
+
+/*
+ * Non-canonical input (XBD 11.1.7): the four combinations of MIN and
+ * TIME. Waits are checked against a lower bound only, and blocking is
+ * shown by a read that an interval timer interrupts
+ */
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+/* Opens a pseudo-terminal pair, or skips the test when there are none */
+static int
+open_pty(int *subsidiary)
+{
+    char *name;
+    int   manager = posix_openpt(O_RDWR | O_NOCTTY);
+
+    if (manager < 0) {
+        printf("no pseudo-terminals, skipping\n");
+        exit(77);
+    }
+    check(grantpt(manager) == 0, "grantpt");
+    check(unlockpt(manager) == 0, "unlockpt");
+    name = ptsname(manager);
+    check(name != NULL, "ptsname");
+    *subsidiary = open(name, O_RDWR | O_NOCTTY);
+    check(*subsidiary >= 0, "open subsidiary");
+    return manager;
+}
+
+/* Waits until fd can be read, which a pseudo-terminal allows a little later */
+static void
+wait_input(int fd)
+{
+    struct pollfd pfd = { .fd = fd, .events = POLLIN };
+
+    check(poll(&pfd, 1, 10000) == 1, "input arrives");
+}
+
+/* Reads what's waiting without blocking */
+static ssize_t
+read_now(int fd, char *buf, size_t size)
+{
+    int     flags = fcntl(fd, F_GETFL);
+    ssize_t ret;
+
+    check(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0, "O_NONBLOCK");
+    ret = read(fd, buf, size);
+    check(fcntl(fd, F_SETFL, flags) == 0, "restore flags");
+    return ret;
+}
+
+static void
+put(int fd, const char *s, size_t len)
+{
+    check(write(fd, s, len) == (ssize_t)len, "write");
+}
+
+#define PUT(fd, s) put(fd, s, sizeof(s) - 1)
+
+/* Reads a line, or as much as one read returns, and compares it */
+static int
+got(int fd, const char *want, size_t len)
+{
+    char    buf[64];
+    ssize_t n = read(fd, buf, sizeof(buf));
+
+    if (n != (ssize_t)len || memcmp(buf, want, len) != 0) {
+        printf("read %zd bytes:", n);
+        while (n > 0)
+            printf(" %02x", (unsigned char)buf[--n]);
+        printf(" (reversed)\n");
+        return 0;
+    }
+    return 1;
+}
+
+#define GOT(fd, s) got(fd, s, sizeof(s) - 1)
+
+/*
+ * Collects what the manager receives up to and including the sentinel
+ * character, which the test sends last, and compares the rest
+ */
+
+static void
+set(int fd, struct termios *t)
+{
+    check(tcsetattr(fd, TCSANOW, t) == 0, "tcsetattr");
+}
+
+static volatile sig_atomic_t alarms;
+
+static void
+on_alarm(int sig)
+{
+    (void)sig;
+    alarms++;
+}
+
+/* Interrupts a blocked read after ms milliseconds */
+static void
+start_timer(int ms)
+{
+    struct itimerval it = {
+        .it_value = { .tv_sec = ms / 1000, .tv_usec = (ms % 1000) * 1000 }
+    };
+
+    alarms = 0;
+    check(setitimer(ITIMER_REAL, &it, NULL) == 0, "setitimer");
+}
+
+static void
+stop_timer(void)
+{
+    struct itimerval it = { 0 };
+
+    check(setitimer(ITIMER_REAL, &it, NULL) == 0, "stop timer");
+}
+
+static double
+now(void)
+{
+    struct timespec ts;
+
+    check(clock_gettime(CLOCK_MONOTONIC, &ts) == 0, "clock_gettime");
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
+
+static void
+min_time(int fd, struct termios *t, cc_t min, cc_t time)
+{
+    t->c_cc[VMIN] = min;
+    t->c_cc[VTIME] = time;
+    set(fd, t);
+}
+
+int
+main(void)
+{
+    int              subsidiary, manager = open_pty(&subsidiary);
+    struct termios   t;
+    struct sigaction sa;
+    char             buf[16];
+    ssize_t          n;
+    double           start;
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = on_alarm;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0; /* no SA_RESTART, so the read is interrupted */
+    check(sigaction(SIGALRM, &sa, NULL) == 0, "sigaction");
+
+    check(tcgetattr(subsidiary, &t) == 0, "tcgetattr");
+    t.c_iflag &= ~(ICRNL | INLCR | IGNCR | IXON | ISTRIP);
+    t.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN);
+
+    /* Case D, MIN = 0 and TIME = 0: what's there, or 0 at once */
+    min_time(subsidiary, &t, 0, 0);
+    check(read(subsidiary, buf, sizeof(buf)) == 0, "case D, nothing there");
+    PUT(manager, "xyz");
+    wait_input(subsidiary);
+    check(read(subsidiary, buf, 2) == 2 && memcmp(buf, "xy", 2) == 0,
+          "case D, as many as asked for");
+    check(read(subsidiary, buf, sizeof(buf)) == 1 && buf[0] == 'z', "case D, the rest");
+
+    /* Case C, MIN = 0 and TIME > 0: 0 once TIME passes without input */
+    min_time(subsidiary, &t, 0, 2);
+    start = now();
+    check(read(subsidiary, buf, sizeof(buf)) == 0, "case C, timer expires");
+    check(now() - start >= 0.15, "case C waits for TIME");
+    PUT(manager, "c");
+    wait_input(subsidiary);
+    check(GOT(subsidiary, "c"), "case C, input there");
+
+    /* Case B, MIN > 0 and TIME = 0: blocks until MIN bytes arrive */
+    min_time(subsidiary, &t, 2, 0);
+    /* poll waits for MIN bytes here, so the read may start before the byte arrives */
+    PUT(manager, "a");
+    start_timer(300);
+    n = read(subsidiary, buf, sizeof(buf));
+    stop_timer();
+    check(alarms == 1, "case B blocks with fewer than MIN bytes");
+    /* The interrupted read returns what it had, or fails with EINTR */
+    check((n == 1 && buf[0] == 'a') || (n == -1 && errno == EINTR), "case B interrupted");
+    if (n == -1)
+        check(read_now(subsidiary, buf, sizeof(buf)) == 1 && buf[0] == 'a',
+              "case B, the byte kept");
+    PUT(manager, "bc");
+    wait_input(subsidiary);
+    check(GOT(subsidiary, "bc"), "case B, MIN bytes there");
+
+    /* Case B blocks with no input at all */
+    start_timer(300);
+    n = read(subsidiary, buf, sizeof(buf));
+    stop_timer();
+    check(alarms == 1 && n == -1 && errno == EINTR, "case B blocks without input");
+
+    /* Case A, MIN > 0 and TIME > 0: TIME runs between bytes once one arrives */
+    min_time(subsidiary, &t, 3, 2);
+    start_timer(500);
+    n = read(subsidiary, buf, sizeof(buf));
+    stop_timer();
+    check(alarms == 1 && n == -1 && errno == EINTR, "case A blocks until the first byte");
+    PUT(manager, "p");
+    start = now();
+    check(GOT(subsidiary, "p"), "case A, fewer than MIN bytes when TIME expires");
+    check(now() - start >= 0.15, "case A waits for TIME after the byte");
+    PUT(manager, "pq");
+    wait_input(subsidiary);
+    check(GOT(subsidiary, "pq"), "case A, bytes there before the read");
+    PUT(manager, "rst");
+    wait_input(subsidiary);
+    check(GOT(subsidiary, "rst"), "case A, MIN bytes");
+
+    check(close(subsidiary) == 0 && close(manager) == 0, "close");
+    printf("success\n");
+    return 0;
+}
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

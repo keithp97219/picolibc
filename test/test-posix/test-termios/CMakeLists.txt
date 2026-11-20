@@ -43,6 +43,7 @@ set(tests
   test-tcsendbreak
   test-tcsetattr
   test-tcsetattr-icanon
+  test-tcsetattr-vmin
   test-tcsetwinsize
   test-termios_h
   test-termios_h-posix
