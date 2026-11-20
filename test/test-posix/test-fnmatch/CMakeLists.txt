@@ -35,6 +35,7 @@
 
 set(tests
   test-fnmatch
+  test-fnmatch-casefold
   )
 
 foreach(test IN LISTS tests)
