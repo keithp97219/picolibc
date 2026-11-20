@@ -34,13 +34,24 @@
  */
 
 #include "local-socket.h"
+#include <linux/linux-errno.h>
 
 int
 sockatmark(int fd)
 {
-    int atmark;
+    int       atmark, type;
+    socklen_t len = sizeof(type);
+    long      ret = _syscall_raw(LINUX_SYS_ioctl, fd, LINUX_SIOCATMARK, &atmark);
 
-    if (_syscall(LINUX_SYS_ioctl, fd, LINUX_SIOCATMARK, &atmark) < 0)
-        return -1;
-    return atmark;
+    if (ret == 0)
+        return atmark;
+    /*
+     * Sockets whose protocol has no out-of-band marks, like UDP, reject
+     * the request; they are never at a mark
+     */
+    if (ret == -LINUX_ENOTTY
+        && _syscall_raw(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_TYPE, &type, &len) == 0)
+        return 0;
+    errno = _syscall_errno(ret);
+    return -1;
 }
