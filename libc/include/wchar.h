@@ -77,7 +77,7 @@ typedef struct __file __FILE;
 #define ___FILE_DECLARED
 #endif
 
-#if __POSIX_VISIBLE >= 200809 || _XSI_VISIBLE
+#if __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE
 
 #ifndef _FILE_DECLARED
 typedef __FILE FILE;

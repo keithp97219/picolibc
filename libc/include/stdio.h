@@ -613,7 +613,7 @@ int vfprintf_s(FILE * __restrict stream, const char * __restrict fmt, va_list ap
 #define L_ctermid 9 /* "/dev/tty" */
 #endif
 
-#if __MISC_VISIBLE || XSI_VISIBLE
+#if __MISC_VISIBLE || __XSI_VISIBLE
 #ifdef __P_tmpdir
 #define P_tmpdir __P_tmpdir
 #else
