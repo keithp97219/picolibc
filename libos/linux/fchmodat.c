@@ -36,11 +36,55 @@
 #include "local-linux.h"
 #include <linux/linux-errno.h>
 #include <sys/stat.h>
+#include <string.h>
 
 /* Older kernel headers lack fchmodat2, which has the same number everywhere */
 #ifndef LINUX_SYS_fchmodat2
 #define LINUX_SYS_fchmodat2 452
 #endif
+
+/*
+ * Without fchmodat2, look at the file through an O_PATH descriptor: a
+ * symbolic link can't have its mode changed, and anything else is
+ * changed through /proc, as glibc does
+ */
+static int
+_fchmodat_nofollow(int kdirfd, const char *path, mode_t mode)
+{
+    struct stat st;
+    char        name[sizeof("/proc/self/fd/") + 10], *s;
+    long        fd;
+    int         n, ret;
+
+    fd = _syscall_raw(LINUX_SYS_openat, kdirfd, path,
+                      LINUX_O_PATH | LINUX_O_NOFOLLOW | LINUX_O_CLOEXEC);
+    if (fd < 0) {
+        errno = _syscall_errno(fd);
+        return -1;
+    }
+    ret = fstat((int)fd, &st);
+    if (ret == 0 && S_ISLNK(st.st_mode)) {
+        errno = EOPNOTSUPP;
+        ret = -1;
+    } else if (ret == 0) {
+        s = name + sizeof(name) - 1;
+        *s = '\0';
+        n = (int)fd;
+        do
+            *--s = '0' + n % 10;
+        while ((n /= 10) != 0);
+        s -= sizeof("/proc/self/fd/") - 1;
+        memcpy(s, "/proc/self/fd/", sizeof("/proc/self/fd/") - 1);
+        ret = (int)_syscall_raw(LINUX_SYS_fchmodat, LINUX_AT_FDCWD, s, mode);
+        if (ret < 0) {
+            /* Without /proc, the mode can't be changed this way */
+            errno = ret == -LINUX_ENOENT ? EOPNOTSUPP : _syscall_errno(ret);
+            ret = -1;
+        }
+    }
+    (void)_syscall_raw(LINUX_SYS_close, fd);
+    return ret;
+}
 
 int
 fchmodat(int dirfd, const char *path, mode_t mode, int flags)
@@ -55,10 +99,12 @@ fchmodat(int dirfd, const char *path, mode_t mode, int flags)
     if (!kflags)
         return _syscall(LINUX_SYS_fchmodat, _at_fd_to_linux(dirfd), path, mode);
 
-    /* Only fchmodat2 takes flags; without it, symlink modes can't be changed */
+    /* Only fchmodat2 takes flags */
     ret = _syscall_raw(LINUX_SYS_fchmodat2, _at_fd_to_linux(dirfd), path, mode, kflags);
     if (ret == 0)
         return 0;
-    errno = ret == -LINUX_ENOSYS ? EOPNOTSUPP : _syscall_errno(ret);
+    if (ret == -LINUX_ENOSYS)
+        return _fchmodat_nofollow(_at_fd_to_linux(dirfd), path, mode);
+    errno = _syscall_errno(ret);
     return -1;
 }
