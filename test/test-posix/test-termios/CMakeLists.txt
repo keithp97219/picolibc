@@ -45,6 +45,7 @@ set(tests
   test-tcsetattr-icanon
   test-tcsetattr-isig
   test-tcsetattr-opost
+  test-tcsetattr-tostop
   test-tcsetattr-vmin
   test-tcsetwinsize
   test-termios_h
