@@ -47,6 +47,7 @@ dir_thread_tests = [
   'test-pthread_exit',
   'test-pthread_getcpuclockid',
   'test-pthread_key_create',
+  'test-pthread_kill',
   'test-pthread_mutex_consistent',
   'test-pthread_mutex_timedlock',
   'test-pthread_mutexattr_setprotocol',
