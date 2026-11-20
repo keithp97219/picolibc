@@ -35,6 +35,7 @@
 
 set(tests
   test-access
+  test-alphasort
   test-ctermid
   test-dirfd
   test-fnmatch
@@ -45,6 +46,7 @@ set(tests
   test-posix-time
   test-psiginfo
   test-pwd
+  test-scandir
   test-signal
   test-stat
   )

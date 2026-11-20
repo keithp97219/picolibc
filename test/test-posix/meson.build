@@ -35,6 +35,7 @@
 
 tests = [
   'test-access',
+  'test-alphasort',
   'test-ctermid',
   'test-dirfd',
   'test-fnmatch',
@@ -48,6 +49,7 @@ tests = [
   'test-psiginfo',
   'test-pwd',
   'test-rename',
+  'test-scandir',
   'test-setrlimit',
   'test-signal',
   'test-stat',
@@ -61,6 +63,7 @@ if enable_native_tests
   test_skip += [
     'test-dirent',
     'test-dirfd',
+    'test-scandir',
   ]
 endif
 

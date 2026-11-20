@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 picolibc_sources(
+  alphasort.c
   basename.c
   creat.c
   collcmp.c
@@ -78,6 +79,7 @@ picolibc_sources(
   regerror.c
   regexec.c
   regfree.c
+  scandir.c
   setgrent.c
   setpwent.c
   sleep.c

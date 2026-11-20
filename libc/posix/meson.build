@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 srcs_posix = [
+  'alphasort.c',
   'basename.c',
   'creat.c',
   'collcmp.c',
@@ -78,6 +79,7 @@ srcs_posix = [
   'regerror.c',
   'regexec.c',
   'regfree.c',
+  'scandir.c',
   'setgrent.c',
   'setpwent.c',
   'sleep.c',
