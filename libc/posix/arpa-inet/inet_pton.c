@@ -38,7 +38,7 @@
 #include <errno.h>
 #include <string.h>
 
-/* Four decimal numbers 0 to 255 separated by dots, without leading zeros */
+/* Four decimal numbers 0 to 255 of one to three digits, separated by dots */
 static int
 __inet_pton4(const char *src, unsigned char *dst)
 {
@@ -50,12 +50,11 @@ __inet_pton4(const char *src, unsigned char *dst)
         int      digits = 0;
 
         while (*src >= '0' && *src <= '9') {
-            if (digits && value == 0)
+            if (++digits > 3)
                 return 0;
             value = value * 10 + (unsigned)(*src++ - '0');
             if (value > 255)
                 return 0;
-            digits++;
         }
         if (!digits)
             return 0;
