@@ -55,8 +55,9 @@ _BEGIN_STD_C
 #define _CLOCKS_PER_SEC_ 1000000
 #endif
 
+/* POSIX and ISO C: an expression with type clock_t */
 #ifndef CLOCKS_PER_SEC
-#define CLOCKS_PER_SEC _CLOCKS_PER_SEC_
+#define CLOCKS_PER_SEC ((clock_t)_CLOCKS_PER_SEC_)
 #endif
 
 #ifndef _CLOCK_T_DECLARED
