@@ -73,8 +73,6 @@ typedef __pid_t pid_t; /* process id */
 #define _PID_T_DECLARED
 #endif
 
-#define _POSIX_VERSION 202405L
-
 __noreturn void _exit(int __status) __picolibc_export;
 
 int             access(const char *__path, int __amode) __picolibc_export;
@@ -626,6 +624,176 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define _CS_LFS_LDFLAGS                    22
 #define _CS_LFS_LIBS                       23
 #define _CS_LFS_LINTFLAGS                  24
+
+/*
+ * The POSIX options and option groups the system provides, and the
+ * _POSIX_VERSION they add up to.
+ *
+ * The OS describes itself in <sys/_posix.h>: the POSIX option macros
+ * for the options it supports, and __PICOLIBC_POSIX_<GROUP> for the
+ * OS-level parts of each POSIX.1-2024 option group no option macro
+ * covers, with the version of the standard they meet. Anything it
+ * leaves undefined isn't provided. picolibc installs that header only
+ * for its own OS layers.
+ */
+
+#if defined(__has_include)
+#if __has_include(<sys/_posix.h>)
+#include <sys/_posix.h>
+#endif
+#endif
+
+/* Options picolibc provides itself */
+#ifndef _POSIX_REGEXP
+#define _POSIX_REGEXP 1
+#endif
+#ifndef _POSIX2_C_BIND
+#define _POSIX2_C_BIND 202405L
+#endif
+
+/*
+ * _POSIX_VERSION is the newest edition whose required options and
+ * option groups are all present. Platforms that set it themselves keep
+ * their value.
+ */
+#ifndef _POSIX_VERSION
+
+/* clang-format off */
+
+/* POSIX.1-2024 */
+#if    defined(_POSIX_ASYNCHRONOUS_IO)              && _POSIX_ASYNCHRONOUS_IO              >= 202405L \
+    && defined(_POSIX_BARRIERS)                     && _POSIX_BARRIERS                     >= 202405L \
+    && defined(_POSIX_CLOCK_SELECTION)              && _POSIX_CLOCK_SELECTION              >= 202405L \
+    && defined(_POSIX_MAPPED_FILES)                 && _POSIX_MAPPED_FILES                 >= 202405L \
+    && defined(_POSIX_MEMORY_PROTECTION)            && _POSIX_MEMORY_PROTECTION            >= 202405L \
+    && defined(_POSIX_MONOTONIC_CLOCK)              && _POSIX_MONOTONIC_CLOCK              >= 202405L \
+    && defined(_POSIX_READER_WRITER_LOCKS)          && _POSIX_READER_WRITER_LOCKS          >= 202405L \
+    && defined(_POSIX_REALTIME_SIGNALS)             && _POSIX_REALTIME_SIGNALS             >= 202405L \
+    && defined(_POSIX_SEMAPHORES)                   && _POSIX_SEMAPHORES                   >= 202405L \
+    && defined(_POSIX_SPIN_LOCKS)                   && _POSIX_SPIN_LOCKS                   >= 202405L \
+    && defined(_POSIX_THREAD_SAFE_FUNCTIONS)        && _POSIX_THREAD_SAFE_FUNCTIONS        >= 202405L \
+    && defined(_POSIX_THREADS)                      && _POSIX_THREADS                      >= 202405L \
+    && defined(_POSIX_TIMEOUTS)                     && _POSIX_TIMEOUTS                     >= 202405L \
+    && defined(_POSIX_TIMERS)                       && _POSIX_TIMERS                       >= 202405L \
+    && defined(_POSIX2_C_BIND)                      && _POSIX2_C_BIND                      >= 202405L \
+    && defined(_POSIX_JOB_CONTROL)                  && _POSIX_JOB_CONTROL                  >  0       \
+    && defined(_POSIX_REGEXP)                       && _POSIX_REGEXP                       >  0       \
+    && defined(_POSIX_SAVED_IDS)                    && _POSIX_SAVED_IDS                    >  0       \
+    && defined(_POSIX_SHELL)                        && _POSIX_SHELL                        >  0       \
+    && defined(_POSIX_CHOWN_RESTRICTED)             && _POSIX_CHOWN_RESTRICTED             != -1      \
+    && defined(_POSIX_NO_TRUNC)                     && _POSIX_NO_TRUNC                     != -1      \
+    && defined(_POSIX_VDISABLE)                     && _POSIX_VDISABLE                     != -1      \
+    && defined(__PICOLIBC_POSIX_C_LIB_EXT)          && __PICOLIBC_POSIX_C_LIB_EXT          >= 202405L \
+    && defined(__PICOLIBC_POSIX_DEVICE_IO)          && __PICOLIBC_POSIX_DEVICE_IO          >= 202405L \
+    && defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC)    && __PICOLIBC_POSIX_DEVICE_SPECIFIC    >= 202405L \
+    && defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC_R)  && __PICOLIBC_POSIX_DEVICE_SPECIFIC_R  >= 202405L \
+    && defined(__PICOLIBC_POSIX_DYNAMIC_LINKING)    && __PICOLIBC_POSIX_DYNAMIC_LINKING    >= 202405L \
+    && defined(__PICOLIBC_POSIX_FD_MGMT)            && __PICOLIBC_POSIX_FD_MGMT            >= 202405L \
+    && defined(__PICOLIBC_POSIX_FIFO)               && __PICOLIBC_POSIX_FIFO               >= 202405L \
+    && defined(__PICOLIBC_POSIX_FIFO_FD)            && __PICOLIBC_POSIX_FIFO_FD            >= 202405L \
+    && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES)    && __PICOLIBC_POSIX_FILE_ATTRIBUTES    >= 202405L \
+    && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES_FD) && __PICOLIBC_POSIX_FILE_ATTRIBUTES_FD >= 202405L \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM)        && __PICOLIBC_POSIX_FILE_SYSTEM        >= 202405L \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)    && __PICOLIBC_POSIX_FILE_SYSTEM_EXT    >= 202405L \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD)     && __PICOLIBC_POSIX_FILE_SYSTEM_FD     >= 202405L \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)      && __PICOLIBC_POSIX_MULTI_PROCESS      >= 202405L \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS_FD)   && __PICOLIBC_POSIX_MULTI_PROCESS_FD   >= 202405L \
+    && defined(__PICOLIBC_POSIX_NETWORKING)         && __PICOLIBC_POSIX_NETWORKING         >= 202405L \
+    && defined(__PICOLIBC_POSIX_PIPE)               && __PICOLIBC_POSIX_PIPE               >= 202405L \
+    && defined(__PICOLIBC_POSIX_SIGNALS)            && __PICOLIBC_POSIX_SIGNALS            >= 202405L \
+    && defined(__PICOLIBC_POSIX_SINGLE_PROCESS)     && __PICOLIBC_POSIX_SINGLE_PROCESS     >= 202405L \
+    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)     && __PICOLIBC_POSIX_SYMBOLIC_LINKS     >= 202405L \
+    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS_FD)  && __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD  >= 202405L \
+    && defined(__PICOLIBC_POSIX_USER_GROUPS)        && __PICOLIBC_POSIX_USER_GROUPS        >= 202405L
+#define _POSIX_VERSION 202405L
+
+/* POSIX.1-2008/2017: the same, without _POSIX_MONOTONIC_CLOCK */
+#elif  defined(_POSIX_ASYNCHRONOUS_IO)              && _POSIX_ASYNCHRONOUS_IO              >= 200809L \
+    && defined(_POSIX_BARRIERS)                     && _POSIX_BARRIERS                     >= 200809L \
+    && defined(_POSIX_CLOCK_SELECTION)              && _POSIX_CLOCK_SELECTION              >= 200809L \
+    && defined(_POSIX_MAPPED_FILES)                 && _POSIX_MAPPED_FILES                 >= 200809L \
+    && defined(_POSIX_MEMORY_PROTECTION)            && _POSIX_MEMORY_PROTECTION            >= 200809L \
+    && defined(_POSIX_READER_WRITER_LOCKS)          && _POSIX_READER_WRITER_LOCKS          >= 200809L \
+    && defined(_POSIX_REALTIME_SIGNALS)             && _POSIX_REALTIME_SIGNALS             >= 200809L \
+    && defined(_POSIX_SEMAPHORES)                   && _POSIX_SEMAPHORES                   >= 200809L \
+    && defined(_POSIX_SPIN_LOCKS)                   && _POSIX_SPIN_LOCKS                   >= 200809L \
+    && defined(_POSIX_THREAD_SAFE_FUNCTIONS)        && _POSIX_THREAD_SAFE_FUNCTIONS        >= 200809L \
+    && defined(_POSIX_THREADS)                      && _POSIX_THREADS                      >= 200809L \
+    && defined(_POSIX_TIMEOUTS)                     && _POSIX_TIMEOUTS                     >= 200809L \
+    && defined(_POSIX_TIMERS)                       && _POSIX_TIMERS                       >= 200809L \
+    && defined(_POSIX2_C_BIND)                      && _POSIX2_C_BIND                      >= 200809L \
+    && defined(_POSIX_JOB_CONTROL)                  && _POSIX_JOB_CONTROL                  >  0       \
+    && defined(_POSIX_REGEXP)                       && _POSIX_REGEXP                       >  0       \
+    && defined(_POSIX_SAVED_IDS)                    && _POSIX_SAVED_IDS                    >  0       \
+    && defined(_POSIX_SHELL)                        && _POSIX_SHELL                        >  0       \
+    && defined(_POSIX_CHOWN_RESTRICTED)             && _POSIX_CHOWN_RESTRICTED             != -1      \
+    && defined(_POSIX_NO_TRUNC)                     && _POSIX_NO_TRUNC                     != -1      \
+    && defined(_POSIX_VDISABLE)                     && _POSIX_VDISABLE                     != -1      \
+    && defined(__PICOLIBC_POSIX_C_LIB_EXT)          && __PICOLIBC_POSIX_C_LIB_EXT          >= 200809L \
+    && defined(__PICOLIBC_POSIX_DEVICE_IO)          && __PICOLIBC_POSIX_DEVICE_IO          >= 200809L \
+    && defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC)    && __PICOLIBC_POSIX_DEVICE_SPECIFIC    >= 200809L \
+    && defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC_R)  && __PICOLIBC_POSIX_DEVICE_SPECIFIC_R  >= 200809L \
+    && defined(__PICOLIBC_POSIX_DYNAMIC_LINKING)    && __PICOLIBC_POSIX_DYNAMIC_LINKING    >= 200809L \
+    && defined(__PICOLIBC_POSIX_FD_MGMT)            && __PICOLIBC_POSIX_FD_MGMT            >= 200809L \
+    && defined(__PICOLIBC_POSIX_FIFO)               && __PICOLIBC_POSIX_FIFO               >= 200809L \
+    && defined(__PICOLIBC_POSIX_FIFO_FD)            && __PICOLIBC_POSIX_FIFO_FD            >= 200809L \
+    && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES)    && __PICOLIBC_POSIX_FILE_ATTRIBUTES    >= 200809L \
+    && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES_FD) && __PICOLIBC_POSIX_FILE_ATTRIBUTES_FD >= 200809L \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM)        && __PICOLIBC_POSIX_FILE_SYSTEM        >= 200809L \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)    && __PICOLIBC_POSIX_FILE_SYSTEM_EXT    >= 200809L \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD)     && __PICOLIBC_POSIX_FILE_SYSTEM_FD     >= 200809L \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)      && __PICOLIBC_POSIX_MULTI_PROCESS      >= 200809L \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS_FD)   && __PICOLIBC_POSIX_MULTI_PROCESS_FD   >= 200809L \
+    && defined(__PICOLIBC_POSIX_NETWORKING)         && __PICOLIBC_POSIX_NETWORKING         >= 200809L \
+    && defined(__PICOLIBC_POSIX_PIPE)               && __PICOLIBC_POSIX_PIPE               >= 200809L \
+    && defined(__PICOLIBC_POSIX_SIGNALS)            && __PICOLIBC_POSIX_SIGNALS            >= 200809L \
+    && defined(__PICOLIBC_POSIX_SINGLE_PROCESS)     && __PICOLIBC_POSIX_SINGLE_PROCESS     >= 200809L \
+    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)     && __PICOLIBC_POSIX_SYMBOLIC_LINKS     >= 200809L \
+    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS_FD)  && __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD  >= 200809L \
+    && defined(__PICOLIBC_POSIX_USER_GROUPS)        && __PICOLIBC_POSIX_USER_GROUPS        >= 200809L
+#define _POSIX_VERSION 200809L
+
+/* POSIX.1-2001/2004 */
+#elif  defined(_POSIX2_C_BIND)                      && _POSIX2_C_BIND                      >= 200112L \
+    && defined(_POSIX_JOB_CONTROL)                  && _POSIX_JOB_CONTROL                  >  0       \
+    && defined(_POSIX_REGEXP)                       && _POSIX_REGEXP                       >  0       \
+    && defined(_POSIX_SAVED_IDS)                    && _POSIX_SAVED_IDS                    >  0       \
+    && defined(_POSIX_SHELL)                        && _POSIX_SHELL                        >  0       \
+    && defined(_POSIX_CHOWN_RESTRICTED)             && _POSIX_CHOWN_RESTRICTED             != -1      \
+    && defined(_POSIX_NO_TRUNC)                     && _POSIX_NO_TRUNC                     != -1      \
+    && defined(_POSIX_VDISABLE)                     && _POSIX_VDISABLE                     != -1      \
+    && defined(__PICOLIBC_POSIX_C_LIB_EXT)          && __PICOLIBC_POSIX_C_LIB_EXT          >= 200112L \
+    && defined(__PICOLIBC_POSIX_DEVICE_IO)          && __PICOLIBC_POSIX_DEVICE_IO          >= 200112L \
+    && defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC)    && __PICOLIBC_POSIX_DEVICE_SPECIFIC    >= 200112L \
+    && defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC_R)  && __PICOLIBC_POSIX_DEVICE_SPECIFIC_R  >= 200112L \
+    && defined(__PICOLIBC_POSIX_DYNAMIC_LINKING)    && __PICOLIBC_POSIX_DYNAMIC_LINKING    >= 200112L \
+    && defined(__PICOLIBC_POSIX_FD_MGMT)            && __PICOLIBC_POSIX_FD_MGMT            >= 200112L \
+    && defined(__PICOLIBC_POSIX_FIFO)               && __PICOLIBC_POSIX_FIFO               >= 200112L \
+    && defined(__PICOLIBC_POSIX_FIFO_FD)            && __PICOLIBC_POSIX_FIFO_FD            >= 200112L \
+    && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES)    && __PICOLIBC_POSIX_FILE_ATTRIBUTES    >= 200112L \
+    && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES_FD) && __PICOLIBC_POSIX_FILE_ATTRIBUTES_FD >= 200112L \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM)        && __PICOLIBC_POSIX_FILE_SYSTEM        >= 200112L \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)    && __PICOLIBC_POSIX_FILE_SYSTEM_EXT    >= 200112L \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD)     && __PICOLIBC_POSIX_FILE_SYSTEM_FD     >= 200112L \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)      && __PICOLIBC_POSIX_MULTI_PROCESS      >= 200112L \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS_FD)   && __PICOLIBC_POSIX_MULTI_PROCESS_FD   >= 200112L \
+    && defined(__PICOLIBC_POSIX_NETWORKING)         && __PICOLIBC_POSIX_NETWORKING         >= 200112L \
+    && defined(__PICOLIBC_POSIX_PIPE)               && __PICOLIBC_POSIX_PIPE               >= 200112L \
+    && defined(__PICOLIBC_POSIX_SIGNALS)            && __PICOLIBC_POSIX_SIGNALS            >= 200112L \
+    && defined(__PICOLIBC_POSIX_SINGLE_PROCESS)     && __PICOLIBC_POSIX_SINGLE_PROCESS     >= 200112L \
+    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)     && __PICOLIBC_POSIX_SYMBOLIC_LINKS     >= 200112L \
+    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS_FD)  && __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD  >= 200112L \
+    && defined(__PICOLIBC_POSIX_USER_GROUPS)        && __PICOLIBC_POSIX_USER_GROUPS        >= 200112L
+#define _POSIX_VERSION 200112L
+#endif
+
+/* clang-format on */
+
+#endif /* !_POSIX_VERSION */
+
+#if defined(_POSIX_VERSION) && !defined(_POSIX2_VERSION)
+#define _POSIX2_VERSION _POSIX_VERSION
+#endif
 
 _END_STD_C
 
