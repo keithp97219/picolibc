@@ -48,13 +48,19 @@ getpwnam_r(const char *name, struct passwd *pwbuf, char *buf, size_t size, struc
     int            ret;
 
     file = fopen(_PATH_PASSWD, "r");
-    if (!file)
+    if (!file) {
+        *pwbufp = NULL;
         return errno;
+    }
     while ((ret = fgetpwent_r(file, pwbuf, buf, size, &pwd)) == 0)
         if (strcmp(name, pwd->pw_name) == 0)
             break;
     fclose(file);
-    if (ret == 0)
+    if (ret == 0) {
         *pwbufp = pwd;
-    return 0;
+        return 0;
+    }
+    /* Reaching the end without a match isn't an error */
+    *pwbufp = NULL;
+    return ret == ENOENT ? 0 : ret;
 }

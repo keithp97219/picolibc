@@ -35,4 +35,6 @@
 
 dir_tests = [
   'test-getpwent',
+  'test-getpwnam_r',
+  'test-getpwuid_r',
 ]

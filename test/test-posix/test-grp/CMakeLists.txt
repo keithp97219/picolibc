@@ -35,6 +35,8 @@
 
 set(tests
   test-getgrent
+  test-getgrgid_r
+  test-getgrnam_r
   )
 
 foreach(test IN LISTS tests)

@@ -48,13 +48,19 @@ getgrnam_r(const char *name, struct group *grbuf, char *buf, size_t size, struct
     int           ret;
 
     file = fopen(_PATH_GROUP, "r");
-    if (!file)
+    if (!file) {
+        *grbufp = NULL;
         return errno;
+    }
     while ((ret = fgetgrent_r(file, grbuf, buf, size, &grp)) == 0)
         if (strcmp(name, grp->gr_name) == 0)
             break;
     fclose(file);
-    if (ret == 0)
+    if (ret == 0) {
         *grbufp = grp;
-    return 0;
+        return 0;
+    }
+    /* Reaching the end without a match isn't an error */
+    *grbufp = NULL;
+    return ret == ENOENT ? 0 : ret;
 }

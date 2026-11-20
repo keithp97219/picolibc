@@ -71,6 +71,11 @@ fgetgrent_r(FILE *stream, struct group *grbuf, char *buf, size_t size, struct gr
         return errno;
     }
     nl = strchrnul(line, '\n');
+    if (!*nl && !feof(stream)) {
+        /* The line doesn't fit in the buffer */
+        *grbufp = NULL;
+        return (errno = ERANGE);
+    }
     *nl = '\0';
 
     /* Use the rest of the buffer for pointers to group members */

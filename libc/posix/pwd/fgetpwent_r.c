@@ -88,8 +88,13 @@ fgetpwent_r(FILE *stream, struct passwd *pwbuf, char *buf, size_t size, struct p
             errno = ENOENT;
         return errno;
     }
-    if ((nl = strchr(line, '\n')) != NULL)
+    if ((nl = strchr(line, '\n')) != NULL) {
         *nl = '\0';
+    } else if (!feof(stream)) {
+        /* The line doesn't fit in the buffer */
+        *pwbufp = NULL;
+        return (errno = ERANGE);
+    }
     id = pw_name;
 
     /*
