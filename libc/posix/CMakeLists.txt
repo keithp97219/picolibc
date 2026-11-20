@@ -33,62 +33,20 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 picolibc_sources(
-  alphasort.c
-  basename.c
-  creat.c
   collcmp.c
-  confstr.c
-  ctermid.c
-  dirfd.c
-  dirname.c
-  endgrent.c
-  endpwent.c
-  execl.c
-  execle.c
-  execlp.c
-  execv.c
-  execvp.c
-  execvpe.c
-  fgetgrent.c
-  fgetgrent_r.c
-  fgetpwent.c
-  fgetpwent_r.c
-  fnmatch.c
-  getgrent.c
-  getgrent_r.c
-  getgrgid.c
-  getgrgid_r.c
-  getgrnam.c
-  getgrnam_r.c
-  getlogin.c
-  getlogin_r.c
-  getpass.c
-  getpwent.c
-  getpwent_r.c
-  getpwnam.c
-  getpwnam_r.c
-  getpwuid.c
-  getpwuid_r.c
-  glob.c
-  grdata.c
-  grfile.c
-  pwdata.c
-  pwfile.c
-  posix_close.c
-  readdir_r.c
-  realpath.c
-  regcomp.c
-  regerror.c
-  regexec.c
-  regfree.c
-  scandir.c
-  setgrent.c
-  setpwent.c
-  sleep.c
-  strfmon.c
-  strfmon_l.c
-  vstrfmon.c
-  wait.c
   )
 
+add_subdirectory(dirent)
+add_subdirectory(fcntl)
+add_subdirectory(fnmatch)
+add_subdirectory(glob)
+add_subdirectory(grp)
+add_subdirectory(libgen)
+add_subdirectory(monetary)
+add_subdirectory(pwd)
+add_subdirectory(regex)
 add_subdirectory(spawn)
+add_subdirectory(stdio)
+add_subdirectory(stdlib)
+add_subdirectory(sys-wait)
+add_subdirectory(unistd)

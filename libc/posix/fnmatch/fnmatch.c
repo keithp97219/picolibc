@@ -40,7 +40,7 @@
 #include <fnmatch.h>
 #include <string.h>
 #include <stdio.h>
-#include "collate.h"
+#include "../collate.h"
 
 #define EOS           '\0'
 
