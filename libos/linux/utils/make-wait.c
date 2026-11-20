@@ -42,6 +42,9 @@ main(void)
     printf("#define LINUX_WNOHANG 0x%x\n", WNOHANG);
     printf("#define LINUX_WUNTRACED 0x%x\n", WUNTRACED);
     printf("#define LINUX_WCONTINUED 0x%x\n", WCONTINUED);
+    printf("#define LINUX_WEXITED 0x%x\n", WEXITED);
+    printf("#define LINUX_WSTOPPED 0x%x\n", WSTOPPED);
+    printf("#define LINUX_WNOWAIT 0x%x\n", WNOWAIT);
 
     /* should check status macros somehow */
 

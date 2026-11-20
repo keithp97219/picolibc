@@ -65,6 +65,9 @@ long _syscall(long sys_call, ...);
 long _syscall_raw(long sys_call, ...);
 int  _syscall_errno(long ret);
 
+/* Create a child process; fork and _Fork add their bookkeeping */
+pid_t _fork_raw(void);
+
 struct fd_set;
 int _pselect(int nfds, struct fd_set *readfds, struct fd_set *writefds, struct fd_set *exceptfds,
              const struct timespec *timeout, const __sigset_t *sigmask);

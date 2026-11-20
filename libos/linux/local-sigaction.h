@@ -65,6 +65,14 @@ void _sigmask_from_linux(sigset_t *set, const __kernel_sigset_t *kset);
 #define LINUX_SI_ASYNCIO (-4)
 #define LINUX_SI_TKILL   (-6)
 
+/* Linux si_code values for SIGCHLD */
+#define LINUX_CLD_EXITED    1
+#define LINUX_CLD_KILLED    2
+#define LINUX_CLD_DUMPED    3
+#define LINUX_CLD_TRAPPED   4
+#define LINUX_CLD_STOPPED   5
+#define LINUX_CLD_CONTINUED 6
+
 void _siginfo_from_linux(siginfo_t *info, const struct __kernel_siginfo *kinfo);
 
 /* Versions returning 0 or an errno value, leaving errno alone */

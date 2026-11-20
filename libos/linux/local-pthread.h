@@ -333,6 +333,7 @@ extern size_t                  _pthread_atfork_count;
 void                           _pthread_fork_prepare(void);
 void                           _pthread_fork_parent(void);
 void                           _pthread_fork_child(void);
+void                           _pthread_fork_reset(void);
 
 /*
  * Thread memory: anonymous mappings made directly, leaving errno

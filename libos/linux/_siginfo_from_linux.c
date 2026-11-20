@@ -46,6 +46,14 @@ _siginfo_from_linux(siginfo_t *info, const struct __kernel_siginfo *kinfo)
     SIMPLE_MAP_SIGINFO(info, kinfo);
     SIMPLE_MAP_SIGVAL(&info->si_value, &kinfo->si_value);
     info->si_signo = _signal_from_linux(kinfo->si_signo);
+    if (info->si_signo == SIGCHLD && kinfo->si_code >= LINUX_CLD_EXITED
+        && kinfo->si_code <= LINUX_CLD_CONTINUED) {
+        info->si_code = CLD_EXITED + (kinfo->si_code - LINUX_CLD_EXITED);
+        /* si_status holds a signal number unless the child exited */
+        if (kinfo->si_code != LINUX_CLD_EXITED)
+            info->si_status = _signal_from_linux(kinfo->si_status);
+        return;
+    }
     switch (kinfo->si_code) {
     case LINUX_SI_USER:
     case LINUX_SI_TKILL:

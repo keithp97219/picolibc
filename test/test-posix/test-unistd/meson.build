@@ -42,6 +42,7 @@ dir_tests = [
 
 if has_os_posix
   dir_tests += [
+    'test-_Fork',
     'test-alarm',
     'test-confstr',
     'test-dup3',
@@ -52,6 +53,8 @@ if has_os_posix
     'test-getgid',
     'test-getgroups',
     'test-getlogin_r',
+    'test-getpgid',
+    'test-getsid',
     'test-getuid',
     'test-link',
     'test-pause',
@@ -61,6 +64,7 @@ if has_os_posix
     'test-setegid',
     'test-seteuid',
     'test-setgid',
+    'test-setsid',
     'test-setuid',
     'test-truncate',
   ]

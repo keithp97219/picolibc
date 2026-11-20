@@ -35,6 +35,9 @@
 #ifndef _LINUX_WAIT_H_
 #define _LINUX_WAIT_H_
 #define LINUX_WCONTINUED 0x8
+#define LINUX_WEXITED    0x4
 #define LINUX_WNOHANG    0x1
+#define LINUX_WNOWAIT    0x1000000
+#define LINUX_WSTOPPED   0x2
 #define LINUX_WUNTRACED  0x2
 #endif /* _LINUX_WAIT_H_ */

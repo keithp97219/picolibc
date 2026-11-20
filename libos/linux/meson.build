@@ -50,6 +50,7 @@ if fs.is_dir(machine_dir)
   has_os_id = true
 
   srcs_os_linux = [
+    '_Fork.c',
     'access.c',
     'alarm.c',
     'cfgetispeed.c',
@@ -75,6 +76,7 @@ if fs.is_dir(machine_dir)
     'fcntl.c',
     'fdatasync.c',
     'fork.c',
+    '_fork_raw.c',
     'fpathconf.c',
     'fsync.c',
     'fstat.c',
@@ -88,10 +90,12 @@ if fs.is_dir(machine_dir)
     'getgroups.c',
     'gethostname.c',
     'getitimer.c',
+    'getpgid.c',
     'getpgrp.c',
     'getpid.c',
     'getppid.c',
     'getrlimit.c',
+    'getsid.c',
     'gettimeofday.c',
     'getuid.c',
     'getwd.c',
@@ -155,6 +159,7 @@ if fs.is_dir(machine_dir)
     'seteuid.c',
     'setpgid.c',
     'setrlimit.c',
+    'setsid.c',
     'setuid.c',
     'shm_open.c',
     'shm_unlink.c',
@@ -204,6 +209,7 @@ if fs.is_dir(machine_dir)
     'unlink.c',
     'vfork.c',
     'wait3.c',
+    'waitid.c',
     'waitpid.c',
     'write.c',
   ]
@@ -271,6 +277,7 @@ if fs.is_dir(machine_dir)
       '_pthread_fork_child.c',
       '_pthread_fork_parent.c',
       '_pthread_fork_prepare.c',
+      '_pthread_fork_reset.c',
       'pthread_getconcurrency.c',
       '_pthread_getsched.c',
       'pthread_getcpuclockid.c',

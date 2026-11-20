@@ -41,7 +41,6 @@ void
 _pthread_fork_child(void)
 {
     static const pthread_mutex_t init = PTHREAD_MUTEX_INITIALIZER;
-    struct __pthread            *self = _pthread_current;
     size_t                       i;
 
     /*
@@ -52,11 +51,7 @@ _pthread_fork_child(void)
      * own.
      */
     __LIBC_UNLOCK();
-    if (self)
-        self->tid = (int)_syscall_raw(LINUX_SYS_set_tid_address, &self->tid);
-    _pthread_count = 1;
-    _pthread_zombies = NULL;
-    _pthread_zombie_lock = init;
+    _pthread_fork_reset();
 
     for (i = 0; i < _pthread_atfork_count; i++)
         if (_pthread_atfork[i].child)
