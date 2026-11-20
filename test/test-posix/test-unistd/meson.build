@@ -37,6 +37,7 @@ dir_tests = [
   'test-access',
   'test-ftruncate',
   'test-getcwd',
+  'test-posix-options',
 ]
 
 if has_os_posix

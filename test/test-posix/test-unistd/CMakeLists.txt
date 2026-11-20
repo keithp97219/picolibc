@@ -36,6 +36,7 @@
 set(tests
   test-access
   test-getcwd
+  test-posix-options
   )
 
 foreach(test IN LISTS tests)
