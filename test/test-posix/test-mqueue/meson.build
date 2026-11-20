@@ -43,4 +43,5 @@ dir_tests = [
   'test-mq_timedreceive',
   'test-mq_timedsend',
   'test-mq_unlink',
+  'test-mqueue_h',
 ]
