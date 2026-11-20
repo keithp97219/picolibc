@@ -143,6 +143,11 @@ typedef __pid_t pid_t; /* process id */
 #if __POSIX_VISIBLE >= 200809
 #define F_DUPFD_CLOEXEC 14 /* As F_DUPFD, but set close-on-exec flag */
 #endif
+#if __POSIX_VISIBLE >= 202405
+#define F_OFD_GETLK  15 /* As F_GETLK, for open file description locks */
+#define F_OFD_SETLK  16 /* As F_SETLK, for open file description locks */
+#define F_OFD_SETLKW 17 /* As F_SETLKW, for open file description locks */
+#endif
 
 /* fcntl(2) flags (l_type field of flock structure) */
 #define F_RDLCK 1 /* read lock */
@@ -177,12 +182,11 @@ typedef __pid_t pid_t; /* process id */
 
 /* file segment locking set data type - information passed to system by user */
 struct flock {
-    short l_type;   /* F_RDLCK, F_WRLCK, or F_UNLCK */
-    short l_whence; /* flag to choose starting offset */
-    long  l_start;  /* relative offset, in bytes */
-    long  l_len;    /* length, in bytes; 0 means lock to EOF */
-    short l_pid;    /* returned with F_GETLK */
-    short l_xxx;    /* reserved for future use */
+    short   l_type;   /* F_RDLCK, F_WRLCK, or F_UNLCK */
+    short   l_whence; /* flag to choose starting offset */
+    __off_t l_start;  /* relative offset, in bytes */
+    __off_t l_len;    /* length, in bytes; 0 means lock to EOF */
+    __pid_t l_pid;    /* returned with F_GETLK */
 };
 
 #if __MISC_VISIBLE
