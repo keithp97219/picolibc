@@ -35,6 +35,7 @@
 
 set(tests
   test-in6addr_any
+  test-netinet_in_h
   )
 
 foreach(test IN LISTS tests)

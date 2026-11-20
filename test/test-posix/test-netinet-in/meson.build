@@ -35,4 +35,5 @@
 
 dir_tests = [
   'test-in6addr_any',
+  'test-netinet_in_h',
 ]
