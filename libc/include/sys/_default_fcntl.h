@@ -4,6 +4,8 @@
 #define _SYS__DEFAULT_FCNTL_H_
 #include <sys/cdefs.h>
 #include <sys/_types.h>
+/* <fcntl.h> provides the file mode constants from <sys/stat.h> */
+#include <sys/stat.h>
 
 _BEGIN_STD_C
 
@@ -72,6 +74,11 @@ typedef __pid_t pid_t; /* process id */
 #define O_DIRECTORY _FDIRECTORY
 #define O_EXEC      _FEXECSRCH
 #define O_SEARCH    _FEXECSRCH
+#endif
+
+#if __POSIX_VISIBLE >= 202405
+/* Zero, as POSIX allows; terminals start in whatever state the OS gives them */
+#define O_TTY_INIT 0
 #endif
 
 #if __BSD_VISIBLE
@@ -148,6 +155,17 @@ typedef __pid_t pid_t; /* process id */
 #define F_OFD_GETLK  15 /* As F_GETLK, for open file description locks */
 #define F_OFD_SETLK  16 /* As F_SETLK, for open file description locks */
 #define F_OFD_SETLKW 17 /* As F_SETLKW, for open file description locks */
+#endif
+
+/* l_whence values */
+#ifndef SEEK_SET
+#define SEEK_SET 0 /* set file offset to offset */
+#endif
+#ifndef SEEK_CUR
+#define SEEK_CUR 1 /* set file offset to current plus offset */
+#endif
+#ifndef SEEK_END
+#define SEEK_END 2 /* set file offset to EOF plus offset */
 #endif
 
 /* fcntl(2) flags (l_type field of flock structure) */
