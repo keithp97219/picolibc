@@ -62,6 +62,7 @@ set(tests
   test-getresuid
   test-getsid
   test-getuid
+  test-isatty
   test-lchown
   test-link
   test-linkat

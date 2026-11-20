@@ -44,6 +44,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,6 +95,19 @@ main(void)
     check(strcmp(name, pts) == 0, "names the subsidiary");
     p = ttyname(subsidiary);
     check(p != NULL && strcmp(p, pts) == 0, "ttyname");
+
+    /* The name fits in TTY_NAME_MAX, including its null */
+    check(sysconf(_SC_TTY_NAME_MAX) < 0 || strlen(name) < (size_t)sysconf(_SC_TTY_NAME_MAX),
+          "TTY_NAME_MAX");
+#ifdef TTY_NAME_MAX
+    check(strlen(name) < TTY_NAME_MAX, "TTY_NAME_MAX constant");
+#endif
+#ifndef __GLIBC__
+    /* glibc reports ENODEV here */
+    check(ttyname_r(subsidiary, name, strlen(pts)) == ERANGE, "no room for the null");
+#endif
+    check(ttyname_r(subsidiary, name, strlen(pts) + 1) == 0 && strcmp(name, pts) == 0,
+          "just enough room");
 
     /* Too small a buffer */
     memset(small, 'x', sizeof(small));
