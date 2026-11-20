@@ -205,6 +205,16 @@ extern int openat(int, const char *, int, ...);
 #endif
 extern int creat(const char *, mode_t);
 extern int fcntl(int, int, ...);
+#if __POSIX_VISIBLE >= 200112
+#define POSIX_FADV_NORMAL     0
+#define POSIX_FADV_RANDOM     1
+#define POSIX_FADV_SEQUENTIAL 2
+#define POSIX_FADV_WILLNEED   3
+#define POSIX_FADV_DONTNEED   4
+#define POSIX_FADV_NOREUSE    5
+extern int posix_fadvise(int, off_t, off_t, int);
+extern int posix_fallocate(int, off_t, off_t);
+#endif
 #if __BSD_VISIBLE
 extern int flock(int, int);
 #endif
