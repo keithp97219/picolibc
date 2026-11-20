@@ -44,6 +44,8 @@ ptsname_r(int fd, char *buf, size_t buflen)
     long         ret;
     int          len;
 
+    if (buf == NULL)
+        return EINVAL;
     ret = _syscall_raw(LINUX_SYS_ioctl, fd, LINUX_TIOCGPTN, &n);
     if (ret < 0) {
         ret = _syscall_errno(ret);
