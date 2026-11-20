@@ -51,13 +51,12 @@
 static int rangematch(const char *, char, int, char **);
 
 static int
-_fnmatch(const char *pattern, const char *string, int flags, int level)
+_fnmatch(const char *pattern, const char *string, const char *stringstart, int flags, int level)
 {
-    const char *stringstart;
-    char       *newp;
-    char        c, test;
+    char *newp;
+    char  c, test;
 
-    for (stringstart = string;;)
+    for (;;)
         switch (c = *pattern++) {
         case EOS:
             if ((flags & FNM_LEADING_DIR) && *string == '/')
@@ -101,7 +100,7 @@ _fnmatch(const char *pattern, const char *string, int flags, int level)
 
             /* General case, use recursion. */
             while ((test = *string) != EOS) {
-                switch (_fnmatch(pattern, string, flags & ~FNM_PERIOD, level - 1)) {
+                switch (_fnmatch(pattern, string, stringstart, flags, level - 1)) {
                 case 0:
                     return (0);
                 case -FNM_NOMATCH:
@@ -161,7 +160,7 @@ _fnmatch(const char *pattern, const char *string, int flags, int level)
 int
 fnmatch(const char *pattern, const char *string, int flags)
 {
-    return _fnmatch(pattern, string, flags, 16);
+    return _fnmatch(pattern, string, string, flags, 16);
 }
 
 static const struct {
