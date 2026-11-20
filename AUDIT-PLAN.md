@@ -131,9 +131,19 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   `#define _XOPEN_SOURCE 800` only for XSI interfaces (not 700). Use
 >   `_DEFAULT_SOURCE` or `_GNU_SOURCE` only for a test of an extension, with
 >   a comment. Where glibc hides a POSIX.1-2024 interface without
->   `_GNU_SOURCE`, define it for glibc alone, before any include:
->   `#if defined(__has_include) && !__has_include(<picolibc.h>)` /
->   `#define _GNU_SOURCE` / `#endif`, with a comment naming the interface.
+>   `_GNU_SOURCE`, enable it for glibc alone in the source: the build
+>   defines `TEST_GLIBC` for `-native` versions built against glibc, so
+>   after the strict macros put `/* glibc declares X only with _GNU_SOURCE */`
+>   then `#ifdef TEST_GLIBC` / `#define _GNU_SOURCE` / `#endif`. Never test
+>   for "not picolibc" to mean glibc; other C libraries must see the test
+>   as written.
+> - **glibc deviations:** where glibc gets a POSIX requirement wrong or
+>   lacks it, skip only glibc: `#ifndef __GLIBC__` (glibc's own macro,
+>   defined once any header is included; `TEST_GLIBC` is only for choices
+>   made before the first include), with a comment. Keep
+>   `#ifdef __PICOLIBC__` for what really is picolibc's own behaviour (its
+>   implementation-defined choices and extensions), so musl and other
+>   libraries are still held to POSIX.
 > - **Namespace:** also check the other direction. In strict mode
 >   (`_POSIX_C_SOURCE 202405L` and nothing else) the header must not
 >   declare names POSIX doesn't reserve for it, such as BSD or GNU
@@ -163,9 +173,18 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   constants with `_Static_assert` rather than `#ifdef`.
 > - **Full suite:** run without `--no-rebuild`, which leaves some
 >   generated test inputs unbuilt.
+> - **Configurations without threads:** also build the native
+>   configuration (`scripts/do-native-configure`, `ninja` only). It has no
+>   threads, so a test whose statics or helpers are only used inside its
+>   gate breaks there under `-Werror`; keep them inside the gate.
+> - **seccomp:** containers may install a seccomp filter that refuses calls
+>   such as `clock_settime` with EPERM before the kernel checks arguments.
+>   Where an argument error is expected, accept EPERM only when
+>   `/proc/self/status` shows `Seccomp: 2`.
 > - **qemu-user:** the x86_64 host also runs every test for aarch64 and
 >   armhf under qemu-user, which you can't see from real hardware. qemu
->   ignores SA_NOCLDSTOP and SA_NOCLDWAIT, keeps the top real-time signals,
+>   ignores SA_NOCLDSTOP and SA_NOCLDWAIT, passes its own timer ids as the
+>   default timer si_value, keeps the top real-time signals,
 >   and lacks robust futex lists. Where a check depends on such a kernel
 >   detail, relax it only under qemu, detected with the `is_qemu()` helper in
 >   `test-signal/test-sigaction.c` (BogoMIPS 100.00 in /proc/cpuinfo), and
