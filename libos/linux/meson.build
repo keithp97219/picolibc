@@ -247,6 +247,7 @@ if fs.is_dir(machine_dir)
     'symlinkat.c',
     '_syscall.c',
     '_syscall_errno.c',
+    'sysconf.c',
     'tcdrain.c',
     'tcflow.c',
     'tcflush.c',

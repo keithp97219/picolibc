@@ -72,6 +72,7 @@ dir_tests = [
   'test-setsid',
   'test-setuid',
   'test-symlinkat',
+  'test-sysconf',
   'test-truncate',
   'test-unlinkat',
 ]
@@ -79,3 +80,6 @@ dir_tests = [
 if oslib_test_variant == 'linux'
   test_skip += ['test-ftruncate']
 endif
+
+# glibc's sysconf disagrees with its <unistd.h> about robust mutexes
+test_skip_native += ['test-sysconf']

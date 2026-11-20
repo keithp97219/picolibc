@@ -48,6 +48,7 @@ set(tests
   test-fdatasync
   test-fexecve
   test-fsync
+  test-ftruncate
   test-getcwd
   test-getgid
   test-getgroups
@@ -71,6 +72,7 @@ set(tests
   test-setsid
   test-setuid
   test-symlinkat
+  test-sysconf
   test-truncate
   test-unlinkat
   )

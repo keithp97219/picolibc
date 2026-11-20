@@ -163,6 +163,475 @@ __fallback_sysconf(int name)
         return _POSIX_NGROUPS_MAX;
     case _SC_RE_DUP_MAX:
         return _POSIX_RE_DUP_MAX;
+    /* Options report their <unistd.h> value, or -1 when not supported */
+    case _SC_JOB_CONTROL:
+#ifdef _POSIX_JOB_CONTROL
+        return _POSIX_JOB_CONTROL;
+#else
+        return -1;
+#endif
+    case _SC_SAVED_IDS:
+#ifdef _POSIX_SAVED_IDS
+        return _POSIX_SAVED_IDS;
+#else
+        return -1;
+#endif
+    case _SC_VERSION:
+#ifdef _POSIX_VERSION
+        return _POSIX_VERSION;
+#else
+        return -1;
+#endif
+    case _SC_ASYNCHRONOUS_IO:
+#ifdef _POSIX_ASYNCHRONOUS_IO
+        return _POSIX_ASYNCHRONOUS_IO;
+#else
+        return -1;
+#endif
+    case _SC_FSYNC:
+#ifdef _POSIX_FSYNC
+        return _POSIX_FSYNC;
+#else
+        return -1;
+#endif
+    case _SC_MAPPED_FILES:
+#ifdef _POSIX_MAPPED_FILES
+        return _POSIX_MAPPED_FILES;
+#else
+        return -1;
+#endif
+    case _SC_MEMLOCK:
+#ifdef _POSIX_MEMLOCK
+        return _POSIX_MEMLOCK;
+#else
+        return -1;
+#endif
+    case _SC_MEMLOCK_RANGE:
+#ifdef _POSIX_MEMLOCK_RANGE
+        return _POSIX_MEMLOCK_RANGE;
+#else
+        return -1;
+#endif
+    case _SC_MEMORY_PROTECTION:
+#ifdef _POSIX_MEMORY_PROTECTION
+        return _POSIX_MEMORY_PROTECTION;
+#else
+        return -1;
+#endif
+    case _SC_MESSAGE_PASSING:
+#ifdef _POSIX_MESSAGE_PASSING
+        return _POSIX_MESSAGE_PASSING;
+#else
+        return -1;
+#endif
+    case _SC_PRIORITIZED_IO:
+#ifdef _POSIX_PRIORITIZED_IO
+        return _POSIX_PRIORITIZED_IO;
+#else
+        return -1;
+#endif
+    case _SC_REALTIME_SIGNALS:
+#ifdef _POSIX_REALTIME_SIGNALS
+        return _POSIX_REALTIME_SIGNALS;
+#else
+        return -1;
+#endif
+    case _SC_SEMAPHORES:
+#ifdef _POSIX_SEMAPHORES
+        return _POSIX_SEMAPHORES;
+#else
+        return -1;
+#endif
+    case _SC_SHARED_MEMORY_OBJECTS:
+#ifdef _POSIX_SHARED_MEMORY_OBJECTS
+        return _POSIX_SHARED_MEMORY_OBJECTS;
+#else
+        return -1;
+#endif
+    case _SC_SYNCHRONIZED_IO:
+#ifdef _POSIX_SYNCHRONIZED_IO
+        return _POSIX_SYNCHRONIZED_IO;
+#else
+        return -1;
+#endif
+    case _SC_TIMERS:
+#ifdef _POSIX_TIMERS
+        return _POSIX_TIMERS;
+#else
+        return -1;
+#endif
+    case _SC_THREADS:
+#ifdef _POSIX_THREADS
+        return _POSIX_THREADS;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_ATTR_STACKADDR:
+#ifdef _POSIX_THREAD_ATTR_STACKADDR
+        return _POSIX_THREAD_ATTR_STACKADDR;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_ATTR_STACKSIZE:
+#ifdef _POSIX_THREAD_ATTR_STACKSIZE
+        return _POSIX_THREAD_ATTR_STACKSIZE;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_PRIORITY_SCHEDULING:
+#ifdef _POSIX_THREAD_PRIORITY_SCHEDULING
+        return _POSIX_THREAD_PRIORITY_SCHEDULING;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_PRIO_INHERIT:
+#ifdef _POSIX_THREAD_PRIO_INHERIT
+        return _POSIX_THREAD_PRIO_INHERIT;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_PRIO_PROTECT:
+#ifdef _POSIX_THREAD_PRIO_PROTECT
+        return _POSIX_THREAD_PRIO_PROTECT;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_PROCESS_SHARED:
+#ifdef _POSIX_THREAD_PROCESS_SHARED
+        return _POSIX_THREAD_PROCESS_SHARED;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_SAFE_FUNCTIONS:
+#ifdef _POSIX_THREAD_SAFE_FUNCTIONS
+        return _POSIX_THREAD_SAFE_FUNCTIONS;
+#else
+        return -1;
+#endif
+    case _SC_ADVISORY_INFO:
+#ifdef _POSIX_ADVISORY_INFO
+        return _POSIX_ADVISORY_INFO;
+#else
+        return -1;
+#endif
+    case _SC_BARRIERS:
+#ifdef _POSIX_BARRIERS
+        return _POSIX_BARRIERS;
+#else
+        return -1;
+#endif
+    case _SC_CLOCK_SELECTION:
+#ifdef _POSIX_CLOCK_SELECTION
+        return _POSIX_CLOCK_SELECTION;
+#else
+        return -1;
+#endif
+    case _SC_CPUTIME:
+#ifdef _POSIX_CPUTIME
+        return _POSIX_CPUTIME;
+#else
+        return -1;
+#endif
+    case _SC_IPV6:
+#ifdef _POSIX_IPV6
+        return _POSIX_IPV6;
+#else
+        return -1;
+#endif
+    case _SC_MONOTONIC_CLOCK:
+#ifdef _POSIX_MONOTONIC_CLOCK
+        return _POSIX_MONOTONIC_CLOCK;
+#else
+        return -1;
+#endif
+    case _SC_RAW_SOCKETS:
+#ifdef _POSIX_RAW_SOCKETS
+        return _POSIX_RAW_SOCKETS;
+#else
+        return -1;
+#endif
+    case _SC_READER_WRITER_LOCKS:
+#ifdef _POSIX_READER_WRITER_LOCKS
+        return _POSIX_READER_WRITER_LOCKS;
+#else
+        return -1;
+#endif
+    case _SC_REGEXP:
+#ifdef _POSIX_REGEXP
+        return _POSIX_REGEXP;
+#else
+        return -1;
+#endif
+    case _SC_SHELL:
+#ifdef _POSIX_SHELL
+        return _POSIX_SHELL;
+#else
+        return -1;
+#endif
+    case _SC_SPAWN:
+#ifdef _POSIX_SPAWN
+        return _POSIX_SPAWN;
+#else
+        return -1;
+#endif
+    case _SC_SPIN_LOCKS:
+#ifdef _POSIX_SPIN_LOCKS
+        return _POSIX_SPIN_LOCKS;
+#else
+        return -1;
+#endif
+    case _SC_SPORADIC_SERVER:
+#ifdef _POSIX_SPORADIC_SERVER
+        return _POSIX_SPORADIC_SERVER;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_CPUTIME:
+#ifdef _POSIX_THREAD_CPUTIME
+        return _POSIX_THREAD_CPUTIME;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_SPORADIC_SERVER:
+#ifdef _POSIX_THREAD_SPORADIC_SERVER
+        return _POSIX_THREAD_SPORADIC_SERVER;
+#else
+        return -1;
+#endif
+    case _SC_TIMEOUTS:
+#ifdef _POSIX_TIMEOUTS
+        return _POSIX_TIMEOUTS;
+#else
+        return -1;
+#endif
+    case _SC_TRACE:
+#ifdef _POSIX_TRACE
+        return _POSIX_TRACE;
+#else
+        return -1;
+#endif
+    case _SC_TRACE_EVENT_FILTER:
+#ifdef _POSIX_TRACE_EVENT_FILTER
+        return _POSIX_TRACE_EVENT_FILTER;
+#else
+        return -1;
+#endif
+    case _SC_TRACE_INHERIT:
+#ifdef _POSIX_TRACE_INHERIT
+        return _POSIX_TRACE_INHERIT;
+#else
+        return -1;
+#endif
+    case _SC_TRACE_LOG:
+#ifdef _POSIX_TRACE_LOG
+        return _POSIX_TRACE_LOG;
+#else
+        return -1;
+#endif
+    case _SC_TYPED_MEMORY_OBJECTS:
+#ifdef _POSIX_TYPED_MEMORY_OBJECTS
+        return _POSIX_TYPED_MEMORY_OBJECTS;
+#else
+        return -1;
+#endif
+    case _SC_V7_ILP32_OFF32:
+#ifdef _POSIX_V7_ILP32_OFF32
+        return _POSIX_V7_ILP32_OFF32;
+#else
+        return -1;
+#endif
+    case _SC_V7_ILP32_OFFBIG:
+#ifdef _POSIX_V7_ILP32_OFFBIG
+        return _POSIX_V7_ILP32_OFFBIG;
+#else
+        return -1;
+#endif
+    case _SC_V7_LP64_OFF64:
+#ifdef _POSIX_V7_LP64_OFF64
+        return _POSIX_V7_LP64_OFF64;
+#else
+        return -1;
+#endif
+    case _SC_V7_LPBIG_OFFBIG:
+#ifdef _POSIX_V7_LPBIG_OFFBIG
+        return _POSIX_V7_LPBIG_OFFBIG;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_CRYPT:
+#ifdef _XOPEN_CRYPT
+        return _XOPEN_CRYPT;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_ENH_I18N:
+#ifdef _XOPEN_ENH_I18N
+        return _XOPEN_ENH_I18N;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_LEGACY:
+#ifdef _XOPEN_LEGACY
+        return _XOPEN_LEGACY;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_REALTIME:
+#ifdef _XOPEN_REALTIME
+        return _XOPEN_REALTIME;
+#else
+        return -1;
+#endif
+    case _SC_PRIORITY_SCHEDULING:
+#ifdef _POSIX_PRIORITY_SCHEDULING
+        return _POSIX_PRIORITY_SCHEDULING;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_REALTIME_THREADS:
+#ifdef _XOPEN_REALTIME_THREADS
+        return _XOPEN_REALTIME_THREADS;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_SHM:
+#ifdef _XOPEN_SHM
+        return _XOPEN_SHM;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_STREAMS:
+#ifdef _XOPEN_STREAMS
+        return _XOPEN_STREAMS;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_UNIX:
+#ifdef _XOPEN_UNIX
+        return _XOPEN_UNIX;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_VERSION:
+#ifdef _XOPEN_VERSION
+        return _XOPEN_VERSION;
+#else
+        return -1;
+#endif
+    case _SC_2_CHAR_TERM:
+#ifdef _POSIX2_CHAR_TERM
+        return _POSIX2_CHAR_TERM;
+#else
+        return -1;
+#endif
+    case _SC_2_C_BIND:
+#ifdef _POSIX2_C_BIND
+        return _POSIX2_C_BIND;
+#else
+        return -1;
+#endif
+    case _SC_2_C_DEV:
+#ifdef _POSIX2_C_DEV
+        return _POSIX2_C_DEV;
+#else
+        return -1;
+#endif
+    case _SC_2_FORT_DEV:
+#ifdef _POSIX2_FORT_DEV
+        return _POSIX2_FORT_DEV;
+#else
+        return -1;
+#endif
+    case _SC_2_FORT_RUN:
+#ifdef _POSIX2_FORT_RUN
+        return _POSIX2_FORT_RUN;
+#else
+        return -1;
+#endif
+    case _SC_2_LOCALEDEF:
+#ifdef _POSIX2_LOCALEDEF
+        return _POSIX2_LOCALEDEF;
+#else
+        return -1;
+#endif
+    case _SC_2_PBS:
+#ifdef _POSIX2_PBS
+        return _POSIX2_PBS;
+#else
+        return -1;
+#endif
+    case _SC_2_PBS_ACCOUNTING:
+#ifdef _POSIX2_PBS_ACCOUNTING
+        return _POSIX2_PBS_ACCOUNTING;
+#else
+        return -1;
+#endif
+    case _SC_2_PBS_CHECKPOINT:
+#ifdef _POSIX2_PBS_CHECKPOINT
+        return _POSIX2_PBS_CHECKPOINT;
+#else
+        return -1;
+#endif
+    case _SC_2_PBS_LOCATE:
+#ifdef _POSIX2_PBS_LOCATE
+        return _POSIX2_PBS_LOCATE;
+#else
+        return -1;
+#endif
+    case _SC_2_PBS_MESSAGE:
+#ifdef _POSIX2_PBS_MESSAGE
+        return _POSIX2_PBS_MESSAGE;
+#else
+        return -1;
+#endif
+    case _SC_2_PBS_TRACK:
+#ifdef _POSIX2_PBS_TRACK
+        return _POSIX2_PBS_TRACK;
+#else
+        return -1;
+#endif
+    case _SC_2_SW_DEV:
+#ifdef _POSIX2_SW_DEV
+        return _POSIX2_SW_DEV;
+#else
+        return -1;
+#endif
+    case _SC_2_UPE:
+#ifdef _POSIX2_UPE
+        return _POSIX2_UPE;
+#else
+        return -1;
+#endif
+    case _SC_2_VERSION:
+#ifdef _POSIX2_VERSION
+        return _POSIX2_VERSION;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_ROBUST_PRIO_INHERIT:
+#ifdef _POSIX_THREAD_ROBUST_PRIO_INHERIT
+        return _POSIX_THREAD_ROBUST_PRIO_INHERIT;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_ROBUST_PRIO_PROTECT:
+#ifdef _POSIX_THREAD_ROBUST_PRIO_PROTECT
+        return _POSIX_THREAD_ROBUST_PRIO_PROTECT;
+#else
+        return -1;
+#endif
+    case _SC_XOPEN_UUCP:
+#ifdef _XOPEN_UUCP
+        return _XOPEN_UUCP;
+#else
+        return -1;
+#endif
+    case _SC_POSIX_26_VERSION:
+#ifdef _POSIX_26_VERSION
+        return _POSIX_26_VERSION;
+#else
+        return -1;
+#endif
     default:
         errno = EINVAL;
         return -1;
