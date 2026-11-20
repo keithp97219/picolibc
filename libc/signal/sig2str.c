@@ -224,10 +224,21 @@ sig2str(int signum, char *str)
     return -1;
 }
 
+/* A decimal number, without the sign or white space strtoul accepts */
+static int
+decimal(const char *str, unsigned long *value)
+{
+    char *endp;
+
+    if (*str < '0' || *str > '9')
+        return 0;
+    *value = strtoul(str, &endp, 10);
+    return *endp == '\0';
+}
+
 int
 str2sig(const char * __restrict str, int * __restrict pnum)
 {
-    char                   *endp;
     const sig_name_and_num *sptr;
     unsigned long           is_valid_decimal;
 
@@ -239,10 +250,10 @@ str2sig(const char * __restrict str, int * __restrict pnum)
         /* If str is in RT signal range, get number of of RT signal, save it as an
          * integer. */
         if (strncmp(str, "RTMIN+", SPACES_TO_N) == 0) {
-            unsigned long j = strtoul(&str[SPACES_TO_N], &endp, 10);
+            unsigned long j;
 
             /* If number is valid, save it in pnum. */
-            if (*endp == '\0') {
+            if (decimal(&str[SPACES_TO_N], &j)) {
                 if (1 <= j && j <= ((SIGRTMAX - SIGRTMIN) - 1)) {
                     *pnum = (SIGRTMIN + j);
                     return 0;
@@ -255,10 +266,10 @@ str2sig(const char * __restrict str, int * __restrict pnum)
         /* If str is in RT signal range, get number of of RT signal, save it as an
          * integer. */
         if (strncmp(str, "RTMAX-", SPACES_TO_N) == 0) {
-            unsigned long j = strtoul(&str[SPACES_TO_N], &endp, 10); // and endptr null check
+            unsigned long j;
 
             /* If number is valid, save it in pnum. */
-            if (*endp == '\0') {
+            if (decimal(&str[SPACES_TO_N], &j)) {
                 if (1 <= j && j <= ((SIGRTMAX - SIGRTMIN) - 1)) {
                     *pnum = (SIGRTMAX - j);
                     return 0;
@@ -280,15 +291,17 @@ str2sig(const char * __restrict str, int * __restrict pnum)
 
     /* str was not found in sig_array. Check whether str is a string
      * representation of a valid integer. */
-    is_valid_decimal = strtoul(str, &endp, 10);
-
-    if (*endp != '\0') {
+    if (!decimal(str, &is_valid_decimal)) {
         return -1;
     }
 
-    /* If str is a representation of a decimal value, save its integer value
-     * in pnum. */
+    /* If str is a representation of a signal number, save its integer
+     * value in pnum. Numbers past SIGRTMAX aren't signals. */
+#ifdef SIGRTMAX
+    if (1 <= is_valid_decimal && is_valid_decimal <= SIGRTMAX) {
+#else
     if (1 <= is_valid_decimal && is_valid_decimal <= (_NSIG - 1)) {
+#endif
         *pnum = is_valid_decimal;
         return 0;
     }
