@@ -61,14 +61,28 @@ static char        *stack_base;
 static size_t       stack_size;
 static volatile int on_stack;
 
+static volatile int onstack_flag;
+static volatile int modify_result;
+static volatile int modify_errno;
+
 static void
 handler(int sig)
 {
-    char here;
+    char    here;
+    stack_t cur, ss;
 
     (void)sig;
     on_stack = (uintptr_t)&here >= (uintptr_t)stack_base
         && (uintptr_t)&here < (uintptr_t)stack_base + stack_size;
+
+    /* While running on the alternate stack, it reports SS_ONSTACK and can't be changed */
+    onstack_flag = sigaltstack(NULL, &cur) == 0 && (cur.ss_flags & SS_ONSTACK);
+    ss.ss_sp = stack_base;
+    ss.ss_size = stack_size;
+    ss.ss_flags = SS_DISABLE;
+    errno = 0;
+    modify_result = sigaltstack(&ss, NULL);
+    modify_errno = errno;
 }
 
 int
@@ -93,6 +107,10 @@ main(void)
     sigemptyset(&sa.sa_mask);
     check(sigaction(SIGUSR1, &sa, NULL) == 0, "sigaction");
     check(raise(SIGUSR1) == 0 && on_stack, "handler on the alternate stack");
+    check(onstack_flag, "SS_ONSTACK while on the alternate stack");
+    check(modify_result == -1 && modify_errno == EPERM, "EPERM changing the active stack");
+    check(sigaltstack(NULL, &old) == 0 && !(old.ss_flags & SS_ONSTACK) && old.ss_sp == stack_base,
+          "not on the stack after the handler");
 
     ss.ss_flags = SS_DISABLE;
     check(sigaltstack(&ss, NULL) == 0, "disable");
@@ -100,6 +118,38 @@ main(void)
     ss.ss_flags = 0;
     ss.ss_size = 1;
     check(sigaltstack(&ss, NULL) == -1 && errno == ENOMEM, "too small");
+    check(sigaltstack(NULL, &old) == 0 && (old.ss_flags & SS_DISABLE),
+          "failed call leaves the stack alone");
+
+    /* MINSIGSTKSZ is enough for sigaltstack */
+    ss.ss_size = MINSIGSTKSZ;
+    check(sigaltstack(&ss, NULL) == 0, "MINSIGSTKSZ accepted");
+    check(sigaltstack(NULL, &old) == 0 && old.ss_size == MINSIGSTKSZ && old.ss_flags == 0,
+          "MINSIGSTKSZ stack installed");
+
+    /* SS_DISABLE ignores ss_sp and ss_size */
+    ss.ss_sp = NULL;
+    ss.ss_size = 0;
+    ss.ss_flags = SS_DISABLE;
+    check(sigaltstack(&ss, &old) == 0 && old.ss_sp == stack_base, "SS_DISABLE with no stack");
+    check(sigaltstack(NULL, &old) == 0 && (old.ss_flags & SS_DISABLE), "disabled");
+
+    /* SS_ONSTACK and unknown flags are EINVAL */
+    ss.ss_sp = stack_base;
+    ss.ss_size = stack_size;
+    ss.ss_flags = SS_ONSTACK | SS_DISABLE;
+    while (ss.ss_flags & (SS_ONSTACK | SS_DISABLE))
+        ss.ss_flags <<= 1;
+    errno = 0;
+    check(sigaltstack(&ss, NULL) == -1 && errno == EINVAL, "unknown flag");
+#ifdef __PICOLIBC__
+    /* glibc passes SS_ONSTACK to Linux, which accepts it */
+    ss.ss_flags = SS_ONSTACK;
+    errno = 0;
+    check(sigaltstack(&ss, NULL) == -1 && errno == EINVAL, "SS_ONSTACK");
+#endif
+    check(sigaltstack(NULL, &old) == 0 && (old.ss_flags & SS_DISABLE),
+          "invalid flags leave the stack alone");
     printf("success\n");
     return 0;
 }
