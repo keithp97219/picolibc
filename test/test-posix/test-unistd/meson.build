@@ -92,6 +92,11 @@ dir_tests = [
   'test-unlinkat',
 ]
 
+# These check credentials across threads
+dir_thread_tests = [
+  'test-setuid-thread',
+]
+
 if oslib_test_variant == 'linux'
   test_skip += ['test-ftruncate']
 endif

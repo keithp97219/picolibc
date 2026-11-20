@@ -83,6 +83,7 @@ set(tests
   test-setreuid
   test-setsid
   test-setuid
+  test-setuid-thread
   test-symlinkat
   test-sync
   test-sysconf
