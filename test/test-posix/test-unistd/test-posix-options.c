@@ -109,6 +109,13 @@
 #include <utmpx.h>
 #endif
 
+/* POSIX.1-2024 needs close-on-fork */
+#if defined(_POSIX_VERSION) && _POSIX_VERSION >= 202405L
+#if !defined(O_CLOFORK) || !defined(FD_CLOFORK)
+#error "_POSIX_VERSION claims POSIX.1-2024 without close-on-fork"
+#endif
+#endif
+
 #define FUNC(f) ((void (*)(void))(f))
 
 static void (* const volatile funcs[])(void) = {

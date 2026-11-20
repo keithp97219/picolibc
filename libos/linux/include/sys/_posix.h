@@ -110,6 +110,12 @@
 #define __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD  202405L
 #define __PICOLIBC_POSIX_USER_GROUPS        202405L
 
+/*
+ * Linux has no close-on-fork (O_CLOFORK, FD_CLOFORK, SOCK_CLOFORK), so
+ * __PICOLIBC_POSIX_CLOFORK stays undefined and Linux can reach
+ * POSIX.1-2008 at most.
+ */
+
 /* XSI option groups */
 #define __PICOLIBC_XSI_DEVICE_IO            202405L
 #define __PICOLIBC_XSI_DEVICE_SPECIFIC      202405L

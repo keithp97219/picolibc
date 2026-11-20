@@ -875,8 +875,10 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 
 /*
  * _POSIX_VERSION is the newest edition whose required options and
- * option groups are all present. Platforms that set it themselves keep
- * their value.
+ * option groups are all present. POSIX.1-2024 also needs the
+ * close-on-fork flags (O_CLOFORK, FD_CLOFORK, SOCK_CLOFORK), which an
+ * OS that has them reports with __PICOLIBC_POSIX_CLOFORK. Platforms
+ * that set _POSIX_VERSION themselves keep their value.
  */
 #ifndef _POSIX_VERSION
 
@@ -926,7 +928,8 @@ int     unlinkat(int, const char *, int) __picolibc_export;
     && defined(__PICOLIBC_POSIX_SINGLE_PROCESS)     && __PICOLIBC_POSIX_SINGLE_PROCESS     >= 202405L \
     && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)     && __PICOLIBC_POSIX_SYMBOLIC_LINKS     >= 202405L \
     && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS_FD)  && __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD  >= 202405L \
-    && defined(__PICOLIBC_POSIX_USER_GROUPS)        && __PICOLIBC_POSIX_USER_GROUPS        >= 202405L
+    && defined(__PICOLIBC_POSIX_USER_GROUPS)        && __PICOLIBC_POSIX_USER_GROUPS        >= 202405L \
+    && defined(__PICOLIBC_POSIX_CLOFORK)            && __PICOLIBC_POSIX_CLOFORK            >= 202405L
 #define _POSIX_VERSION 202405L
 
 /* POSIX.1-2008/2017: the same, without _POSIX_MONOTONIC_CLOCK */
