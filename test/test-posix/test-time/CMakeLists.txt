@@ -34,7 +34,7 @@
 #
 
 set(tests
-  test-posix-time
+  test-time
   )
 
 foreach(test IN LISTS tests)

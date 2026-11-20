@@ -33,9 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _GNU_SOURCE /* glibc declares ppoll only for _GNU_SOURCE */
+#define _GNU_SOURCE
 #include <errno.h>
-#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +42,7 @@
 #include <time.h>
 #include <unistd.h>
 
-/* select, pselect, poll and ppoll on a pipe */
+/* select times out, reports ready descriptors and rejects a bad count */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -56,13 +55,9 @@
 int
 main(void)
 {
-    int             fds[2];
-    fd_set          rset, wset;
-    struct timeval  tv;
-    struct timespec ts;
-    struct pollfd   pfd[2];
-    sigset_t        mask;
-    char            c;
+    int            fds[2];
+    fd_set         rset, wset;
+    struct timeval tv;
 
     check(pipe(fds) == 0, "pipe");
 
@@ -91,36 +86,8 @@ main(void)
     check(select(fds[0] + 1, &rset, NULL, NULL, NULL) == 1, "select read ready");
     check(FD_ISSET(fds[0], &rset), "select read set");
 
+    errno = 0;
     check(select(-1, NULL, NULL, NULL, NULL) == -1 && errno == EINVAL, "select bad nfds");
-
-    /* pselect with a signal mask */
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGUSR1);
-    FD_ZERO(&rset);
-    FD_SET(fds[0], &rset);
-    ts.tv_sec = 1;
-    ts.tv_nsec = 0;
-    check(pselect(fds[0] + 1, &rset, NULL, NULL, &ts, &mask) == 1, "pselect read ready");
-    check(FD_ISSET(fds[0], &rset), "pselect read set");
-
-    /* poll, including the entry after one with no events */
-    pfd[0].fd = fds[1];
-    pfd[0].events = POLLIN;
-    pfd[1].fd = fds[0];
-    pfd[1].events = POLLIN;
-    check(poll(pfd, 2, -1) == 1, "poll waiting forever");
-    check(pfd[0].revents == 0 && (pfd[1].revents & POLLIN), "poll revents");
-    check(pfd[0].events == POLLIN && pfd[1].events == POLLIN, "poll keeps events");
-
-    ts.tv_sec = 0;
-    ts.tv_nsec = 0;
-    check(ppoll(pfd, 2, &ts, &mask) == 1 && (pfd[1].revents & POLLIN), "ppoll ready");
-
-    check(read(fds[0], &c, 1) == 1 && c == 'x', "read");
-    ts.tv_nsec = 20 * 1000 * 1000;
-    check(ppoll(&pfd[1], 1, &ts, NULL) == 0 && pfd[1].revents == 0, "ppoll times out");
-    ts.tv_nsec = -1;
-    check(ppoll(&pfd[1], 1, &ts, NULL) == -1 && errno == EINVAL, "ppoll bad timeout");
 
     printf("success\n");
     return 0;

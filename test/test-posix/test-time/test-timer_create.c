@@ -42,7 +42,7 @@
 #include <time.h>
 #include <unistd.h>
 
-/* POSIX timers signalling the process, and clock_nanosleep errors */
+/* POSIX timers signalling the process */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -79,9 +79,8 @@ main(void)
     struct sigaction  act;
     struct sigevent   ev;
     struct itimerspec its, old;
-    struct timespec   now, ts;
+    struct timespec   now;
     timer_t           timer;
-    int               save_errno;
 
     memset(&act, 0, sizeof(act));
     act.sa_sigaction = handler;
@@ -161,16 +160,6 @@ main(void)
     ev.sigev_notify = SIGEV_SIGNAL;
     ev.sigev_signo = -1;
     check(timer_create(CLOCK_MONOTONIC, &ev, &timer) == -1 && errno == EINVAL, "bad signal");
-
-    /* clock_nanosleep returns errors rather than setting errno */
-    errno = 0;
-    ts.tv_sec = 0;
-    ts.tv_nsec = 1000000000L;
-    save_errno = errno;
-    check(clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL) == EINVAL, "clock_nanosleep bad time");
-    check(errno == save_errno, "clock_nanosleep leaves errno alone");
-    ts.tv_nsec = 1000;
-    check(clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL) == 0, "clock_nanosleep");
 
     printf("success\n");
     return 0;

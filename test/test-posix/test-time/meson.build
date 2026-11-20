@@ -34,18 +34,13 @@
 #
 
 dir_tests = [
-  'test-posix-time',
+  'test-time',
 ]
 
 if has_os_posix
   dir_tests += [
-    'test-clock-nanosleep',
-    'test-timer',
-  ]
-endif
-
-if posix_threads
-  dir_thread_tests += [
-    'test-cpuclock',
+    'test-clock_getcpuclockid',
+    'test-clock_nanosleep',
+    'test-timer_create',
   ]
 endif

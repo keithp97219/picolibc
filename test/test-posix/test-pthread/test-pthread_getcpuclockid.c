@@ -33,16 +33,13 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* clock_getcpuclockid and pthread_getcpuclockid */
-
 #define _DEFAULT_SOURCE
-#include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/wait.h>
 #include <time.h>
-#include <unistd.h>
+
+/* Thread CPU-time clocks advance while the thread runs */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -89,26 +86,6 @@ main(void)
     clockid_t id, self_id;
     long long before;
     pthread_t thread;
-    pid_t     pid;
-    int       status;
-
-    /* The calling process, by 0 and by its pid */
-    check(clock_getcpuclockid(0, &id) == 0, "clock_getcpuclockid(0)");
-    before = ns(id);
-    spin(50000000);
-    check(ns(id) > before, "process CPU time advances");
-    check(clock_getcpuclockid(getpid(), &id) == 0, "clock_getcpuclockid(getpid())");
-    before = ns(id);
-    spin(50000000);
-    check(ns(id) > before, "own pid CPU time advances");
-
-    /* A process that's gone */
-    pid = fork();
-    check(pid >= 0, "fork");
-    if (pid == 0)
-        _exit(0);
-    check(waitpid(pid, &status, 0) == pid, "waitpid");
-    check(clock_getcpuclockid(pid, &id) == ESRCH, "clock_getcpuclockid of a reaped child");
 
     /* Another thread's clock, while it spins */
     check(pthread_create(&thread, NULL, worker, NULL) == 0, "pthread_create");

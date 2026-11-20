@@ -42,6 +42,7 @@ if posix_threads
     'test-pthread-barrier',
     'test-pthread-cancel',
     'test-pthread-cond',
+    'test-pthread_getcpuclockid',
     'test-pthread-exit',
     'test-pthread-exit-thread',
     'test-pthread-mutex',
