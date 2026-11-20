@@ -36,6 +36,9 @@
 #include "local-netdb.h"
 #include <string.h>
 
+#define __GNI_FLAGS                                                                          \
+    (NI_NUMERICHOST | NI_NUMERICSERV | NI_NOFQDN | NI_NAMEREQD | NI_DGRAM | NI_NUMERICSCOPE)
+
 int
 getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __restrict host,
             socklen_t hostlen, char * __restrict serv, socklen_t servlen, int flags)
@@ -44,6 +47,8 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
     int         family, port;
     char        buf[INET6_ADDRSTRLEN];
 
+    if (flags & ~__GNI_FLAGS)
+        return EAI_BADFLAGS;
     if (!sa)
         return EAI_FAMILY;
     family = sa->sa_family;
