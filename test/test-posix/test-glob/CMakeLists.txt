@@ -35,6 +35,7 @@
 
 set(tests
   test-glob
+  test-glob-errfunc
   )
 
 foreach(test IN LISTS tests)

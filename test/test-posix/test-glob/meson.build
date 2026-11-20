@@ -35,4 +35,5 @@
 
 dir_tests = [
   'test-glob',
+  'test-glob-errfunc',
 ]
