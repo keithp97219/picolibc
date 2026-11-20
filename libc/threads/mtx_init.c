@@ -39,7 +39,7 @@ int
 mtx_init(mtx_t *mtx, int type)
 {
     pthread_mutexattr_t attr;
-    int                 ret;
+    int                 ret = 0;
 
     switch (type) {
     case mtx_plain:
@@ -50,13 +50,13 @@ mtx_init(mtx_t *mtx, int type)
     default:
         return thrd_error;
     }
-    ret = pthread_mutexattr_init(&attr);
-    if (ret)
-        return __thrd_result(ret);
+    /* mtx_init reports only thrd_success or thrd_error */
+    if (pthread_mutexattr_init(&attr))
+        return thrd_error;
     if (type & mtx_recursive)
         ret = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
     if (!ret)
         ret = pthread_mutex_init(mtx, &attr);
     pthread_mutexattr_destroy(&attr);
-    return __thrd_result(ret);
+    return ret ? thrd_error : thrd_success;
 }

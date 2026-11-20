@@ -41,7 +41,11 @@
 #include <errno.h>
 #include <pthread.h>
 
-/* Maps a pthread error number to a C11 thread result */
+/*
+ * Maps a pthread error number to a C11 thread result. EAGAIN means a
+ * limit was reached, such as the number of threads or the lock count
+ * of a recursive mutex, so the request could not be honored.
+ */
 static inline int
 __thrd_result(int error)
 {
@@ -53,7 +57,6 @@ __thrd_result(int error)
     case ETIMEDOUT:
         return thrd_timedout;
     case ENOMEM:
-    case EAGAIN:
         return thrd_nomem;
     default:
         return thrd_error;
