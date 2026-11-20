@@ -134,7 +134,7 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
     tls_arg = _pthread_tls_setup(tls, tls_arg_space);
 
     if (attr->__stackaddr)
-        stack_top = (uintptr_t)attr->__stackaddr + attr->__stacksize;
+        stack_top = (uintptr_t)attr->__stackaddr;
     else
         stack_top = (uintptr_t)tls;
     stack_top = round_down(stack_top, 16);

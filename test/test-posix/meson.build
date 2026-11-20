@@ -111,6 +111,7 @@ if posix_threads
     'test-pthread-rwlock',
     'test-pthread-prio',
     'test-pthread-sched',
+    'test-pthread-stackaddr',
     'test-semaphore',
     'test-timer-thread',
   ]

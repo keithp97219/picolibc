@@ -41,7 +41,8 @@ pthread_attr_setstack(pthread_attr_t *attr, void *stackaddr, size_t stacksize)
 {
     if (stacksize < __PTHREAD_STACK_MIN)
         return EINVAL;
-    attr->__stackaddr = stackaddr;
+    /* The attribute holds the top of the stack, as the legacy stackaddr does */
+    attr->__stackaddr = (char *)stackaddr + stacksize;
     attr->__stacksize = stacksize;
     return 0;
 }
