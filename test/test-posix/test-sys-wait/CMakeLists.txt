@@ -34,6 +34,8 @@
 #
 
 set(tests
+  test-wait
+  test-waitpid
   test-waitid
   )
 

@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-mlock',
   'test-mmap',
   'test-shm_open',
 ]

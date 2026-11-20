@@ -35,6 +35,7 @@
 
 dir_tests = [
   'test-kill',
+  'test-killpg',
   'test-psiginfo',
   'test-rtsig',
   'test-sigaction',

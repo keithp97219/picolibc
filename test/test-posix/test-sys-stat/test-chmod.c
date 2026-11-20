@@ -1,0 +1,109 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                                  \
+    || ((defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES) && __PICOLIBC_POSIX_FILE_ATTRIBUTES > 0) \
+        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0))
+
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+
+/* chmod sets a file's permission bits and reports why it can't */
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+int
+main(void)
+{
+    char        dir[] = "chmod-XXXXXX";
+    char        file[64], missing[64], notdir[64];
+    struct stat st;
+    int         fd;
+
+    check(mkdtemp(dir) != NULL, "mkdtemp");
+    snprintf(file, sizeof(file), "%s/file", dir);
+    snprintf(missing, sizeof(missing), "%s/missing", dir);
+    snprintf(notdir, sizeof(notdir), "%s/file/x", dir);
+    fd = open(file, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    check(fd >= 0 && close(fd) == 0, "create");
+
+    check(chmod(file, 0640) == 0, "chmod");
+    check(stat(file, &st) == 0 && (st.st_mode & 07777) == 0640, "mode 0640");
+    check(chmod(file, 0) == 0, "chmod 0");
+    check(stat(file, &st) == 0 && (st.st_mode & 07777) == 0, "mode 0");
+    /* The file type bits are untouched */
+    check(S_ISREG(st.st_mode), "still a regular file");
+    check(chmod(dir, 0755) == 0 && stat(dir, &st) == 0 && S_ISDIR(st.st_mode)
+              && (st.st_mode & 0777) == 0755,
+          "directory");
+
+    errno = 0;
+    check(chmod(missing, 0600) == -1 && errno == ENOENT, "ENOENT");
+    errno = 0;
+    check(chmod("", 0600) == -1 && errno == ENOENT, "empty path");
+    errno = 0;
+    check(chmod(notdir, 0600) == -1 && errno == ENOTDIR, "ENOTDIR");
+
+    check(unlink(file) == 0 && rmdir(dir) == 0, "clean up");
+    printf("success\n");
+    return 0;
+}
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

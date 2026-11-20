@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-mlock
   test-mmap
   test-shm_open
   )

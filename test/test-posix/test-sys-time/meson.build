@@ -34,5 +34,6 @@
 #
 
 dir_tests = [
+  'test-setitimer',
   'test-utimes',
 ]

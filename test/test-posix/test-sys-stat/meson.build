@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-chmod',
   'test-fchmod',
   'test-fchmodat',
   'test-fstatat',
@@ -44,5 +45,6 @@ dir_tests = [
   'test-mknod',
   'test-mknodat',
   'test-stat',
+  'test-umask',
   'test-utimensat',
 ]

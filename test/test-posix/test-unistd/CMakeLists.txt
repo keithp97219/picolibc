@@ -41,6 +41,7 @@ set(tests
   test-confstr
   test-dup3
   test-execle
+  test-execvp
   test-faccessat
   test-fchdir
   test-fchown
@@ -54,6 +55,7 @@ set(tests
   test-getgroups
   test-gethostid
   test-gethostname
+  test-getlogin
   test-getlogin_r
   test-getpgid
   test-getresgid
@@ -65,6 +67,7 @@ set(tests
   test-linkat
   test-lockf
   test-nice
+  test-pathconf
   test-pause
   test-pipe2
   test-posix-options
@@ -84,8 +87,8 @@ set(tests
   test-sync
   test-sysconf
   test-tcsetpgrp
-  test-ttyname_r
   test-truncate
+  test-ttyname_r
   test-unlinkat
   )
 

@@ -34,5 +34,7 @@
 #
 
 dir_tests = [
+  'test-wait',
+  'test-waitpid',
   'test-waitid',
 ]

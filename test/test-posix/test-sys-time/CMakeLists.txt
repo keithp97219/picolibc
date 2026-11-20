@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-setitimer
   test-utimes
   )
 

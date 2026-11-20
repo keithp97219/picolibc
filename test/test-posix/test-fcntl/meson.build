@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-creat',
   'test-fcntl',
   'test-fcntl-locks',
   'test-openat',
