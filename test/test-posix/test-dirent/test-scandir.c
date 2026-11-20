@@ -35,9 +35,11 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <dirent.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #ifndef TEST_FILE_NAME
 #define TEST_FILE_NAME "test-scandir.txt"
@@ -81,6 +83,26 @@ ours(const struct dirent *ent)
     return strncmp(ent->d_name, TEST_FILE_NAME ".", sizeof(TEST_FILE_NAME)) == 0;
 }
 
+#if !defined(__PICOLIBC__)                                                         \
+    || (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)
+static int selected;
+
+static int
+count_all(const struct dirent *ent)
+{
+    (void)ent;
+    selected++;
+    return 0;
+}
+
+static int
+unordered(const struct dirent **a, const struct dirent **b)
+{
+    (void)a;
+    (void)b;
+    return 0;
+}
+#endif
 #endif
 
 int
@@ -126,6 +148,32 @@ main(void)
 
     /* A directory that doesn't exist fails */
     check(scandir(TEST_FILE_NAME ".missing", &list, NULL, NULL) == -1, "missing directory");
+
+#if !defined(__PICOLIBC__)                                                         \
+    || (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)
+    /* With a file system that reports them, the errors */
+    errno = 0;
+    check(scandir(TEST_FILE_NAME ".missing", &list, NULL, NULL) == -1 && errno == ENOENT, "ENOENT");
+    errno = 0;
+    check(scandir("", &list, NULL, NULL) == -1 && errno == ENOENT, "ENOENT for an empty name");
+    errno = 0;
+    check(scandir(names[0], &list, NULL, NULL) == -1 && errno == ENOTDIR, "ENOTDIR");
+
+    /* sel sees every entry, dot and dot-dot too, once */
+    selected = 0;
+    n = scandir(".", &list, count_all, NULL);
+    check(n == 0 && selected >= (int)NFILES + 2, "sel sees every entry");
+    free(list);
+
+    /* compar need not order totally; all the entries still come back */
+    n = scandir(".", &list, ours, unordered);
+    check(n == (int)NFILES, "a comparison that isn't a total order");
+    for (i = 0; i < NFILES; i++)
+        check(ours(list[i]), "only the selected entries");
+    while (n > 0)
+        free(list[--n]);
+    free(list);
+#endif
 
     cleanup();
     printf("success\n");

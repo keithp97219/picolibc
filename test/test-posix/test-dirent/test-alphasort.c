@@ -35,6 +35,7 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <dirent.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,6 +59,10 @@ main(void)
     check(alphasort(&pa, &pb) < 0, "apple before banana");
     check(alphasort(&pb, &pa) > 0, "banana after apple");
     check(alphasort(&pa, &pa) == 0, "equal names");
+
+    /* errno is left alone */
+    errno = EINTR;
+    check(alphasort(&pa, &pb) < 0 && errno == EINTR, "errno unchanged");
 
     printf("success\n");
     return 0;
