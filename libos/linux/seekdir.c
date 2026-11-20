@@ -38,7 +38,12 @@
 void
 seekdir(DIR *dir, long loc)
 {
-    (void)lseek(dir->__dd_fd, loc, SEEK_SET);
+    __int64_t pos = loc;
+
+    /* telldir reports positions that don't fit in long as -2 - index */
+    if (loc < -1 && (unsigned long)(-2 - loc) < dir->__dd_ntell)
+        pos = dir->__dd_tell[-2 - loc];
+    (void)lseek(dir->__dd_fd, pos, SEEK_SET);
     dir->__dd_offset = 0;
     dir->__dd_count = 0;
 }

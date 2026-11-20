@@ -34,8 +34,15 @@
  */
 
 #include "local-dirent.h"
+#include <limits.h>
+#include <stdlib.h>
 
-/* The position of the next entry readdir will return */
+/*
+ * The position of the next entry readdir will return. Where long is
+ * narrower than the kernel's offsets, positions that don't fit are kept
+ * in a table and reported as negative values, which no kernel position
+ * (always non-negative) can be.
+ */
 long
 telldir(DIR *dir)
 {
@@ -54,9 +61,31 @@ telldir(DIR *dir)
         } while (off < dir->__dd_offset);
         pos = k->d_off;
     }
-    if (pos != (long)pos) {
-        errno = EOVERFLOW;
+    if (pos >= 0 && pos == (long)pos)
+        return (long)pos;
+    if (pos < 0)
         return -1;
+#if __SIZEOF_LONG__ < 8
+    {
+        size_t     i;
+        __int64_t *tell;
+
+        for (i = 0; i < dir->__dd_ntell; i++)
+            if (dir->__dd_tell[i] == pos)
+                return -2 - (long)i;
+        if (dir->__dd_ntell >= (size_t)LONG_MAX - 1) {
+            errno = EOVERFLOW;
+            return -1;
+        }
+        tell = realloc(dir->__dd_tell, (dir->__dd_ntell + 1) * sizeof(*tell));
+        if (!tell)
+            return -1;
+        tell[dir->__dd_ntell] = pos;
+        dir->__dd_tell = tell;
+        return -2 - (long)dir->__dd_ntell++;
     }
-    return (long)pos;
+#else
+    errno = EOVERFLOW;
+    return -1;
+#endif
 }

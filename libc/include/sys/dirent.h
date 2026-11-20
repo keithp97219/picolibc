@@ -75,6 +75,8 @@ typedef struct {
     size_t        __dd_offset;
     size_t        __dd_count;
     struct dirent __dd_dirent;
+    __int64_t    *__dd_tell; /* telldir positions that don't fit in long */
+    size_t        __dd_ntell;
     union {
         char       __dd_buf[512];
         __uint64_t __dd_align;
