@@ -159,6 +159,11 @@ struct stat {
 #define S_ISLNK(m)  (((m) & S_IFMT) == S_IFLNK)
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
 
+/* Message queues, semaphores and shared memory objects aren't distinct file types */
+#define S_TYPEISMQ(buf)  ((buf)->st_mode - (buf)->st_mode)
+#define S_TYPEISSEM(buf) ((buf)->st_mode - (buf)->st_mode)
+#define S_TYPEISSHM(buf) ((buf)->st_mode - (buf)->st_mode)
+
 int    chmod(const char *__path, mode_t __mode);
 int    fchmod(int __fd, mode_t __mode);
 int    fstat(int __fd, struct stat *__sbuf);
