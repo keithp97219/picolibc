@@ -39,6 +39,7 @@
 # threads; its tests form a suite named after the directory.
 posix_test_dirs = [
   'test-aio',
+  'test-arpa-inet',
   'test-dirent',
   'test-fcntl',
   'test-fnmatch',
@@ -47,6 +48,8 @@ posix_test_dirs = [
   'test-integration',
   'test-libintl',
   'test-mqueue',
+  'test-net-if',
+  'test-netdb',
   'test-nl_types',
   'test-poll',
   'test-pthread',
@@ -61,8 +64,10 @@ posix_test_dirs = [
   'test-sys-mman',
   'test-sys-resource',
   'test-sys-select',
+  'test-sys-socket',
   'test-sys-stat',
   'test-sys-statvfs',
+  'test-sys-uio',
   'test-sys-utsname',
   'test-sys-wait',
   'test-termios',

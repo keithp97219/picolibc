@@ -36,6 +36,7 @@ picolibc_sources(
   collcmp.c
   )
 
+add_subdirectory(arpa-inet)
 add_subdirectory(dirent)
 add_subdirectory(fcntl)
 add_subdirectory(fnmatch)

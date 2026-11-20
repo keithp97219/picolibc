@@ -76,6 +76,7 @@ picolibc_headers(sys
   tree.h
   _types.h
   types.h
+  uio.h
   unistd.h
   utime.h
   utsname.h

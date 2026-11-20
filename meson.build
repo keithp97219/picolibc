@@ -1598,6 +1598,17 @@ else
 endif
 conf_data.set('__THREAD_LOCAL_STORAGE', thread_local_storage, description: 'use thread local storage')
 conf_data.set('__PICOLIBC_PTHREADS', posix_threads, description: 'POSIX threads are available')
+
+# The networking API and ABI, which come from the OS layer or network stack
+network = get_option('network')
+network_linux_possible = get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
+if network == 'auto'
+  network = network_linux_possible ? 'linux' : 'none'
+elif network == 'linux' and not network_linux_possible
+  error('network=linux requires the linux OS layer')
+endif
+conf_data.set('__PICOLIBC_NETWORK', network != 'none', description: 'Networking interfaces are available')
+conf_data.set('__PICOLIBC_NETWORK_LINUX', network == 'linux', description: 'Networking uses the Linux API and ABI')
 conf_data.set('__THREAD_LOCAL_STORAGE_API', thread_local_storage and have_picolibc_tls_api, description: '_set_tls and _init_tls functions available')
 conf_data.set('__THREAD_LOCAL_STORAGE_RP2040', get_option('tls-rp2040'),
               description: 'Use Raspberry Pi RP2040 CPUID register to index thread local storage value')

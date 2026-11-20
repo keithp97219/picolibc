@@ -1,0 +1,73 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#include "local-netdb.h"
+
+/* Used when /etc/hosts can't be read */
+const char * const __hosts_builtin[] = {
+    "127.0.0.1 localhost",
+    "::1 localhost ip6-localhost ip6-loopback",
+    NULL,
+};
+
+struct __netdb_db __hosts_db = { .path = "/etc/hosts", .builtin = __hosts_builtin };
+
+/* "address name aliases..." */
+struct hostent *
+__hosts_entry(struct __netdb_db *db, int n)
+{
+    static struct hostent h;
+    static union {
+        struct in_addr  in;
+        struct in6_addr in6;
+    } addr;
+    static char *addrs[2] = { (char *)&addr, NULL };
+
+    if (n < 2)
+        return NULL;
+    if (inet_pton(AF_INET, db->fields[0], &addr.in) == 1) {
+        h.h_addrtype = AF_INET;
+        h.h_length = sizeof(addr.in);
+    } else if (inet_pton(AF_INET6, db->fields[0], &addr.in6) == 1) {
+        h.h_addrtype = AF_INET6;
+        h.h_length = sizeof(addr.in6);
+    } else {
+        return NULL;
+    }
+    h.h_name = db->fields[1];
+    h.h_aliases = &db->fields[2];
+    h.h_addr_list = addrs;
+    return &h;
+}

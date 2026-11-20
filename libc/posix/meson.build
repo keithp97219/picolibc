@@ -39,6 +39,7 @@ srcs_posix = [
 # One directory for each header, holding the functions it declares
 posix_dirs = [
   'aio',
+  'arpa-inet',
   'dirent',
   'fcntl',
   'fnmatch',
@@ -46,6 +47,8 @@ posix_dirs = [
   'grp',
   'libgen',
   'monetary',
+  'netdb',
+  'netinet-in',
   'pwd',
   'regex',
   'spawn',

@@ -76,6 +76,7 @@ inc_sys_headers_all = [
   'tree.h',
   '_types.h',
   'types.h',
+  'uio.h',
   'unistd.h',
   'utime.h',
   'utsname.h',
@@ -85,6 +86,10 @@ inc_sys_headers_all = [
 
 if posix_threads
   inc_sys_headers_all += ['_pthreadtypes.h']
+endif
+
+if network != 'none'
+  inc_sys_headers_all += ['socket.h', 'un.h']
 endif
 
 inc_sys_headers = []

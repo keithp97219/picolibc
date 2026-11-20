@@ -51,8 +51,11 @@ if fs.is_dir(machine_dir)
 
   srcs_os_linux = [
     '_Fork.c',
+    'accept.c',
+    'accept4.c',
     'access.c',
     'alarm.c',
+    'bind.c',
     'cfgetispeed.c',
     'cfgetospeed.c',
     'cfsetispeed.c',
@@ -68,6 +71,7 @@ if fs.is_dir(machine_dir)
     'clock_settime.c',
     'close.c',
     'closedir.c',
+    'connect.c',
     'dup.c',
     'dup2.c',
     'dup3.c',
@@ -99,16 +103,23 @@ if fs.is_dir(machine_dir)
     'getgroups.c',
     'gethostname.c',
     'getitimer.c',
+    'getpeername.c',
     'getpgid.c',
     'getpgrp.c',
     'getpid.c',
     'getppid.c',
     'getrlimit.c',
     'getsid.c',
+    'getsockname.c',
+    'getsockopt.c',
     'gettimeofday.c',
     'getuid.c',
     'getwd.c',
     'grantpt.c',
+    'if_freenameindex.c',
+    'if_indextoname.c',
+    'if_nameindex.c',
+    'if_nametoindex.c',
     'iob_stderr.c',
     'iob_stdin.c',
     'iob_stdout.c',
@@ -119,6 +130,7 @@ if fs.is_dir(machine_dir)
     'lchown.c',
     'link.c',
     'linkat.c',
+    'listen.c',
     'lseek.c',
     'lstat.c',
     'madvise.c',
@@ -173,6 +185,10 @@ if fs.is_dir(machine_dir)
     'readdir.c',
     'readlink.c',
     'readlinkat.c',
+    'readv.c',
+    'recv.c',
+    'recvfrom.c',
+    'recvmsg.c',
     'rename.c',
     'renameat.c',
     'rewinddir.c',
@@ -187,6 +203,9 @@ if fs.is_dir(machine_dir)
     'sched_setscheduler.c',
     'select.c',
     'sched_yield.c',
+    'send.c',
+    'sendmsg.c',
+    'sendto.c',
     'setegid.c',
     'setgid.c',
     'setgroups.c',
@@ -195,9 +214,11 @@ if fs.is_dir(machine_dir)
     'setpgid.c',
     'setrlimit.c',
     'setsid.c',
+    'setsockopt.c',
     'setuid.c',
     'shm_open.c',
     'shm_unlink.c',
+    'shutdown.c',
     'sigaction.c',
     'signal.c',
     'sigqueue.c',
@@ -214,6 +235,9 @@ if fs.is_dir(machine_dir)
     '_sigtimedwait.c',
     'sigwait.c',
     'sigwaitinfo.c',
+    'sockatmark.c',
+    'socket.c',
+    'socketpair.c',
     'stat.c',
     '_statbuf.c',
     'statvfs.c',
@@ -254,6 +278,7 @@ if fs.is_dir(machine_dir)
     'waitid.c',
     'waitpid.c',
     'write.c',
+    'writev.c',
   ]
 
   if posix_threads
@@ -421,6 +446,15 @@ if fs.is_dir(machine_dir)
   if really_install
     install_headers('include/sys/_posix.h',
                     install_dir: include_dir / 'sys')
+    # The socket ABI for picolibc's networking headers
+    if network == 'linux'
+      install_headers(['include/sys/_socket.h', 'include/sys/_un.h'],
+                      install_dir: include_dir / 'sys')
+      install_headers(['include/netinet/_in.h', 'include/netinet/_tcp.h'],
+                      install_dir: include_dir / 'netinet')
+      install_headers('include/net/_if.h',
+                      install_dir: include_dir / 'net')
+    endif
   endif
 
   foreach params : targets

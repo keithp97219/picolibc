@@ -37,6 +37,10 @@ subdir('machine')
 subdir('ssp')
 subdir('rpc')
 subdir('arpa')
+if network != 'none'
+  subdir('net')
+  subdir('netinet')
+endif
 
 inc_headers = [
   'alloca.h',
@@ -120,6 +124,10 @@ endif
 
 if enable_libdl
   inc_headers += ['dlfcn.h']
+endif
+
+if network != 'none'
+  inc_headers += ['netdb.h']
 endif
 
 if really_install

@@ -86,7 +86,7 @@
 #define _POSIX_THREAD_PROCESS_SHARED        202405L
 #endif
 
-/* Option groups; POSIX_DYNAMIC_LINKING and POSIX_NETWORKING are missing */
+/* Option groups; POSIX_DYNAMIC_LINKING is missing */
 #define __PICOLIBC_POSIX_C_LIB_EXT          202405L
 #define __PICOLIBC_POSIX_DEVICE_IO          202405L
 #define __PICOLIBC_POSIX_DEVICE_SPECIFIC    202405L
@@ -107,6 +107,13 @@
 #define __PICOLIBC_POSIX_SYMBOLIC_LINKS     202405L
 #define __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD  202405L
 #define __PICOLIBC_POSIX_USER_GROUPS        202405L
+
+/* Sockets, with picolibc built for the Linux network interfaces */
+#ifdef __PICOLIBC_NETWORK_LINUX
+#define _POSIX_IPV6                         202405L
+#define _POSIX_RAW_SOCKETS                  202405L
+#define __PICOLIBC_POSIX_NETWORKING         202405L
+#endif
 
 /* clang-format on */
 
