@@ -37,6 +37,7 @@ set(tests
   test-accept4
   test-bind
   test-connect
+  test-listen
   test-send
   test-sendmsg
   test-sendto

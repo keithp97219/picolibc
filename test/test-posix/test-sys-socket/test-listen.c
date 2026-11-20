@@ -1,0 +1,261 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                       \
+    || (defined(__PICOLIBC_POSIX_NETWORKING) && __PICOLIBC_POSIX_NETWORKING > 0)
+
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+
+/* listen marks sockets as accepting connections */
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+/* Skips the test when the system has no sockets of this family */
+static int
+make_socket(int family, int type)
+{
+    int fd = socket(family, type, 0);
+
+    if (fd < 0 && (errno == EAFNOSUPPORT || errno == EACCES || errno == EPERM)) {
+        printf("no sockets of family %d, skipping\n", family);
+        exit(77);
+    }
+    check(fd >= 0, "socket");
+    return fd;
+}
+
+/* A loopback IPv4 socket address with port 0 */
+static struct sockaddr_in
+loopback(void)
+{
+    struct sockaddr_in sin;
+
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    return sin;
+}
+
+/* A connected pair of TCP sockets over the loopback interface */
+static void
+tcp_pair(int *client, int *server)
+{
+    struct sockaddr_in sin = loopback();
+    socklen_t          len = sizeof(sin);
+    int                listener = make_socket(AF_INET, SOCK_STREAM);
+
+    check(bind(listener, (struct sockaddr *)&sin, sizeof(sin)) == 0, "bind");
+    check(listen(listener, 1) == 0, "listen");
+    check(getsockname(listener, (struct sockaddr *)&sin, &len) == 0, "getsockname");
+    *client = make_socket(AF_INET, SOCK_STREAM);
+    check(connect(*client, (struct sockaddr *)&sin, sizeof(sin)) == 0, "connect");
+    *server = accept(listener, NULL, NULL);
+    check(*server >= 0, "accept");
+    check(close(listener) == 0, "close listener");
+}
+
+/* A fresh directory for the AF_UNIX names */
+static char dir[] = "/tmp/test-listen-XXXXXX";
+
+static struct sockaddr_un
+local_name(const char *name)
+{
+    struct sockaddr_un sun;
+
+    memset(&sun, 0, sizeof(sun));
+    sun.sun_family = AF_UNIX;
+    snprintf(sun.sun_path, sizeof(sun.sun_path), "%s/%s", dir, name);
+    return sun;
+}
+
+#define MAX_QUEUE 32
+
+/* How many non-blocking connections the queue takes, up to MAX_QUEUE */
+static int
+queue_length(const char *name, int backlog)
+{
+    struct sockaddr_un sun = local_name(name);
+    int                listener = make_socket(AF_UNIX, SOCK_STREAM), clients[MAX_QUEUE], n, i;
+
+    check(bind(listener, (struct sockaddr *)&sun, sizeof(sun)) == 0, "bind");
+    check(listen(listener, backlog) == 0, "listen");
+    for (n = 0; n < MAX_QUEUE; n++) {
+        clients[n] = make_socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK);
+        if (connect(clients[n], (struct sockaddr *)&sun, sizeof(sun)) != 0) {
+            check(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINPROGRESS, "queue full");
+            check(close(clients[n]) == 0, "close");
+            break;
+        }
+    }
+    for (i = 0; i < n; i++)
+        check(close(clients[i]) == 0, "close");
+    check(close(listener) == 0 && unlink(sun.sun_path) == 0, "close listener");
+    return n;
+}
+
+static int
+accepting(int fd)
+{
+    int       value = -1;
+    socklen_t len = sizeof(value);
+
+    check(getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &value, &len) == 0, "SO_ACCEPTCONN");
+    return value;
+}
+
+int
+main(void)
+{
+    struct sockaddr_in sin = loopback();
+    struct sockaddr_un sun;
+    struct pollfd      pfd;
+    fd_set             rset;
+    struct timeval     tv = { 0, 0 };
+    socklen_t          len = sizeof(sin);
+    int                listener, client, server, fds[2], fd;
+
+    listener = make_socket(AF_INET, SOCK_STREAM);
+    check(bind(listener, (struct sockaddr *)&sin, sizeof(sin)) == 0, "bind");
+    check(accepting(listener) == 0, "not accepting yet");
+    check(listen(listener, SOMAXCONN) == 0, "listen with SOMAXCONN");
+    check(accepting(listener) != 0, "accepting");
+    check(getsockname(listener, (struct sockaddr *)&sin, &len) == 0, "getsockname");
+    /* Not readable until a connection is waiting */
+    pfd.fd = listener;
+    pfd.events = POLLIN;
+    check(poll(&pfd, 1, 0) == 0, "nothing waiting");
+    client = make_socket(AF_INET, SOCK_STREAM);
+    check(connect(client, (struct sockaddr *)&sin, sizeof(sin)) == 0, "connect");
+    check(poll(&pfd, 1, -1) == 1 && (pfd.revents & POLLIN), "poll: a connection is waiting");
+    FD_ZERO(&rset);
+    FD_SET(listener, &rset);
+    check(select(listener + 1, &rset, NULL, NULL, &tv) == 1 && FD_ISSET(listener, &rset),
+          "select: a connection is waiting");
+    server = accept(listener, NULL, NULL);
+    check(server >= 0, "accept");
+    /* A connected socket can't listen */
+    errno = 0;
+    check(listen(client, 1) == -1 && errno == EINVAL, "connected");
+    errno = 0;
+    check(listen(server, 1) == -1 && errno == EINVAL, "accepted");
+    check(close(server) == 0 && close(client) == 0 && close(listener) == 0, "close");
+
+    /* TCP picks an address for an unbound socket */
+    listener = make_socket(AF_INET, SOCK_STREAM);
+    check(listen(listener, 0) == 0, "listen unbound");
+    len = sizeof(sin);
+    check(getsockname(listener, (struct sockaddr *)&sin, &len) == 0 && sin.sin_port != 0,
+          "bound by listen");
+    check(close(listener) == 0, "close");
+
+    /* Datagram sockets don't listen */
+    fd = make_socket(AF_INET, SOCK_DGRAM);
+    errno = 0;
+    check(listen(fd, 1) == -1 && errno == EOPNOTSUPP, "UDP");
+    check(close(fd) == 0, "close");
+    fd = make_socket(AF_UNIX, SOCK_DGRAM);
+    errno = 0;
+    check(listen(fd, 1) == -1 && errno == EOPNOTSUPP, "AF_UNIX datagrams");
+    check(close(fd) == 0, "close");
+    check(pipe(fds) == 0, "pipe");
+    errno = 0;
+    check(listen(fds[0], 1) == -1 && errno == ENOTSOCK, "ENOTSOCK");
+    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
+    errno = 0;
+    check(listen(-1, 1) == -1 && errno == EBADF, "EBADF");
+
+    check(mkdtemp(dir) != NULL, "mkdtemp");
+    /* AF_UNIX sockets need a name; glibc passes on Linux's EINVAL */
+#ifndef __GLIBC__
+    fd = make_socket(AF_UNIX, SOCK_STREAM);
+    errno = 0;
+    check(listen(fd, 1) == -1 && errno == EDESTADDRREQ, "EDESTADDRREQ");
+    check(close(fd) == 0, "close");
+#endif
+    /* A socket pair is connected but has no names */
+    check(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0, "socketpair");
+    errno = 0;
+    check(listen(fds[0], 1) == -1 && errno == EINVAL, "connected pair");
+    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
+    /* Once named, it listens */
+    fd = make_socket(AF_UNIX, SOCK_STREAM);
+    sun = local_name("named");
+    check(bind(fd, (struct sockaddr *)&sun, sizeof(sun)) == 0 && listen(fd, 1) == 0, "named");
+    check(close(fd) == 0 && unlink(sun.sun_path) == 0, "close");
+
+    /* A negative backlog is a backlog of 0; glibc passes it on to Linux, which uses SOMAXCONN */
+#ifndef __GLIBC__
+    check(queue_length("negative", -1) == queue_length("zero", 0), "negative backlog");
+#endif
+    check(queue_length("one", 1) >= 1, "backlog of 1");
+    check(rmdir(dir) == 0, "clean up");
+    (void)tcp_pair;
+    printf("success\n");
+    return 0;
+}
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif
