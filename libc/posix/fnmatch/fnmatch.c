@@ -192,6 +192,8 @@ rangematch(const char *pattern, char test, int flags, char **newp)
 {
     int  negate, ok;
     char c, c2;
+    char tests[3];
+    int  ntests = 1, t;
 
     /*
      * A bracket expression starting with an unquoted circumflex
@@ -203,8 +205,15 @@ rangematch(const char *pattern, char test, int flags, char **newp)
     if ((negate = (*pattern == '!' || *pattern == '^')))
         ++pattern;
 
-    if (flags & FNM_CASEFOLD)
-        test = tolower((unsigned char)test);
+    /*
+     * Ignoring case, the character matches when either of its cases
+     * would (XBD 4.1)
+     */
+    tests[0] = test;
+    if (flags & FNM_CASEFOLD) {
+        tests[ntests++] = (char)tolower((unsigned char)test);
+        tests[ntests++] = (char)toupper((unsigned char)test);
+    }
 
     /*
      * A right bracket shall lose its special meaning and represent
@@ -264,8 +273,9 @@ rangematch(const char *pattern, char test, int flags, char **newp)
                 for (class = 0; class < NUM_CLASSES; class++) {
                     if (name_len == strlen(classes[class].name)
                         && strncmp(&pattern[1], classes[class].name, name_len) == 0) {
-                        if (classes[class].func(test))
-                            ok = 1;
+                        for (t = 0; t < ntests; t++)
+                            if (classes[class].func((unsigned char)tests[t]))
+                                ok = 1;
                         break;
                     }
                 }
@@ -276,9 +286,6 @@ rangematch(const char *pattern, char test, int flags, char **newp)
             }
         }
 
-        if (flags & FNM_CASEFOLD)
-            c = tolower((unsigned char)c);
-
         if (*pattern == '-' && (c2 = *(pattern + 1)) != EOS && c2 != ']') {
             pattern += 2;
             if (c2 == '\\' && !(flags & FNM_NOESCAPE))
@@ -286,19 +293,20 @@ rangematch(const char *pattern, char test, int flags, char **newp)
             if (c2 == EOS)
                 return (RANGE_ERROR);
 
-            if (flags & FNM_CASEFOLD)
-                c2 = tolower((unsigned char)c2);
-
-            if (
+            for (t = 0; t < ntests; t++)
+                if (
 #ifdef __HAVE_REAL_STRCOLL
-                __collate_range_cmp(c, test) <= 0 && __collate_range_cmp(test, c2) <= 0
+                    __collate_range_cmp(c, tests[t]) <= 0 && __collate_range_cmp(tests[t], c2) <= 0
 #else
-                c <= test && test <= c2
+                    c <= tests[t] && tests[t] <= c2
 #endif
-            )
-                ok = 1;
-        } else if (c == test)
-            ok = 1;
+                )
+                    ok = 1;
+        } else {
+            for (t = 0; t < ntests; t++)
+                if (c == tests[t])
+                    ok = 1;
+        }
     } while ((c = *pattern++) != ']');
 
     *newp = (char *)pattern;
