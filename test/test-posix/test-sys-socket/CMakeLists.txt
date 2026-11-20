@@ -41,6 +41,7 @@ set(tests
   test-listen
   test-recv
   test-recvfrom
+  test-recvmsg
   test-send
   test-sendmsg
   test-sendto
