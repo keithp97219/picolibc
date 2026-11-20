@@ -38,6 +38,7 @@ set(tests
   test-fcntl
   test-fcntl_h
   test-fcntl-locks
+  test-fcntl-setlkw
   test-fcntl-setown
   test-open
   test-openat
