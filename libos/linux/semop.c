@@ -35,6 +35,7 @@
 
 #include "local-ipc.h"
 #include "local-cancel.h"
+#include <limits.h>
 #include <sys/sem.h>
 
 /* struct sembuf matches the kernel's */
@@ -42,10 +43,20 @@ int
 semop(int id, struct sembuf *ops, size_t nops)
 {
     void *cancel = _cancel_enter();
+    long  ret;
+
+#if __SIZEOF_SIZE_T__ > __SIZEOF_INT__
+    /* The kernel's count is an unsigned int; don't let a larger one wrap */
+    if (nops > UINT_MAX) {
+        _cancel_leave(cancel);
+        errno = E2BIG;
+        return -1;
+    }
+#endif
 #ifdef LINUX_SYS_semop
-    long ret = _syscall(LINUX_SYS_semop, id, ops, nops);
+    ret = _syscall(LINUX_SYS_semop, id, ops, nops);
 #else
-    long ret = _syscall(LINUX_SYS_semtimedop_time64, id, ops, nops, NULL);
+    ret = _syscall(LINUX_SYS_semtimedop_time64, id, ops, nops, NULL);
 #endif
 
     _cancel_leave(cancel);
