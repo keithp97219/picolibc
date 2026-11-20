@@ -61,6 +61,9 @@ _shm_path(char *path, const char *prefix, const char *name)
     name_len = strlen(name);
     if (name_len == 0 || strchr(name, '/') != NULL)
         return EINVAL;
+    /* "." and ".." would name /dev/shm and /dev themselves */
+    if (prefix_len == 0 && name[0] == '.' && (name_len == 1 || (name_len == 2 && name[1] == '.')))
+        return EINVAL;
     if (prefix_len + name_len > NAME_MAX)
         return ENAMETOOLONG;
     memcpy(path, _SHM_DIR, sizeof(_SHM_DIR) - 1);
