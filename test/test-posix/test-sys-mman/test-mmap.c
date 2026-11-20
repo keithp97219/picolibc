@@ -33,6 +33,7 @@ OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#define _POSIX_C_SOURCE 202405L
 /*
  * test-mmap.c — tests for mmap, munmap, mprotect, msync, and posix_madvise.
  *
@@ -51,7 +52,6 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *      (only when TESTS_ENABLE_POSIX_IO is defined)
  */
 
-#define _DEFAULT_SOURCE
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */

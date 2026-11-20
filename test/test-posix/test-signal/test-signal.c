@@ -33,7 +33,16 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _GNU_SOURCE
+#define _POSIX_C_SOURCE 202405L
+/*
+ * Whether delivery resets a handler installed with signal() is
+ * implementation-defined. This test expects BSD semantics, where it
+ * stays installed, as picolibc provides; glibc does that only with
+ * _DEFAULT_SOURCE. Build for BSD signal semantics with other libraries.
+ */
+#ifdef TEST_GLIBC
+#define _DEFAULT_SOURCE
+#endif
 #include <signal.h>
 #include <assert.h>
 #include <unistd.h>

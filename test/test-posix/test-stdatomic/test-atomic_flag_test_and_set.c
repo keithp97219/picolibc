@@ -33,6 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _POSIX_C_SOURCE 202405L
 /*
  * Call the <stdatomic.h> operations that C11 also defines as
  * functions, through their function names rather than the macros.

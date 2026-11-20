@@ -33,12 +33,13 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/* wait3 is an extension POSIX no longer has */
+#define _DEFAULT_SOURCE
 /*
  * Times beyond 32 bits must reach the kernel intact on 32-bit
  * architectures, and kernel structures must be converted, not copied.
  */
 
-#define _DEFAULT_SOURCE
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */

@@ -33,7 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
+#define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
@@ -72,7 +72,7 @@ main(void)
 
     signal(SIGALRM, handle_alarm);
 
-    setlinebuf(stdout);
+    setvbuf(stdout, NULL, _IOLBF, 0);
 
     prev = alarm(1);
     if (prev != 0) {

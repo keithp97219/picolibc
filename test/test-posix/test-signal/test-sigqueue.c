@@ -33,7 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
+#define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
@@ -96,7 +96,7 @@ main(void)
     check(info.si_pid == getpid(), "queued signal sender");
     check(sigqueue(getpid(), 0, value) == 0, "sigqueue with no signal");
     errno = 0;
-    check(sigqueue(getpid(), NSIG + 1, value) == -1 && errno == EINVAL, "sigqueue bad signal");
+    check(sigqueue(getpid(), SIGRTMAX + 1, value) == -1 && errno == EINVAL, "sigqueue bad signal");
     errno = 0;
     check(sigqueue(getpid(), -1, value) == -1 && errno == EINVAL, "sigqueue negative signal");
 

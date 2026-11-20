@@ -33,6 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/* fgetpwent_r is a GNU extension */
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <pwd.h>

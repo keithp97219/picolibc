@@ -34,7 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#define _DEFAULT_SOURCE /* glibc only has realpath for XSI or the default */
+/* glibc declares realpath only with _GNU_SOURCE */
+#ifdef TEST_GLIBC
+#define _GNU_SOURCE
+#endif
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */

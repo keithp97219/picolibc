@@ -33,6 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _POSIX_C_SOURCE 202405L
+/* mknod is an XSI interface */
 #define _XOPEN_SOURCE 800
 #include <sys/stat.h>
 #include <stdio.h>

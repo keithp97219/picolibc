@@ -35,7 +35,7 @@
 
 #define _POSIX_C_SOURCE 202405L
 /* strfmon is an XSI interface */
-#define _XOPEN_SOURCE 700
+#define _XOPEN_SOURCE 800
 #include <unistd.h>
 
 #include <errno.h>

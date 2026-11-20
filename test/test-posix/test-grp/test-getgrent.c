@@ -33,6 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/* fgetgrent_r is a GNU extension */
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <grp.h>

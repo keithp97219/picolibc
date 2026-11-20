@@ -33,7 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _GNU_SOURCE /* for CLOCK_MONOTONIC until it is visible for POSIX.1-2008 */
+#define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */

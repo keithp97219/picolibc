@@ -32,8 +32,9 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/* glibc declares the pseudo-terminal functions only for XSI or _GNU_SOURCE */
-#define _GNU_SOURCE
+#define _POSIX_C_SOURCE 202405L
+/* posix_openpt, grantpt, unlockpt and ptsname are XSI interfaces */
+#define _XOPEN_SOURCE 800
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */

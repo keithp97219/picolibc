@@ -33,7 +33,11 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _POSIX_C_SOURCE 202405L
+/* glibc declares dup3 only with _GNU_SOURCE */
+#ifdef TEST_GLIBC
 #define _GNU_SOURCE
+#endif
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */

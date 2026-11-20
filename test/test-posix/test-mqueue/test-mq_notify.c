@@ -33,9 +33,9 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _POSIX_C_SOURCE 202405L
 /* POSIX message queues */
 
-#define _DEFAULT_SOURCE
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */

@@ -33,7 +33,9 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _XOPEN_SOURCE 700 /* pthread_getconcurrency and pthread_setconcurrency are XSI */
+#define _POSIX_C_SOURCE 202405L
+/* pthread_getconcurrency and pthread_setconcurrency are XSI interfaces */
+#define _XOPEN_SOURCE 800
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */

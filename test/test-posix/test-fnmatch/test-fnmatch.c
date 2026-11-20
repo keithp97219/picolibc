@@ -33,6 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _POSIX_C_SOURCE 202405L
 #include <fnmatch.h>
 #include <locale.h>
 #include <stddef.h>

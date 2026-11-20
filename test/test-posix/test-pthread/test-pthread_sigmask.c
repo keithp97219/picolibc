@@ -33,7 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
+#define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
@@ -45,6 +45,7 @@
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 
 /* Per-thread signal masks and pthread_kill */
@@ -91,10 +92,15 @@ wait_signal(void *arg)
 int
 main(void)
 {
-    sigset_t set, old;
-    void    *result;
+    struct sigaction act;
+    sigset_t         set, old;
+    void            *result;
 
-    check(signal(SIGUSR1, handler) != SIG_ERR, "signal");
+    /* sigaction keeps the handler installed, where signal may reset it on delivery */
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = handler;
+    sigemptyset(&act.sa_mask);
+    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
 
     /* Block SIGUSR1 and SIGUSR2 in the main thread */
     sigemptyset(&set);
@@ -115,7 +121,7 @@ main(void)
     check(caught, "signal caught");
     check(pthread_equal(caught_by, target), "signal caught by target thread");
 
-    check(pthread_kill(pthread_self(), NSIG + 1) == EINVAL, "bad signal");
+    check(pthread_kill(pthread_self(), SIGRTMAX + 1) == EINVAL, "bad signal");
 
     /* A signal sent to the main thread waits until it is unblocked */
     caught = 0;

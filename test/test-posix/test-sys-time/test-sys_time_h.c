@@ -33,7 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _XOPEN_SOURCE 800
+#define _POSIX_C_SOURCE 202405L
 #include <sys/time.h>
 #include <unistd.h>
 

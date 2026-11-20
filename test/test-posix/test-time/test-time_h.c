@@ -33,6 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _POSIX_C_SOURCE 202405L
+/* daylight, timezone, strptime, getdate and getdate_err are XSI interfaces */
 #define _XOPEN_SOURCE 800
 #include <time.h>
 #include <unistd.h>

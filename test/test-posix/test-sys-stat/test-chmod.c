@@ -33,6 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _POSIX_C_SOURCE 202405L
+/* S_ISVTX is an XSI symbol */
 #define _XOPEN_SOURCE 800
 #include <unistd.h>
 

@@ -35,7 +35,7 @@
 
 #define _POSIX_C_SOURCE 202405L
 /* initstate and setstate are XSI interfaces */
-#define _XOPEN_SOURCE 700
+#define _XOPEN_SOURCE 800
 #include <stdio.h>
 #include <stdlib.h>
 

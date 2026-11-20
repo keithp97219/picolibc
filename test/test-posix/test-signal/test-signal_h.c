@@ -33,6 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _POSIX_C_SOURCE 202405L
+/* TRAP_BRKPT, TRAP_TRACE and killpg are XSI interfaces */
 #define _XOPEN_SOURCE 800
 #include <signal.h>
 

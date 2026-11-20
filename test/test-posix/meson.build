@@ -195,6 +195,13 @@ endforeach
 
 if enable_native_tests
 
+  # Tell the tests when they're built against glibc, which some need to
+  # treat specially
+  native_glibc_args = []
+  if cc.get_define('__GLIBC__', prefix: '#include <stdio.h>', args: native_c_args) != ''
+    native_glibc_args = ['-DTEST_GLIBC']
+  endif
+
   foreach entry : posix_tests
     t1_dir = entry[0]
     t1 = entry[1]
@@ -208,7 +215,7 @@ if enable_native_tests
     test(t1_name,
 	 executable(t1_name, t1_src,
 		    name_suffix: 'elf',
-		    c_args: native_c_args + test_file_name_arg + ctype_c_args + args_test_posix,
+		    c_args: native_c_args + test_file_name_arg + ctype_c_args + args_test_posix + native_glibc_args,
 		    link_args: native_c_args,
                     dependencies: [native_lib_m, native_thread_dep]),
          suite: [t1_dir, 'test-linux'],

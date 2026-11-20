@@ -35,7 +35,7 @@
 
 #define _POSIX_C_SOURCE 202405L
 /* killpg is an XSI interface */
-#define _XOPEN_SOURCE 700
+#define _XOPEN_SOURCE 800
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */

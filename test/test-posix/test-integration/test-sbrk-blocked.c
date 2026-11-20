@@ -33,6 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/* sbrk is a legacy interface POSIX no longer has */
 #define _DEFAULT_SOURCE
 #include <unistd.h>
 

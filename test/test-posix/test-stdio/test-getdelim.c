@@ -33,7 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
+#define _POSIX_C_SOURCE 202405L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
