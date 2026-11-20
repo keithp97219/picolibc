@@ -39,6 +39,7 @@ set(tests
   test-mq_open
   test-mq_receive
   test-mq_send
+  test-mq_setattr
   test-mq_timedreceive
   test-mq_timedsend
   test-mq_unlink
