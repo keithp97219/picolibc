@@ -39,7 +39,8 @@
 int
 posix_openpt(int flags)
 {
-    if (flags & ~(O_ACCMODE | O_NOCTTY | O_CLOEXEC)) {
+    /* O_ACCMODE also covers O_EXEC and O_SEARCH, which would give an O_PATH descriptor */
+    if (flags & ~(O_RDONLY | O_WRONLY | O_RDWR | O_NOCTTY | O_CLOEXEC)) {
         errno = EINVAL;
         return -1;
     }
