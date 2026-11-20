@@ -35,6 +35,8 @@
 
 set(tests
   test-mq_notify
+  test-mq_timedreceive
+  test-mq_timedsend
   )
 
 foreach(test IN LISTS tests)

@@ -35,4 +35,6 @@
 
 dir_tests = [
   'test-mq_notify',
+  'test-mq_timedreceive',
+  'test-mq_timedsend',
 ]
