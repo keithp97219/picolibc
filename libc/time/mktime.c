@@ -343,6 +343,7 @@ mktime(struct tm *tim_p)
         offset = (time_t)__tzinfo.rule[1].offset;
     else /* otherwise assume std time */
         offset = (time_t)__tzinfo.rule[0].offset;
+    const char *zone = tzname[isdst == 1];
 
     __LIBC_UNLOCK();
 
@@ -355,6 +356,8 @@ mktime(struct tm *tim_p)
 
     /* reset isdst flag to what we have calculated */
     tim_p->tm_isdst = isdst;
+    tim_p->tm_gmtoff = -offset;
+    tim_p->tm_zone = zone;
 
     set_tm_wday(days, tim_p);
 
@@ -372,6 +375,8 @@ timegm(struct tm *tim_p)
 
     /* The time is always UTC, so there is no daylight saving time. */
     tim_p->tm_isdst = 0;
+    tim_p->tm_gmtoff = 0;
+    tim_p->tm_zone = "UTC";
 
     set_tm_wday(days, tim_p);
 

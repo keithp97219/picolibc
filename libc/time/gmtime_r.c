@@ -121,6 +121,8 @@ gmtime_r(const time_t * __restrict tim_p, struct tm * __restrict res)
     res->tm_mday = day;
 
     res->tm_isdst = 0;
+    res->tm_gmtoff = 0;
+    res->tm_zone = "UTC";
 
     return (res);
 }

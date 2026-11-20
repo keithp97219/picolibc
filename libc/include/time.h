@@ -79,6 +79,14 @@ struct tm {
     int tm_wday;
     int tm_yday;
     int tm_isdst;
+    /* POSIX.1-2024 members; reserved names elsewhere */
+#if __POSIX_VISIBLE || __MISC_VISIBLE
+    long        tm_gmtoff; /* Seconds east of UTC */
+    const char *tm_zone;   /* Timezone abbreviation */
+#else
+    long        __tm_gmtoff;
+    const char *__tm_zone;
+#endif
 };
 
 #if __POSIX_VISIBLE
