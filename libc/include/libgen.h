@@ -21,9 +21,17 @@ _BEGIN_STD_C
    #undef basename will still let you invoke the underlying function.  However,
    this also implies that the POSIX version is used in this case.  That's made
    sure here. */
+#if defined(basename)
+/* <string.h> declared the GNU version first */
 #undef basename
 #define basename __xpg_basename
-char *basename(char *) __asm__(__ASMNAME("basename"));
+char *basename(char *) _ASMNAME("basename");
+#else
+/* Declared under its own name so that #undef basename still finds it;
+   defining it as itself keeps <string.h> from adding the GNU version */
+char *basename(char *);
+#define basename basename
+#endif
 char *dirname(char *);
 
 _END_STD_C
