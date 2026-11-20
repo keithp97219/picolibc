@@ -149,6 +149,12 @@ _poll_fds_from_linux(struct pollfd *fds, nfds_t nfds)
     for (nfds_t n = 0; n < nfds; n++) {
         fds[n].events = _poll_events_from_linux(fds[n].events);
         fds[n].revents = _poll_events_from_linux(fds[n].revents);
+        /*
+         * Linux reports sockets shut down in both directions as
+         * writable too; POSIX makes POLLHUP and POLLOUT exclusive
+         */
+        if (fds[n].revents & POLLHUP)
+            fds[n].revents &= ~(POLLOUT | POLLWRNORM);
     }
 }
 
