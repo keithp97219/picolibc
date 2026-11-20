@@ -39,5 +39,12 @@
 int
 socketpair(int domain, int type, int protocol, int sv[2])
 {
-    return (int)_syscall(LINUX_SYS_socketpair, domain, type, protocol, sv);
+    /* Linux stores the descriptors before it knows the call will work */
+    int fds[2];
+
+    if (_syscall(LINUX_SYS_socketpair, domain, type, protocol, fds) < 0)
+        return -1;
+    sv[0] = fds[0];
+    sv[1] = fds[1];
+    return 0;
 }
