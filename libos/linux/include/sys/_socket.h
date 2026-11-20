@@ -43,7 +43,6 @@
 
 #include <sys/cdefs.h>
 #include <sys/_types.h>
-#include <machine/endian.h>
 
 #ifndef _SA_FAMILY_T_DECLARED
 #define _SA_FAMILY_T_DECLARED
@@ -70,7 +69,8 @@ struct sockaddr_storage {
  * POSIX makes msg_iovlen an int and msg_controllen a socklen_t, while
  * the 64-bit kernel reads size_t; pad them to match.
  */
-#if __SIZEOF_POINTER__ == 8 && _BYTE_ORDER == _LITTLE_ENDIAN
+/* The compiler's byte order; <machine/endian.h> would define more names */
+#if __SIZEOF_POINTER__ == 8 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define __SOCKET_PAD_BEFORE(name)
 #define __SOCKET_PAD_AFTER(name) int name;
 #elif __SIZEOF_POINTER__ == 8
