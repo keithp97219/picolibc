@@ -62,16 +62,27 @@ _sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeo
     struct __kernel_sigtimedwait_timespec kts, *pkts = NULL;
     void                                 *cancel;
     long                                  ret;
+    int                                   bad_timeout = 0;
 
     if (timeout) {
-        if (timeout->tv_nsec < 0 || timeout->tv_nsec >= 1000000000L)
-            return EINVAL;
-        /* Clamp to the end of 32-bit time on kernels without 64-bit time */
-        if (sizeof(kts.tv_sec) == 4 && timeout->tv_sec > INT32_MAX)
-            kts.tv_sec = INT32_MAX;
-        else
-            kts.tv_sec = timeout->tv_sec;
-        kts.tv_nsec = timeout->tv_nsec;
+        /*
+         * Linux rejects a bad timeout even when a signal is pending;
+         * POSIX says to check only when the call would wait. Poll with
+         * a zero timeout instead, and report EINVAL if nothing is
+         * pending. A negative interval has already expired.
+         */
+        bad_timeout = timeout->tv_nsec < 0 || timeout->tv_nsec >= 1000000000L;
+        if (bad_timeout || timeout->tv_sec < 0) {
+            kts.tv_sec = 0;
+            kts.tv_nsec = 0;
+        } else {
+            /* Clamp to the end of 32-bit time on kernels without 64-bit time */
+            if (sizeof(kts.tv_sec) == 4 && timeout->tv_sec > INT32_MAX)
+                kts.tv_sec = INT32_MAX;
+            else
+                kts.tv_sec = timeout->tv_sec;
+            kts.tv_nsec = timeout->tv_nsec;
+        }
         pkts = &kts;
     }
     _sigmask_to_linux(&kset, set);
@@ -79,8 +90,12 @@ _sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeo
     cancel = _cancel_enter();
     ret = _syscall_raw(LINUX_SYS_rt_sigtimedwait_time_t, &kset, &kinfo, pkts, __KERNEL_NSIG_BYTES);
     _cancel_leave(cancel);
-    if (ret < 0)
-        return _syscall_errno(ret);
+    if (ret < 0) {
+        ret = _syscall_errno(ret);
+        if (ret == EAGAIN && bad_timeout)
+            ret = EINVAL;
+        return (int)ret;
+    }
     if (info)
         _siginfo_from_linux(info, &kinfo);
     *sig = _signal_from_linux((int)ret);
