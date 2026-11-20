@@ -50,26 +50,43 @@
 
 static int rangematch(const char *, char, int, char **);
 
+/* Is the period at string leading, so that only a period may match it */
 static int
-_fnmatch(const char *pattern, const char *string, const char *stringstart, int flags, int level)
+leading_period(const char *string, const char *stringstart, int flags)
 {
-    char *newp;
-    char  c, test;
+    return *string == '.' && (flags & FNM_PERIOD)
+        && (string == stringstart || ((flags & FNM_PATHNAME) && *(string - 1) == '/'));
+}
 
-    for (;;)
+/*
+ * Match without recursion: each element after a '*' matches exactly
+ * one character, so when the rest fails to match, only the most recent
+ * '*' needs to try a longer string. Earlier ones can't do better.
+ */
+int
+fnmatch(const char *pattern, const char *string, int flags)
+{
+    const char *stringstart = string;
+    const char *star_pattern = NULL;
+    const char *star_string = NULL;
+    char       *newp;
+    char        c;
+
+    for (;;) {
         switch (c = *pattern++) {
         case EOS:
             if ((flags & FNM_LEADING_DIR) && *string == '/')
                 return (0);
-            return (*string == EOS ? 0 : FNM_NOMATCH);
+            if (*string == EOS)
+                return (0);
+            goto backtrack;
         case '?':
             if (*string == EOS)
                 return (FNM_NOMATCH);
             if (*string == '/' && (flags & FNM_PATHNAME))
-                return (FNM_NOMATCH);
-            if (*string == '.' && (flags & FNM_PERIOD)
-                && (string == stringstart || ((flags & FNM_PATHNAME) && *(string - 1) == '/')))
-                return (FNM_NOMATCH);
+                goto backtrack;
+            if (leading_period(string, stringstart, flags))
+                goto backtrack;
             ++string;
             break;
         case '*':
@@ -78,49 +95,33 @@ _fnmatch(const char *pattern, const char *string, const char *stringstart, int f
             while (c == '*')
                 c = *++pattern;
 
-            if (*string == '.' && (flags & FNM_PERIOD)
-                && (string == stringstart || ((flags & FNM_PATHNAME) && *(string - 1) == '/')))
-                return (FNM_NOMATCH);
+            if (leading_period(string, stringstart, flags))
+                goto backtrack;
 
             /* Optimize for pattern with * at end or before /. */
-            if (c == EOS)
+            if (c == EOS) {
                 if (flags & FNM_PATHNAME)
                     return ((flags & FNM_LEADING_DIR) || strchr(string, '/') == NULL ? 0
                                                                                      : FNM_NOMATCH);
-                else
-                    return (0);
-            else if (c == '/' && flags & FNM_PATHNAME) {
+                return (0);
+            }
+            if (c == '/' && flags & FNM_PATHNAME) {
                 if ((string = strchr(string, '/')) == NULL)
                     return (FNM_NOMATCH);
                 break;
             }
 
-            if (level == 0)
-                return (-FNM_NOMATCH);
-
-            /* General case, use recursion. */
-            while ((test = *string) != EOS) {
-                switch (_fnmatch(pattern, string, stringstart, flags, level - 1)) {
-                case 0:
-                    return (0);
-                case -FNM_NOMATCH:
-                    return -FNM_NOMATCH;
-                default:
-                    break;
-                }
-                if (test == '/' && flags & FNM_PATHNAME)
-                    break;
-                ++string;
-            }
-            return (FNM_NOMATCH);
+            /* Start by matching the empty string */
+            star_pattern = pattern;
+            star_string = string;
+            break;
         case '[':
             if (*string == EOS)
                 return (FNM_NOMATCH);
             if (*string == '/' && (flags & FNM_PATHNAME))
-                return (FNM_NOMATCH);
-            if (*string == '.' && (flags & FNM_PERIOD)
-                && (string == stringstart || ((flags & FNM_PATHNAME) && *(string - 1) == '/')))
-                return (FNM_NOMATCH);
+                goto backtrack;
+            if (leading_period(string, stringstart, flags))
+                goto backtrack;
 
             switch (rangematch(pattern, *string, flags, &newp)) {
             case RANGE_ERROR:
@@ -129,7 +130,7 @@ _fnmatch(const char *pattern, const char *string, const char *stringstart, int f
                 pattern = newp;
                 break;
             case RANGE_NOMATCH:
-                return (FNM_NOMATCH);
+                goto backtrack;
             }
             ++string;
             break;
@@ -149,18 +150,21 @@ _fnmatch(const char *pattern, const char *string, const char *stringstart, int f
                      && (tolower((unsigned char)c) == tolower((unsigned char)*string)))
                 ;
             else
-                return (FNM_NOMATCH);
+                goto backtrack;
             string++;
             break;
         }
-    /* NOTREACHED */
-}
+        continue;
 
-/* Limit recursion to 16 levels to avoid stack overflow */
-int
-fnmatch(const char *pattern, const char *string, int flags)
-{
-    return _fnmatch(pattern, string, string, flags, 16);
+    backtrack:
+        /* Let the most recent '*' match one more character */
+        if (star_pattern == NULL || *star_string == EOS)
+            return (FNM_NOMATCH);
+        if (*star_string == '/' && (flags & FNM_PATHNAME))
+            return (FNM_NOMATCH);
+        pattern = star_pattern;
+        string = ++star_string;
+    }
 }
 
 static const struct {
