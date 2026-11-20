@@ -36,6 +36,7 @@
 dir_tests = [
   'test-creat',
   'test-fcntl',
+  'test-fcntl_h',
   'test-fcntl-locks',
   'test-openat',
   'test-posix_fadvise',
