@@ -38,5 +38,6 @@ dir_tests = [
   'test-inet_addr',
   'test-inet_ntoa',
   'test-inet_ntop',
+  'test-arpa_inet_h',
   'test-inet_pton',
 ]
