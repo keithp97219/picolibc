@@ -111,9 +111,9 @@ _gettemp(char *path, int suffixlen, int *doopen, int flags)
     end = path + strlen(path) - suffixlen;
     trv = end;
 
-    /* Replace 'X' with 'a' */
-    while (path < trv && *--trv == 'X')
-        *trv = 'a';
+    /* Replace 'X' with 'a', leaving trv at the first one */
+    while (path < trv && trv[-1] == 'X')
+        *--trv = 'a';
 
     /* Make sure we got six Xs */
     if (end - trv < 6) {
@@ -121,7 +121,7 @@ _gettemp(char *path, int suffixlen, int *doopen, int flags)
         return 0;
     }
 
-    start = trv + 1;
+    start = trv;
 
     for (attempt = 0; attempt < NUM_ATTEMPT; attempt++) {
         /* Generate a random filename index */

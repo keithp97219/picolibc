@@ -34,6 +34,7 @@
  */
 #define _DEFAULT_SOURCE
 #define _GNU_SOURCE /* glibc declares mkostemp only for _GNU_SOURCE */
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -153,6 +154,24 @@ main(void)
     f = NULL;
     check_contents(template, 1);
     (void)remove(template);
+
+    /* Fewer than six Xs is an error, and nothing past the name is touched */
+    {
+        char short_template[] = "foo-XXXXX\0!";
+
+        errno = 0;
+        check(mkstemp(short_template) == -1 && errno == EINVAL, "five Xs");
+        check(strlen(short_template) == 9 && short_template[10] == '!', "five Xs left intact");
+    }
+
+    /* A template that is only Xs keeps its length */
+    {
+        char only_x[] = "XXXXXX\0!";
+
+        check(mktemp(only_x) == only_x, "only Xs");
+        check(strlen(only_x) == 6 && only_x[7] == '!' && strcmp(only_x, "XXXXXX") != 0,
+              "only Xs replaced in place");
+    }
 
     exit(0);
 }
