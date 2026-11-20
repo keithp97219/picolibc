@@ -44,6 +44,7 @@ set(tests
   test-pthread_create
   test-pthread_exit
   test-pthread_getcpuclockid
+  test-pthread_h_sync
   test-pthread_key_create
   test-pthread_kill
   test-pthread_mutex_consistent
