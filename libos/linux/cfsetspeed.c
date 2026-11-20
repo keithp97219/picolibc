@@ -33,10 +33,11 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _DEFAULT_SOURCE
 #include <termios.h>
 
 int
-cfsetospeed(struct termios *termios, speed_t speed)
+cfsetspeed(struct termios *termios, speed_t speed)
 {
     termios->c_ospeed = speed;
     termios->c_ispeed = speed;

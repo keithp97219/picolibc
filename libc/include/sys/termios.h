@@ -212,6 +212,10 @@ int     tcsendbreak(int, int);
 int     tcsetattr(int, int, const struct termios *);
 int     tcsetwinsize(int, const struct winsize *);
 
+#if __BSD_VISIBLE
+int cfsetspeed(struct termios *, speed_t);
+#endif
+
 _END_STD_C
 
 #endif
