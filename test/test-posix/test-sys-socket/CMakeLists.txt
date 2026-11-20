@@ -45,6 +45,7 @@ set(tests
   test-sockatmark
   test-socket
   test-socketpair
+  test-sys_socket_h
   )
 
 foreach(test IN LISTS tests)
