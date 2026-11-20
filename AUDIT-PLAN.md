@@ -28,7 +28,16 @@ it. Lessons folded into the brief below:
   `PATH_MAX` = 1024 and `PIPE_BUF` = 512, against Linux's real limits)
   showed up in several headers. Agents should record these, not fix them.
 - Where glibc disagrees with POSIX, the check runs only under
-  `#ifdef __PICOLIBC__`, with a comment.
+  `#ifndef __GLIBC__`, with a comment.
+- Batch 3: i686 isn't run on this host, and there `long long` and `double`
+  members are only four-byte aligned, so `sizeof` of a kernel structure can
+  be smaller than on arm (posix_getdents sized a buffer by
+  `sizeof(struct __kernel_dirent64)`, 276 bytes on i686, while the kernel
+  pads a NAME_MAX record to 280). Size buffers by what the kernel writes.
+- Batch 3: errors from the kernel vary between versions (SIOCATMARK on an
+  AF_UNIX datagram socket said ENOTTY here, EOPNOTSUPP on 7.1). When mapping
+  a kernel error to a POSIX answer, check the kernel source for every error
+  the path can return.
 
 ## Base and outputs
 
@@ -154,8 +163,7 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   `/* Without the system support this test needs, it is skipped */`, and
 >   return 77 when skipping.
 > - **glibc:** each test also builds against glibc as `-native`. Keep tests
->   portable, and guard checks where glibc is wrong with
->   `#ifdef __PICOLIBC__` plus a comment.
+>   portable, and guard checks where glibc is wrong as described above.
 > - **Style:** `clang-format`, and match the surrounding idiom. libos/linux
 >   maps constants with `switch` statements onto the `LINUX_` values and maps
 >   flags with the `MAP_*` macros; error-number functions use
@@ -165,9 +173,12 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   parallel units have swapped changes through it. To prove a fix, reverse
 >   it with `git show <fix> -- libc libos | git apply -R`, test, then
 >   reapply.
-> - **Name lookups:** picolibc never uses DNS. Use the reserved `.invalid`
->   domain for names that must not resolve, and run "no name" checks only
->   under `__PICOLIBC__`.
+> - **Name lookups:** picolibc on Linux now has a DNS resolver
+>   (`__PICOLIBC_NETWORK_DNS`). Tests must never reach the host's DNS:
+>   define `__picolibc_resolv_conf` to name a file the test writes with
+>   `nameserver 127.0.0.1:1`, as test-getaddrinfo does, or run a server in
+>   the test, as test-dns does. Use the reserved `.invalid` domain for names
+>   that must not resolve.
 > - **glibc header gaps:** glibc declares several POSIX.1-2024 additions only
 >   with `_GNU_SOURCE`, and defines many constants as enumerators. Check
 >   constants with `_Static_assert` rather than `#ifdef`.
