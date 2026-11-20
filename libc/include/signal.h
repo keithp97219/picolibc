@@ -197,13 +197,24 @@ typedef struct sigaltstack {
     NOTE: P1003.1c/D10, p. 34 adds sigev_notify_function and
           sigev_notify_attributes to the sigevent structure.  */
 
+/* pthread_t and pthread_attr_t, when there are threads */
+#if defined(__has_include)
+#if __has_include(<sys/_pthreadtypes.h>)
+#include <sys/_pthreadtypes.h>
+#define __SIGEV_ATTR_TYPE pthread_attr_t
+#endif
+#endif
+#ifndef __SIGEV_ATTR_TYPE
+#define __SIGEV_ATTR_TYPE void
+#endif
+
 struct sigevent {
-    int          sigev_notify; /* Notification type */
-    int          sigev_signo;  /* Signal number */
-    union sigval sigev_value;  /* Signal value */
-    void         (*sigev_notify_function)(union sigval);
+    int                sigev_notify; /* Notification type */
+    int                sigev_signo;  /* Signal number */
+    union sigval       sigev_value;  /* Signal value */
+    void               (*sigev_notify_function)(union sigval);
     /* Notification function */
-    void        *sigev_notify_attributes; /* Notification Attributes */
+    __SIGEV_ATTR_TYPE *sigev_notify_attributes; /* Notification Attributes */
 };
 #endif /* __POSIX_VISIBLE >= 199309 */
 
