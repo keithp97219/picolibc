@@ -47,9 +47,10 @@ sockatmark(int fd)
         return atmark;
     /*
      * Sockets whose protocol has no out-of-band marks, like UDP, reject
-     * the request; they are never at a mark
+     * the request (newer kernels say EOPNOTSUPP for AF_UNIX datagrams);
+     * they are never at a mark
      */
-    if (ret == -LINUX_ENOTTY
+    if ((ret == -LINUX_ENOTTY || ret == -LINUX_EOPNOTSUPP)
         && _syscall_raw(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_TYPE, &type, &len) == 0)
         return 0;
     errno = _syscall_errno(ret);
