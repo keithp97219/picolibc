@@ -50,15 +50,9 @@ localtime_r(const time_t * __restrict tim_p, struct tm * __restrict res)
 
     __LIBC_LOCK();
 
-    if (daylight) {
-        if (year == __tzinfo.year || __tzcalc_limits(year))
-            res->tm_isdst
-                = (__tzinfo.north
-                       ? (*tim_p >= __tzinfo.rule[0].change && *tim_p < __tzinfo.rule[1].change)
-                       : (*tim_p >= __tzinfo.rule[0].change || *tim_p < __tzinfo.rule[1].change));
-        else
-            res->tm_isdst = -1;
-    } else
+    if (daylight)
+        res->tm_isdst = __tz_isdst(*tim_p, year, res->tm_yday);
+    else
         res->tm_isdst = 0;
 
     offset = (res->tm_isdst == 1 ? __tzinfo.rule[1].offset : __tzinfo.rule[0].offset);

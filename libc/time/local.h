@@ -72,6 +72,7 @@ timebase_to_clockid(int base)
 }
 
 int                  __tzcalc_limits(int __year);
+int                  __tz_isdst(time_t __t, int __year, int __yday);
 
 extern const uint8_t __month_lengths[2][MONSPERYEAR];
 extern char          __tzname_std[TZNAME_MAX + 2];
