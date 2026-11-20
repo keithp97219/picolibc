@@ -1,0 +1,114 @@
+From 3abaf17f213c916bf51dd89ca276e3cd3c3f2495 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:28:18 +0000
+Subject: [PATCH 04/27] libos/linux: Use the kernel's MINSIGSTKSZ and SIGSTKSZ
+
+The aarch64 kernel rejects alternate signal stacks smaller than 5120
+bytes, so sigaltstack failed with ENOMEM for a MINSIGSTKSZ (2048)
+stack. Let libos/linux supply the values in <sys/_signal.h>, which
+<signal.h> includes when present.
+---
+ libc/include/signal.h             |  9 ++++--
+ libos/linux/include/sys/_signal.h | 51 +++++++++++++++++++++++++++++++
+ libos/linux/meson.build           |  5 +--
+ 3 files changed, 61 insertions(+), 4 deletions(-)
+ create mode 100644 libos/linux/include/sys/_signal.h
+
+diff --git a/libc/include/signal.h b/libc/include/signal.h
+index 6505783980..3276d62c97 100644
+--- a/libc/include/signal.h
++++ b/libc/include/signal.h
+@@ -175,9 +175,14 @@ struct sigevent {
+ #if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 200809
+ 
+ /*
+- * Minimum and default signal stack constants. Allow for target overrides
+- * from <sys/features.h>.
++ * Minimum and default signal stack constants. Allow for overrides from
++ * the OS in <sys/_signal.h>.
+  */
++#if defined(__has_include)
++#if __has_include(<sys/_signal.h>)
++#include <sys/_signal.h>
++#endif
++#endif
+ #ifndef MINSIGSTKSZ
+ #define MINSIGSTKSZ 2048
+ #endif
+diff --git a/libos/linux/include/sys/_signal.h b/libos/linux/include/sys/_signal.h
+new file mode 100644
+index 0000000000..40dffca3dd
+--- /dev/null
++++ b/libos/linux/include/sys/_signal.h
+@@ -0,0 +1,51 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#ifndef _SYS__SIGNAL_H_
++#define _SYS__SIGNAL_H_
++
++/*
++ * Signal stack sizes for <signal.h>. sigaltstack rejects stacks smaller
++ * than the kernel's MINSIGSTKSZ, which is larger on some architectures.
++ */
++#if defined(__aarch64__)
++#define MINSIGSTKSZ 5120
++#define SIGSTKSZ    16384
++#else
++#define MINSIGSTKSZ 2048
++#define SIGSTKSZ    8192
++#endif
++
++#endif /* _SYS__SIGNAL_H_ */
+diff --git a/libos/linux/meson.build b/libos/linux/meson.build
+index c9d04a60a1..caabd12342 100644
+--- a/libos/linux/meson.build
++++ b/libos/linux/meson.build
+@@ -473,9 +473,10 @@ if fs.is_dir(machine_dir)
+ 
+   linux_inc = include_directories(machine_dir, 'include')
+ 
+-  # The POSIX options and option groups this OS layer provides
++  # The POSIX options and option groups this OS layer provides, and
++  # its signal stack sizes
+   if really_install
+-    install_headers('include/sys/_posix.h',
++    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h'],
+                     install_dir: include_dir / 'sys')
+     # The socket ABI for picolibc's networking headers
+     if network == 'linux'
+-- 
+2.47.3
+

@@ -1,0 +1,35 @@
+From bb7474033d926a6733252ef31c4490af9e5cae50 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:37:17 +0000
+Subject: [PATCH 3/8] libos/linux: Check the mutex owner before a condition
+ wait touches it
+
+A condition wait on an error checking, recursive or robust mutex the
+caller doesn't own cleared and restored the lock count before
+pthread_mutex_unlock reported EPERM, losing the owner's own count
+changes. POSIX requires the EPERM check to happen before the mutex is
+modified.
+---
+ libos/linux/_pthread_cond_wait_timed.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/libos/linux/_pthread_cond_wait_timed.c b/libos/linux/_pthread_cond_wait_timed.c
+index c52ed723aa..e25b46b6e3 100644
+--- a/libos/linux/_pthread_cond_wait_timed.c
++++ b/libos/linux/_pthread_cond_wait_timed.c
+@@ -53,6 +53,12 @@ _pthread_cond_wait_timed(pthread_cond_t *cond, pthread_mutex_t *mutex, clockid_t
+         return EINVAL;
+ 
+     self = _pthread_self();
++
++    /* Fail before touching a mutex another thread may hold */
++    if ((mutex->__type != PTHREAD_MUTEX_NORMAL || mutex->__robust)
++        && _pthread_mutex_owner(mutex) != self->tid)
++        return EPERM;
++
+     cancel = self->cancel_state == PTHREAD_CANCEL_ENABLE;
+ 
+     /* A request already pending acts with the mutex still held */
+-- 
+2.47.3
+

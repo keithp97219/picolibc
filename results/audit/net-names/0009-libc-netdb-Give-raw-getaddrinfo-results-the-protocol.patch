@@ -1,0 +1,50 @@
+From aa3fb935b44e0dc7e74be9bdeb40e1a7b272881b Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:32:03 +0000
+Subject: [PATCH 09/21] libc/netdb: Give raw getaddrinfo results the protocol
+ from the hints
+
+Raw socket entries always had ai_protocol 0, so a request for, say,
+IPPROTO_ICMP returned an entry for a different protocol. POSIX: if
+ai_protocol is not zero, addresses shall be returned for use only with
+the specified address family and protocol.
+---
+ libc/posix/netdb/getaddrinfo.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/libc/posix/netdb/getaddrinfo.c b/libc/posix/netdb/getaddrinfo.c
+index 5a97d3e3eb..03ebd6bf87 100644
+--- a/libc/posix/netdb/getaddrinfo.c
++++ b/libc/posix/netdb/getaddrinfo.c
+@@ -69,8 +69,9 @@ __gai_numeric_port(const char *service)
+     return (int)port;
+ }
+ 
++/* Raw sockets take the protocol from the hints */
+ static struct addrinfo *
+-__gai_entry(const struct __netdb_addr *a, int type, int port, const char *canon)
++__gai_entry(const struct __netdb_addr *a, int type, int protocol, int port, const char *canon)
+ {
+     size_t           canonlen = canon ? strlen(canon) + 1 : 0;
+     struct addrinfo *ai = calloc(1, sizeof(*ai) + sizeof(struct sockaddr_in6) + canonlen);
+@@ -79,7 +80,7 @@ __gai_entry(const struct __netdb_addr *a, int type, int port, const char *canon)
+         return NULL;
+     ai->ai_family = a->family;
+     ai->ai_socktype = __gai_types[type].socktype;
+-    ai->ai_protocol = __gai_types[type].protocol;
++    ai->ai_protocol = __gai_types[type].protocol ? __gai_types[type].protocol : protocol;
+     ai->ai_addr = (struct sockaddr *)(ai + 1);
+     if (a->family == AF_INET) {
+         struct sockaddr_in *sin = (struct sockaddr_in *)ai->ai_addr;
+@@ -227,7 +228,7 @@ getaddrinfo(const char * __restrict node, const char * __restrict service,
+         for (t = 0; t < (int)__GAI_NTYPES; t++) {
+             if (ports[t] < 0)
+                 continue;
+-            *tail = __gai_entry(&addrs[i], t, ports[t], canon);
++            *tail = __gai_entry(&addrs[i], t, protocol, ports[t], canon);
+             if (!*tail) {
+                 freeaddrinfo(head);
+                 return EAI_MEMORY;
+-- 
+2.47.3
+

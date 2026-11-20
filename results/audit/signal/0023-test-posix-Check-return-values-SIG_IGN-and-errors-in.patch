@@ -1,0 +1,59 @@
+From c55fad51242b59929835e876ebf832677d72c87f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:39:25 +0000
+Subject: [PATCH 23/27] test-posix: Check return values, SIG_IGN and errors in
+ signal
+
+---
+ test/test-posix/test-signal/test-signal.c | 36 +++++++++++++++++++++++
+ 1 file changed, 36 insertions(+)
+
+diff --git a/test/test-posix/test-signal/test-signal.c b/test/test-posix/test-signal/test-signal.c
+index e69378169d..144839dc9e 100644
+--- a/test/test-posix/test-signal/test-signal.c
++++ b/test/test-posix/test-signal/test-signal.c
+@@ -66,5 +66,41 @@ main(void)
+         printf("caught %d instead of SIGUSR1(%d)\n", caught_usr1, SIGUSR1);
+         return 1;
+     }
++
++    /* signal returns the func of the most recent call, without touching errno */
++    errno = 12345;
++    if (signal(SIGUSR1, SIG_IGN) != handle_usr1 || errno != 12345) {
++        printf("signal didn't return the previous handler\n");
++        return 1;
++    }
++    caught_usr1 = 0;
++    raise(SIGUSR1);
++    if (caught_usr1 != 0) {
++        printf("SIG_IGN didn't ignore the signal\n");
++        return 1;
++    }
++    if (signal(SIGUSR1, SIG_DFL) != SIG_IGN) {
++        printf("signal didn't return SIG_IGN\n");
++        return 1;
++    }
++
++#if !defined(__PICOLIBC__) || (defined(__PICOLIBC_POSIX_SIGNALS) && __PICOLIBC_POSIX_SIGNALS > 0)
++    /* Invalid signals, and catching or ignoring SIGKILL, are EINVAL */
++    errno = 0;
++    if (signal(-1, handle_usr1) != SIG_ERR || errno != EINVAL) {
++        printf("signal(-1) didn't fail with EINVAL\n");
++        return 1;
++    }
++    errno = 0;
++    if (signal(SIGKILL, handle_usr1) != SIG_ERR || errno != EINVAL) {
++        printf("catching SIGKILL didn't fail with EINVAL\n");
++        return 1;
++    }
++    errno = 0;
++    if (signal(SIGSTOP, SIG_IGN) != SIG_ERR || errno != EINVAL) {
++        printf("ignoring SIGSTOP didn't fail with EINVAL\n");
++        return 1;
++    }
++#endif
+     return 0;
+ }
+-- 
+2.47.3
+

@@ -1,0 +1,28 @@
+From 55869c4a1cb3b3603a7f05c9c2641971a3df8b6f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:31:49 +0000
+Subject: [PATCH 08/27] signal: Define SIG2STR_MAX for POSIX.1-2024
+
+sig2str and str2sig were declared for _POSIX_C_SOURCE 202405L, but
+SIG2STR_MAX was only visible with __MISC_VISIBLE.
+---
+ libc/include/signal.h | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/libc/include/signal.h b/libc/include/signal.h
+index bc42f41960..e3fe2a34f7 100644
+--- a/libc/include/signal.h
++++ b/libc/include/signal.h
+@@ -271,8 +271,7 @@ struct sigevent {
+ #define NSIG _NSIG
+ #endif
+ 
+-/* Using __MISC_VISIBLE until POSIX Issue 8 is officially released */
+-#if __MISC_VISIBLE
++#if __MISC_VISIBLE || __POSIX_VISIBLE >= 202405
+ #if __SIZEOF_INT__ >= 4
+ #define SIG2STR_MAX 17 /* (sizeof("RTMAX+") + sizeof("4294967295") - 1) */
+ #else
+-- 
+2.47.3
+

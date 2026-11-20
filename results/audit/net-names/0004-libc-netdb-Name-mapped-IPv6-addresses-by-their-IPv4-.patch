@@ -1,0 +1,62 @@
+From 801c714f79cf8f2b65b4e33eeee923daf5384fba Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:27:52 +0000
+Subject: [PATCH 04/21] libc/netdb: Name mapped IPv6 addresses by their IPv4
+ address in getnameinfo
+
+POSIX: for an IPv4-mapped or IPv4-compatible IPv6 address, the
+implementation shall look up the embedded IPv4 address, and for the
+unspecified address a lookup shall not be performed.
+---
+ libc/posix/netdb/getnameinfo.c | 25 +++++++++++++++++++++----
+ 1 file changed, 21 insertions(+), 4 deletions(-)
+
+diff --git a/libc/posix/netdb/getnameinfo.c b/libc/posix/netdb/getnameinfo.c
+index 4d00299a38..707bcee117 100644
+--- a/libc/posix/netdb/getnameinfo.c
++++ b/libc/posix/netdb/getnameinfo.c
+@@ -43,8 +43,8 @@ int
+ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __restrict host,
+             socklen_t hostlen, char * __restrict serv, socklen_t servlen, int flags)
+ {
+-    const void *addr;
+-    int         family, port;
++    const void *addr, *lookup_addr;
++    int         family, lookup_family, port;
+     char        buf[INET6_ADDRSTRLEN];
+ 
+     if (flags & ~__GNI_FLAGS)
+@@ -68,11 +68,28 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
+     if ((!host || !hostlen) && (!serv || !servlen))
+         return EAI_NONAME;
+ 
++    /*
++     * Mapped and compatible addresses are named for their IPv4 address,
++     * and the unspecified address has no name
++     */
++    lookup_family = family;
++    lookup_addr = addr;
++    if (family == AF_INET6) {
++        const struct in6_addr *a6 = addr;
++
++        if (IN6_IS_ADDR_V4MAPPED(a6) || IN6_IS_ADDR_V4COMPAT(a6)) {
++            lookup_family = AF_INET;
++            lookup_addr = &a6->s6_addr[12];
++        } else if (IN6_IS_ADDR_UNSPECIFIED(a6)) {
++            lookup_family = AF_UNSPEC;
++        }
++    }
++
+     if (host && hostlen) {
+         bool named = false;
+ 
+-        if (!(flags & NI_NUMERICHOST)) {
+-            named = __netdb_host_name(family, addr, host, hostlen);
++        if (!(flags & NI_NUMERICHOST) && lookup_family != AF_UNSPEC) {
++            named = __netdb_host_name(lookup_family, lookup_addr, host, hostlen);
+             if (named && (flags & NI_NOFQDN)) {
+                 char *dot = strchr(host, '.');
+ 
+-- 
+2.47.3
+

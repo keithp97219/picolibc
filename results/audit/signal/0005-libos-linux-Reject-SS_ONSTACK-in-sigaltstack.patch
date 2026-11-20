@@ -1,0 +1,30 @@
+From 041ab976c944d3d96bbe3533467c914d9dc3ba26 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:28:25 +0000
+Subject: [PATCH 05/27] libos/linux: Reject SS_ONSTACK in sigaltstack
+
+POSIX: "[EINVAL] The ss argument is not a null pointer, and the
+ss_flags member pointed to by ss has SS_ONSTACK or invalid flags
+set." Linux accepts SS_ONSTACK as a synonym for 0.
+---
+ libos/linux/sigaltstack.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libos/linux/sigaltstack.c b/libos/linux/sigaltstack.c
+index 058f094279..a649b6001c 100644
+--- a/libos/linux/sigaltstack.c
++++ b/libos/linux/sigaltstack.c
+@@ -40,5 +40,10 @@
+ int
+ sigaltstack(const stack_t * __restrict ss, stack_t * __restrict old)
+ {
++    /* Linux accepts SS_ONSTACK in ss_flags; POSIX makes it EINVAL */
++    if (ss && (ss->ss_flags & SS_ONSTACK)) {
++        errno = EINVAL;
++        return -1;
++    }
+     return (int)_syscall(LINUX_SYS_sigaltstack, ss, old);
+ }
+-- 
+2.47.3
+

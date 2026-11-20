@@ -1,0 +1,167 @@
+From 44fb8fbd23bf542073135466ec9c26c83691feef Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:39:26 +0000
+Subject: [PATCH 26/27] test-posix: Check the signal set functions and macros
+
+---
+ test/test-posix/test-signal/CMakeLists.txt    |   1 +
+ test/test-posix/test-signal/meson.build       |   1 +
+ .../test-posix/test-signal/test-sigismember.c | 122 ++++++++++++++++++
+ 3 files changed, 124 insertions(+)
+ create mode 100644 test/test-posix/test-signal/test-sigismember.c
+
+diff --git a/test/test-posix/test-signal/CMakeLists.txt b/test/test-posix/test-signal/CMakeLists.txt
+index 7fd9a33b0d..5393a22549 100644
+--- a/test/test-posix/test-signal/CMakeLists.txt
++++ b/test/test-posix/test-signal/CMakeLists.txt
+@@ -42,6 +42,7 @@ set(tests
+   test-sig2str
+   test-sigaction
+   test-sigaltstack
++  test-sigismember
+   test-signal
+   test-signal_h
+   test-sigpending
+diff --git a/test/test-posix/test-signal/meson.build b/test/test-posix/test-signal/meson.build
+index 2e71fe3b1c..98cc8958b6 100644
+--- a/test/test-posix/test-signal/meson.build
++++ b/test/test-posix/test-signal/meson.build
+@@ -42,6 +42,7 @@ dir_tests = [
+   'test-sig2str',
+   'test-sigaction',
+   'test-sigaltstack',
++  'test-sigismember',
+   'test-signal',
+   'test-signal_h',
+   'test-sigpending',
+diff --git a/test/test-posix/test-signal/test-sigismember.c b/test/test-posix/test-signal/test-sigismember.c
+new file mode 100644
+index 0000000000..2a23eae6f6
+--- /dev/null
++++ b/test/test-posix/test-signal/test-sigismember.c
+@@ -0,0 +1,122 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++/* sigemptyset, sigfillset, sigaddset, sigdelset and sigismember */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static const int signals[] = {
++    SIGABRT, SIGALRM, SIGBUS,   SIGCHLD, SIGCONT, SIGFPE,  SIGHUP,    SIGILL,  SIGINT,
++    SIGKILL, SIGPIPE, SIGQUIT,  SIGSEGV, SIGSTOP, SIGTERM, SIGTSTP,   SIGTTIN, SIGTTOU,
++    SIGUSR1, SIGUSR2, SIGWINCH, SIGSYS,  SIGTRAP, SIGURG,  SIGVTALRM, SIGXCPU, SIGXFSZ,
++};
++
++#define NSIGNALS (sizeof(signals) / sizeof(signals[0]))
++
++/* Calls through pointers, so the functions are used and not the macros */
++static int (* const p_sigemptyset)(sigset_t *) = sigemptyset;
++static int (* const p_sigfillset)(sigset_t *) = sigfillset;
++static int (* const p_sigaddset)(sigset_t *, int) = sigaddset;
++static int (* const p_sigdelset)(sigset_t *, int) = sigdelset;
++static int (* const p_sigismember)(const sigset_t *, int) = sigismember;
++
++static void
++check_sets(int use_functions)
++{
++    sigset_t empty, full, set;
++    size_t   i;
++    int      sig;
++
++    check((use_functions ? p_sigemptyset(&empty) : sigemptyset(&empty)) == 0, "sigemptyset");
++    check((use_functions ? p_sigfillset(&full) : sigfillset(&full)) == 0, "sigfillset");
++    for (i = 0; i < NSIGNALS; i++) {
++        sig = signals[i];
++        check((use_functions ? p_sigismember(&empty, sig) : sigismember(&empty, sig)) == 0,
++              "empty set excludes every signal");
++        check((use_functions ? p_sigismember(&full, sig) : sigismember(&full, sig)) == 1,
++              "full set includes every signal");
++    }
++    for (sig = SIGRTMIN; sig <= SIGRTMAX; sig++) {
++        check(sigismember(&empty, sig) == 0, "empty set excludes real-time signals");
++        check(sigismember(&full, sig) == 1, "full set includes real-time signals");
++    }
++
++    /* Adding and deleting changes only that signal */
++    set = empty;
++    check((use_functions ? p_sigaddset(&set, SIGUSR1) : sigaddset(&set, SIGUSR1)) == 0,
++          "sigaddset");
++    check((use_functions ? p_sigaddset(&set, SIGRTMAX) : sigaddset(&set, SIGRTMAX)) == 0,
++          "sigaddset SIGRTMAX");
++    for (i = 0; i < NSIGNALS; i++)
++        check(sigismember(&set, signals[i]) == (signals[i] == SIGUSR1),
++              "sigaddset adds only that signal");
++    check(sigismember(&set, SIGRTMAX) == 1 && sigismember(&set, SIGRTMIN) == 0,
++          "sigaddset real-time");
++    check((use_functions ? p_sigaddset(&set, SIGUSR1) : sigaddset(&set, SIGUSR1)) == 0,
++          "adding twice");
++    check((use_functions ? p_sigdelset(&set, SIGUSR1) : sigdelset(&set, SIGUSR1)) == 0,
++          "sigdelset");
++    check((use_functions ? p_sigdelset(&set, SIGUSR1) : sigdelset(&set, SIGUSR1)) == 0,
++          "deleting an absent signal");
++    check(sigismember(&set, SIGUSR1) == 0 && sigismember(&set, SIGRTMAX) == 1,
++          "sigdelset deletes only that signal");
++
++    set = full;
++    check((use_functions ? p_sigdelset(&set, SIGINT) : sigdelset(&set, SIGINT)) == 0,
++          "sigdelset from full");
++    for (i = 0; i < NSIGNALS; i++)
++        check(sigismember(&set, signals[i]) == (signals[i] != SIGINT),
++              "sigdelset removes only that signal");
++}
++
++int
++main(void)
++{
++    check_sets(0);
++    check_sets(1);
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

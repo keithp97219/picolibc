@@ -1,0 +1,90 @@
+From 80345e5ea0ee610cc811ba4f50c418844cf03913 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:34:54 +0000
+Subject: [PATCH 14/21] test-posix: Check lookups and rewinding in
+ getprotobyname
+
+---
+ .../test-netdb/test-getprotobyname.c          | 59 +++++++++++++++++++
+ 1 file changed, 59 insertions(+)
+
+diff --git a/test/test-posix/test-netdb/test-getprotobyname.c b/test/test-posix/test-netdb/test-getprotobyname.c
+index 2eba109a31..a6e41d8e1d 100644
+--- a/test/test-posix/test-netdb/test-getprotobyname.c
++++ b/test/test-posix/test-netdb/test-getprotobyname.c
+@@ -104,6 +104,35 @@ tcp_pair(int *client, int *server)
+     check(close(listener) == 0, "close listener");
+ }
+ 
++#define MAX_FDS 64
++
++/* Records which descriptors are open */
++static void
++open_fds(unsigned char *open)
++{
++    int fd;
++
++    for (fd = 0; fd < MAX_FDS; fd++)
++        open[fd] = fcntl(fd, F_GETFD) >= 0;
++}
++
++/* Counts the descriptors opened since 'before', failing if any lacks FD_CLOEXEC */
++static int
++new_fds(const unsigned char *before)
++{
++    int fd, n = 0;
++
++    for (fd = 0; fd < MAX_FDS; fd++) {
++        int flags = fcntl(fd, F_GETFD);
++
++        if (flags < 0 || before[fd])
++            continue;
++        check(flags & FD_CLOEXEC, "FD_CLOEXEC");
++        n++;
++    }
++    return n;
++}
++
+ int
+ main(void)
+ {
+@@ -120,6 +149,36 @@ main(void)
+         n++;
+     endprotoent();
+     check(n >= 2, "getprotoent");
++
++    p = getprotobyname("icmp");
++    check(p && p->p_proto == IPPROTO_ICMP, "icmp");
++    p = getprotobynumber(IPPROTO_TCP);
++    check(p && strcmp(p->p_name, "tcp") == 0 && p->p_aliases != NULL, "tcp by number");
++    check(getprotobynumber(-1) == NULL, "missing number");
++
++    /* setprotoent and endprotoent start again from the first entry, with FD_CLOEXEC */
++    {
++        unsigned char before[MAX_FDS];
++        char          first[256];
++
++        open_fds(before);
++        setprotoent(1);
++        p = getprotoent();
++        check(p != NULL, "first entry");
++        snprintf(first, sizeof(first), "%s", p->p_name);
++        (void)getprotoent();
++        (void)new_fds(before);
++        (void)getprotobyname("udp");
++        (void)new_fds(before);
++        setprotoent(0);
++        p = getprotoent();
++        check(p && strcmp(p->p_name, first) == 0, "setprotoent rewinds");
++        endprotoent();
++        check(new_fds(before) == 0, "endprotoent closes");
++        p = getprotoent();
++        check(p && strcmp(p->p_name, first) == 0, "endprotoent rewinds");
++        endprotoent();
++    }
+     (void)make_socket;
+     (void)tcp_pair;
+     printf("success\n");
+-- 
+2.47.3
+

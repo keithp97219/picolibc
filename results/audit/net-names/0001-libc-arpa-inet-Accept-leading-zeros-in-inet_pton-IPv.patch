@@ -1,0 +1,42 @@
+From 55ee833da2e45c402fbe95f2862264f9e94ef234 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:27:08 +0000
+Subject: [PATCH 01/21] libc/arpa-inet: Accept leading zeros in inet_pton IPv4
+ parts
+
+POSIX.1-2024 describes each part as a one to three digit decimal
+number and says leading zeros shall be allowed.
+---
+ libc/posix/arpa-inet/inet_pton.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/libc/posix/arpa-inet/inet_pton.c b/libc/posix/arpa-inet/inet_pton.c
+index 682e2143e2..492242658f 100644
+--- a/libc/posix/arpa-inet/inet_pton.c
++++ b/libc/posix/arpa-inet/inet_pton.c
+@@ -38,7 +38,7 @@
+ #include <errno.h>
+ #include <string.h>
+ 
+-/* Four decimal numbers 0 to 255 separated by dots, without leading zeros */
++/* Four decimal numbers 0 to 255 of one to three digits, separated by dots */
+ static int
+ __inet_pton4(const char *src, unsigned char *dst)
+ {
+@@ -50,12 +50,11 @@ __inet_pton4(const char *src, unsigned char *dst)
+         int      digits = 0;
+ 
+         while (*src >= '0' && *src <= '9') {
+-            if (digits && value == 0)
++            if (++digits > 3)
+                 return 0;
+             value = value * 10 + (unsigned)(*src++ - '0');
+             if (value > 255)
+                 return 0;
+-            digits++;
+         }
+         if (!digits)
+             return 0;
+-- 
+2.47.3
+

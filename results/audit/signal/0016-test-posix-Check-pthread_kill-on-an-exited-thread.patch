@@ -1,0 +1,64 @@
+From 895357a6f5a509d433563e1356101904bd0acbc2 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:39:25 +0000
+Subject: [PATCH 16/27] test-posix: Check pthread_kill on an exited thread
+
+---
+ .../test-pthread/test-pthread_kill.c          | 24 +++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/test/test-posix/test-pthread/test-pthread_kill.c b/test/test-posix/test-pthread/test-pthread_kill.c
+index d9d9802d4c..ab673e929e 100644
+--- a/test/test-posix/test-pthread/test-pthread_kill.c
++++ b/test/test-posix/test-pthread/test-pthread_kill.c
+@@ -47,6 +47,7 @@
+ #include <signal.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <time.h>
+ 
+ /* pthread_kill sends signals to a particular thread */
+ 
+@@ -78,9 +79,17 @@ wait_for_signal(void *arg)
+     return NULL;
+ }
+ 
++static void *
++exit_now(void *arg)
++{
++    return arg;
++}
++
+ int
+ main(void)
+ {
++    pthread_t        zombie;
++    struct timespec  pause = { .tv_sec = 0, .tv_nsec = 100 * 1000 * 1000 };
+     struct sigaction sa = { .sa_handler = handler };
+ 
+     sigemptyset(&sa.sa_mask);
+@@ -91,6 +100,21 @@ main(void)
+     check(caught_by_target, "handled in the target thread");
+     check(pthread_kill(pthread_self(), 0) == 0, "signal 0 checks the thread");
+     check(pthread_kill(pthread_self(), 12345) == EINVAL, "EINVAL");
++    check(pthread_kill(pthread_self(), -1) == EINVAL, "EINVAL for a negative signal");
++
++    /*
++     * A thread that has exited but not been joined is not an error. The
++     * pause gives it time to exit; if it hasn't, the calls still succeed.
++     */
++    check(pthread_create(&zombie, NULL, exit_now, NULL) == 0, "pthread_create");
++    nanosleep(&pause, NULL);
++    check(pthread_kill(zombie, 0) == 0, "signal 0 to an exited thread");
++    check(pthread_kill(zombie, SIGUSR1) == 0, "signal to an exited thread");
++#ifdef __PICOLIBC__
++    /* glibc returns 0 for an exited thread without checking the signal */
++    check(pthread_kill(zombie, 12345) == EINVAL, "EINVAL for an exited thread");
++#endif
++    check(pthread_join(zombie, NULL) == 0, "pthread_join");
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

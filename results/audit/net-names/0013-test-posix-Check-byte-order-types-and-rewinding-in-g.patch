@@ -1,0 +1,98 @@
+From f14a97386e629925fdf5d9e306fc0fe9e8e5477f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:34:54 +0000
+Subject: [PATCH 13/21] test-posix: Check byte order, types and rewinding in
+ getnetbyname
+
+---
+ .../test-posix/test-netdb/test-getnetbyname.c | 67 +++++++++++++++++++
+ 1 file changed, 67 insertions(+)
+
+diff --git a/test/test-posix/test-netdb/test-getnetbyname.c b/test/test-posix/test-netdb/test-getnetbyname.c
+index c739b94a4e..85a3486bba 100644
+--- a/test/test-posix/test-netdb/test-getnetbyname.c
++++ b/test/test-posix/test-netdb/test-getnetbyname.c
+@@ -104,6 +104,35 @@ tcp_pair(int *client, int *server)
+     check(close(listener) == 0, "close listener");
+ }
+ 
++#define MAX_FDS 64
++
++/* Records which descriptors are open */
++static void
++open_fds(unsigned char *open)
++{
++    int fd;
++
++    for (fd = 0; fd < MAX_FDS; fd++)
++        open[fd] = fcntl(fd, F_GETFD) >= 0;
++}
++
++/* Counts the descriptors opened since 'before', failing if any lacks FD_CLOEXEC */
++static int
++new_fds(const unsigned char *before)
++{
++    int fd, n = 0;
++
++    for (fd = 0; fd < MAX_FDS; fd++) {
++        int flags = fcntl(fd, F_GETFD);
++
++        if (flags < 0 || before[fd])
++            continue;
++        check(flags & FD_CLOEXEC, "FD_CLOEXEC");
++        n++;
++    }
++    return n;
++}
++
+ int
+ main(void)
+ {
+@@ -125,6 +154,44 @@ main(void)
+     }
+     endnetent();
+     check(getnetbyname("no-such-network-here") == NULL, "missing");
++
++    /* The network number is in host byte order */
++    n = getnetbyname("loopback");
++    if (n)
++        check(n->n_net == 127 || n->n_net == 0x7f000000, "loopback number");
++
++    /* The address type must match too */
++    setnetent(0);
++    n = getnetent();
++    if (n) {
++        uint32_t net = n->n_net;
++
++        check(getnetbyaddr(net, AF_INET6) == NULL, "address type");
++    }
++
++    /* setnetent and endnetent start again from the first entry, with FD_CLOEXEC */
++    {
++        unsigned char before[MAX_FDS];
++        char          first[256];
++
++        endnetent();
++        open_fds(before);
++        setnetent(1);
++        n = getnetent();
++        if (n) {
++            snprintf(first, sizeof(first), "%s", n->n_name);
++            (void)getnetent();
++            (void)new_fds(before);
++            setnetent(0);
++            n = getnetent();
++            check(n && strcmp(n->n_name, first) == 0, "setnetent rewinds");
++            endnetent();
++            check(new_fds(before) == 0, "endnetent closes");
++            n = getnetent();
++            check(n && strcmp(n->n_name, first) == 0, "endnetent rewinds");
++        }
++        endnetent();
++    }
+     (void)make_socket;
+     (void)tcp_pair;
+     printf("success\n");
+-- 
+2.47.3
+

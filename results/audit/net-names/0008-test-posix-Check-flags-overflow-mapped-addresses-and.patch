@@ -1,0 +1,240 @@
+From fb1bbcb3946657e0199f3e4e038dfbf0efc446d5 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:31:54 +0000
+Subject: [PATCH 08/21] test-posix: Check flags, overflow, mapped addresses and
+ scopes in getnameinfo
+
+The NI_NAMEREQD check for an address without a name accepts any
+answer a DNS resolver gives; picolibc, which reads only the hosts
+file, must return EAI_NONAME when the file doesn't list it.
+---
+ test/test-posix/test-netdb/test-getnameinfo.c | 193 +++++++++++++++++-
+ 1 file changed, 192 insertions(+), 1 deletion(-)
+
+diff --git a/test/test-posix/test-netdb/test-getnameinfo.c b/test/test-posix/test-netdb/test-getnameinfo.c
+index a89bc23b8f..2541e18916 100644
+--- a/test/test-posix/test-netdb/test-getnameinfo.c
++++ b/test/test-posix/test-netdb/test-getnameinfo.c
+@@ -43,6 +43,7 @@
+ #include <arpa/inet.h>
+ #include <errno.h>
+ #include <fcntl.h>
++#include <net/if.h>
+ #include <netdb.h>
+ #include <netinet/in.h>
+ #include <stdio.h>
+@@ -104,13 +105,54 @@ tcp_pair(int *client, int *server)
+     check(close(listener) == 0, "close listener");
+ }
+ 
++/* Whether the hosts database lists the IPv4 address */
++static int
++in_hosts(in_addr_t addr)
++{
++    struct hostent *h;
++    int             found = 0;
++
++    sethostent(0);
++    while (!found && (h = gethostent()) != NULL)
++        if (h->h_addrtype == AF_INET && memcmp(h->h_addr_list[0], &addr, 4) == 0)
++            found = 1;
++    endhostent();
++    return found;
++}
++
++/* The name of the service on port for proto, or the number */
++static void
++service_name(int port, const char *proto, char *buf, size_t len)
++{
++    struct servent *s = getservbyport(htons((in_port_t)port), proto);
++
++    if (s)
++        snprintf(buf, len, "%s", s->s_name);
++    else
++        snprintf(buf, len, "%d", port);
++}
++
++/* getnameinfo of an IPv6 address */
++static int
++name6(const char *text, uint32_t scope, char *host, socklen_t hostlen, int flags)
++{
++    struct sockaddr_in6 sin6;
++
++    memset(&sin6, 0, sizeof(sin6));
++    sin6.sin6_family = AF_INET6;
++    sin6.sin6_scope_id = scope;
++    check(inet_pton(AF_INET6, text, &sin6.sin6_addr) == 1, "inet_pton");
++    return getnameinfo((struct sockaddr *)&sin6, sizeof(sin6), host, hostlen, NULL, 0, flags);
++}
++
+ int
+ main(void)
+ {
+     struct sockaddr_in  sin;
+     struct sockaddr_in6 sin6;
+-    char                host[1025], serv[32];
++    char                host[1025], serv[32], name4[1025], want[64];
+     int                 ret;
++    size_t              len;
+ 
+     memset(&sin, 0, sizeof(sin));
+     sin.sin_family = AF_INET;
+@@ -154,6 +196,155 @@ main(void)
+     check(getnameinfo((struct sockaddr *)&sin6, sizeof(sin6), host, sizeof(host), NULL, 0, 0)
+               == EAI_FAMILY,
+           "EAI_FAMILY");
++
++#ifdef __PICOLIBC__
++    /* picolibc only reads the hosts file, which doesn't list TEST-NET-1 */
++    if (!in_hosts(htonl(0xc0000201)))
++        check(ret == EAI_NONAME, "NI_NAMEREQD without a name");
++#else
++    (void)in_hosts;
++#endif
++
++    /* Bad flags and lengths, and nothing asked for */
++    sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), host, sizeof(host), NULL, 0, 0x40000000)
++              == EAI_BADFLAGS,
++          "EAI_BADFLAGS");
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin) - 1, host, sizeof(host), NULL, 0, 0)
++              == EAI_FAMILY,
++          "short IPv4 length");
++    check(getnameinfo((struct sockaddr *)&sin6, sizeof(sin6) - 1, host, sizeof(host), NULL, 0, 0)
++              == EAI_FAMILY,
++          "short IPv6 length");
++#ifdef __PICOLIBC__
++    /* glibc succeeds without doing anything */
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), NULL, 0, NULL, 0, 0) == EAI_NONAME,
++          "neither host nor service");
++#endif
++
++    /* A zero length means the name isn't returned */
++    strcpy(host, "unchanged");
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), host, 0, serv, sizeof(serv), 0) == 0
++              && strcmp(host, "unchanged") == 0,
++          "zero host length");
++
++    /* The loopback address has a name (checked above) */
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), name4, sizeof(name4), NULL, 0,
++                      NI_NAMEREQD)
++              == 0,
++          "loopback name");
++
++    /* A name that doesn't fit overflows, rather than turning into the number */
++    len = strlen(name4);
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), host, (socklen_t)len, NULL, 0,
++                      NI_NAMEREQD)
++              == EAI_OVERFLOW,
++          "host name overflow");
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), host, (socklen_t)len + 1, NULL, 0,
++                      NI_NAMEREQD)
++                  == 0
++              && strcmp(host, name4) == 0,
++          "host name just fits");
++    sin.sin_port = htons(80);
++    service_name(80, "tcp", want, sizeof(want));
++    len = strlen(want);
++    if (len > 2) {
++        check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), NULL, 0, serv, (socklen_t)len, 0)
++                  == EAI_OVERFLOW,
++              "service name overflow");
++        check(
++            getnameinfo((struct sockaddr *)&sin, sizeof(sin), NULL, 0, serv, (socklen_t)len + 1, 0)
++                    == 0
++                && strcmp(serv, want) == 0,
++            "service name just fits");
++    }
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), NULL, 0, serv, 2, NI_NUMERICSERV)
++              == EAI_OVERFLOW,
++          "port overflow");
++
++    /* A port without a service name is returned as its number */
++    sin.sin_port = htons(0);
++    service_name(0, "tcp", want, sizeof(want));
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), NULL, 0, serv, sizeof(serv), 0) == 0
++              && strcmp(serv, want) == 0,
++          "port without a name");
++
++#ifdef NI_NUMERICSCOPE
++    /* NI_NUMERICSCOPE is ignored for IPv4 */
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), host, sizeof(host), NULL, 0,
++                      NI_NUMERICHOST | NI_NUMERICSCOPE)
++                  == 0
++              && strcmp(host, "127.0.0.1") == 0,
++          "NI_NUMERICSCOPE with IPv4");
++#endif
++
++    /* NI_NOFQDN gives the whole name or the part before a dot */
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), host, sizeof(host), NULL, 0,
++                      NI_NAMEREQD | NI_NOFQDN)
++              == 0,
++          "NI_NOFQDN");
++    len = strlen(host);
++    check(strncmp(host, name4, len) == 0 && (name4[len] == '\0' || name4[len] == '.'),
++          "NI_NOFQDN name");
++
++    /* NI_DGRAM picks the UDP service, which can differ from the TCP one */
++    sin.sin_port = htons(514);
++    service_name(514, "udp", want, sizeof(want));
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), NULL, 0, serv, sizeof(serv), NI_DGRAM)
++                  == 0
++              && strcmp(serv, want) == 0,
++          "NI_DGRAM");
++    service_name(514, "tcp", want, sizeof(want));
++    check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), NULL, 0, serv, sizeof(serv), 0) == 0
++              && strcmp(serv, want) == 0,
++          "stream by default");
++
++    /* Mapped and compatible addresses have the name of their IPv4 address */
++    check(name6("::ffff:127.0.0.1", 0, host, sizeof(host), NI_NAMEREQD) == 0
++              && strcmp(host, name4) == 0,
++          "IPv4-mapped");
++    check(name6("::127.0.0.1", 0, host, sizeof(host), NI_NAMEREQD) == 0 && strcmp(host, name4) == 0,
++          "IPv4-compatible");
++    check(name6("::ffff:127.0.0.1", 0, host, sizeof(host), NI_NUMERICHOST) == 0
++              && strcmp(host, "::ffff:127.0.0.1") == 0,
++          "numeric IPv4-mapped");
++
++    /* The unspecified address is never looked up */
++    check(name6("::", 0, host, sizeof(host), NI_NAMEREQD) == EAI_NONAME, "unspecified named");
++    check(name6("::", 0, host, sizeof(host), 0) == 0 && strcmp(host, "::") == 0, "unspecified");
++
++    /* The scope follows the address, as a number with NI_NUMERICSCOPE */
++    {
++        struct if_nameindex *list = if_nameindex();
++        unsigned             index;
++        char                 ifname[IF_NAMESIZE], number[16];
++
++        check(list != NULL && list[0].if_index != 0, "an interface");
++        index = list[0].if_index;
++        snprintf(ifname, sizeof(ifname), "%s", list[0].if_name);
++        if_freenameindex(list);
++        snprintf(number, sizeof(number), "%u", index);
++
++        check(name6("fe80::1", 0, host, sizeof(host), NI_NUMERICHOST) == 0
++                  && strcmp(host, "fe80::1") == 0,
++              "no scope");
++        check(name6("fe80::1", index, host, sizeof(host), NI_NUMERICHOST) == 0
++                  && strncmp(host, "fe80::1%", 8) == 0
++                  && (strcmp(host + 8, ifname) == 0 || strcmp(host + 8, number) == 0),
++              "link-local scope");
++#ifdef __PICOLIBC__
++        check(strcmp(host + 8, ifname) == 0, "link-local scope name");
++#endif
++#ifdef NI_NUMERICSCOPE
++        /* glibc doesn't define NI_NUMERICSCOPE */
++        check(name6("fe80::1", index, host, sizeof(host), NI_NUMERICHOST | NI_NUMERICSCOPE) == 0
++                  && strncmp(host, "fe80::1%", 8) == 0 && strcmp(host + 8, number) == 0,
++              "NI_NUMERICSCOPE");
++#endif
++        check(name6("2001:db8::1", index, host, sizeof(host), NI_NUMERICHOST) == 0
++                  && strncmp(host, "2001:db8::1%", 12) == 0,
++              "global scope");
++    }
+     (void)make_socket;
+     (void)tcp_pair;
+     printf("success\n");
+-- 
+2.47.3
+

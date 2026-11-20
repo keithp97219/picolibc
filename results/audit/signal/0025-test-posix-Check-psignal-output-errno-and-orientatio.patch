@@ -1,0 +1,71 @@
+From b846ba210ee2beb16be32c04b140910396c8a834 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:39:25 +0000
+Subject: [PATCH 25/27] test-posix: Check psignal output, errno and orientation
+
+---
+ test/test-posix/test-signal/test-psiginfo.c | 29 ++++++++++++++++++++-
+ 1 file changed, 28 insertions(+), 1 deletion(-)
+
+diff --git a/test/test-posix/test-signal/test-psiginfo.c b/test/test-posix/test-signal/test-psiginfo.c
+index 6b84e5e928..5200c47268 100644
+--- a/test/test-posix/test-signal/test-psiginfo.c
++++ b/test/test-posix/test-signal/test-psiginfo.c
+@@ -34,8 +34,10 @@
+  */
+ 
+ #define _POSIX_C_SOURCE 202405L
++#include <errno.h>
+ #include <signal.h>
+ #include <stdio.h>
++#include <wchar.h>
+ #include <stdlib.h>
+ #include <string.h>
+ 
+@@ -76,10 +78,14 @@ main(void)
+         printf("can't redirect stderr, output not checked\n");
+         return 77;
+     }
++    errno = 0;
+     psiginfo(&info, "prefix");
+     psiginfo(&info, NULL);
++    psignal(SIGTERM, "other");
++    psignal(SIGTERM, "");
++    check(errno == 0, "errno unchanged on success");
++    /* Leave stderr open; freopen closes it below */
+     fflush(stderr);
+-    fclose(stderr);
+ 
+     /* Implementations may add detail after the description */
+     f = fopen(TEST_FILE_NAME, "r");
+@@ -90,6 +96,27 @@ main(void)
+     snprintf(want, sizeof(want), "%s", strsignal(SIGINT));
+     check(fgets(line, sizeof(line), f) != NULL && strncmp(line, want, strlen(want)) == 0,
+           "description alone");
++    snprintf(want, sizeof(want), "other: %s", strsignal(SIGTERM));
++    check(fgets(line, sizeof(line), f) != NULL && strncmp(line, want, strlen(want)) == 0,
++          "psignal message and description");
++    snprintf(want, sizeof(want), "%s\n", strsignal(SIGTERM));
++    check(fgets(line, sizeof(line), f) != NULL && strcmp(line, want) == 0,
++          "psignal with an empty message writes only the description");
++    check(fgets(line, sizeof(line), f) == NULL, "nothing more");
++    fclose(f);
++
++    /* A wide-oriented stderr stays wide */
++    check(freopen(TEST_FILE_NAME, "w", stderr) != NULL, "redirect stderr again");
++    check(fwide(stderr, 1) > 0, "make stderr wide");
++    psignal(SIGTERM, "wide");
++    check(fwide(stderr, 0) > 0, "orientation unchanged");
++    fflush(stderr);
++    fclose(stderr);
++    f = fopen(TEST_FILE_NAME, "r");
++    check(f != NULL, "reopen the output");
++    snprintf(want, sizeof(want), "wide: %s", strsignal(SIGTERM));
++    check(fgets(line, sizeof(line), f) != NULL && strncmp(line, want, strlen(want)) == 0,
++          "psignal on a wide stream");
+     fclose(f);
+     remove(TEST_FILE_NAME);
+ 
+-- 
+2.47.3
+

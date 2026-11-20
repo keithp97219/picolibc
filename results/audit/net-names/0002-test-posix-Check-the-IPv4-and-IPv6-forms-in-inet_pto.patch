@@ -1,0 +1,59 @@
+From 68adcf46dc94770fa7275434c4530eaf7add7e1d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:27:08 +0000
+Subject: [PATCH 02/21] test-posix: Check the IPv4 and IPv6 forms in inet_pton
+
+---
+ .../test-arpa-inet/test-inet_pton.c           | 28 ++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/test/test-posix/test-arpa-inet/test-inet_pton.c b/test/test-posix/test-arpa-inet/test-inet_pton.c
+index 2364bac4ff..994a918455 100644
+--- a/test/test-posix/test-arpa-inet/test-inet_pton.c
++++ b/test/test-posix/test-arpa-inet/test-inet_pton.c
+@@ -132,8 +132,23 @@ main(void)
+     check(inet_pton(AF_INET, "256.1.1.1", &in) == 0, "octet too big");
+     check(inet_pton(AF_INET, "1.2.3", &in) == 0, "too few parts");
+     check(inet_pton(AF_INET, "1.2.3.4.5", &in) == 0, "too many parts");
+-    check(inet_pton(AF_INET, "1.2.3.04", &in) == 0, "leading zero");
++#ifdef __PICOLIBC__
++    /* POSIX allows leading zeros in each decimal part; glibc rejects them */
++    check(inet_pton(AF_INET, "001.002.003.010", &in) == 1 && in.s_addr == htonl(0x0102030a),
++          "leading zeros");
++    check(v6("::ffff:01.002.3.4", "00000000000000000000ffff01020304"),
++          "leading zeros in IPv4 tail");
++#endif
++    check(inet_pton(AF_INET, "0001.2.3.4", &in) == 0, "four digits");
+     check(inet_pton(AF_INET, "1.2.3.4 ", &in) == 0, "trailing space");
++    check(inet_pton(AF_INET, " 1.2.3.4", &in) == 0, "leading space");
++    check(inet_pton(AF_INET, "0x1.2.3.4", &in) == 0, "hexadecimal");
++    check(inet_pton(AF_INET, "1.2.3.", &in) == 0, "empty part");
++    check(inet_pton(AF_INET, "", &in) == 0, "empty");
++
++    /* A failed conversion leaves the destination alone */
++    in.s_addr = htonl(0x01020304);
++    check(inet_pton(AF_INET, "1.2.3", &in) == 0 && in.s_addr == htonl(0x01020304), "unchanged");
+ 
+     check(v6("::", "00000000000000000000000000000000"), "::");
+     check(v6("::1", "00000000000000000000000000000001"), "::1");
+@@ -148,6 +163,17 @@ main(void)
+     check(inet_pton(AF_INET6, "1:2:3:4:5:6:7", addr) == 0, "too few groups");
+     check(inet_pton(AF_INET6, ":1::", addr) == 0, "lone leading colon");
+     check(inet_pton(AF_INET6, "1:", addr) == 0, "trailing colon");
++    check(v6("1:2:3:4:5:6:1.2.3.4", "00010002000300040005000601020304"), "IPv4 tail");
++    check(v6("::1.2.3.4", "00000000000000000000000001020304"), "compressed with an IPv4 tail");
++    check(v6("1:2:3:4:5:6:7::", "00010002000300040005000600070000"), ":: for one group");
++    check(v6("0001:02:003:0004::", "00010002000300040000000000000000"), "leading zeros in groups");
++    check(inet_pton(AF_INET6, "1:2:3:4:5:6:7:1.2.3.4", addr) == 0, "IPv4 tail too late");
++    check(inet_pton(AF_INET6, "1:2:3:4:5:6:7:8::", addr) == 0, ":: with eight groups");
++    check(inet_pton(AF_INET6, "::ffff:1.2.3", addr) == 0, "short IPv4 tail");
++    check(inet_pton(AF_INET6, "1.2.3.4", addr) == 0, "IPv4 only");
++    check(inet_pton(AF_INET6, "1:2:3:4:5:6:7:g", addr) == 0, "not hexadecimal");
++    check(inet_pton(AF_INET6, "", addr) == 0, "empty");
++    errno = 0;
+     check(inet_pton(12345, "1.2.3.4", addr) == -1 && errno == EAFNOSUPPORT, "EAFNOSUPPORT");
+     (void)make_socket;
+     (void)tcp_pair;
+-- 
+2.47.3
+

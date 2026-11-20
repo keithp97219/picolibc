@@ -1,0 +1,45 @@
+From 0cf3cb95af801e835e15cbfb0285fd9e4314731e Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:25:41 +0000
+Subject: [PATCH 01/27] libos/linux: Leave the signal handler alone when
+ sigaction has no act
+
+sigaction(sig, NULL, &oact) stored an uninitialized handler in the
+table the trampolines call through, so a query could replace the
+installed handler with garbage.
+---
+ libos/linux/sigaction.c | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/libos/linux/sigaction.c b/libos/linux/sigaction.c
+index 30707ec8b7..846b8a1e79 100644
+--- a/libos/linux/sigaction.c
++++ b/libos/linux/sigaction.c
+@@ -168,12 +168,21 @@ sigaction(int sig, const struct sigaction *act, struct sigaction *oldact)
+     ret = _syscall(LINUX_SYS_rt_sigaction, ksig, pact, poldact, __KERNEL_NSIG_BYTES);
+ 
+     if (ret == 0) {
++        /* Without act, the handling is unchanged */
++        if (act) {
+ #ifdef _USE_ATOMIC_SIGNAL
+-        oldfunc = (sig_func_t)atomic_exchange(&_sig_func[sig], func);
++            oldfunc = (sig_func_t)atomic_exchange(&_sig_func[sig], func);
+ #else
+-        oldfunc = _sig_func[sig];
+-        _sig_func[sig] = func;
++            oldfunc = _sig_func[sig];
++            _sig_func[sig] = func;
+ #endif
++        } else {
++#ifdef _USE_ATOMIC_SIGNAL
++            oldfunc = (sig_func_t)atomic_load(&_sig_func[sig]);
++#else
++            oldfunc = _sig_func[sig];
++#endif
++        }
+         if (oldact) {
+             oldact->sa_handler = oldfunc.sa_handler;
+             _sigmask_from_linux(&oldact->sa_mask, &koldact.sa_mask);
+-- 
+2.47.3
+

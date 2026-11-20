@@ -1,0 +1,36 @@
+From 6ba6eb9d6abd7cdf66c48988d8c3aea3edbeb57c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:30:09 +0000
+Subject: [PATCH 07/21] libc/include: Define uint16_t and uint32_t in
+ <arpa/inet.h>
+
+POSIX: The <arpa/inet.h> header shall define the uint32_t and uint16_t
+types as described in <inttypes.h>.
+---
+ libc/include/arpa/inet.h | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/libc/include/arpa/inet.h b/libc/include/arpa/inet.h
+index 3c9af3f514..c55e4a7014 100644
+--- a/libc/include/arpa/inet.h
++++ b/libc/include/arpa/inet.h
+@@ -11,6 +11,16 @@
+ 
+ _BEGIN_STD_C
+ 
++#ifndef _UINT16_T_DECLARED
++typedef __uint16_t uint16_t;
++#define _UINT16_T_DECLARED
++#endif
++
++#ifndef _UINT32_T_DECLARED
++typedef __uint32_t uint32_t;
++#define _UINT32_T_DECLARED
++#endif
++
+ /* The byte order functions, also defined as macros below */
+ __uint32_t(htonl)(__uint32_t) __picolibc_export;
+ __uint16_t(htons)(__uint16_t) __picolibc_export;
+-- 
+2.47.3
+

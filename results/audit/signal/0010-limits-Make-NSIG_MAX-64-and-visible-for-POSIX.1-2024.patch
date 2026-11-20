@@ -1,0 +1,30 @@
+From 4d0bfea82227cc286d3909ffd1939d26fa4a9803 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:33:30 +0000
+Subject: [PATCH 10/27] limits: Make NSIG_MAX 64 and visible for POSIX.1-2024
+
+NSIG_MAX was __LONG_WIDTH__, 32 on 32-bit targets where signals go up
+to SIGRTMAX (62), and only visible with __MISC_VISIBLE. sigset_t holds
+64 signals everywhere.
+---
+ libc/include/sys/syslimits.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libc/include/sys/syslimits.h b/libc/include/sys/syslimits.h
+index 9eec6269ba..a5cc7a7346 100644
+--- a/libc/include/sys/syslimits.h
++++ b/libc/include/sys/syslimits.h
+@@ -118,8 +118,8 @@
+ #define _XOPEN_PATH_MAX 1024
+ #endif
+ 
+-#if __MISC_VISIBLE
+-#define NSIG_MAX __LONG_WIDTH__ /* max signal number */
++#if __MISC_VISIBLE || __POSIX_VISIBLE >= 202405
++#define NSIG_MAX 64 /* signal numbers are less than this; matches sigset_t */
+ #endif
+ 
+ #endif
+-- 
+2.47.3
+

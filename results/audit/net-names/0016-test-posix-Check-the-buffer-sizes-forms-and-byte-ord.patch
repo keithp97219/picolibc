@@ -1,0 +1,115 @@
+From 1b10e06c823e52324c85ed0c00f093954dc81e4d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:39:07 +0000
+Subject: [PATCH 16/21] test-posix: Check the buffer sizes, forms and byte
+ order in inet_ntop, inet_addr and inet_ntoa
+
+---
+ .../test-arpa-inet/test-inet_addr.c           | 22 +++++++++++++
+ .../test-arpa-inet/test-inet_ntoa.c           | 14 +++++++++
+ .../test-arpa-inet/test-inet_ntop.c           | 31 +++++++++++++++++++
+ 3 files changed, 67 insertions(+)
+
+diff --git a/test/test-posix/test-arpa-inet/test-inet_addr.c b/test/test-posix/test-arpa-inet/test-inet_addr.c
+index 489ace4ed6..734d30a0cc 100644
+--- a/test/test-posix/test-arpa-inet/test-inet_addr.c
++++ b/test/test-posix/test-arpa-inet/test-inet_addr.c
+@@ -117,6 +117,28 @@ main(void)
+     check(inet_addr("08.1.1.1") == (in_addr_t)-1, "bad octal");
+     check(inet_addr("1.2.3.4x") == (in_addr_t)-1, "trailing junk");
+     check(inet_addr("") == (in_addr_t)-1, "empty");
++
++    /* Each form, with the parts in any base */
++    check(inet_addr("0377.0xff.255.0") == htonl(0xffffff00), "mixed bases");
++    check(inet_addr("0X7F.1") == htonl(0x7f000001), "upper case 0X");
++    check(inet_addr("10.0xffffff") == htonl(0x0affffff), "24-bit part");
++    check(inet_addr("10.1.0xffff") == htonl(0x0a01ffff), "16-bit part");
++    check(inet_addr("0") == 0, "zero");
++    check(inet_addr("10.0x1000000") == (in_addr_t)-1, "24-bit part too big");
++    check(inet_addr("10.1.65536") == (in_addr_t)-1, "16-bit part too big");
++    check(inet_addr("4294967296") == (in_addr_t)-1, "32-bit part too big");
++    check(inet_addr("1.2.3.4.5") == (in_addr_t)-1, "five parts");
++    check(inet_addr("1..2") == (in_addr_t)-1, "empty part");
++    check(inet_addr("1.2.3.") == (in_addr_t)-1, "trailing dot");
++    check(inet_addr("0x1g") == (in_addr_t)-1, "bad hex");
++
++    /* The result is in network byte order */
++    {
++        in_addr_t      a = inet_addr("1.2.3.4");
++        unsigned char *p = (unsigned char *)&a;
++
++        check(p[0] == 1 && p[1] == 2 && p[2] == 3 && p[3] == 4, "network order");
++    }
+     (void)make_socket;
+     (void)tcp_pair;
+     printf("success\n");
+diff --git a/test/test-posix/test-arpa-inet/test-inet_ntoa.c b/test/test-posix/test-arpa-inet/test-inet_ntoa.c
+index 5612d8d35f..e5784053b8 100644
+--- a/test/test-posix/test-arpa-inet/test-inet_ntoa.c
++++ b/test/test-posix/test-arpa-inet/test-inet_ntoa.c
+@@ -113,6 +113,20 @@ main(void)
+     check(strcmp(inet_ntoa(in), "192.168.0.1") == 0, "address");
+     in.s_addr = htonl(0xffffffff);
+     check(strcmp(inet_ntoa(in), "255.255.255.255") == 0, "broadcast");
++
++    in.s_addr = 0;
++    check(strcmp(inet_ntoa(in), "0.0.0.0") == 0, "zero");
++
++    /* The address is in network byte order */
++    {
++        unsigned char *p = (unsigned char *)&in.s_addr;
++
++        p[0] = 10;
++        p[1] = 0;
++        p[2] = 0;
++        p[3] = 255;
++        check(strcmp(inet_ntoa(in), "10.0.0.255") == 0, "network order");
++    }
+     (void)make_socket;
+     (void)tcp_pair;
+     printf("success\n");
+diff --git a/test/test-posix/test-arpa-inet/test-inet_ntop.c b/test/test-posix/test-arpa-inet/test-inet_ntop.c
+index 0846e81f66..652e1537ae 100644
+--- a/test/test-posix/test-arpa-inet/test-inet_ntop.c
++++ b/test/test-posix/test-arpa-inet/test-inet_ntop.c
+@@ -133,6 +133,37 @@ main(void)
+     check(v6("::ffff:1.2.3.4"), "IPv4-mapped");
+     check(v6("fe80::1"), "link local");
+     check(inet_ntop(12345, &in, buf, sizeof(buf)) == NULL && errno == EAFNOSUPPORT, "EAFNOSUPPORT");
++
++    /* The buffer sizes from <netinet/in.h> are enough; one byte less is not */
++    in.s_addr = htonl(0xffffffff);
++    check(inet_ntop(AF_INET, &in, buf, INET_ADDRSTRLEN) == buf
++              && strcmp(buf, "255.255.255.255") == 0,
++          "INET_ADDRSTRLEN");
++    errno = 0;
++    check(inet_ntop(AF_INET, &in, buf, 15) == NULL && errno == ENOSPC, "IPv4 one byte short");
++    {
++        unsigned char addr[16];
++
++        memset(addr, 0xff, sizeof(addr));
++        check(inet_ntop(AF_INET6, addr, buf, INET6_ADDRSTRLEN) == buf
++                  && strcmp(buf, "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff") == 0,
++              "longest IPv6");
++        errno = 0;
++        check(inet_ntop(AF_INET6, addr, buf, 39) == NULL && errno == ENOSPC, "IPv6 one byte short");
++        check(inet_pton(AF_INET6, "::1", addr) == 1, "::1");
++        errno = 0;
++        check(inet_ntop(AF_INET6, addr, buf, 3) == NULL && errno == ENOSPC, "IPv6 ENOSPC");
++        check(inet_ntop(AF_INET6, addr, buf, 4) == buf && strcmp(buf, "::1") == 0,
++              "IPv6 just fits");
++    }
++
++    /* IPv4 text converts back to the same address */
++    check(inet_pton(AF_INET, "10.20.30.40", &in) == 1
++              && inet_ntop(AF_INET, &in, buf, sizeof(buf)) == buf
++              && strcmp(buf, "10.20.30.40") == 0,
++          "IPv4 round trip");
++    check(v6("1:2:3:4:5:6:7:8"), "no zeros");
++    check(v6("1::"), "trailing zeros");
+     (void)make_socket;
+     (void)tcp_pair;
+     printf("success\n");
+-- 
+2.47.3
+

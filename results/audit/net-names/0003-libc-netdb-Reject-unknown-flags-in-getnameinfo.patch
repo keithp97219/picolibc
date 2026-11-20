@@ -1,0 +1,37 @@
+From 859ff3aeda41d041668a2b7529a8369ccb0ea5f7 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:27:34 +0000
+Subject: [PATCH 03/21] libc/netdb: Reject unknown flags in getnameinfo
+
+POSIX lists EAI_BADFLAGS for flags with an invalid value; picolibc
+ignored any bits it didn't know.
+---
+ libc/posix/netdb/getnameinfo.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libc/posix/netdb/getnameinfo.c b/libc/posix/netdb/getnameinfo.c
+index 9075227cd7..4d00299a38 100644
+--- a/libc/posix/netdb/getnameinfo.c
++++ b/libc/posix/netdb/getnameinfo.c
+@@ -36,6 +36,9 @@
+ #include "local-netdb.h"
+ #include <string.h>
+ 
++#define __GNI_FLAGS                                                                          \
++    (NI_NUMERICHOST | NI_NUMERICSERV | NI_NOFQDN | NI_NAMEREQD | NI_DGRAM | NI_NUMERICSCOPE)
++
+ int
+ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __restrict host,
+             socklen_t hostlen, char * __restrict serv, socklen_t servlen, int flags)
+@@ -44,6 +47,8 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
+     int         family, port;
+     char        buf[INET6_ADDRSTRLEN];
+ 
++    if (flags & ~__GNI_FLAGS)
++        return EAI_BADFLAGS;
+     if (!sa)
+         return EAI_FAMILY;
+     family = sa->sa_family;
+-- 
+2.47.3
+

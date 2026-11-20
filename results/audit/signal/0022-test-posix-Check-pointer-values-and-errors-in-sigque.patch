@@ -1,0 +1,39 @@
+From 20d688e0f1935747cf153cbcf80f1cd9d0b682de Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:39:25 +0000
+Subject: [PATCH 22/27] test-posix: Check pointer values and errors in sigqueue
+
+---
+ test/test-posix/test-signal/test-sigqueue.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/test/test-posix/test-signal/test-sigqueue.c b/test/test-posix/test-signal/test-sigqueue.c
+index 18c5f1dc74..a64cfe4b3a 100644
+--- a/test/test-posix/test-signal/test-sigqueue.c
++++ b/test/test-posix/test-signal/test-sigqueue.c
+@@ -97,6 +97,22 @@ main(void)
+     check(sigqueue(getpid(), 0, value) == 0, "sigqueue with no signal");
+     errno = 0;
+     check(sigqueue(getpid(), NSIG + 1, value) == -1 && errno == EINVAL, "sigqueue bad signal");
++    errno = 0;
++    check(sigqueue(getpid(), -1, value) == -1 && errno == EINVAL, "sigqueue negative signal");
++
++    /* A pointer value arrives intact */
++    value.sival_ptr = &value;
++    check(sigqueue(getpid(), SIGUSR2, value) == 0, "sigqueue pointer");
++    check(caught == SIGUSR2 && info.si_value.sival_ptr == &value, "queued pointer value");
++
++    /* EPERM for a process of another user; init runs as root */
++    if (geteuid() != 0 && getuid() != 0) {
++        errno = 0;
++        check(sigqueue(1, 0, value) == -1 && errno == EPERM, "EPERM");
++    }
++    /* ESRCH for a process that doesn't exist; Linux pids are below 2^22 */
++    errno = 0;
++    check(sigqueue(0x7fffffff, 0, value) == -1 && errno == ESRCH, "ESRCH");
+ 
+     printf("success\n");
+     return 0;
+-- 
+2.47.3
+

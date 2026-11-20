@@ -1,0 +1,288 @@
+From f74f3c9914294f269d1839af6a4c3cc765bf54e1 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:39:07 +0000
+Subject: [PATCH 21/21] test-posix: Check the types, constants and address
+ macros in netinet/in.h
+
+---
+ .../test-posix/test-netinet-in/CMakeLists.txt |   1 +
+ test/test-posix/test-netinet-in/meson.build   |   1 +
+ .../test-netinet-in/test-netinet_in_h.c       | 244 ++++++++++++++++++
+ 3 files changed, 246 insertions(+)
+ create mode 100644 test/test-posix/test-netinet-in/test-netinet_in_h.c
+
+diff --git a/test/test-posix/test-netinet-in/CMakeLists.txt b/test/test-posix/test-netinet-in/CMakeLists.txt
+index 61970de77b..023d91536f 100644
+--- a/test/test-posix/test-netinet-in/CMakeLists.txt
++++ b/test/test-posix/test-netinet-in/CMakeLists.txt
+@@ -35,6 +35,7 @@
+ 
+ set(tests
+   test-in6addr_any
++  test-netinet_in_h
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-netinet-in/meson.build b/test/test-posix/test-netinet-in/meson.build
+index b7d1f1a269..89708e7aa4 100644
+--- a/test/test-posix/test-netinet-in/meson.build
++++ b/test/test-posix/test-netinet-in/meson.build
+@@ -35,4 +35,5 @@
+ 
+ dir_tests = [
+   'test-in6addr_any',
++  'test-netinet_in_h',
+ ]
+diff --git a/test/test-posix/test-netinet-in/test-netinet_in_h.c b/test/test-posix/test-netinet-in/test-netinet_in_h.c
+new file mode 100644
+index 0000000000..bb164251ee
+--- /dev/null
++++ b/test/test-posix/test-netinet-in/test-netinet_in_h.c
+@@ -0,0 +1,244 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/* What <netinet/in.h> provides */
++
++#define _POSIX_C_SOURCE 202405L
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                       \
++    || (defined(__PICOLIBC_POSIX_NETWORKING) && __PICOLIBC_POSIX_NETWORKING > 0)
++
++/* <unistd.h> defines none of the types checked here */
++#include <netinet/in.h>
++
++#define same_type(a, T) _Generic((a), T: 1, default: 0)
++
++/* The types */
++static in_port_t   port;
++static in_addr_t   addr;
++static sa_family_t family;
++static uint8_t     u8;
++static uint32_t    u32;
++/* uint16_t needn't be defined here; it is unsigned short on these targets */
++_Static_assert(same_type(port, unsigned short), "in_port_t");
++_Static_assert(same_type(addr, uint32_t) && same_type(u8, unsigned char) && sizeof(u32) == 4,
++               "in_addr_t, uint8_t and uint32_t");
++
++/* The structures */
++static struct in_addr      in;
++static struct sockaddr_in  sin;
++static struct in6_addr     in6;
++static struct sockaddr_in6 sin6;
++static struct ipv6_mreq    mreq;
++_Static_assert(same_type(in.s_addr, in_addr_t), "in_addr");
++_Static_assert(same_type(sin.sin_family, sa_family_t) && same_type(sin.sin_port, in_port_t)
++                   && same_type(sin.sin_addr, struct in_addr),
++               "sockaddr_in");
++_Static_assert(same_type(in6.s6_addr[0], uint8_t) && sizeof(in6.s6_addr) == 16, "in6_addr");
++_Static_assert(same_type(sin6.sin6_family, sa_family_t) && same_type(sin6.sin6_port, in_port_t)
++                   && same_type(sin6.sin6_flowinfo, uint32_t)
++                   && same_type(sin6.sin6_addr, struct in6_addr)
++                   && same_type(sin6.sin6_scope_id, uint32_t),
++               "sockaddr_in6");
++_Static_assert(same_type(mreq.ipv6mr_multiaddr, struct in6_addr)
++                   && same_type(mreq.ipv6mr_interface, unsigned),
++               "ipv6_mreq");
++
++/* The variables, and initializers that are constant at compile time */
++_Static_assert(same_type(&in6addr_any, const struct in6_addr *)
++                   && same_type(&in6addr_loopback, const struct in6_addr *),
++               "in6addr_any and in6addr_loopback");
++static const struct in6_addr any_init = IN6ADDR_ANY_INIT;
++static const struct in6_addr loopback_init = IN6ADDR_LOOPBACK_INIT;
++
++/* The constants */
++#if !defined(IPPROTO_IP) || !defined(IPPROTO_IPV6) || !defined(IPPROTO_ICMP)   \
++    || !defined(IPPROTO_RAW) || !defined(IPPROTO_TCP) || !defined(IPPROTO_UDP)
++#error the IPPROTO values
++#endif
++#if !defined(INADDR_ANY) || !defined(INADDR_BROADCAST)
++#error INADDR_ANY and INADDR_BROADCAST
++#endif
++_Static_assert(INADDR_ANY == 0 && INADDR_BROADCAST == 0xffffffff, "INADDR values");
++#if INET_ADDRSTRLEN != 16 || INET6_ADDRSTRLEN != 46
++#error INET_ADDRSTRLEN and INET6_ADDRSTRLEN
++#endif
++
++/* The IPV6 options are distinct (a duplicate case doesn't compile) */
++static int
++ipv6_option(int option)
++{
++    switch (option) {
++    case IPV6_JOIN_GROUP:
++    case IPV6_LEAVE_GROUP:
++    case IPV6_MULTICAST_HOPS:
++    case IPV6_MULTICAST_IF:
++    case IPV6_MULTICAST_LOOP:
++    case IPV6_UNICAST_HOPS:
++    case IPV6_V6ONLY:
++        return 1;
++    default:
++        return 0;
++    }
++}
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* Each address, and the macros it should satisfy */
++enum {
++    UNSPECIFIED = 1 << 0,
++    LOOPBACK = 1 << 1,
++    MULTICAST = 1 << 2,
++    LINKLOCAL = 1 << 3,
++    SITELOCAL = 1 << 4,
++    V4MAPPED = 1 << 5,
++    V4COMPAT = 1 << 6,
++    MC_NODELOCAL = 1 << 7,
++    MC_LINKLOCAL = 1 << 8,
++    MC_SITELOCAL = 1 << 9,
++    MC_ORGLOCAL = 1 << 10,
++    MC_GLOBAL = 1 << 11,
++};
++
++static const struct {
++    unsigned char addr[16];
++    int           is;
++} addrs[] = {
++    { { 0 },                                UNSPECIFIED              },
++    { { [15] = 1 },                         LOOPBACK                 },
++    { { [15] = 2 },                         V4COMPAT                 },
++    { { [12] = 1, 2, 3, 4 },                V4COMPAT                 },
++    { { [10] = 0xff, 0xff, 1, 2, 3, 4 },    V4MAPPED                 },
++    { { [10] = 0xff, 0xff },                V4MAPPED                 },
++    { { 0xfe, 0x80, [15] = 1 },             LINKLOCAL                },
++    { { 0xfe, 0xbf, [15] = 1 },             LINKLOCAL                },
++    { { 0xfe, 0xc0, [15] = 1 },             SITELOCAL                },
++    { { 0xfe, 0xff, [15] = 1 },             SITELOCAL                },
++    { { 0xfe, 0x40, [15] = 1 },             0                        },
++    { { 0xff, 0x01, [15] = 1 },             MULTICAST | MC_NODELOCAL },
++    { { 0xff, 0x02, [15] = 1 },             MULTICAST | MC_LINKLOCAL },
++    { { 0xff, 0x12, [15] = 1 },             MULTICAST | MC_LINKLOCAL },
++    { { 0xff, 0x05, [15] = 1 },             MULTICAST | MC_SITELOCAL },
++    { { 0xff, 0x08, [15] = 1 },             MULTICAST | MC_ORGLOCAL  },
++    { { 0xff, 0x0e, [15] = 1 },             MULTICAST | MC_GLOBAL    },
++    { { 0xff, 0x03, [15] = 1 },             MULTICAST                },
++    { { 0x20, 0x01, 0x0d, 0xb8, [15] = 1 }, 0                        },
++    { { [11] = 0xff, 1, 2, 3, 4 },          0                        },
++};
++
++/* The address tests are int (glibc uses statement expressions, so this is in main) */
++#define is_int(m) same_type(m((const struct in6_addr *)&in6), int)
++
++int
++main(void)
++{
++    unsigned i;
++
++    _Static_assert(is_int(IN6_IS_ADDR_UNSPECIFIED) && is_int(IN6_IS_ADDR_LOOPBACK)
++                       && is_int(IN6_IS_ADDR_MULTICAST) && is_int(IN6_IS_ADDR_LINKLOCAL)
++                       && is_int(IN6_IS_ADDR_SITELOCAL) && is_int(IN6_IS_ADDR_V4MAPPED)
++                       && is_int(IN6_IS_ADDR_V4COMPAT) && is_int(IN6_IS_ADDR_MC_NODELOCAL)
++                       && is_int(IN6_IS_ADDR_MC_LINKLOCAL) && is_int(IN6_IS_ADDR_MC_SITELOCAL)
++                       && is_int(IN6_IS_ADDR_MC_ORGLOCAL) && is_int(IN6_IS_ADDR_MC_GLOBAL),
++                   "IN6_IS_ADDR macros");
++
++    for (i = 0; i < sizeof(addrs) / sizeof(addrs[0]); i++) {
++        struct in6_addr        a;
++        const struct in6_addr *p = &a;
++        int                    is = 0;
++
++        memcpy(a.s6_addr, addrs[i].addr, 16);
++        is |= IN6_IS_ADDR_UNSPECIFIED(p) ? UNSPECIFIED : 0;
++        is |= IN6_IS_ADDR_LOOPBACK(p) ? LOOPBACK : 0;
++        is |= IN6_IS_ADDR_MULTICAST(p) ? MULTICAST : 0;
++        is |= IN6_IS_ADDR_LINKLOCAL(p) ? LINKLOCAL : 0;
++        is |= IN6_IS_ADDR_SITELOCAL(p) ? SITELOCAL : 0;
++        is |= IN6_IS_ADDR_V4MAPPED(p) ? V4MAPPED : 0;
++        is |= IN6_IS_ADDR_V4COMPAT(p) ? V4COMPAT : 0;
++        is |= IN6_IS_ADDR_MC_NODELOCAL(p) ? MC_NODELOCAL : 0;
++        is |= IN6_IS_ADDR_MC_LINKLOCAL(p) ? MC_LINKLOCAL : 0;
++        is |= IN6_IS_ADDR_MC_SITELOCAL(p) ? MC_SITELOCAL : 0;
++        is |= IN6_IS_ADDR_MC_ORGLOCAL(p) ? MC_ORGLOCAL : 0;
++        is |= IN6_IS_ADDR_MC_GLOBAL(p) ? MC_GLOBAL : 0;
++        if (is != addrs[i].is) {
++            printf("address %u: got %#x, want %#x\n", i, is, addrs[i].is);
++            exit(1);
++        }
++    }
++
++    check(memcmp(&any_init, &in6addr_any, sizeof(any_init)) == 0
++              && memcmp(&loopback_init, &in6addr_loopback, sizeof(loopback_init)) == 0,
++          "initializers");
++    check(ipv6_option(IPV6_V6ONLY), "IPV6_V6ONLY");
++
++    /* The byte order functions are available too */
++    check(ntohl(htonl(0x01020304)) == 0x01020304 && ntohs(htons(0x0102)) == 0x0102,
++          "byte order functions");
++    (void)port;
++    (void)addr;
++    (void)family;
++    (void)u8;
++    (void)u32;
++    (void)sin;
++    (void)sin6;
++    (void)mreq;
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

@@ -1,0 +1,72 @@
+From 3d720426f5863fd3492e4f4dd7cf24bc4644a6a2 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:35:32 +0000
+Subject: [PATCH 12/27] libos/linux: Check the sigtimedwait timeout only when
+ it would wait
+
+POSIX: "An implementation should only check for this error if no
+signal is pending in set and it is necessary to wait." Linux rejects a
+bad tv_nsec, and a negative tv_sec, even with a signal pending. Poll
+with a zero timeout instead and report EINVAL only if nothing came.
+---
+ libos/linux/_sigtimedwait.c | 35 +++++++++++++++++++++++++----------
+ 1 file changed, 25 insertions(+), 10 deletions(-)
+
+diff --git a/libos/linux/_sigtimedwait.c b/libos/linux/_sigtimedwait.c
+index fa101a9213..c3534250a0 100644
+--- a/libos/linux/_sigtimedwait.c
++++ b/libos/linux/_sigtimedwait.c
+@@ -62,16 +62,27 @@ _sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeo
+     struct __kernel_sigtimedwait_timespec kts, *pkts = NULL;
+     void                                 *cancel;
+     long                                  ret;
++    int                                   bad_timeout = 0;
+ 
+     if (timeout) {
+-        if (timeout->tv_nsec < 0 || timeout->tv_nsec >= 1000000000L)
+-            return EINVAL;
+-        /* Clamp to the end of 32-bit time on kernels without 64-bit time */
+-        if (sizeof(kts.tv_sec) == 4 && timeout->tv_sec > INT32_MAX)
+-            kts.tv_sec = INT32_MAX;
+-        else
+-            kts.tv_sec = timeout->tv_sec;
+-        kts.tv_nsec = timeout->tv_nsec;
++        /*
++         * Linux rejects a bad timeout even when a signal is pending;
++         * POSIX says to check only when the call would wait. Poll with
++         * a zero timeout instead, and report EINVAL if nothing is
++         * pending. A negative interval has already expired.
++         */
++        bad_timeout = timeout->tv_nsec < 0 || timeout->tv_nsec >= 1000000000L;
++        if (bad_timeout || timeout->tv_sec < 0) {
++            kts.tv_sec = 0;
++            kts.tv_nsec = 0;
++        } else {
++            /* Clamp to the end of 32-bit time on kernels without 64-bit time */
++            if (sizeof(kts.tv_sec) == 4 && timeout->tv_sec > INT32_MAX)
++                kts.tv_sec = INT32_MAX;
++            else
++                kts.tv_sec = timeout->tv_sec;
++            kts.tv_nsec = timeout->tv_nsec;
++        }
+         pkts = &kts;
+     }
+     _sigmask_to_linux(&kset, set);
+@@ -79,8 +90,12 @@ _sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeo
+     cancel = _cancel_enter();
+     ret = _syscall_raw(LINUX_SYS_rt_sigtimedwait_time_t, &kset, &kinfo, pkts, __KERNEL_NSIG_BYTES);
+     _cancel_leave(cancel);
+-    if (ret < 0)
+-        return _syscall_errno(ret);
++    if (ret < 0) {
++        ret = _syscall_errno(ret);
++        if (ret == EAGAIN && bad_timeout)
++            ret = EINVAL;
++        return (int)ret;
++    }
+     if (info)
+         _siginfo_from_linux(info, &kinfo);
+     *sig = _signal_from_linux((int)ret);
+-- 
+2.47.3
+

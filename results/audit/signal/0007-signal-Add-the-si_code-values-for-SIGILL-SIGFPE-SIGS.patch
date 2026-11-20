@@ -1,0 +1,114 @@
+From f409ac591e6ed92fdfc71d931e27cbcab042ab65 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:31:22 +0000
+Subject: [PATCH 07/27] signal: Add the si_code values for SIGILL, SIGFPE,
+ SIGSEGV, SIGBUS and SIGTRAP
+
+<signal.h> lacked ILL_*, FPE_*, SEGV_*, BUS_* and TRAP_*, and
+libos/linux turned the kernel's fault codes into 0. Define them and
+map the Linux values.
+---
+ libc/include/signal.h             | 35 +++++++++++++++++++++++++++++++
+ libos/linux/_siginfo_from_linux.c | 33 +++++++++++++++++++++++++++--
+ 2 files changed, 66 insertions(+), 2 deletions(-)
+
+diff --git a/libc/include/signal.h b/libc/include/signal.h
+index 3276d62c97..bc42f41960 100644
+--- a/libc/include/signal.h
++++ b/libc/include/signal.h
+@@ -81,6 +81,41 @@ union sigval {
+ #define SI_ASYNCIO 4 /* Indicates completion of asycnhronous IO */
+ #define SI_MESGQ   5 /* Indicates arrival of a message at an empty queue */
+ 
++/* si_code values for SIGILL */
++#define ILL_ILLOPC 16 /* Illegal opcode */
++#define ILL_ILLOPN 17 /* Illegal operand */
++#define ILL_ILLADR 18 /* Illegal addressing mode */
++#define ILL_ILLTRP 19 /* Illegal trap */
++#define ILL_PRVOPC 20 /* Privileged opcode */
++#define ILL_PRVREG 21 /* Privileged register */
++#define ILL_COPROC 22 /* Coprocessor error */
++#define ILL_BADSTK 23 /* Internal stack error */
++
++/* si_code values for SIGFPE */
++#define FPE_INTDIV 16 /* Integer divide by zero */
++#define FPE_INTOVF 17 /* Integer overflow */
++#define FPE_FLTDIV 18 /* Floating-point divide by zero */
++#define FPE_FLTOVF 19 /* Floating-point overflow */
++#define FPE_FLTUND 20 /* Floating-point underflow */
++#define FPE_FLTRES 21 /* Floating-point inexact result */
++#define FPE_FLTINV 22 /* Invalid floating-point operation */
++#define FPE_FLTSUB 23 /* Subscript out of range */
++
++/* si_code values for SIGSEGV */
++#define SEGV_MAPERR 16 /* Address not mapped to object */
++#define SEGV_ACCERR 17 /* Invalid permissions for mapped object */
++
++/* si_code values for SIGBUS */
++#define BUS_ADRALN 16 /* Invalid address alignment */
++#define BUS_ADRERR 17 /* Nonexistent physical address */
++#define BUS_OBJERR 18 /* Object-specific hardware error */
++
++#if __XSI_VISIBLE
++/* si_code values for SIGTRAP */
++#define TRAP_BRKPT 16 /* Process breakpoint */
++#define TRAP_TRACE 17 /* Process trace trap */
++#endif
++
+ /* si_code values for SIGCHLD */
+ #define CLD_EXITED    16 /* Child has exited */
+ #define CLD_KILLED    17 /* Child has terminated abnormally and did not create a core file */
+diff --git a/libos/linux/_siginfo_from_linux.c b/libos/linux/_siginfo_from_linux.c
+index 62a9d9d278..9d223b16a0 100644
+--- a/libos/linux/_siginfo_from_linux.c
++++ b/libos/linux/_siginfo_from_linux.c
+@@ -37,8 +37,8 @@
+ 
+ /*
+  * Convert the kernel's siginfo to picolibc's, translating the signal
+- * number and the si_code values picolibc defines. Codes specific to a
+- * signal have no picolibc values, so they become 0.
++ * number and the si_code values picolibc defines. Other codes, which
++ * picolibc doesn't define, become 0.
+  */
+ void
+ _siginfo_from_linux(siginfo_t *info, const struct __kernel_siginfo *kinfo)
+@@ -54,6 +54,35 @@ _siginfo_from_linux(siginfo_t *info, const struct __kernel_siginfo *kinfo)
+             info->si_status = _signal_from_linux(kinfo->si_status);
+         return;
+     }
++    /* Fault codes, which Linux numbers from 1 in the POSIX order */
++    if (kinfo->si_code > 0) {
++        int base = 0, count = 0;
++
++        switch (info->si_signo) {
++        case SIGILL:
++            base = ILL_ILLOPC;
++            count = ILL_BADSTK - ILL_ILLOPC + 1;
++            break;
++        case SIGFPE:
++            base = FPE_INTDIV;
++            count = FPE_FLTSUB - FPE_INTDIV + 1;
++            break;
++        case SIGSEGV:
++            base = SEGV_MAPERR;
++            count = SEGV_ACCERR - SEGV_MAPERR + 1;
++            break;
++        case SIGBUS:
++            base = BUS_ADRALN;
++            count = BUS_OBJERR - BUS_ADRALN + 1;
++            break;
++        case SIGTRAP:
++            base = TRAP_BRKPT;
++            count = TRAP_TRACE - TRAP_BRKPT + 1;
++            break;
++        }
++        info->si_code = kinfo->si_code <= count ? base + kinfo->si_code - 1 : 0;
++        return;
++    }
+     switch (kinfo->si_code) {
+     case LINUX_SI_USER:
+     case LINUX_SI_TKILL:
+-- 
+2.47.3
+

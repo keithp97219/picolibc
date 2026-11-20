@@ -1,0 +1,90 @@
+From ec636dd18c908256e608fa17a6f55061894fc5b6 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:39:25 +0000
+Subject: [PATCH 21/27] test-posix: Check delivery, process groups and errors
+ in kill
+
+---
+ test/test-posix/test-signal/test-kill.c | 51 ++++++++++++++++++++++++-
+ 1 file changed, 50 insertions(+), 1 deletion(-)
+
+diff --git a/test/test-posix/test-signal/test-kill.c b/test/test-posix/test-signal/test-kill.c
+index ebbdb8024f..03652e0655 100644
+--- a/test/test-posix/test-signal/test-kill.c
++++ b/test/test-posix/test-signal/test-kill.c
+@@ -45,9 +45,10 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <time.h>
++#include <sys/wait.h>
+ #include <unistd.h>
+ 
+-/* kill with signal 0 only checks the process */
++/* kill checks and sends signals */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -57,12 +58,60 @@
+         }                                              \
+     } while (0)
+ 
++static volatile sig_atomic_t caught;
++
++static void
++handler(int sig)
++{
++    caught = sig;
++}
++
+ int
+ main(void)
+ {
++    struct sigaction act;
++    pid_t            child;
++    int              status;
++
+     check(kill(getpid(), 0) == 0, "kill with signal 0");
+     errno = 0;
+     check(kill(getpid(), -1) == -1 && errno == EINVAL, "kill with a negative signal");
++    errno = 0;
++    check(kill(getpid(), SIGRTMAX + 1) == -1 && errno == EINVAL, "kill past SIGRTMAX");
++
++    /* The signal is delivered to the sender before kill returns */
++    memset(&act, 0, sizeof(act));
++    act.sa_handler = handler;
++    sigemptyset(&act.sa_mask);
++    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
++    check(kill(getpid(), SIGUSR1) == 0 && caught == SIGUSR1, "delivered before kill returns");
++
++    /* pid 0 is the caller's process group */
++    caught = 0;
++    check(kill(0, SIGUSR1) == 0 && caught == SIGUSR1, "kill to the process group");
++    caught = 0;
++    check(kill(-getpgrp(), SIGUSR1) == 0 && caught == SIGUSR1, "kill to -pgrp");
++
++#if !defined(__PICOLIBC__)                                                             \
++    || (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
++    /* ESRCH once the process is gone */
++    child = fork();
++    check(child >= 0, "fork");
++    if (child == 0)
++        _exit(0);
++    check(waitpid(child, &status, 0) == child, "waitpid");
++    errno = 0;
++    check(kill(child, 0) == -1 && errno == ESRCH, "ESRCH");
++#else
++    (void)child;
++    (void)status;
++#endif
++
++    /* EPERM for a process of another user; init runs as root */
++    if (geteuid() != 0 && getuid() != 0) {
++        errno = 0;
++        check(kill(1, 0) == -1 && errno == EPERM, "EPERM");
++    }
+ 
+     printf("success\n");
+     return 0;
+-- 
+2.47.3
+

@@ -1,0 +1,38 @@
+From 944889b9019fc8f3e0e1eaff0d7b797d57ac3822 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:25:49 +0000
+Subject: [PATCH 02/27] libos/linux: Report SIG_DFL and SIG_IGN from the kernel
+ in sigaction
+
+The old action came from picolibc's handler table, which doesn't see
+SA_RESETHAND resetting the disposition or SIG_IGN inherited across
+exec. Take SIG_DFL and SIG_IGN from the kernel's answer.
+---
+ libos/linux/sigaction.c | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/sigaction.c b/libos/linux/sigaction.c
+index 846b8a1e79..7d2ac8ba24 100644
+--- a/libos/linux/sigaction.c
++++ b/libos/linux/sigaction.c
+@@ -184,7 +184,16 @@ sigaction(int sig, const struct sigaction *act, struct sigaction *oldact)
+ #endif
+         }
+         if (oldact) {
+-            oldact->sa_handler = oldfunc.sa_handler;
++            /*
++             * The kernel knows when the disposition is SIG_DFL or
++             * SIG_IGN: after SA_RESETHAND, or as inherited across exec
++             */
++            if (koldact.sa_handler == LINUX_SIG_DFL)
++                oldact->sa_handler = SIG_DFL;
++            else if (koldact.sa_handler == LINUX_SIG_IGN)
++                oldact->sa_handler = SIG_IGN;
++            else
++                oldact->sa_handler = oldfunc.sa_handler;
+             _sigmask_from_linux(&oldact->sa_mask, &koldact.sa_mask);
+ 
+             oldact->sa_flags = 0;
+-- 
+2.47.3
+

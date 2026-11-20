@@ -1,0 +1,31 @@
+From a124f6c305eae9ce76838567a988eab236377a0c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:26:26 +0000
+Subject: [PATCH 03/27] libos/linux: Ignore how in sigprocmask when set is null
+
+POSIX: "If set is a null pointer, the value of the argument how is
+not significant"; EINVAL is only for a non-null set.
+---
+ libos/linux/_sigprocmask.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/_sigprocmask.c b/libos/linux/_sigprocmask.c
+index 542a6bb12e..77d7deee7d 100644
+--- a/libos/linux/_sigprocmask.c
++++ b/libos/linux/_sigprocmask.c
+@@ -53,7 +53,11 @@ _sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
+         how = LINUX_SIG_SETMASK;
+         break;
+     default:
+-        return EINVAL;
++        /* how only matters when changing the mask */
++        if (set)
++            return EINVAL;
++        how = LINUX_SIG_BLOCK;
++        break;
+     }
+     if (set) {
+         _sigmask_to_linux(&kset, set);
+-- 
+2.47.3
+

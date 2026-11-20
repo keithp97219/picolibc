@@ -1,0 +1,42 @@
+From 1cdcece4c7cc29e7907143402f97e4da9e829741 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:29:10 +0000
+Subject: [PATCH 06/27] libos/linux: Let pthread_kill signal exited threads
+ without error
+
+POSIX: "It shall not be an error if thread is a zombie thread."
+pthread_kill returned ESRCH once the thread had exited. Also check the
+signal number with _signal_to_linux, so numbers Linux lacks are EINVAL
+before the thread is looked at.
+---
+ libos/linux/pthread_kill.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/libos/linux/pthread_kill.c b/libos/linux/pthread_kill.c
+index 4f0c9b5e4c..50dadc7171 100644
+--- a/libos/linux/pthread_kill.c
++++ b/libos/linux/pthread_kill.c
+@@ -40,14 +40,17 @@ int
+ pthread_kill(pthread_t thread, int sig)
+ {
+     int tid;
++    int ksig;
+     int ret = 0;
+ 
+-    if ((unsigned)sig >= NSIG)
++    ksig = _signal_to_linux(sig);
++    if (ksig < 0)
+         return EINVAL;
+     tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
++    /* A thread which has exited but not been joined is not an error */
+     if (tid == 0)
+-        return ESRCH;
+-    ret = (int)_syscall_raw(LINUX_SYS_tgkill, getpid(), tid, _signal_to_linux(sig));
++        return 0;
++    ret = (int)_syscall_raw(LINUX_SYS_tgkill, getpid(), tid, ksig);
+     if (ret < 0)
+         ret = _syscall_errno(ret);
+     return ret;
+-- 
+2.47.3
+

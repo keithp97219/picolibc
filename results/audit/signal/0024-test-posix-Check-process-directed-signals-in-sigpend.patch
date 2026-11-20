@@ -1,0 +1,33 @@
+From 96e0c3abd0eb858b29ba09a435d487d587a86a0f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 18:39:25 +0000
+Subject: [PATCH 24/27] test-posix: Check process-directed signals in
+ sigpending
+
+---
+ test/test-posix/test-signal/test-sigpending.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/test/test-posix/test-signal/test-sigpending.c b/test/test-posix/test-signal/test-sigpending.c
+index 58b5268d87..2843af9457 100644
+--- a/test/test-posix/test-signal/test-sigpending.c
++++ b/test/test-posix/test-signal/test-sigpending.c
+@@ -76,6 +76,15 @@ main(void)
+     check(sigpending(&pending) == 0 && sigismember(&pending, SIGUSR2), "pending");
+     check(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0 && caught == 1, "delivered");
+     check(sigpending(&pending) == 0 && !sigismember(&pending, SIGUSR2), "no longer pending");
++
++    /* Signals pending on the process are reported too, and unblocked ones aren't pending */
++    /* signal may reset the handler on delivery, as glibc's does */
++    check(signal(SIGUSR2, handler) != SIG_ERR, "signal");
++    check(sigprocmask(SIG_BLOCK, &set, NULL) == 0, "block");
++    check(kill(getpid(), SIGUSR2) == 0, "kill");
++    check(sigpending(&pending) == 0 && sigismember(&pending, SIGUSR2), "pending on the process");
++    check(!sigismember(&pending, SIGUSR1), "only the blocked, sent signal");
++    check(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0 && caught == 2, "delivered");
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+
