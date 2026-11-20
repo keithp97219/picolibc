@@ -38,9 +38,31 @@
 #include <errno.h>
 #include <limits.h>
 
+/* Whether the kernel has priority inheritance futexes */
+static bool
+pi_available(void)
+{
+    static int available; /* 0 not yet known, 1 available, -1 missing */
+    int        known = __atomic_load_n(&available, __ATOMIC_RELAXED);
+
+    if (known == 0) {
+        unsigned int word = 0;
+        long         ret;
+
+        /* Unlocking a futex nobody owns fails with EPERM, or ENOSYS without support */
+        ret = _syscall_raw(LINUX_SYS_futex, &word,
+                           LINUX_FUTEX_UNLOCK_PI | LINUX_FUTEX_PRIVATE_FLAG);
+        known = (ret < 0 && _syscall_errno(ret) == ENOSYS) ? -1 : 1;
+        __atomic_store_n(&available, known, __ATOMIC_RELAXED);
+    }
+    return known > 0;
+}
+
 int
 pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t * __restrict attr)
 {
+    if (attr && attr->__protocol == PTHREAD_PRIO_INHERIT && !pi_available())
+        return ENOTSUP;
     /* A robust mutex the system can't support would only hang */
     if (attr && attr->__robust == PTHREAD_MUTEX_ROBUST && !_pthread_robust_available())
         return ENOTSUP;
