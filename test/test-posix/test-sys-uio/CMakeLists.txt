@@ -35,6 +35,7 @@
 
 set(tests
   test-readv
+  test-sys_uio_h
   test-writev
   )
 
