@@ -43,6 +43,7 @@ dir_tests = [
   'test-tcsendbreak',
   'test-tcsetattr',
   'test-tcsetattr-icanon',
+  'test-tcsetattr-isig',
   'test-tcsetattr-opost',
   'test-tcsetattr-vmin',
   'test-tcsetwinsize',
