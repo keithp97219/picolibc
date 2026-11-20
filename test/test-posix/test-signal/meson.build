@@ -42,6 +42,7 @@ dir_tests = [
   'test-sigaction',
   'test-sigaltstack',
   'test-signal',
+  'test-signal_h',
   'test-sigpending',
   'test-sigprocmask',
   'test-sigqueue',
