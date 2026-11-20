@@ -41,6 +41,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+#define _XOPEN_SOURCE   800
 #include <unistd.h>
 
 #include <arpa/inet.h>
@@ -90,6 +91,22 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
+#endif
+
+/* XSI headers */
+#include <fmtmsg.h>
+#include <ftw.h>
+#include <sys/resource.h>
+#include <sys/uio.h>
+#include <syslog.h>
+#if defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <sys/sem.h>
+#include <sys/shm.h>
+#endif
+#if defined(__PICOLIBC_XSI_USER_GROUPS) && __PICOLIBC_XSI_USER_GROUPS > 0
+#include <utmpx.h>
 #endif
 
 #define FUNC(f) ((void (*)(void))(f))
@@ -613,6 +630,78 @@ static void (* const volatile funcs[])(void) = {
     FUNC(seteuid),
     FUNC(setgid),
     FUNC(setuid),
+#endif
+#if defined(__PICOLIBC_XSI_DEVICE_IO) && __PICOLIBC_XSI_DEVICE_IO >= 202405L
+    FUNC(fmtmsg),
+    FUNC(readv),
+    FUNC(writev),
+#endif
+#if defined(__PICOLIBC_XSI_DEVICE_SPECIFIC) && __PICOLIBC_XSI_DEVICE_SPECIFIC >= 202405L
+    FUNC(grantpt),
+    FUNC(posix_openpt),
+    FUNC(ptsname),
+    FUNC(unlockpt),
+#endif
+#if defined(__PICOLIBC_XSI_GENERAL_TERMINAL_R) && __PICOLIBC_XSI_GENERAL_TERMINAL_R >= 202405L
+    FUNC(ptsname_r),
+#endif
+#if defined(__PICOLIBC_XSI_FILE_SYSTEM) && __PICOLIBC_XSI_FILE_SYSTEM >= 202405L
+    FUNC(dirname),
+    FUNC(lockf),
+    FUNC(mknod),
+    FUNC(nftw),
+    FUNC(seekdir),
+    FUNC(sync),
+    FUNC(telldir),
+    FUNC(utimes),
+#endif
+#if defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC >= 202405L
+    FUNC(ftok),
+    FUNC(msgctl),
+    FUNC(msgget),
+    FUNC(msgrcv),
+    FUNC(msgsnd),
+    FUNC(semctl),
+    FUNC(semget),
+    FUNC(semop),
+    FUNC(shmat),
+    FUNC(shmctl),
+    FUNC(shmdt),
+    FUNC(shmget),
+#endif
+#if defined(__PICOLIBC_XSI_MULTI_PROCESS) && __PICOLIBC_XSI_MULTI_PROCESS >= 202405L
+    FUNC(getpriority),
+    FUNC(getrusage),
+    FUNC(nice),
+    FUNC(setpriority),
+#endif
+#if defined(__PICOLIBC_XSI_SIGNALS) && __PICOLIBC_XSI_SIGNALS >= 202405L
+    FUNC(killpg),
+    FUNC(sigaltstack),
+#endif
+#if defined(__PICOLIBC_XSI_SINGLE_PROCESS) && __PICOLIBC_XSI_SINGLE_PROCESS >= 202405L
+    FUNC(gethostid),
+    FUNC(putenv),
+#endif
+#if defined(__PICOLIBC_XSI_SYSTEM_LOGGING) && __PICOLIBC_XSI_SYSTEM_LOGGING >= 202405L
+    FUNC(closelog),
+    FUNC(openlog),
+    FUNC(setlogmask),
+    FUNC(syslog),
+#endif
+#if defined(__PICOLIBC_XSI_USER_GROUPS) && __PICOLIBC_XSI_USER_GROUPS >= 202405L
+    FUNC(endutxent),
+    FUNC(getresgid),
+    FUNC(getresuid),
+    FUNC(getutxent),
+    FUNC(getutxid),
+    FUNC(getutxline),
+    FUNC(pututxline),
+    FUNC(setregid),
+    FUNC(setresgid),
+    FUNC(setresuid),
+    FUNC(setreuid),
+    FUNC(setutxent),
 #endif
     NULL,
 };

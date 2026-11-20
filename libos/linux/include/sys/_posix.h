@@ -110,6 +110,16 @@
 #define __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD  202405L
 #define __PICOLIBC_POSIX_USER_GROUPS        202405L
 
+/* XSI option groups; XSI_IPC and the utmpx part of XSI_USER_GROUPS are missing */
+#define __PICOLIBC_XSI_DEVICE_IO            202405L
+#define __PICOLIBC_XSI_DEVICE_SPECIFIC      202405L
+#define __PICOLIBC_XSI_FILE_SYSTEM          202405L
+#define __PICOLIBC_XSI_GENERAL_TERMINAL_R   202405L
+#define __PICOLIBC_XSI_MULTI_PROCESS        202405L
+#define __PICOLIBC_XSI_SIGNALS              202405L
+#define __PICOLIBC_XSI_SINGLE_PROCESS       202405L
+#define __PICOLIBC_XSI_SYSTEM_LOGGING       202405L
+
 /* Sockets, with picolibc built for the Linux network interfaces */
 #ifdef __PICOLIBC_NETWORK_LINUX
 #define _POSIX_IPV6                         202405L
