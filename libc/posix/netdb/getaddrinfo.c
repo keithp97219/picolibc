@@ -69,8 +69,9 @@ __gai_numeric_port(const char *service)
     return (int)port;
 }
 
+/* Raw sockets take the protocol from the hints */
 static struct addrinfo *
-__gai_entry(const struct __netdb_addr *a, int type, int port, const char *canon)
+__gai_entry(const struct __netdb_addr *a, int type, int protocol, int port, const char *canon)
 {
     size_t           canonlen = canon ? strlen(canon) + 1 : 0;
     struct addrinfo *ai = calloc(1, sizeof(*ai) + sizeof(struct sockaddr_in6) + canonlen);
@@ -79,7 +80,7 @@ __gai_entry(const struct __netdb_addr *a, int type, int port, const char *canon)
         return NULL;
     ai->ai_family = a->family;
     ai->ai_socktype = __gai_types[type].socktype;
-    ai->ai_protocol = __gai_types[type].protocol;
+    ai->ai_protocol = __gai_types[type].protocol ? __gai_types[type].protocol : protocol;
     ai->ai_addr = (struct sockaddr *)(ai + 1);
     if (a->family == AF_INET) {
         struct sockaddr_in *sin = (struct sockaddr_in *)ai->ai_addr;
@@ -227,7 +228,7 @@ getaddrinfo(const char * __restrict node, const char * __restrict service,
         for (t = 0; t < (int)__GAI_NTYPES; t++) {
             if (ports[t] < 0)
                 continue;
-            *tail = __gai_entry(&addrs[i], t, ports[t], canon);
+            *tail = __gai_entry(&addrs[i], t, protocol, ports[t], canon);
             if (!*tail) {
                 freeaddrinfo(head);
                 return EAI_MEMORY;
