@@ -213,6 +213,12 @@ main(void)
         result |= fail(128, __LINE__);
     if (!y("a[!x]b", "a/b", 0) || !y("*", "a/b", 0))
         result |= fail(128, __LINE__);
+    /* A slash in a bracket expression doesn't stop the rest matching */
+    if (!y("a[/b]c", "abc", FNM_PATHNAME) || !y("[!/]", "a", FNM_PATHNAME))
+        result |= fail(128, __LINE__);
+    /* An unclosed '[' is ordinary, even when followed by a slash */
+    if (!y("[/", "[/", FNM_PATHNAME) || !y("a[/b", "a[/b", FNM_PATHNAME))
+        result |= fail(128, __LINE__);
 
     /* FNM_PERIOD: a leading period must be matched explicitly */
     if (!n("?x", ".x", FNM_PERIOD) || !n("[!a]x", ".x", FNM_PERIOD))
