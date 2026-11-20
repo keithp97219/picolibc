@@ -39,6 +39,7 @@ set(tests
   test-connect
   test-getpeername
   test-listen
+  test-recv
   test-send
   test-sendmsg
   test-sendto
