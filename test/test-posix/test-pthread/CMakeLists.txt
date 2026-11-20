@@ -61,6 +61,7 @@ set(tests
   test-pthread_setschedparam
   test-pthread_sigmask
   test-pthread_spin_lock
+  test-pthread_testcancel
   )
 
 foreach(test IN LISTS tests)

@@ -65,6 +65,7 @@ dir_thread_tests = [
   'test-pthread_setschedparam',
   'test-pthread_sigmask',
   'test-pthread_spin_lock',
+  'test-pthread_testcancel',
 ]
 
 # QEMU's user-mode emulation has no robust lists, and glibc's robust
