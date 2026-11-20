@@ -157,6 +157,8 @@ if fs.is_dir(machine_dir)
     'pipe.c',
     'pipe2.c',
     'poll.c',
+    'posix_fadvise.c',
+    'posix_fallocate.c',
     'posix_getdents.c',
     'posix_openpt.c',
     'ppoll.c',
