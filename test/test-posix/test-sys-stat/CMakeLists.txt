@@ -39,6 +39,7 @@ set(tests
   test-fchmodat
   test-fstatat
   test-futimens
+  test-lstat
   test-mkdirat
   test-mkfifo
   test-mkfifoat

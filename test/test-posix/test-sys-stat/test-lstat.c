@@ -1,0 +1,220 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                                     \
+    || ((defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)            \
+        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && __PICOLIBC_POSIX_FILE_SYSTEM_EXT > 0) \
+        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && __PICOLIBC_POSIX_FILE_SYSTEM_FD > 0)   \
+        && (defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS) && __PICOLIBC_POSIX_SYMBOLIC_LINKS > 0)   \
+        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0))
+
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <time.h>
+
+/* stat, lstat, fstat and fstatat report file types, identities, links and errors */
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+static char dir[] = "/tmp/lstat-XXXXXX";
+/* Two names can be in use at once */
+static const char *
+name(const char *n)
+{
+    static char paths[2][PATH_MAX];
+    static int  which;
+
+    which = !which;
+    snprintf(paths[which], sizeof(paths[which]), "%s/%s", dir, n);
+    return paths[which];
+}
+
+#define same_file(a, b) ((a).st_dev == (b).st_dev && (a).st_ino == (b).st_ino)
+
+int
+main(void)
+{
+    struct stat st, st2;
+    char        target[] = "file", longname[NAME_MAX + 2];
+    time_t      now = time(NULL);
+    int         fd, dfd, sfd, fds[2];
+
+    check(mkdtemp(dir) != NULL, "mkdtemp");
+    fd = open(name("file"), O_RDWR | O_CREAT | O_EXCL, 0640);
+    check(fd >= 0 && write(fd, "hello", 5) == 5, "create file");
+
+    /* The members of a regular file */
+    check(stat(name("file"), &st) == 0, "stat");
+    check(S_ISREG(st.st_mode) && (st.st_mode & 07777) == 0640, "st_mode");
+    check(st.st_nlink == 1 && st.st_size == 5, "st_nlink and st_size");
+    check(st.st_uid == geteuid(), "st_uid is the effective user");
+    check(st.st_blksize > 0 && st.st_blocks >= 0, "st_blksize and st_blocks");
+    check(st.st_mtim.tv_sec >= now - 60 && st.st_mtim.tv_sec <= now + 60
+              && st.st_ctim.tv_sec >= now - 60 && st.st_ctim.tv_sec <= now + 60,
+          "timestamps are seconds since the Epoch");
+    check(st.st_mtim.tv_nsec >= 0 && st.st_mtim.tv_nsec < 1000000000, "tv_nsec range");
+    check(fstat(fd, &st2) == 0 && same_file(st, st2) && st2.st_size == 5, "fstat agrees");
+
+    /* Hard links have the same identity and count each other */
+    check(link(name("file"), name("hard")) == 0, "link");
+    check(stat(name("hard"), &st2) == 0 && same_file(st, st2) && st2.st_nlink == 2, "hard link");
+    check(fstat(fd, &st2) == 0 && st2.st_nlink == 2, "fstat sees the link count");
+
+    /* Distinct files have distinct identities */
+    check(stat(dir, &st2) == 0 && S_ISDIR(st2.st_mode) && !same_file(st, st2), "directory");
+
+    /* stat follows symbolic links; lstat reports the link itself */
+    check(symlink(target, name("link")) == 0, "symlink");
+    check(stat(name("link"), &st2) == 0 && same_file(st, st2) && S_ISREG(st2.st_mode),
+          "stat follows the link");
+    check(lstat(name("link"), &st2) == 0 && S_ISLNK(st2.st_mode) && !same_file(st, st2),
+          "lstat reports the link");
+    check(st2.st_size == (off_t)strlen(target), "link size is the length of its contents");
+    check(st2.st_nlink == 1 && st2.st_uid == geteuid(), "link members");
+    check(lstat(name("file"), &st2) == 0 && same_file(st, st2), "lstat of a file is stat");
+
+    /* fstat on a pipe */
+    check(pipe(fds) == 0, "pipe");
+    check(fstat(fds[0], &st2) == 0 && S_ISFIFO(st2.st_mode), "pipe is a FIFO");
+    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close pipe");
+
+    /* fstatat relative to a directory, AT_FDCWD and absolute paths */
+    dfd = open(dir, O_RDONLY | O_DIRECTORY);
+    check(dfd >= 0, "open directory");
+    check(fstatat(dfd, "hard", &st2, 0) == 0 && same_file(st, st2), "fstatat relative");
+    check(fstatat(dfd, "link", &st2, AT_SYMLINK_NOFOLLOW) == 0 && S_ISLNK(st2.st_mode),
+          "fstatat AT_SYMLINK_NOFOLLOW");
+    check(fstatat(AT_FDCWD, name("link"), &st2, 0) == 0 && same_file(st, st2), "AT_FDCWD");
+    check(fstatat(AT_FDCWD, name("link"), &st2, AT_SYMLINK_NOFOLLOW) == 0 && S_ISLNK(st2.st_mode),
+          "AT_FDCWD is lstat with AT_SYMLINK_NOFOLLOW");
+    check(fstatat(-1, name("file"), &st2, 0) == 0 && same_file(st, st2),
+          "an absolute path ignores the descriptor");
+    errno = 0;
+    check(fstatat(-1, "file", &st2, 0) == -1 && errno == EBADF, "EBADF");
+    errno = 0;
+    check(fstatat(fd, "file", &st2, 0) == -1 && errno == ENOTDIR, "ENOTDIR descriptor");
+#ifdef __PICOLIBC__
+    /* -100 is glibc's AT_FDCWD, but just a bad descriptor for picolibc */
+    if (AT_FDCWD != -100) {
+        check(chdir(dir) == 0, "chdir");
+        errno = 0;
+        check(fstatat(-100, "file", &st2, 0) == -1 && errno == EBADF, "Linux's AT_FDCWD");
+        check(chdir("/") == 0, "chdir back");
+    }
+    /* glibc doesn't define O_SEARCH */
+    sfd = open(dir, O_SEARCH | O_DIRECTORY);
+    check(sfd >= 0, "open O_SEARCH");
+    check(fstatat(sfd, "file", &st2, 0) == 0 && same_file(st, st2), "fstatat O_SEARCH");
+    check(fstat(sfd, &st2) == 0 && S_ISDIR(st2.st_mode), "fstat O_SEARCH");
+    check(close(sfd) == 0, "close O_SEARCH");
+#else
+    (void)sfd;
+#endif
+
+    /* Errors */
+    errno = 0;
+    check(stat("", &st2) == -1 && errno == ENOENT, "ENOENT empty path");
+    errno = 0;
+    check(lstat("", &st2) == -1 && errno == ENOENT, "lstat ENOENT empty path");
+    errno = 0;
+    check(fstatat(dfd, "", &st2, 0) == -1 && errno == ENOENT, "fstatat ENOENT empty path");
+    errno = 0;
+    check(stat(name("missing"), &st2) == -1 && errno == ENOENT, "ENOENT");
+    errno = 0;
+    check(stat(name("file/x"), &st2) == -1 && errno == ENOTDIR, "ENOTDIR prefix");
+    errno = 0;
+    check(stat(name("file/"), &st2) == -1 && errno == ENOTDIR, "ENOTDIR trailing slash");
+    errno = 0;
+    check(lstat(name("link/"), &st2) == -1 && errno == ENOTDIR, "lstat ENOTDIR trailing slash");
+    check(symlink("loop", name("loop")) == 0, "symlink loop");
+    errno = 0;
+    check(stat(name("loop"), &st2) == -1 && errno == ELOOP, "ELOOP");
+    check(lstat(name("loop"), &st2) == 0 && S_ISLNK(st2.st_mode), "lstat doesn't follow a loop");
+    memset(longname, 'n', sizeof(longname) - 1);
+    longname[sizeof(longname) - 1] = '\0';
+    errno = 0;
+    check(stat(name(longname), &st2) == -1 && errno == ENAMETOOLONG, "ENAMETOOLONG");
+    errno = 0;
+    check(fstatat(dfd, "file", &st2, 0x40000000) == -1 && errno == EINVAL, "EINVAL flag");
+    if (geteuid() != 0) {
+        /* Root can search anything */
+        check(chmod(dir, 0600) == 0, "remove search permission");
+        errno = 0;
+        check(stat(name("file"), &st2) == -1 && errno == EACCES, "EACCES");
+        errno = 0;
+        check(fstatat(dfd, "file", &st2, 0) == -1 && errno == EACCES, "fstatat EACCES");
+        check(chmod(dir, 0700) == 0, "restore search permission");
+    }
+    /* No permission on the file itself is needed */
+    check(chmod(name("file"), 0) == 0 && stat(name("file"), &st2) == 0, "stat without permission");
+    check(close(fd) == 0, "close");
+    errno = 0;
+    check(fstat(fd, &st2) == -1 && errno == EBADF, "fstat EBADF");
+
+    check(unlink(name("loop")) == 0 && unlink(name("link")) == 0 && unlink(name("hard")) == 0
+              && unlink(name("file")) == 0,
+          "unlink");
+    check(close(dfd) == 0 && rmdir(dir) == 0, "clean up");
+    printf("success\n");
+    return 0;
+}
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif
