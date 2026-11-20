@@ -76,6 +76,15 @@ main(void)
     check(sigpending(&pending) == 0 && sigismember(&pending, SIGUSR2), "pending");
     check(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0 && caught == 1, "delivered");
     check(sigpending(&pending) == 0 && !sigismember(&pending, SIGUSR2), "no longer pending");
+
+    /* Signals pending on the process are reported too, and unblocked ones aren't pending */
+    /* signal may reset the handler on delivery, as glibc's does */
+    check(signal(SIGUSR2, handler) != SIG_ERR, "signal");
+    check(sigprocmask(SIG_BLOCK, &set, NULL) == 0, "block");
+    check(kill(getpid(), SIGUSR2) == 0, "kill");
+    check(sigpending(&pending) == 0 && sigismember(&pending, SIGUSR2), "pending on the process");
+    check(!sigismember(&pending, SIGUSR1), "only the blocked, sent signal");
+    check(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0 && caught == 2, "delivered");
     printf("success\n");
     return 0;
 }
