@@ -33,7 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
+#include "local-uio.h"
 #include "local-cancel.h"
 #include <sys/socket.h>
 #include <errno.h>
@@ -74,7 +74,15 @@ sendmsg(int fd, const struct msghdr *msg, int flags)
     }
 #endif
     cancel = _cancel_enter();
-    ret = _syscall(LINUX_SYS_sendmsg, fd, msg, flags);
+    /* The kernel accepts an empty array and clamps the total length */
+    if (msg && (msg->msg_iovlen <= 0 || msg->msg_iovlen > IOV_MAX)) {
+        errno = EMSGSIZE;
+        ret = -1;
+    } else if (msg && !_iov_total_fits(msg->msg_iov, msg->msg_iovlen)) {
+        ret = -1;
+    } else {
+        ret = _syscall(LINUX_SYS_sendmsg, fd, msg, flags);
+    }
     _cancel_leave(cancel);
     return (ssize_t)ret;
 }
