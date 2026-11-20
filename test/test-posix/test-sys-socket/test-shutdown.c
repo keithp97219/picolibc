@@ -107,17 +107,52 @@ tcp_pair(int *client, int *server)
 int
 main(void)
 {
-    int  client, server;
+    int  client, server, fd, fds[2];
     char buf[4];
 
     tcp_pair(&client, &server);
     check(shutdown(client, SHUT_WR) == 0, "SHUT_WR");
     check(read(server, buf, sizeof(buf)) == 0, "end of file");
+    errno = 0;
+    check(send(client, "x", 1, MSG_NOSIGNAL) == -1 && errno == EPIPE, "no more sends");
     check(write(server, "ok", 2) == 2 && read(client, buf, 2) == 2, "other direction open");
     check(shutdown(server, SHUT_RDWR) == 0, "SHUT_RDWR");
+    errno = 0;
+    check(send(server, "x", 1, MSG_NOSIGNAL) == -1 && errno == EPIPE, "no sends after SHUT_RDWR");
     check(shutdown(server, 42) == -1 && errno == EINVAL, "bad how");
     check(close(client) == 0 && close(server) == 0, "close");
     check(shutdown(server, SHUT_RD) == -1 && errno == EBADF, "EBADF");
+
+    /* No more receives */
+    check(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0, "socketpair");
+    check(shutdown(fds[0], SHUT_RD) == 0, "SHUT_RD");
+    check(recv(fds[0], buf, sizeof(buf), 0) == 0, "receives end");
+    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
+
+    /* Not connected */
+    fd = make_socket(AF_INET, SOCK_STREAM);
+    errno = 0;
+    check(shutdown(fd, SHUT_RDWR) == -1 && errno == ENOTCONN, "TCP ENOTCONN");
+    check(close(fd) == 0, "close");
+    fd = make_socket(AF_INET, SOCK_DGRAM);
+    errno = 0;
+    check(shutdown(fd, SHUT_WR) == -1 && errno == ENOTCONN, "UDP ENOTCONN");
+    check(close(fd) == 0, "close");
+    /* glibc passes on Linux, which shuts down unconnected AF_UNIX sockets */
+#ifndef __GLIBC__
+    fd = make_socket(AF_UNIX, SOCK_STREAM);
+    errno = 0;
+    check(shutdown(fd, SHUT_RDWR) == -1 && errno == ENOTCONN, "AF_UNIX stream ENOTCONN");
+    check(close(fd) == 0, "close");
+    fd = make_socket(AF_UNIX, SOCK_DGRAM);
+    errno = 0;
+    check(shutdown(fd, SHUT_RD) == -1 && errno == ENOTCONN, "AF_UNIX datagram ENOTCONN");
+    check(close(fd) == 0, "close");
+#endif
+    check(pipe(fds) == 0, "pipe");
+    errno = 0;
+    check(shutdown(fds[0], SHUT_RD) == -1 && errno == ENOTSOCK, "ENOTSOCK");
+    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
     printf("success\n");
     return 0;
 }
