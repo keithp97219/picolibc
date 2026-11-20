@@ -40,5 +40,10 @@
 int
 sigaltstack(const stack_t * __restrict ss, stack_t * __restrict old)
 {
+    /* Linux accepts SS_ONSTACK in ss_flags; POSIX makes it EINVAL */
+    if (ss && (ss->ss_flags & SS_ONSTACK)) {
+        errno = EINVAL;
+        return -1;
+    }
     return (int)_syscall(LINUX_SYS_sigaltstack, ss, old);
 }
