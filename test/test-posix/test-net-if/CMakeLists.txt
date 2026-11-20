@@ -35,6 +35,7 @@
 
 set(tests
   test-if_nameindex
+  test-net_if_h
   )
 
 foreach(test IN LISTS tests)

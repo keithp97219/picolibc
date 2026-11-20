@@ -35,4 +35,5 @@
 
 dir_tests = [
   'test-if_nameindex',
+  'test-net_if_h',
 ]
