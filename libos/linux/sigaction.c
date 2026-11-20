@@ -34,6 +34,8 @@
  */
 
 #include "local-sigaction.h"
+#include <string.h>
+#include <linux/linux-ucontext.h>
 
 #if __SIZEOF_POINTER__ == 2 && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2)
 #define _USE_ATOMIC_SIGNAL
@@ -73,8 +75,44 @@ _signal_handler(int sig)
     (*func.sa_handler)(sig);
 }
 
+#ifdef LINUX_UC_SIGMASK
+/*
+ * Hand the handler picolibc's ucontext_t, with the interrupted mask in
+ * picolibc's signal numbers, and put any change it makes to that mask
+ * back where the kernel restores it from. The library's own signals
+ * aren't in a sigset_t, so they keep their state.
+ */
 static void
-_signal_sigaction(int sig, struct __kernel_siginfo *kinfo, void *ucontext)
+_signal_call(sig_func_t func, int sig, siginfo_t *info, void *kcontext)
+{
+    __kernel_sigset_t *kmask = (__kernel_sigset_t *)((char *)kcontext + LINUX_UC_SIGMASK);
+    __kernel_sigset_t  kold = *kmask;
+    ucontext_t         uc = { .uc_mcontext = { kcontext } };
+    sigset_t           mask;
+    int                ksig;
+
+    memcpy(&uc.uc_stack, (char *)kcontext + LINUX_UC_STACK, sizeof(uc.uc_stack));
+    _sigmask_from_linux(&uc.uc_sigmask, kmask);
+    mask = uc.uc_sigmask;
+    (*func.sa_sigaction)(sig, info, &uc);
+    if (memcmp(&mask, &uc.uc_sigmask, sizeof(mask)) != 0) {
+        _sigmask_to_linux(kmask, &uc.uc_sigmask);
+        for (ksig = LINUX_SIGRTMIN_APP - 2; ksig < LINUX_SIGRTMIN_APP; ksig++)
+            if (__kernel_sigset_get_mask(&kold, ksig))
+                __kernel_sigset_set_mask(kmask, ksig);
+    }
+}
+#else
+/* Without the kernel's ucontext layout, pass its context along */
+static void
+_signal_call(sig_func_t func, int sig, siginfo_t *info, void *kcontext)
+{
+    (*func.sa_sigaction)(sig, info, kcontext);
+}
+#endif
+
+static void
+_signal_sigaction(int sig, struct __kernel_siginfo *kinfo, void *kcontext)
 {
     siginfo_t  info = {};
     sig_func_t func;
@@ -86,7 +124,7 @@ _signal_sigaction(int sig, struct __kernel_siginfo *kinfo, void *ucontext)
     func = _sig_func[sig];
 #endif
     _siginfo_from_linux(&info, kinfo);
-    (*func.sa_sigaction)(sig, &info, ucontext);
+    _signal_call(func, sig, &info, kcontext);
 }
 
 extern void __restore_rt(void);
