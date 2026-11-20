@@ -45,6 +45,7 @@ dir_tests = [
   'test-mknod',
   'test-mknodat',
   'test-stat',
+  'test-sys_stat_h',
   'test-umask',
   'test-utimensat',
 ]
