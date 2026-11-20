@@ -75,6 +75,7 @@ posix_test_dirs = [
   'test-time',
   'test-unistd',
   'test-wchar',
+  'test-wordexp',
 ]
 
 test_skip = []

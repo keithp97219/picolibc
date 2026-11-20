@@ -38,9 +38,7 @@ enum {
     WRDE_NOSYS
 };
 
-/* Note: This implementation of wordexp requires a version of bash
-   that supports the --wordexp and --protected arguments to be present
-   on the system.  It does not support the WRDE_UNDEF flag. */
+/* The expansion is done by running /bin/sh */
 int  wordexp(const char  *__restrict, wordexp_t  *__restrict, int);
 void wordfree(wordexp_t *);
 

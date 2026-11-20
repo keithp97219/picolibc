@@ -56,6 +56,7 @@ posix_dirs = [
   'stdlib',
   'sys-wait',
   'unistd',
+  'wordexp',
 ]
 
 foreach d : posix_dirs
