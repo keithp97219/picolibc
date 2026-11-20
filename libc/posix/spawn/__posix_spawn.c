@@ -124,7 +124,10 @@ __spawn_child(const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *att
             sigaction(sig, &sa, NULL);
     }
 
-    /* Keep the error pipe clear of every descriptor the actions name */
+    /*
+     * Keep the error pipe clear of every descriptor the actions name;
+     * those out of range can't be the pipe and only fail
+     */
     if (fa && *fa) {
         const struct __posix_spawn_file_actions *f = *fa;
         size_t                                   i;
@@ -133,9 +136,9 @@ __spawn_child(const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *att
         for (i = 0; i < f->count; i++) {
             const struct __spawn_action *act = &f->actions[i];
 
-            if (act->fd > max)
+            if (act->fd > max && __spawn_fd_valid(act->fd))
                 max = act->fd;
-            if (act->kind == __SPAWN_DUP2 && act->newfd > max)
+            if (act->kind == __SPAWN_DUP2 && act->newfd > max && __spawn_fd_valid(act->newfd))
                 max = act->newfd;
         }
         if (*errfd <= max) {
@@ -185,9 +188,13 @@ __spawn_child(const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *att
                 }
                 break;
             case __SPAWN_CLOSE:
-                /* Closing a descriptor that isn't open is fine */
-                if (close(act->fd) < 0 && errno != EBADF)
-                    return errno;
+                /* Closing an in-range descriptor that isn't open is fine */
+                if (close(act->fd) < 0) {
+                    if (errno != EBADF)
+                        return errno;
+                    if (!__spawn_fd_valid(act->fd))
+                        return EBADF;
+                }
                 break;
             case __SPAWN_DUP2:
                 if (act->fd == act->newfd) {
