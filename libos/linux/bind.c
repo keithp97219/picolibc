@@ -39,5 +39,17 @@
 int
 bind(int fd, const struct sockaddr *addr, socklen_t len)
 {
+    /* Linux says EFAULT or EINVAL; POSIX wants EDESTADDRREQ for AF_UNIX */
+    if (!addr) {
+        int       domain;
+        socklen_t dlen = sizeof(domain);
+
+        if (_syscall(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_DOMAIN, &domain, &dlen) < 0)
+            return -1;
+        if (domain == AF_UNIX) {
+            errno = EDESTADDRREQ;
+            return -1;
+        }
+    }
     return (int)_syscall(LINUX_SYS_bind, fd, addr, len);
 }
