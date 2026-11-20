@@ -56,6 +56,7 @@ posix_test_dirs = [
   'test-poll',
   'test-pthread',
   'test-pwd',
+  'test-regex',
   'test-sched',
   'test-search',
   'test-semaphore',
