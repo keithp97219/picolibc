@@ -97,9 +97,10 @@ block_usr(sigset_t *set)
 int
 main(void)
 {
-    sigset_t        set;
+    sigset_t        set, pending;
     siginfo_t       si;
     struct timespec ts;
+    union sigval    value;
 
     catch_usr();
     block_usr(&set);
@@ -116,6 +117,47 @@ main(void)
     ts.tv_nsec = 1000000000L;
     errno = 0;
     check(sigtimedwait(&set, &si, &ts) == -1 && errno == EINVAL, "sigtimedwait bad timeout");
+    ts.tv_nsec = -1;
+    errno = 0;
+    check(sigtimedwait(&set, &si, &ts) == -1 && errno == EINVAL, "negative tv_nsec");
+
+    /* A zero timeout returns at once */
+    ts.tv_sec = 0;
+    ts.tv_nsec = 0;
+    errno = 0;
+    check(sigtimedwait(&set, &si, &ts) == -1 && errno == EAGAIN, "zero timeout");
+
+    /* Lower real-time signals are selected first, and a queued value is dequeued */
+    sigaddset(&set, SIGRTMIN);
+    sigaddset(&set, SIGRTMIN + 1);
+    check(sigprocmask(SIG_BLOCK, &set, NULL) == 0, "block real-time signals");
+    value.sival_int = 11;
+    check(sigqueue(getpid(), SIGRTMIN + 1, value) == 0, "sigqueue SIGRTMIN+1");
+    value.sival_int = 10;
+    check(sigqueue(getpid(), SIGRTMIN, value) == 0, "sigqueue SIGRTMIN");
+    ts.tv_sec = 1;
+    check(sigtimedwait(&set, &si, &ts) == SIGRTMIN && si.si_signo == SIGRTMIN
+              && si.si_code == SI_QUEUE && si.si_value.sival_int == 10,
+          "lowest real-time signal first");
+    check(sigtimedwait(&set, NULL, &ts) == SIGRTMIN + 1, "null info");
+    check(sigpending(&pending) == 0 && !sigismember(&pending, SIGRTMIN + 1),
+          "accepted signal no longer pending");
+
+#ifdef __PICOLIBC__
+    /*
+     * The timeout need only be checked when the call would wait; glibc
+     * passes it to Linux, which always checks it
+     */
+    check(kill(getpid(), SIGUSR1) == 0, "kill");
+    ts.tv_sec = 0;
+    ts.tv_nsec = 1000000000L;
+    check(sigtimedwait(&set, &si, &ts) == SIGUSR1, "bad timeout with a pending signal");
+    /* A negative interval has already expired */
+    ts.tv_sec = -1;
+    ts.tv_nsec = 0;
+    errno = 0;
+    check(sigtimedwait(&set, &si, &ts) == -1 && errno == EAGAIN, "negative timeout");
+#endif
     check(caught == 0, "waited-for signals were not caught");
 
     printf("success\n");
