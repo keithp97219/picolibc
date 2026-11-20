@@ -45,7 +45,7 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
 {
     const void *addr, *lookup_addr;
     int         family, lookup_family, port;
-    char        buf[INET6_ADDRSTRLEN];
+    char        name[__NETDB_LINE_MAX];
 
     if (flags & ~__GNI_FLAGS)
         return EAI_BADFLAGS;
@@ -85,13 +85,14 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
         }
     }
 
+    /* A name that is found but doesn't fit is an overflow, not a missing name */
     if (host && hostlen) {
         bool named = false;
 
         if (!(flags & NI_NUMERICHOST) && lookup_family != AF_UNSPEC) {
-            named = __netdb_host_name(lookup_family, lookup_addr, host, hostlen);
+            named = __netdb_host_name(lookup_family, lookup_addr, name, sizeof(name));
             if (named && (flags & NI_NOFQDN)) {
-                char *dot = strchr(host, '.');
+                char *dot = strchr(name, '.');
 
                 if (dot)
                     *dot = '\0';
@@ -100,26 +101,25 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
         if (!named) {
             if (flags & NI_NAMEREQD)
                 return EAI_NONAME;
-            if (!inet_ntop(family, addr, buf, sizeof(buf)))
+            if (!inet_ntop(family, addr, name, sizeof(name)))
                 return EAI_SYSTEM;
-            if (strlen(buf) >= hostlen)
-                return EAI_OVERFLOW;
-            strcpy(host, buf);
         }
+        if (strlen(name) >= hostlen)
+            return EAI_OVERFLOW;
+        strcpy(host, name);
     }
 
     if (serv && servlen) {
         bool named = false;
 
         if (!(flags & NI_NUMERICSERV))
-            named = __netdb_service_name(port, (flags & NI_DGRAM) ? "udp" : "tcp", serv, servlen);
-        if (!named) {
-            int len = snprintf(buf, sizeof(buf), "%d", port);
-
-            if (len < 0 || (size_t)len >= servlen)
-                return EAI_OVERFLOW;
-            strcpy(serv, buf);
-        }
+            named = __netdb_service_name(port, (flags & NI_DGRAM) ? "udp" : "tcp", name,
+                                         sizeof(name));
+        if (!named)
+            snprintf(name, sizeof(name), "%d", port);
+        if (strlen(name) >= servlen)
+            return EAI_OVERFLOW;
+        strcpy(serv, name);
     }
     return 0;
 }
