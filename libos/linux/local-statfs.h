@@ -38,12 +38,15 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "local-linux.h"
 #include <linux/linux-fsid-struct.h>
+#include <linux/linux-termios.h>
 #ifdef LINUX_SYS_statfs64
 #include <linux/linux-statfs64-struct.h>
 #else
 #include <linux/linux-statfs-struct.h>
 #endif
 #include <sys/statvfs.h>
+#include <limits.h>
+#include <unistd.h>
 
 #ifdef LINUX_SYS_statfs64
 #define LINUX_SYS_statfs_size LINUX_SYS_statfs64
@@ -54,5 +57,31 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 int _statvfsbuf(struct statvfs *buf, const struct __kernel_statfs_size *kbuf);
+
+/*
+ * pathconf and fpathconf answers for a file on the file system buf
+ * describes; limits <limits.h> fixes keep their values there
+ */
+static inline long
+_pathconf_statvfs(const struct statvfs *buf, int name)
+{
+    switch (name) {
+    case _PC_NAME_MAX:
+        return (long)buf->f_namemax;
+    case _PC_PATH_MAX:
+        return PATH_MAX;
+    case _PC_PIPE_BUF:
+        return PIPE_BUF;
+    case _PC_LINK_MAX:
+        return LINK_MAX;
+    case _PC_2_SYMLINKS:
+        return 1;
+    case _PC_VDISABLE:
+        return LINUX_POSIX_VDISABLE;
+    case _PC_TIMESTAMP_RESOLUTION:
+        return 1;
+    }
+    return __fallback_fpathconf(-1, name);
+}
 
 #endif /* _LOCAL_STATFS_H_ */

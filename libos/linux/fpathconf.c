@@ -33,17 +33,15 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "local-statfs.h"
 #include "local-termios.h"
-#include <unistd.h>
 
 long
 fpathconf(int fd, int name)
 {
-    switch (name) {
-    case _PC_2_SYMLINKS:
-        return 1;
-    case _PC_VDISABLE:
-        return LINUX_POSIX_VDISABLE;
-    }
-    return __fallback_fpathconf(fd, name);
+    struct statvfs buf;
+
+    if (fstatvfs(fd, &buf) < 0)
+        return -1;
+    return _pathconf_statvfs(&buf, name);
 }
