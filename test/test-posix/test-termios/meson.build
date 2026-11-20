@@ -41,4 +41,6 @@ dir_tests = [
   'test-tcsendbreak',
   'test-tcsetattr',
   'test-tcsetwinsize',
+  'test-termios_h',
+  'test-termios_h-posix',
 ]
