@@ -61,17 +61,29 @@ set(tests_fail
   )
   
 function(picolibc_test test)
-  add_executable(${test} ${test}.c ${ARGN})
+  # CMake target names are global, while tests in different
+  # directories may share a name; prefix the target with the
+  # directory path below test/ and keep the test name for the output
+  file(RELATIVE_PATH dir ${CMAKE_CURRENT_FUNCTION_LIST_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+  if(dir)
+    string(REPLACE "/" "_" target "${dir}_${test}")
+  else()
+    set(target ${test})
+  endif()
 
-  target_link_libraries(${test} LINK_PUBLIC ${PICOLIBC_TEST_LINK_LIBRARIES})
+  add_executable(${target} ${test}.c ${ARGN})
 
-  target_compile_options(${test} PRIVATE -fno-builtin ${PICOLIBC_COMPILE_OPTIONS} -D_TEST_LONG_DOUBLE)
+  set_target_properties(${target} PROPERTIES OUTPUT_NAME ${test})
 
-  target_link_options(${test} PRIVATE ${TARGET_COMPILE_OPTIONS})
+  target_link_libraries(${target} LINK_PUBLIC ${PICOLIBC_TEST_LINK_LIBRARIES})
+
+  target_compile_options(${target} PRIVATE -fno-builtin ${PICOLIBC_COMPILE_OPTIONS} -D_TEST_LONG_DOUBLE)
+
+  target_link_options(${target} PRIVATE ${TARGET_COMPILE_OPTIONS})
 
   add_test(
     NAME ${test}
-    COMMAND "${PICOLIBC_SCRIPTS}/${TEST_RUNNER}" $<TARGET_FILE:${test}>
+    COMMAND "${PICOLIBC_SCRIPTS}/${TEST_RUNNER}" $<TARGET_FILE:${target}>
     )
   set_tests_properties(${test} PROPERTIES SKIP_RETURN_CODE 77)
 endfunction()

@@ -33,29 +33,27 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-set(tests
-  test-access
-  test-alphasort
-  test-catopen
-  test-ctermid
-  test-dirfd
-  test-fnmatch
-  test-getcwd
-  test-getdelim
-  test-gettext
-  test-open_wmemstream
-  test-grp
-  test-dirent
-  test-posix-time
-  test-psiginfo
-  test-pwd
-  test-scandir
-  test-signal
-  test-stat
-  test-stdatomic-functions
-  test-textdomain
-  )
-
-foreach(test IN LISTS tests)
-  picolibc_test(${test})
-endforeach()
+add_subdirectory(test-dirent)
+add_subdirectory(test-fnmatch)
+add_subdirectory(test-glob)
+add_subdirectory(test-grp)
+add_subdirectory(test-integration)
+add_subdirectory(test-libintl)
+add_subdirectory(test-mqueue)
+add_subdirectory(test-nl_types)
+add_subdirectory(test-poll)
+add_subdirectory(test-pthread)
+add_subdirectory(test-pwd)
+add_subdirectory(test-semaphore)
+add_subdirectory(test-signal)
+add_subdirectory(test-stdatomic)
+add_subdirectory(test-stdio)
+add_subdirectory(test-stdlib)
+add_subdirectory(test-sys-mman)
+add_subdirectory(test-sys-resource)
+add_subdirectory(test-sys-select)
+add_subdirectory(test-sys-stat)
+add_subdirectory(test-sys-statvfs)
+add_subdirectory(test-time)
+add_subdirectory(test-unistd)
+add_subdirectory(test-wchar)

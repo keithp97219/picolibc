@@ -33,110 +33,57 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-tests = [
-  'test-access',
-  'test-alphasort',
-  'test-catopen',
-  'test-ctermid',
-  'test-dirfd',
-  'test-fnmatch',
-  'test-ftrunc',
-  'test-getcwd',
-  'test-getdelim',
-  'test-gettext',
-  'test-open_wmemstream',
-  'test-getrlimit',
-  'test-grp',
+# One directory per POSIX header, named test- plus the header with '/'
+# replaced by '-' and without '.h'. Each directory's meson.build lists
+# its tests in dir_tests, or dir_thread_tests for those needing POSIX
+# threads; its tests form a suite named after the directory.
+posix_test_dirs = [
   'test-dirent',
-  'test-posix-time',
-  'test-psiginfo',
+  'test-fnmatch',
+  'test-glob',
+  'test-grp',
+  'test-integration',
+  'test-libintl',
+  'test-mqueue',
+  'test-nl_types',
+  'test-poll',
+  'test-pthread',
   'test-pwd',
-  'test-rename',
-  'test-scandir',
-  'test-setrlimit',
+  'test-semaphore',
   'test-signal',
-  'test-stat',
-  'test-statvfs',
-  'test-stdatomic-functions',
-  'test-textdomain',
-  ]
+  'test-stdatomic',
+  'test-stdio',
+  'test-stdlib',
+  'test-sys-mman',
+  'test-sys-resource',
+  'test-sys-select',
+  'test-sys-stat',
+  'test-sys-statvfs',
+  'test-time',
+  'test-unistd',
+  'test-wchar',
+]
 
-tests_failure = []
 test_skip = []
-
-if enable_native_tests
-  test_skip += [
-    'test-dirent',
-    'test-dirfd',
-    'test-scandir',
-  ]
-endif
-
-if has_os_posix
-  tests += [
-    'test-alarm',
-    'test-execle',
-    'test-glob',
-    'test-mkdtemp',
-    'test-link',
-    'test-fileops',
-    'test-mmap',
-    'test-mqueue',
-    'test-pclose',
-    'test-sbrk-blocked',
-    'test-rtsig',
-    'test-select',
-    'test-pread',
-    'test-sysinfo',
-    'test-timer',
-    'test-popen',
-    'test-poll',
-    'test-realpath',
-    'test-siginfo',
-    'test-sigsuspend',
-    'test-clock-nanosleep',
-    'test-syscall-name',
-    'test-shm',
-    'test-sigwait',
-    'test-uid',
-    'test-system',
-    'test-time64',
-  ]
-elif host_cpu_family == 'hexagon'
-  tests += ['test-system']
-endif
-
-if oslib_test_variant == 'linux'
-  test_skip += ['test-ftrunc']
-endif
+test_skip_native = []
 
 # Thread tests use the library's own locks, not lock-valid.c
 test_skip_lock_valid = []
 
-if posix_threads
-  pthread_tests = [
-    'test-cpuclock',
-    'test-pthread',
-    'test-pthread-atfork',
-    'test-pthread-cancel',
-    'test-pthread-cond',
-    'test-pthread-exit',
-    'test-pthread-exit-thread',
-    'test-pthread-mutex',
-    'test-pthread-once-key',
-    'test-pthread-signal',
-    'test-pthread-barrier',
-    'test-pthread-rwlock',
-    'test-pthread-prio',
-    'test-pthread-sched',
-    'test-pthread-stackaddr',
-    'test-semaphore',
-    'test-timer-thread',
-  ]
-  tests += pthread_tests
-  test_skip_lock_valid += pthread_tests
-endif
+# Per-test compiler arguments
+test_extra_c_args = {}
 
+# Each entry is [directory, test name]
+posix_tests = []
+foreach d : posix_test_dirs
+  dir_tests = []
+  dir_thread_tests = []
+  subdir(d)
+  foreach t : dir_tests + dir_thread_tests
+    posix_tests += [[d, t]]
+  endforeach
+  test_skip_lock_valid += dir_thread_tests
+endforeach
 
 test_extra_libs = {}
 
@@ -145,10 +92,6 @@ if tests_enable_posix_io
   args_test_posix += ['-DTESTS_ENABLE_POSIX_IO']
 endif
 
-# Keep the compiler from removing the allocations the test makes
-test_extra_c_args = {
-  'test-sbrk-blocked': ['-fno-builtin'],
-}
 test_args = {}
 
 foreach params : targets
@@ -178,12 +121,14 @@ foreach params : targets
   _c_args = target_c_args + get_variable('test_c_args' + target, test_c_args) + args_test_posix
   _link_args = target_c_args + _lib_files + get_variable('test_link_args' + target, test_link_args)
   _link_depends = get_variable('test_link_depends' + target, test_link_depends) + _libs
-  foreach t1 : tests
+  foreach entry : posix_tests
+    t1_dir = entry[0]
+    t1 = entry[1]
     if test_skip.contains(t1)
       continue
     endif
 
-    t1_src = t1 + '.c'
+    t1_src = t1_dir / t1 + '.c'
     test_file_name_arg=['-DTEST_FILE_NAME="' + t1 + target + '.txt"']
 
     if test_extra_libs.has_key(t1) or t1 in test_skip_lock_valid
@@ -192,8 +137,10 @@ foreach params : targets
       lock_source = test_lock_valid
     endif
 
+    # Tests may share a name with their directory, so give the files a suffix
     test(t1 + target,
 	 executable(t1 + target, [t1_src] + lock_source,
+		    name_suffix: 'elf',
 		    c_args: printf_compile_args_d + test_file_name_arg + test_extra_c_args.get(t1, []) + _c_args,
 		    link_args: printf_link_args_d + _link_args,
 		    objects: _objs,
@@ -203,76 +150,32 @@ foreach params : targets
          depends: bios_bin,
          args: test_args.get(t1, []),
 	 timeout: 60,
-         suite: 'test-posix',
+         suite: [t1_dir, 'test-posix'],
 	 env: test_env)
-  endforeach
-
-  foreach t1 : tests_failure
-    t1_src = t1 + '.c'
-    t1 += '-failure'
-    test_file_name_arg=['-DTEST_FILE_NAME="' + t1 + target + '.txt"']
-
-    if test_extra_libs.has_key(t1)
-      lock_source = []
-    else
-      lock_source = test_lock_valid
-    endif
-
-    test(t1 + target,
-	 executable(t1 + target, [t1_src] + lock_source,
-		    c_args: printf_compile_args_d + test_file_name_arg + test_extra_c_args.get(t1, []) + _c_args,
-		    link_args: printf_link_args_d + _link_args,
-		    objects: _objs,
-		    link_depends:  _link_depends,
-                    link_with: test_extra_libs.get(t1, []),
-		    include_directories: inc),
-         depends: bios_bin,
-         args: test_args.get(t1, []),
-	 timeout: 60,
-         suite: 'test-posix',
-	 env: test_env,
-         should_fail: true)
   endforeach
 
 endforeach
 
-# picolibc's sbrk falls back to mmap; other C libraries' doesn't. glibc
-# leaves the atomic functions to libatomic, which may not be installed.
-test_skip_native = ['test-sbrk-blocked', 'test-stdatomic-functions']
-
 if enable_native_tests
 
-  foreach t1 : tests
+  foreach entry : posix_tests
+    t1_dir = entry[0]
+    t1 = entry[1]
     if t1 in test_skip_native
       continue
     endif
-    t1_src = t1 + '.c'
+    t1_src = t1_dir / t1 + '.c'
     t1_name = t1 + '-native'
     test_file_name_arg=['-DTEST_FILE_NAME="' + t1_name + '.txt"']
 
     test(t1_name,
 	 executable(t1_name, t1_src,
+		    name_suffix: 'elf',
 		    c_args: native_c_args + test_file_name_arg + ctype_c_args + args_test_posix,
 		    link_args: native_c_args,
                     dependencies: [native_lib_m, native_thread_dep]),
-         suite: 'test-linux',
+         suite: [t1_dir, 'test-linux'],
          env: test_env
-        )
-  endforeach
-
-  foreach t1 : tests_failure
-    t1_src = t1 + '.c'
-    t1_name = t1 + '-failure--native'
-    test_file_name_arg=['-DTEST_FILE_NAME="' + t1_name + '.txt"']
-
-    test(t1_name,
-	 executable(t1_name, t1_src,
-		    c_args: native_c_args + test_file_name_arg + ctype_c_args + args_test_posix,
-		    link_args: native_c_args,
-                    dependencies: native_lib_m),
-         suite: 'test-stdlib',
-         env: test_env,
-         should_fail: true
         )
   endforeach
 
