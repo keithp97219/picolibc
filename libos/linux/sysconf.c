@@ -68,6 +68,9 @@ sysconf(int name)
             return -1;
         value /= 4;
         return value < _POSIX_ARG_MAX ? _POSIX_ARG_MAX : value;
+    case _SC_IOV_MAX:
+        /* The kernel's UIO_MAXIOV */
+        return IOV_MAX;
     case _SC_CLK_TCK:
         /* The kernel's USER_HZ, which times() counts in */
         return 100;
