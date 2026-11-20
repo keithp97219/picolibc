@@ -174,6 +174,21 @@ typedef struct sigaltstack {
     size_t ss_size;  /* Stack size.  */
 } stack_t;
 
+#if __POSIX_VISIBLE >= 202405 || __XSI_VISIBLE
+/* The machine state a signal interrupted, opaque to applications */
+typedef struct {
+    void *__context;
+} mcontext_t;
+
+/* The context a signal interrupted, an SA_SIGINFO handler's third argument */
+typedef struct __ucontext {
+    struct __ucontext *uc_link;
+    sigset_t           uc_sigmask;
+    stack_t            uc_stack;
+    mcontext_t         uc_mcontext;
+} ucontext_t;
+#endif
+
 #define SIG_SETMASK 0 /* set mask with sigprocmask() */
 #define SIG_BLOCK   1 /* set of signals to block */
 #define SIG_UNBLOCK 2 /* set of signals to unblock */
