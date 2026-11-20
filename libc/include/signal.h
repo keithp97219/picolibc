@@ -81,6 +81,41 @@ union sigval {
 #define SI_ASYNCIO 4 /* Indicates completion of asycnhronous IO */
 #define SI_MESGQ   5 /* Indicates arrival of a message at an empty queue */
 
+/* si_code values for SIGILL */
+#define ILL_ILLOPC 16 /* Illegal opcode */
+#define ILL_ILLOPN 17 /* Illegal operand */
+#define ILL_ILLADR 18 /* Illegal addressing mode */
+#define ILL_ILLTRP 19 /* Illegal trap */
+#define ILL_PRVOPC 20 /* Privileged opcode */
+#define ILL_PRVREG 21 /* Privileged register */
+#define ILL_COPROC 22 /* Coprocessor error */
+#define ILL_BADSTK 23 /* Internal stack error */
+
+/* si_code values for SIGFPE */
+#define FPE_INTDIV 16 /* Integer divide by zero */
+#define FPE_INTOVF 17 /* Integer overflow */
+#define FPE_FLTDIV 18 /* Floating-point divide by zero */
+#define FPE_FLTOVF 19 /* Floating-point overflow */
+#define FPE_FLTUND 20 /* Floating-point underflow */
+#define FPE_FLTRES 21 /* Floating-point inexact result */
+#define FPE_FLTINV 22 /* Invalid floating-point operation */
+#define FPE_FLTSUB 23 /* Subscript out of range */
+
+/* si_code values for SIGSEGV */
+#define SEGV_MAPERR 16 /* Address not mapped to object */
+#define SEGV_ACCERR 17 /* Invalid permissions for mapped object */
+
+/* si_code values for SIGBUS */
+#define BUS_ADRALN 16 /* Invalid address alignment */
+#define BUS_ADRERR 17 /* Nonexistent physical address */
+#define BUS_OBJERR 18 /* Object-specific hardware error */
+
+#if __XSI_VISIBLE
+/* si_code values for SIGTRAP */
+#define TRAP_BRKPT 16 /* Process breakpoint */
+#define TRAP_TRACE 17 /* Process trace trap */
+#endif
+
 /* si_code values for SIGCHLD */
 #define CLD_EXITED    16 /* Child has exited */
 #define CLD_KILLED    17 /* Child has terminated abnormally and did not create a core file */

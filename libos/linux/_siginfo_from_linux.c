@@ -37,8 +37,8 @@
 
 /*
  * Convert the kernel's siginfo to picolibc's, translating the signal
- * number and the si_code values picolibc defines. Codes specific to a
- * signal have no picolibc values, so they become 0.
+ * number and the si_code values picolibc defines. Other codes, which
+ * picolibc doesn't define, become 0.
  */
 void
 _siginfo_from_linux(siginfo_t *info, const struct __kernel_siginfo *kinfo)
@@ -52,6 +52,35 @@ _siginfo_from_linux(siginfo_t *info, const struct __kernel_siginfo *kinfo)
         /* si_status holds a signal number unless the child exited */
         if (kinfo->si_code != LINUX_CLD_EXITED)
             info->si_status = _signal_from_linux(kinfo->si_status);
+        return;
+    }
+    /* Fault codes, which Linux numbers from 1 in the POSIX order */
+    if (kinfo->si_code > 0) {
+        int base = 0, count = 0;
+
+        switch (info->si_signo) {
+        case SIGILL:
+            base = ILL_ILLOPC;
+            count = ILL_BADSTK - ILL_ILLOPC + 1;
+            break;
+        case SIGFPE:
+            base = FPE_INTDIV;
+            count = FPE_FLTSUB - FPE_INTDIV + 1;
+            break;
+        case SIGSEGV:
+            base = SEGV_MAPERR;
+            count = SEGV_ACCERR - SEGV_MAPERR + 1;
+            break;
+        case SIGBUS:
+            base = BUS_ADRALN;
+            count = BUS_OBJERR - BUS_ADRALN + 1;
+            break;
+        case SIGTRAP:
+            base = TRAP_BRKPT;
+            count = TRAP_TRACE - TRAP_BRKPT + 1;
+            break;
+        }
+        info->si_code = kinfo->si_code <= count ? base + kinfo->si_code - 1 : 0;
         return;
     }
     switch (kinfo->si_code) {
