@@ -83,6 +83,44 @@ main(void)
     check(!sigismember(&cur, SIGKILL) && !sigismember(&cur, SIGSTOP), "SIGKILL and SIGSTOP");
     check(sigprocmask(SIG_SETMASK, &old, NULL) == 0, "restore");
     check(sigprocmask(42, &set, NULL) == -1 && errno == EINVAL, "EINVAL");
+    check(sigprocmask(SIG_SETMASK, NULL, &cur) == 0 && !sigismember(&cur, SIGUSR2),
+          "failed call leaves the mask alone");
+
+    /* SIG_BLOCK forms the union, SIG_UNBLOCK removes, SIG_SETMASK replaces */
+    sigemptyset(&set);
+    sigaddset(&set, SIGUSR1);
+    check(sigprocmask(SIG_SETMASK, &set, NULL) == 0, "set USR1");
+    sigemptyset(&set);
+    sigaddset(&set, SIGUSR2);
+    check(sigprocmask(SIG_BLOCK, &set, &cur) == 0 && sigismember(&cur, SIGUSR1)
+              && !sigismember(&cur, SIGUSR2),
+          "oset holds the previous mask");
+    check(sigprocmask(SIG_BLOCK, NULL, &cur) == 0 && sigismember(&cur, SIGUSR1)
+              && sigismember(&cur, SIGUSR2),
+          "SIG_BLOCK forms the union");
+    sigemptyset(&set);
+    sigaddset(&set, SIGUSR1);
+    check(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0, "unblock USR1");
+    check(sigprocmask(SIG_BLOCK, NULL, &cur) == 0 && !sigismember(&cur, SIGUSR1)
+              && sigismember(&cur, SIGUSR2),
+          "SIG_UNBLOCK removes only those signals");
+    check(sigprocmask(SIG_SETMASK, &set, NULL) == 0, "set USR1");
+    check(sigprocmask(SIG_BLOCK, NULL, &cur) == 0 && sigismember(&cur, SIGUSR1)
+              && !sigismember(&cur, SIGUSR2),
+          "SIG_SETMASK replaces the mask");
+
+    /* With a null set, how doesn't matter and the mask is unchanged */
+    check(sigprocmask(42, NULL, &cur) == 0, "how ignored without a set");
+    check(sigismember(&cur, SIGUSR1) && !sigismember(&cur, SIGUSR2),
+          "query with any how reports the mask");
+    check(sigprocmask(SIG_UNBLOCK, NULL, &cur) == 0 && sigismember(&cur, SIGUSR1),
+          "SIG_UNBLOCK without a set changes nothing");
+#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
+    /* pthread_sigmask returns the error number */
+    check(pthread_sigmask(42, NULL, &cur) == 0, "pthread_sigmask: how ignored without a set");
+    check(pthread_sigmask(42, &set, NULL) == EINVAL, "pthread_sigmask EINVAL");
+#endif
+    check(sigprocmask(SIG_SETMASK, &old, NULL) == 0, "restore");
     printf("success\n");
     return 0;
 }
