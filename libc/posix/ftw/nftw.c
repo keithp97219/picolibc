@@ -170,6 +170,10 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level, struct __nftw_dir
         if (a->dev == st.st_dev && a->ino == st.st_ino)
             return (w->flags & FTW_DEPTH) ? 0 : __nftw_call(w, &st, FTW_D, &ftw);
 
+    /* FTW_XDEV reports a directory on another file system, but not its contents */
+    if ((w->flags & FTW_XDEV) && level > 0 && st.st_dev != w->dev)
+        return __nftw_call(w, &st, FTW_D, &ftw);
+
     dir = opendir(w->path);
     if (!dir) {
         if (errno == EACCES)

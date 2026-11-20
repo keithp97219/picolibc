@@ -63,6 +63,7 @@ struct FTW {
 #define FTW_MOUNT 0x02 /* Stay on the starting file system */
 #define FTW_DEPTH 0x04 /* Visit directories after their contents */
 #define FTW_CHDIR 0x08 /* Change to each directory before reading it */
+#define FTW_XDEV  0x10 /* Don't descend into other file systems */
 
 int nftw(const char *, int (*)(const char *, const struct stat *, int, struct FTW *), int, int)
     __picolibc_export;
