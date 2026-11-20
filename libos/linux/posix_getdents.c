@@ -35,6 +35,7 @@
 
 #include "local-dirent.h"
 #include <dirent.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -91,8 +92,13 @@ __posix_getdents_convert(char *kbuf, size_t kcount, char *buf, size_t nbyte, siz
 ssize_t
 posix_getdents(int fd, void *buf, size_t nbyte, int flags)
 {
+    /*
+     * The largest record the kernel writes: it rounds each one up to
+     * eight bytes, which can be more than sizeof(struct
+     * __kernel_dirent64) where 64-bit values are only four-byte aligned
+     */
     union {
-        char                     bytes[sizeof(struct __kernel_dirent64)];
+        char bytes[(offsetof(struct __kernel_dirent64, d_name) + NAME_MAX + 1 + 7) & ~(size_t)7];
         struct __kernel_dirent64 align;
     } kbuf;
     off_t   start;
