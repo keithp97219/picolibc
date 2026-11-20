@@ -50,6 +50,7 @@ set(tests
   test-scandir
   test-signal
   test-stat
+  test-stdatomic-functions
   )
 
 foreach(test IN LISTS tests)

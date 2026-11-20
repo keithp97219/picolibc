@@ -55,6 +55,7 @@ tests = [
   'test-signal',
   'test-stat',
   'test-statvfs',
+  'test-stdatomic-functions',
   ]
 
 tests_failure = []
@@ -193,8 +194,9 @@ foreach params : targets
 
 endforeach
 
-# picolibc's sbrk falls back to mmap; other C libraries' doesn't
-test_skip_native = ['test-sbrk-blocked']
+# picolibc's sbrk falls back to mmap; other C libraries' doesn't. glibc
+# leaves the atomic functions to libatomic, which may not be installed.
+test_skip_native = ['test-sbrk-blocked', 'test-stdatomic-functions']
 
 if enable_native_tests
 

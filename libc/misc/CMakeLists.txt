@@ -33,6 +33,12 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 picolibc_sources(
+  atomic_flag_clear.c
+  atomic_flag_clear_explicit.c
+  atomic_flag_test_and_set.c
+  atomic_flag_test_and_set_explicit.c
+  atomic_signal_fence.c
+  atomic_thread_fence.c
   dso_handle.c
   getauxval.c
   ffs.c
