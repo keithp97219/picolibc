@@ -38,8 +38,7 @@
 int
 cfsetispeed(struct termios *termios, speed_t speed)
 {
-    if (speed == 0)
-        speed = termios->c_ospeed;
+    /* B0 stays B0 here; tcsetattr gives it the output speed */
     termios->c_ispeed = speed;
     return 0;
 }
