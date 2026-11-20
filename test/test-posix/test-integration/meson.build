@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-namespace',
   'test-sbrk-blocked',
   'test-syscall-name',
   'test-time64',

@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-namespace
   test-exit-thread
   test-sbrk-blocked
   test-syscall-name
