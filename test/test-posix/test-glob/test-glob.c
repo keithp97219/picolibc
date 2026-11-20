@@ -158,6 +158,32 @@ main(void)
     glob_t                    g;
     size_t                    i;
 
+    /* The <glob.h> types, flags and errors */
+    {
+        size_t *pathc = &g.gl_pathc, *offs = &g.gl_offs;
+        char ***pathv = &g.gl_pathv;
+        int     (*glob_p)(const char     *restrict, int, int (*)(const char *, int), glob_t     *restrict)
+            = glob;
+        void             (*globfree_p)(glob_t *) = globfree;
+        static const int flags[] = { GLOB_APPEND,  GLOB_DOOFFS,   GLOB_ERR,   GLOB_MARK,
+                                     GLOB_NOCHECK, GLOB_NOESCAPE, GLOB_NOSORT };
+        int              all = 0;
+
+        (void)pathc;
+        (void)offs;
+        (void)pathv;
+        (void)glob_p;
+        (void)globfree_p;
+        for (i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
+            check(flags[i] != 0 && (all & flags[i]) == 0, "distinct flags");
+            all |= flags[i];
+        }
+        check(GLOB_ABORTED != 0 && GLOB_NOMATCH != 0 && GLOB_NOSPACE != 0, "errors are non-zero");
+        check(GLOB_ABORTED != GLOB_NOMATCH && GLOB_ABORTED != GLOB_NOSPACE
+                  && GLOB_NOMATCH != GLOB_NOSPACE,
+              "distinct errors");
+    }
+
     check(mkdtemp(dir) != NULL, "mkdtemp");
     snprintf(path, sizeof(path), "%s/sub", dir);
     check(mkdir(path, 0700) == 0, "mkdir");
