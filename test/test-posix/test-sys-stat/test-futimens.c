@@ -40,6 +40,7 @@
 #if !defined(__PICOLIBC__)                                                         \
     || (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)
 
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,7 +68,8 @@ main(void)
 {
     struct stat     st;
     struct timespec times[2];
-    int             fd;
+    time_t          now;
+    int             fd, fd2;
 
     (void)unlink(TEST_FILE_NAME);
     fd = open(TEST_FILE_NAME, O_RDWR | O_CREAT | O_EXCL, 0600);
@@ -94,7 +96,37 @@ main(void)
     check(futimens(fd, times) == 0, "futimens UTIME_NOW");
     check(futimens(fd, NULL) == 0, "futimens NULL");
 
+    /* NULL sets both times to now */
+    times[0].tv_sec = 1000000000;
+    times[0].tv_nsec = 0;
+    times[1] = times[0];
+    check(futimens(fd, times) == 0, "futimens past");
+    now = time(NULL);
+    check(futimens(fd, NULL) == 0 && fstat(fd, &st) == 0, "futimens NULL again");
+    check(st.st_atim.tv_sec >= now - 60 && st.st_atim.tv_sec <= now + 60
+              && st.st_mtim.tv_sec >= now - 60 && st.st_mtim.tv_sec <= now + 60,
+          "NULL is now");
+
+    /* Invalid nanoseconds fail and change nothing */
+    times[0].tv_sec = 1000000000;
+    times[0].tv_nsec = -1;
+    times[1].tv_sec = 1000000000;
+    times[1].tv_nsec = 0;
+    errno = 0;
+    check(futimens(fd, times) == -1 && errno == EINVAL, "EINVAL");
+    check(fstat(fd, &st) == 0 && st.st_mtim.tv_sec >= now - 60, "nothing changed");
+
+    /* The owner can use a read-only descriptor */
+    fd2 = open(TEST_FILE_NAME, O_RDONLY);
+    check(fd2 >= 0, "open read-only");
+    times[0].tv_nsec = 0;
+    check(futimens(fd2, times) == 0 && fstat(fd2, &st) == 0 && st.st_mtim.tv_sec == 1000000000,
+          "futimens read-only descriptor");
+    check(close(fd2) == 0, "close read-only");
+
     check(close(fd) == 0, "close");
+    errno = 0;
+    check(futimens(fd, times) == -1 && errno == EBADF, "EBADF");
     check(unlink(TEST_FILE_NAME) == 0, "unlink");
 
     printf("success\n");
