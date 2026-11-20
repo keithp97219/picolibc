@@ -34,10 +34,38 @@
  */
 
 #include "local-linux.h"
+#include <linux/linux-errno.h>
+#include <stdbool.h>
 #include <sys/socket.h>
+
+/*
+ * Linux shuts down AF_UNIX sockets that aren't connected; other
+ * families report ENOTCONN. Listening sockets stay allowed, as for TCP.
+ */
+static bool
+_unconnected_local(int fd)
+{
+    struct sockaddr_storage ss;
+    int                     value;
+    socklen_t               len = sizeof(ss);
+
+    if (_syscall_raw(LINUX_SYS_getpeername, fd, &ss, &len) != -LINUX_ENOTCONN)
+        return false;
+    len = sizeof(value);
+    if (_syscall_raw(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_DOMAIN, &value, &len) != 0
+        || value != AF_UNIX)
+        return false;
+    len = sizeof(value);
+    return _syscall_raw(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_ACCEPTCONN, &value, &len) == 0
+        && value == 0;
+}
 
 int
 shutdown(int fd, int how)
 {
+    if ((how == SHUT_RD || how == SHUT_WR || how == SHUT_RDWR) && _unconnected_local(fd)) {
+        errno = ENOTCONN;
+        return -1;
+    }
     return (int)_syscall(LINUX_SYS_shutdown, fd, how);
 }
