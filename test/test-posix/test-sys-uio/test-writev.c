@@ -43,12 +43,14 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 
 /* writev writes the buffers in order */
 
@@ -109,9 +111,14 @@ tcp_pair(int *client, int *server)
 int
 main(void)
 {
-    struct iovec iov[3];
+    static char  big[16];
+    char         path[] = "/tmp/test-writev-XXXXXX";
+    struct iovec iov[3], *many;
+    struct stat  st;
     char         buf[16];
-    int          fds[2];
+    int          fds[2], fd, i;
+    long         iov_max = sysconf(_SC_IOV_MAX);
+    volatile int negative = -1;
 
     check(pipe(fds) == 0, "pipe");
     iov[0].iov_base = "one ";
@@ -124,6 +131,47 @@ main(void)
     check(read(fds[0], buf, sizeof(buf)) == 7 && memcmp(buf, "one two", 7) == 0, "contents");
     check(writev(-1, iov, 3) == -1 && errno == EBADF, "EBADF");
     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
+
+    /* A regular file */
+    fd = mkstemp(path);
+    check(fd >= 0, "mkstemp");
+    check(writev(fd, iov, 3) == 7 && lseek(fd, 0, SEEK_CUR) == 7, "file writev");
+    /* Nothing to write: 0 and no other effect */
+    iov[0].iov_len = 0;
+    iov[2].iov_len = 0;
+    check(writev(fd, iov, 3) == 0, "empty writev");
+    check(lseek(fd, 0, SEEK_CUR) == 7 && fstat(fd, &st) == 0 && st.st_size == 7, "no effect");
+    /* Bad counts */
+    /* volatile, as the compiler rejects a constant negative count */
+    errno = 0;
+    check(writev(fd, iov, negative) == -1 && errno == EINVAL, "negative count");
+    /* IOV_MAX is an XSI name in <limits.h> */
+    if (iov_max > 0) {
+        many = calloc((size_t)iov_max + 1, sizeof(*many));
+        check(many != NULL, "calloc");
+        for (i = 0; i <= iov_max; i++) {
+            many[i].iov_base = "m";
+            many[i].iov_len = 1;
+        }
+        errno = 0;
+        check(writev(fd, many, (int)iov_max + 1) == -1 && errno == EINVAL, "more than IOV_MAX");
+        check(writev(fd, many, (int)iov_max) == iov_max, "IOV_MAX buffers");
+        check(ftruncate(fd, 7) == 0 && lseek(fd, 7, SEEK_SET) == 7, "trim");
+        free(many);
+    }
+    /* Too much in total: nothing is written; Linux shortens it, and glibc passes that on */
+#ifndef __GLIBC__
+    iov[0].iov_base = big;
+    iov[0].iov_len = (size_t)SSIZE_MAX / 2 + 1;
+    iov[1].iov_base = big;
+    iov[1].iov_len = (size_t)SSIZE_MAX / 2 + 1;
+    errno = 0;
+    check(writev(fd, iov, 2) == -1 && errno == EINVAL, "total overflows");
+    check(lseek(fd, 0, SEEK_CUR) == 7 && fstat(fd, &st) == 0 && st.st_size == 7, "nothing written");
+#else
+    (void)big;
+#endif
+    check(close(fd) == 0 && unlink(path) == 0, "clean up");
     (void)make_socket;
     (void)tcp_pair;
     printf("success\n");
