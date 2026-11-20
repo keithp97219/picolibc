@@ -660,7 +660,10 @@ digit_to_val(unsigned int c)
     return c;
 }
 
+/* Shared by open_memstream and open_wmemstream */
+FILE *__open_memstream(char **cbuf, wchar_t **wbuf, size_t *size);
+
 /* Generate a unique name for mktemp and friends */
-int __gettemp(char *path, int suffixlen, int (*create)(const char *path, int flags), int flags);
+int   __gettemp(char *path, int suffixlen, int (*create)(const char *path, int flags), int flags);
 
 #endif /* _STDIO_PRIVATE_H_ */

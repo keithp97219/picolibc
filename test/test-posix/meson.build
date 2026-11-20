@@ -42,6 +42,7 @@ tests = [
   'test-ftrunc',
   'test-getcwd',
   'test-getdelim',
+  'test-open_wmemstream',
   'test-getrlimit',
   'test-grp',
   'test-dirent',

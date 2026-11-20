@@ -18,16 +18,21 @@
 
 #include "local-stdio.h"
 
-#define GET_BUF(mf)  (*(mf->pbuf))
+#define GET_BUF(mf)  ((mf)->unit == 1 ? *(mf)->pbuf.c : (char *)*(mf)->pbuf.w)
 #define GET_SIZE(mf) (*(mf->psize))
 
+/* Elements are bytes for open_memstream, wide characters for open_wmemstream */
 struct __file_open_mem {
     struct __file_ext xfile;
-    char            **pbuf;
-    size_t           *psize;
-    size_t            bsize; /* allocated buffer size */
-    size_t            fsize; /* file content size */
-    size_t            pos;   /* current position in the buffer */
+    union {
+        char    **c;
+        wchar_t **w;
+    } pbuf;
+    size_t *psize;
+    size_t  unit;  /* element size */
+    size_t  bsize; /* allocated buffer size */
+    size_t  fsize; /* file content size */
+    size_t  pos;   /* current position in the buffer */
 };
 
 static int
@@ -52,8 +57,8 @@ __open_mem_grow(struct __file_open_mem *mf, size_t additional_size)
     if (bsize < required_size)
         bsize = required_size;
 
-    /* +1 for the null terminator */
-    bsize += 1;
+    /* room for the null terminator */
+    bsize += mf->unit;
 
     /* check for overflow */
     if (bsize < mf->bsize) {
@@ -69,7 +74,10 @@ __open_mem_grow(struct __file_open_mem *mf, size_t additional_size)
     memset(tmp + mf->bsize, 0, bsize - mf->bsize);
 
     /* update structure */
-    GET_BUF(mf) = tmp;
+    if (mf->unit == 1)
+        *mf->pbuf.c = tmp;
+    else
+        *mf->pbuf.w = (wchar_t *)tmp;
     mf->bsize = bsize;
 
     return 0;
@@ -80,12 +88,12 @@ __open_mem_put(char c, FILE *f)
 {
     struct __file_open_mem *mf = (struct __file_open_mem *)f;
 
-    /* 2 = 1 for the new character + 1 for the null terminator
+    /* Room for the new byte and the null terminator
      *
      * Allocation will zero fill the extended part of the buffer.
      * No need to set null terminator character explicitly.
      */
-    int                     ret = __open_mem_grow(mf, 2);
+    int                     ret = __open_mem_grow(mf, 1 + mf->unit);
     if (ret != 0)
         return ret;
 
@@ -101,7 +109,7 @@ __open_mem_flush(FILE *f)
 {
     struct __file_open_mem *mf = (struct __file_open_mem *)f;
 
-    GET_SIZE(mf) = mf->fsize;
+    GET_SIZE(mf) = mf->fsize / mf->unit;
 
     return 0;
 }
@@ -149,12 +157,15 @@ __open_mem_close(FILE *f)
     return 0;
 }
 
+/* Exactly one of cbuf and wbuf is set, choosing bytes or wide characters */
 FILE *
-open_memstream(char **buf, size_t *size)
+__open_memstream(char **cbuf, wchar_t **wbuf, size_t *size)
 {
     struct __file_open_mem *mf;
+    char                   *buf;
+    size_t                  unit = wbuf ? sizeof(wchar_t) : 1;
 
-    if (!buf || !size) {
+    if ((!cbuf && !wbuf) || !size) {
         errno = EINVAL;
         return NULL;
     }
@@ -164,21 +175,35 @@ open_memstream(char **buf, size_t *size)
         return NULL;
     }
 
-    *buf = calloc(1, BUFSIZ);
-    if (*buf == NULL) {
+    buf = calloc(1, BUFSIZ);
+    if (buf == NULL) {
         free(mf);
         return NULL;
     }
 
     *mf = (struct __file_open_mem) {
         .xfile = FDEV_SETUP_EXT(__open_mem_put, NULL, __open_mem_flush, __open_mem_close,
-                                __open_mem_seek, NULL, __SWR),
-        .pbuf = buf,
+                                __open_mem_seek, NULL, wbuf ? (__SWR | __SWIDE) : __SWR),
         .psize = size,
+        .unit = unit,
         .bsize = BUFSIZ,
         .fsize = 0,
         .pos = 0,
     };
+    if (wbuf) {
+        mf->pbuf.w = wbuf;
+        *wbuf = (wchar_t *)buf;
+    } else {
+        mf->pbuf.c = cbuf;
+        *cbuf = buf;
+    }
+    *size = 0;
 
     return (FILE *)mf;
+}
+
+FILE *
+open_memstream(char **buf, size_t *size)
+{
+    return __open_memstream(buf, NULL, size);
 }

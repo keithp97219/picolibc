@@ -81,6 +81,7 @@ picolibc_sources(
   flockfile_init.c
   fmemopen.c
   open_memstream.c
+  open_wmemstream.c
   fopen.c
   fprintf.c
   fputc.c

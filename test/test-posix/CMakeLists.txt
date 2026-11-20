@@ -41,6 +41,7 @@ set(tests
   test-fnmatch
   test-getcwd
   test-getdelim
+  test-open_wmemstream
   test-grp
   test-dirent
   test-posix-time
