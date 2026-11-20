@@ -34,5 +34,5 @@
 #
 
 dir_tests = [
-  'test-grp',
+  'test-getgrent',
 ]

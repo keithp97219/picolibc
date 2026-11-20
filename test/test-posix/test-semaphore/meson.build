@@ -37,6 +37,7 @@ dir_tests = []
 
 if posix_threads
   dir_thread_tests += [
-    'test-semaphore',
+    'test-sem_init',
+    'test-sem_open',
   ]
 endif

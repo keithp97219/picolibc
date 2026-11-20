@@ -35,7 +35,7 @@
 
 dir_tests = [
   'test-alphasort',
-  'test-dirent',
+  'test-readdir',
   'test-dirfd',
   'test-scandir',
 ]
@@ -49,5 +49,5 @@ endif
 
 # The native build reads directories through the host's struct dirent
 if enable_native_tests
-  test_skip += ['test-dirent', 'test-dirfd', 'test-scandir']
+  test_skip += ['test-readdir', 'test-dirfd', 'test-scandir']
 endif

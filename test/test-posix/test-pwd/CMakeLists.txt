@@ -34,7 +34,7 @@
 #
 
 set(tests
-  test-pwd
+  test-getpwent
   )
 
 foreach(test IN LISTS tests)

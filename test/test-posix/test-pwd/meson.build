@@ -34,5 +34,5 @@
 #
 
 dir_tests = [
-  'test-pwd',
+  'test-getpwent',
 ]

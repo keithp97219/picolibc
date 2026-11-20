@@ -35,7 +35,7 @@
 
 set(tests
   test-alphasort
-  test-dirent
+  test-readdir
   test-dirfd
   test-scandir
   )

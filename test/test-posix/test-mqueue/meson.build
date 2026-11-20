@@ -37,6 +37,6 @@ dir_tests = []
 
 if has_os_posix
   dir_tests += [
-    'test-mqueue',
+    'test-mq_open',
   ]
 endif

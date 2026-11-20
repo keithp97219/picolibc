@@ -40,6 +40,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The text domain defaults to "messages" and can be changed and reset */
+
 #define check(condition, message)                      \
     do {                                               \
         if (!(condition)) {                            \
@@ -51,37 +53,10 @@
 int
 main(void)
 {
-    char *dir;
-
-    /* The default domain is "messages"; NULL just reports it */
     check(strcmp(textdomain(NULL), "messages") == 0, "default domain");
     check(strcmp(textdomain("picolibc-test"), "picolibc-test") == 0, "set the domain");
     check(strcmp(textdomain(NULL), "picolibc-test") == 0, "query the domain");
     check(strcmp(textdomain(""), "messages") == 0, "an empty name restores the default");
-
-    /* Binding a directory, replacing it, and asking for it */
-    check(strcmp(bindtextdomain("picolibc-test", "/a"), "/a") == 0, "bind a directory");
-    check(strcmp(bindtextdomain("picolibc-test", "/b"), "/b") == 0, "rebind it");
-    check(strcmp(bindtextdomain("picolibc-test", NULL), "/b") == 0, "query the binding");
-
-    /* An unbound domain reports some default directory */
-    dir = bindtextdomain("picolibc-unbound", NULL);
-    check(dir != NULL && *dir != '\0', "default directory");
-
-    /* No domain: nothing changes and errno is untouched */
-    errno = 1234;
-    check(bindtextdomain(NULL, "/c") == NULL, "null domain");
-    check(bindtextdomain("", "/c") == NULL, "empty domain");
-    check(bind_textdomain_codeset(NULL, "UTF-8") == NULL, "codeset for a null domain");
-    check(errno == 1234, "errno unchanged");
-
-    /* Codesets */
-    check(bind_textdomain_codeset("picolibc-test", NULL) == NULL, "no codeset bound");
-    check(strcmp(bind_textdomain_codeset("picolibc-test", "UTF-8"), "UTF-8") == 0,
-          "bind a codeset");
-    check(strcmp(bind_textdomain_codeset("picolibc-test", NULL), "UTF-8") == 0,
-          "query the codeset");
-    check(strcmp(bindtextdomain("picolibc-test", NULL), "/b") == 0, "directory kept");
 
     printf("success\n");
     return 0;

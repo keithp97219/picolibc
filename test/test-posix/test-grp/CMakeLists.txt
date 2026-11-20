@@ -34,7 +34,7 @@
 #
 
 set(tests
-  test-grp
+  test-getgrent
   )
 
 foreach(test IN LISTS tests)
