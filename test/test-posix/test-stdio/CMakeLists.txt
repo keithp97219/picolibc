@@ -35,6 +35,7 @@
 
 set(tests
   test-ctermid
+  test-fopen
   test-getdelim
   test-pclose
   test-popen
