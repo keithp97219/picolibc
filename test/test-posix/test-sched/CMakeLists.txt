@@ -38,6 +38,7 @@ set(tests
   test-sched_get_priority_min
   test-sched_getparam
   test-sched_getscheduler
+  test-sched_h
   test-sched_rr_get_interval
   test-sched_setparam
   test-sched_setscheduler

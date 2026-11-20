@@ -41,6 +41,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <signal.h>
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,6 +67,19 @@ main(void)
     param.sched_priority = sched_get_priority_max(sched_getscheduler(0)) + 1;
     check(sched_setparam(0, &param) == -1 && errno == EINVAL, "out of range");
     check(sched_setparam(INT_MAX, &param) == -1 && errno == ESRCH, "no such process");
+    check(sched_getparam(0, &param) == 0, "sched_getparam");
+    param.sched_priority = sched_get_priority_min(sched_getscheduler(0)) - 1;
+    check(sched_setparam(0, &param) == -1 && errno == EINVAL, "below the range");
+
+    /* A process this one may not signal belongs to someone else; Linux applies the same rule */
+    errno = 0;
+    if (kill(1, 0) == -1 && errno == EPERM) {
+        check(sched_getparam(1, &param) == 0, "sched_getparam(1)");
+        errno = 0;
+        check(sched_setparam(1, &param) == -1 && errno == EPERM, "another user's process");
+    } else {
+        printf("may signal process 1, skipping EPERM\n");
+    }
     printf("success\n");
     return 0;
 }
