@@ -116,6 +116,7 @@ picolibc_sources(
   ldtoa_engine.c
   ldtox_engine.c
   matchcaseprefix.c
+  mkdtemp.c
   mktemp.c
   pclose.c
   perror.c

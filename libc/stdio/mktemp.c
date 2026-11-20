@@ -101,8 +101,13 @@ Supporting OS subroutines required: <<open>>
 /* Attempts */
 #define NUM_ATTEMPT (36UL * 36UL * 36UL)
 
-static int
-_gettemp(char *path, int suffixlen, int *doopen, int flags)
+/*
+ * Replace the Xs in path until create makes something by that name,
+ * returning what create returns, or -1. With no create function, stop
+ * at the first name that isn't in use and return 0.
+ */
+int
+__gettemp(char *path, int suffixlen, int (*create)(const char *path, int flags), int flags)
 {
     char    *start, *trv;
     char    *end;
@@ -118,7 +123,7 @@ _gettemp(char *path, int suffixlen, int *doopen, int flags)
     /* Make sure we got six Xs */
     if (end - trv < 6) {
         errno = EINVAL;
-        return 0;
+        return -1;
     }
 
     start = trv;
@@ -150,37 +155,39 @@ _gettemp(char *path, int suffixlen, int *doopen, int flags)
         if (fd < 0) {
             if (errno != EACCES) {
                 if (errno != ENOENT)
-                    return 0;
-                if (doopen) {
-                    fd = open(path, flags | O_CREAT | O_EXCL | O_RDWR, 0600);
-                    if (fd >= 0) {
-                        *doopen = fd;
-                        return 1;
-                    }
+                    return -1;
+                if (create) {
+                    int ret = create(path, flags);
+                    if (ret >= 0)
+                        return ret;
                     if (errno != EEXIST)
-                        return 0;
+                        return -1;
                 } else {
-                    return 1;
+                    return 0;
                 }
             }
         } else
             close(fd);
     }
-    return 0;
+    return -1;
+}
+
+static int
+_createfile(const char *path, int flags)
+{
+    return open(path, flags | O_CREAT | O_EXCL | O_RDWR, 0600);
 }
 
 int
 mkstemp(char *template)
 {
-    int fd;
-
-    return (_gettemp(template, 0, &fd, 0) ? fd : -1);
+    return __gettemp(template, 0, _createfile, 0);
 }
 
 char *
 mktemp(char *template)
 {
-    return (_gettemp(template, 0, (int *)NULL, 0) ? template : (char *)NULL);
+    return __gettemp(template, 0, NULL, 0) == 0 ? template : (char *)NULL;
 }
 
 #ifndef O_BINARY
@@ -193,18 +200,14 @@ mktemp(char *template)
 int
 mkstemps(char *template, int suffixlen)
 {
-    int fd;
-
-    return (_gettemp(template, suffixlen, &fd, O_BINARY) ? fd : -1);
+    return __gettemp(template, suffixlen, _createfile, O_BINARY);
 }
 
 int
 mkostemps(char *template, int suffixlen, int flags)
 {
-    int fd;
-
     flags &= (O_APPEND | O_CLOEXEC | O_SYNC | O_BINARY | O_TEXT);
-    return (_gettemp(template, suffixlen, &fd, flags) ? fd : -1);
+    return __gettemp(template, suffixlen, _createfile, flags);
 }
 
 int

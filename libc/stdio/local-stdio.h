@@ -660,4 +660,7 @@ digit_to_val(unsigned int c)
     return c;
 }
 
+/* Generate a unique name for mktemp and friends */
+int __gettemp(char *path, int suffixlen, int (*create)(const char *path, int flags), int flags);
+
 #endif /* _STDIO_PRIVATE_H_ */
