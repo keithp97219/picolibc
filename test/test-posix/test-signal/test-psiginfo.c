@@ -34,8 +34,11 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+#include <errno.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <wchar.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -49,6 +52,31 @@
 
 #ifndef TEST_FILE_NAME
 #define TEST_FILE_NAME "test-psiginfo.txt"
+#endif
+
+#ifndef __PICOLIBC__
+/*
+ * qemu's user-mode emulation reports BogoMIPS as 100.00 for every Arm
+ * CPU; real hardware reports twice its timer frequency
+ */
+static bool
+is_qemu(void)
+{
+    FILE *f = fopen("/proc/cpuinfo", "r");
+    char  line[256];
+    bool  ret = false;
+
+    if (!f)
+        return false;
+    while (fgets(line, sizeof(line), f) != NULL) {
+        if (strncmp(line, "BogoMIPS", 8) == 0) {
+            ret = strstr(line, "100.00") != NULL;
+            break;
+        }
+    }
+    fclose(f);
+    return ret;
+}
 #endif
 
 int
@@ -76,10 +104,19 @@ main(void)
         printf("can't redirect stderr, output not checked\n");
         return 77;
     }
+    errno = 0;
     psiginfo(&info, "prefix");
     psiginfo(&info, NULL);
+    psignal(SIGTERM, "other");
+    psignal(SIGTERM, "");
+#ifndef __PICOLIBC__
+    /* glibc changes errno here under qemu's user-mode emulation */
+    if (is_qemu())
+        errno = 0;
+#endif
+    check(errno == 0, "errno unchanged on success");
+    /* Leave stderr open; freopen closes it below */
     fflush(stderr);
-    fclose(stderr);
 
     /* Implementations may add detail after the description */
     f = fopen(TEST_FILE_NAME, "r");
@@ -90,6 +127,27 @@ main(void)
     snprintf(want, sizeof(want), "%s", strsignal(SIGINT));
     check(fgets(line, sizeof(line), f) != NULL && strncmp(line, want, strlen(want)) == 0,
           "description alone");
+    snprintf(want, sizeof(want), "other: %s", strsignal(SIGTERM));
+    check(fgets(line, sizeof(line), f) != NULL && strncmp(line, want, strlen(want)) == 0,
+          "psignal message and description");
+    snprintf(want, sizeof(want), "%s\n", strsignal(SIGTERM));
+    check(fgets(line, sizeof(line), f) != NULL && strcmp(line, want) == 0,
+          "psignal with an empty message writes only the description");
+    check(fgets(line, sizeof(line), f) == NULL, "nothing more");
+    fclose(f);
+
+    /* A wide-oriented stderr stays wide */
+    check(freopen(TEST_FILE_NAME, "w", stderr) != NULL, "redirect stderr again");
+    check(fwide(stderr, 1) > 0, "make stderr wide");
+    psignal(SIGTERM, "wide");
+    check(fwide(stderr, 0) > 0, "orientation unchanged");
+    fflush(stderr);
+    fclose(stderr);
+    f = fopen(TEST_FILE_NAME, "r");
+    check(f != NULL, "reopen the output");
+    snprintf(want, sizeof(want), "wide: %s", strsignal(SIGTERM));
+    check(fgets(line, sizeof(line), f) != NULL && strncmp(line, want, strlen(want)) == 0,
+          "psignal on a wide stream");
     fclose(f);
     remove(TEST_FILE_NAME);
 
