@@ -40,9 +40,13 @@ dir_tests = [
 
 if has_os_posix
   dir_tests += [
+    'test-kill',
     'test-rtsig',
-    'test-siginfo',
+    'test-sigaction',
+    'test-sigqueue',
     'test-sigsuspend',
+    'test-sigtimedwait',
     'test-sigwait',
+    'test-sigwaitinfo',
   ]
 endif

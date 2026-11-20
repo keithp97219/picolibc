@@ -39,9 +39,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
-/* kill with signal 0 only checks the process; sigsuspend waits for a handler */
+/* sigsuspend runs the handler with the signal unblocked, then restores the mask */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -65,9 +66,6 @@ main(void)
     struct sigaction act;
     sigset_t         set, wait_mask, current;
 
-    check(kill(getpid(), 0) == 0, "kill with signal 0");
-    check(kill(getpid(), -1) == -1 && errno == EINVAL, "kill with a negative signal");
-
     memset(&act, 0, sizeof(act));
     act.sa_handler = handler;
     sigemptyset(&act.sa_mask);
@@ -79,8 +77,8 @@ main(void)
     check(raise(SIGUSR1) == 0, "raise");
     check(caught == 0, "signal blocked");
 
-    /* Waiting with SIGUSR1 unblocked runs the handler, then restores the mask */
     sigemptyset(&wait_mask);
+    errno = 0;
     check(sigsuspend(&wait_mask) == -1 && errno == EINTR, "sigsuspend");
     check(caught == SIGUSR1, "handler ran during sigsuspend");
     check(sigprocmask(SIG_BLOCK, NULL, &current) == 0, "sigprocmask query");

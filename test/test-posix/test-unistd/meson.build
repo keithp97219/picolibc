@@ -53,6 +53,7 @@ if has_os_posix
     'test-getlogin_r',
     'test-getuid',
     'test-link',
+    'test-pause',
     'test-posix_close',
     'test-pread',
     'test-pwrite',

@@ -42,7 +42,7 @@
 #include <time.h>
 #include <unistd.h>
 
-/* Waiting for signals and queueing signals with values */
+/* sigwait takes a pending blocked signal without running its handler */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -63,15 +63,11 @@ handler(int sig, siginfo_t *si, void *context)
     info = *si;
 }
 
-int
-main(void)
+/* Catch SIGUSR1 and SIGUSR2 with handler */
+static void
+catch_usr(void)
 {
     struct sigaction act;
-    struct timespec  ts;
-    sigset_t         set;
-    siginfo_t        si;
-    union sigval     value;
-    int              sig;
 
     memset(&act, 0, sizeof(act));
     act.sa_sigaction = handler;
@@ -79,54 +75,30 @@ main(void)
     sigemptyset(&act.sa_mask);
     check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
     check(sigaction(SIGUSR2, &act, NULL) == 0, "sigaction");
+}
 
-    /* A queued signal delivers its value to the handler */
-    value.sival_int = 42;
-    check(sigqueue(getpid(), SIGUSR1, value) == 0, "sigqueue");
-    check(caught == SIGUSR1, "queued signal caught");
-    check(info.si_signo == SIGUSR1 && info.si_code == SI_QUEUE, "queued signal info");
-    check(info.si_value.sival_int == 42, "queued signal value");
-    check(info.si_pid == getpid(), "queued signal sender");
-    check(sigqueue(getpid(), 0, value) == 0, "sigqueue with no signal");
-    check(sigqueue(getpid(), NSIG + 1, value) == -1 && errno == EINVAL, "sigqueue bad signal");
+/* Block SIGUSR1 and SIGUSR2 so they can be waited for */
+static void
+block_usr(sigset_t *set)
+{
+    sigemptyset(set);
+    sigaddset(set, SIGUSR1);
+    sigaddset(set, SIGUSR2);
+    check(sigprocmask(SIG_BLOCK, set, NULL) == 0, "sigprocmask");
+}
 
-    /* Blocked signals can be waited for */
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR1);
-    sigaddset(&set, SIGUSR2);
-    check(sigprocmask(SIG_BLOCK, &set, NULL) == 0, "sigprocmask");
+int
+main(void)
+{
+    sigset_t set;
+    int      sig;
 
-    caught = 0;
+    catch_usr();
+    block_usr(&set);
     check(raise(SIGUSR2) == 0, "raise");
     check(caught == 0, "blocked signal pending");
     check(sigwait(&set, &sig) == 0 && sig == SIGUSR2, "sigwait");
-
-    value.sival_int = 7;
-    check(sigqueue(getpid(), SIGUSR1, value) == 0, "sigqueue blocked");
-    memset(&si, 0, sizeof(si));
-    check(sigwaitinfo(&set, &si) == SIGUSR1, "sigwaitinfo");
-    check(si.si_signo == SIGUSR1 && si.si_code == SI_QUEUE && si.si_value.sival_int == 7,
-          "sigwaitinfo info");
-
-    check(kill(getpid(), SIGUSR2) == 0, "kill");
-    ts.tv_sec = 1;
-    ts.tv_nsec = 0;
-    check(sigtimedwait(&set, &si, &ts) == SIGUSR2, "sigtimedwait pending");
-    check(si.si_code == SI_USER && si.si_pid == getpid(), "sigtimedwait info");
-
-    ts.tv_sec = 0;
-    ts.tv_nsec = 20 * 1000 * 1000;
-    check(sigtimedwait(&set, &si, &ts) == -1 && errno == EAGAIN, "sigtimedwait times out");
-    ts.tv_nsec = 1000000000L;
-    check(sigtimedwait(&set, &si, &ts) == -1 && errno == EINVAL, "sigtimedwait bad timeout");
-    check(caught == 0, "waited-for signals were not caught");
-
-    /* pause returns once a handler has run */
-    check(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0, "sigprocmask unblock");
-    check(sigaction(SIGALRM, &act, NULL) == 0, "sigaction SIGALRM");
-    alarm(1);
-    check(pause() == -1 && errno == EINTR, "pause");
-    check(caught == SIGALRM, "pause woken by SIGALRM");
+    check(caught == 0, "waited-for signal was not caught");
 
     printf("success\n");
     return 0;
