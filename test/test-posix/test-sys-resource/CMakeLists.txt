@@ -33,4 +33,4 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need an operating system; the CMake build doesn't run them yet
+# These tests need the OS fallback library, which the CMake build doesn't have

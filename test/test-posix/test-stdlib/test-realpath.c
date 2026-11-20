@@ -35,6 +35,14 @@
 
 #define _POSIX_C_SOURCE 202405L
 #define _DEFAULT_SOURCE /* glibc only has realpath for XSI or the default */
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                                     \
+    || ((defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)            \
+        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && __PICOLIBC_POSIX_FILE_SYSTEM_EXT > 0) \
+        && (defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS) && __PICOLIBC_POSIX_SYMBOLIC_LINKS > 0))
+
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -160,3 +168,16 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

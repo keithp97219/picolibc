@@ -34,19 +34,14 @@
 #
 
 dir_tests = [
+  'test-kill',
   'test-psiginfo',
+  'test-rtsig',
+  'test-sigaction',
   'test-signal',
+  'test-sigqueue',
+  'test-sigsuspend',
+  'test-sigtimedwait',
+  'test-sigwait',
+  'test-sigwaitinfo',
 ]
-
-if has_os_posix
-  dir_tests += [
-    'test-kill',
-    'test-rtsig',
-    'test-sigaction',
-    'test-sigqueue',
-    'test-sigsuspend',
-    'test-sigtimedwait',
-    'test-sigwait',
-    'test-sigwaitinfo',
-  ]
-endif

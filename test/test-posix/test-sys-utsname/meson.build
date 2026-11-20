@@ -33,10 +33,6 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-dir_tests = []
-
-if has_os_posix
-  dir_tests += [
-    'test-uname',
-  ]
-endif
+dir_tests = [
+  'test-uname',
+]

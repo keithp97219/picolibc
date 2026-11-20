@@ -33,17 +33,13 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-dir_tests = []
-
-if has_os_posix
-  dir_tests += [
-    'test-sched_get_priority_max',
-    'test-sched_get_priority_min',
-    'test-sched_getparam',
-    'test-sched_getscheduler',
-    'test-sched_rr_get_interval',
-    'test-sched_setparam',
-    'test-sched_setscheduler',
-    'test-sched_yield',
-  ]
-endif
+dir_tests = [
+  'test-sched_get_priority_max',
+  'test-sched_get_priority_min',
+  'test-sched_getparam',
+  'test-sched_getscheduler',
+  'test-sched_rr_get_interval',
+  'test-sched_setparam',
+  'test-sched_setscheduler',
+  'test-sched_yield',
+]

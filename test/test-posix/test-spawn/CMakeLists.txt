@@ -33,4 +33,22 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need an operating system; the CMake build doesn't run them yet
+set(tests
+  test-posix_spawn
+  test-posix_spawn_file_actions_addchdir
+  test-posix_spawn_file_actions_addclose
+  test-posix_spawn_file_actions_adddup2
+  test-posix_spawn_file_actions_addfchdir
+  test-posix_spawn_file_actions_addopen
+  test-posix_spawnattr_setflags
+  test-posix_spawnattr_setpgroup
+  test-posix_spawnattr_setschedpolicy
+  test-posix_spawnattr_setsigdefault
+  test-posix_spawnattr_setsigmask
+  test-posix_spawnp
+  )
+
+foreach(test IN LISTS tests)
+  picolibc_test(${test})
+  set_tests_properties(${test} PROPERTIES LABELS test-spawn)
+endforeach()

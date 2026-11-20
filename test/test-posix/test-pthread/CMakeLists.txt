@@ -33,4 +33,26 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need an operating system; the CMake build doesn't run them yet
+set(tests
+  test-pthread_atfork
+  test-pthread_attr_setstackaddr
+  test-pthread_barrier_wait
+  test-pthread_cancel
+  test-pthread_cond_timedwait
+  test-pthread_create
+  test-pthread_exit
+  test-pthread_getcpuclockid
+  test-pthread_key_create
+  test-pthread_mutex_timedlock
+  test-pthread_mutexattr_setprotocol
+  test-pthread_once
+  test-pthread_rwlock_timedwrlock
+  test-pthread_setschedparam
+  test-pthread_sigmask
+  test-pthread_spin_lock
+  )
+
+foreach(test IN LISTS tests)
+  picolibc_test(${test})
+  set_tests_properties(${test} PROPERTIES LABELS test-pthread)
+endforeach()

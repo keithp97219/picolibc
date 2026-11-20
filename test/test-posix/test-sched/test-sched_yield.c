@@ -34,6 +34,11 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
+
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,3 +61,16 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

@@ -33,4 +33,18 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need an operating system; the CMake build doesn't run them yet
+set(tests
+  test-sched_get_priority_max
+  test-sched_get_priority_min
+  test-sched_getparam
+  test-sched_getscheduler
+  test-sched_rr_get_interval
+  test-sched_setparam
+  test-sched_setscheduler
+  test-sched_yield
+  )
+
+foreach(test IN LISTS tests)
+  picolibc_test(${test})
+  set_tests_properties(${test} PROPERTIES LABELS test-sched)
+endforeach()

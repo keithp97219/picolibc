@@ -36,13 +36,8 @@
 dir_tests = [
   'test-ctermid',
   'test-getdelim',
+  'test-pclose',
+  'test-popen',
   'test-rename',
+  'test-renameat',
 ]
-
-if has_os_posix
-  dir_tests += [
-    'test-pclose',
-    'test-popen',
-    'test-renameat',
-  ]
-endif

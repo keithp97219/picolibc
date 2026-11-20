@@ -34,8 +34,16 @@
 #
 
 set(tests
+  test-kill
   test-psiginfo
+  test-rtsig
+  test-sigaction
   test-signal
+  test-sigqueue
+  test-sigsuspend
+  test-sigtimedwait
+  test-sigwait
+  test-sigwaitinfo
   )
 
 foreach(test IN LISTS tests)

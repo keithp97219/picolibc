@@ -34,9 +34,45 @@
 #
 
 set(tests
+  test-_Fork
   test-access
+  test-alarm
+  test-chown
+  test-confstr
+  test-dup3
+  test-execle
+  test-faccessat
+  test-fchdir
+  test-fchown
+  test-fchownat
+  test-fdatasync
+  test-fexecve
+  test-fsync
   test-getcwd
+  test-getgid
+  test-getgroups
+  test-getlogin_r
+  test-getpgid
+  test-getsid
+  test-getuid
+  test-lchown
+  test-link
+  test-linkat
+  test-pause
+  test-pipe2
   test-posix-options
+  test-posix_close
+  test-pread
+  test-pwrite
+  test-readlinkat
+  test-setegid
+  test-seteuid
+  test-setgid
+  test-setsid
+  test-setuid
+  test-symlinkat
+  test-truncate
+  test-unlinkat
   )
 
 foreach(test IN LISTS tests)

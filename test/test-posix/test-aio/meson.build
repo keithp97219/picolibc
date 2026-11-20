@@ -33,17 +33,17 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-dir_tests = []
+dir_tests = [
+]
 
-if posix_threads
-  dir_thread_tests += [
-    'test-aio_cancel',
-    'test-aio_error',
-    'test-aio_fsync',
-    'test-aio_read',
-    'test-aio_return',
-    'test-aio_suspend',
-    'test-aio_write',
-    'test-lio_listio',
-  ]
-endif
+# These use threads, so lock-valid.c doesn't apply
+dir_thread_tests = [
+  'test-aio_cancel',
+  'test-aio_error',
+  'test-aio_fsync',
+  'test-aio_read',
+  'test-aio_return',
+  'test-aio_suspend',
+  'test-aio_write',
+  'test-lio_listio',
+]

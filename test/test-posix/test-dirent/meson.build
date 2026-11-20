@@ -35,18 +35,13 @@
 
 dir_tests = [
   'test-alphasort',
-  'test-readdir',
   'test-dirfd',
+  'test-fdopendir',
+  'test-posix_getdents',
+  'test-readdir',
+  'test-readdir_r',
   'test-scandir',
 ]
-
-if has_os_posix
-  dir_tests += [
-    'test-fdopendir',
-    'test-posix_getdents',
-    'test-readdir_r',
-  ]
-endif
 
 # The native build reads directories through the host's struct dirent
 if enable_native_tests

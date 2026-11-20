@@ -34,6 +34,15 @@
  */
 
 #define _GNU_SOURCE /* glibc declares pthread_mutex_clocklock only for _GNU_SOURCE */
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                         \
+    || ((defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                            \
+        && (defined(_POSIX_THREAD_PRIO_INHERIT) && _POSIX_THREAD_PRIO_INHERIT > 0) \
+        && (defined(_POSIX_THREAD_PRIO_PROTECT) && _POSIX_THREAD_PRIO_PROTECT > 0) \
+        && (defined(_POSIX_TIMEOUTS) && _POSIX_TIMEOUTS > 0))
+
 #include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -218,3 +227,16 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

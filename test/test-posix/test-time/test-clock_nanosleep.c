@@ -34,6 +34,11 @@
  */
 
 #define _GNU_SOURCE /* for CLOCK_MONOTONIC until it is visible for POSIX.1-2008 */
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__) || (defined(_POSIX_CLOCK_SELECTION) && _POSIX_CLOCK_SELECTION > 0)
+
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
@@ -97,3 +102,16 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

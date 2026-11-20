@@ -35,6 +35,12 @@
 
 /* glibc declares _Fork only for _GNU_SOURCE */
 #define _GNU_SOURCE
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                             \
+    || (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
@@ -86,3 +92,16 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

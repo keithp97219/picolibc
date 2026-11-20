@@ -34,20 +34,15 @@
 #
 
 dir_tests = [
+  'test-fchmod',
+  'test-fchmodat',
+  'test-fstatat',
+  'test-futimens',
+  'test-mkdirat',
+  'test-mkfifo',
+  'test-mkfifoat',
+  'test-mknod',
+  'test-mknodat',
   'test-stat',
+  'test-utimensat',
 ]
-
-if has_os_posix
-  dir_tests += [
-    'test-fchmod',
-    'test-fchmodat',
-    'test-fstatat',
-    'test-futimens',
-    'test-mkdirat',
-    'test-mkfifo',
-    'test-mkfifoat',
-    'test-mknod',
-    'test-mknodat',
-    'test-utimensat',
-  ]
-endif

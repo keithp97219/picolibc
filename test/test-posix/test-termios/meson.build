@@ -33,12 +33,8 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-dir_tests = []
-
-if has_os_posix
-  dir_tests += [
-    'test-tcdrain',
-    'test-tcgetsid',
-    'test-tcsendbreak',
-  ]
-endif
+dir_tests = [
+  'test-tcdrain',
+  'test-tcgetsid',
+  'test-tcsendbreak',
+]

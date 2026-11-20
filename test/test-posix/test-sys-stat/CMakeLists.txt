@@ -34,7 +34,17 @@
 #
 
 set(tests
+  test-fchmod
+  test-fchmodat
+  test-fstatat
+  test-futimens
+  test-mkdirat
+  test-mkfifo
+  test-mkfifoat
+  test-mknod
+  test-mknodat
   test-stat
+  test-utimensat
   )
 
 foreach(test IN LISTS tests)

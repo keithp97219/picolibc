@@ -35,6 +35,13 @@
 
 #define _DEFAULT_SOURCE
 #include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                              \
+    || ((defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0) \
+        && (defined(__PICOLIBC_POSIX_SIGNALS) && __PICOLIBC_POSIX_SIGNALS > 0))
+
+#include <unistd.h>
 #include <stdio.h>
 #include <signal.h>
 
@@ -97,3 +104,16 @@ main(void)
 
     return ret;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

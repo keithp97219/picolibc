@@ -33,4 +33,12 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need an operating system; the CMake build doesn't run them yet
+set(tests
+  test-mmap
+  test-shm_open
+  )
+
+foreach(test IN LISTS tests)
+  picolibc_test(${test})
+  set_tests_properties(${test} PROPERTIES LABELS test-sys-mman)
+endforeach()

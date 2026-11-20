@@ -33,4 +33,14 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need an operating system; the CMake build doesn't run them yet
+set(tests
+  test-fcntl
+  test-openat
+  test-posix_fadvise
+  test-posix_fallocate
+  )
+
+foreach(test IN LISTS tests)
+  picolibc_test(${test})
+  set_tests_properties(${test} PROPERTIES LABELS test-fcntl)
+endforeach()

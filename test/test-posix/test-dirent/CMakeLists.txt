@@ -35,8 +35,11 @@
 
 set(tests
   test-alphasort
-  test-readdir
   test-dirfd
+  test-fdopendir
+  test-posix_getdents
+  test-readdir
+  test-readdir_r
   test-scandir
   )
 

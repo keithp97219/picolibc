@@ -34,6 +34,11 @@
  */
 
 #define _DEFAULT_SOURCE
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
+
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -89,3 +94,16 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

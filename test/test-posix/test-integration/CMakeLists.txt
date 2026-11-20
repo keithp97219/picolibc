@@ -33,4 +33,15 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need an operating system; the CMake build doesn't run them yet
+set(tests
+  test-exit-thread
+  test-sbrk-blocked
+  test-syscall-name
+  test-time64
+  test-timer-thread
+  )
+
+foreach(test IN LISTS tests)
+  picolibc_test(${test})
+  set_tests_properties(${test} PROPERTIES LABELS test-integration)
+endforeach()

@@ -33,25 +33,25 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-dir_tests = []
+dir_tests = [
+]
 
-if posix_threads
-  dir_thread_tests += [
-    'test-pthread_atfork',
-    'test-pthread_attr_setstackaddr',
-    'test-pthread_barrier_wait',
-    'test-pthread_cancel',
-    'test-pthread_cond_timedwait',
-    'test-pthread_create',
-    'test-pthread_exit',
-    'test-pthread_getcpuclockid',
-    'test-pthread_key_create',
-    'test-pthread_mutex_timedlock',
-    'test-pthread_mutexattr_setprotocol',
-    'test-pthread_once',
-    'test-pthread_rwlock_timedwrlock',
-    'test-pthread_setschedparam',
-    'test-pthread_sigmask',
-    'test-pthread_spin_lock',
-  ]
-endif
+# These use threads, so lock-valid.c doesn't apply
+dir_thread_tests = [
+  'test-pthread_atfork',
+  'test-pthread_attr_setstackaddr',
+  'test-pthread_barrier_wait',
+  'test-pthread_cancel',
+  'test-pthread_cond_timedwait',
+  'test-pthread_create',
+  'test-pthread_exit',
+  'test-pthread_getcpuclockid',
+  'test-pthread_key_create',
+  'test-pthread_mutex_timedlock',
+  'test-pthread_mutexattr_setprotocol',
+  'test-pthread_once',
+  'test-pthread_rwlock_timedwrlock',
+  'test-pthread_setschedparam',
+  'test-pthread_sigmask',
+  'test-pthread_spin_lock',
+]

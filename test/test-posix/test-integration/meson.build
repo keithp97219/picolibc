@@ -33,22 +33,17 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-dir_tests = []
+dir_tests = [
+  'test-sbrk-blocked',
+  'test-syscall-name',
+  'test-time64',
+]
 
-if has_os_posix
-  dir_tests += [
-    'test-sbrk-blocked',
-    'test-syscall-name',
-    'test-time64',
-  ]
-endif
-
-if posix_threads
-  dir_thread_tests += [
-    'test-exit-thread',
-    'test-timer-thread',
-  ]
-endif
+# These use threads, so lock-valid.c doesn't apply
+dir_thread_tests = [
+  'test-exit-thread',
+  'test-timer-thread',
+]
 
 # Keep the compiler from removing the allocations the test makes
 test_extra_c_args += {'test-sbrk-blocked': ['-fno-builtin']}

@@ -52,6 +52,15 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #define _DEFAULT_SOURCE
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                                    \
+    || ((defined(_POSIX_ADVISORY_INFO) && _POSIX_ADVISORY_INFO > 0)                           \
+        && (defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0)                          \
+        && (defined(_POSIX_MEMORY_PROTECTION) && _POSIX_MEMORY_PROTECTION > 0)                \
+        && (defined(__PICOLIBC_POSIX_SINGLE_PROCESS) && __PICOLIBC_POSIX_SINGLE_PROCESS > 0))
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -261,3 +270,16 @@ main(void)
     printf("mmap test passed\n");
     exit(0);
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

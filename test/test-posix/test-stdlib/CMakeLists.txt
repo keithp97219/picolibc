@@ -33,4 +33,19 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need an operating system; the CMake build doesn't run them yet
+set(tests
+  test-grantpt
+  test-mkdtemp
+  test-posix_openpt
+  test-ptsname
+  test-ptsname_r
+  test-realpath
+  test-secure_getenv
+  test-system
+  test-unlockpt
+  )
+
+foreach(test IN LISTS tests)
+  picolibc_test(${test})
+  set_tests_properties(${test} PROPERTIES LABELS test-stdlib)
+endforeach()

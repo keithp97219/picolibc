@@ -35,6 +35,13 @@
 
 /* glibc declares pipe2 only for _GNU_SOURCE */
 #define _GNU_SOURCE
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if !defined(__PICOLIBC__)                                                  \
+    || ((defined(__PICOLIBC_POSIX_FD_MGMT) && __PICOLIBC_POSIX_FD_MGMT > 0) \
+        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0))
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -73,3 +80,16 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

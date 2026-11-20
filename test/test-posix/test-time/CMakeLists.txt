@@ -34,7 +34,10 @@
 #
 
 set(tests
+  test-clock_getcpuclockid
+  test-clock_nanosleep
   test-time
+  test-timer_create
   )
 
 foreach(test IN LISTS tests)

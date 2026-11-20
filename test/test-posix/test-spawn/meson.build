@@ -33,24 +33,20 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-dir_tests = []
-
-if has_os_posix
-  dir_tests += [
-    'test-posix_spawn',
-    'test-posix_spawn_file_actions_addchdir',
-    'test-posix_spawn_file_actions_addclose',
-    'test-posix_spawn_file_actions_adddup2',
-    'test-posix_spawn_file_actions_addfchdir',
-    'test-posix_spawn_file_actions_addopen',
-    'test-posix_spawnattr_setflags',
-    'test-posix_spawnattr_setpgroup',
-    'test-posix_spawnattr_setschedpolicy',
-    'test-posix_spawnattr_setsigdefault',
-    'test-posix_spawnattr_setsigmask',
-    'test-posix_spawnp',
-  ]
-endif
+dir_tests = [
+  'test-posix_spawn',
+  'test-posix_spawn_file_actions_addchdir',
+  'test-posix_spawn_file_actions_addclose',
+  'test-posix_spawn_file_actions_adddup2',
+  'test-posix_spawn_file_actions_addfchdir',
+  'test-posix_spawn_file_actions_addopen',
+  'test-posix_spawnattr_setflags',
+  'test-posix_spawnattr_setpgroup',
+  'test-posix_spawnattr_setschedpolicy',
+  'test-posix_spawnattr_setsigdefault',
+  'test-posix_spawnattr_setsigmask',
+  'test-posix_spawnp',
+]
 
 # glibc has these only with an _np suffix
 test_skip_native += [

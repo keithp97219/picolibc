@@ -33,4 +33,18 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# These tests need an operating system; the CMake build doesn't run them yet
+set(tests
+  test-aio_cancel
+  test-aio_error
+  test-aio_fsync
+  test-aio_read
+  test-aio_return
+  test-aio_suspend
+  test-aio_write
+  test-lio_listio
+  )
+
+foreach(test IN LISTS tests)
+  picolibc_test(${test})
+  set_tests_properties(${test} PROPERTIES LABELS test-aio)
+endforeach()

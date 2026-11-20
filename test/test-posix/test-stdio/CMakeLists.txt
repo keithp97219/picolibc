@@ -36,6 +36,9 @@
 set(tests
   test-ctermid
   test-getdelim
+  test-pclose
+  test-popen
+  test-renameat
   )
 
 foreach(test IN LISTS tests)
