@@ -137,7 +137,7 @@ typedef struct sigaltstack {
 
 #endif /* __POSIX_VISIBLE */
 
-#if defined(_POSIX_REALTIME_SIGNALS) || __POSIX_VISIBLE >= 199309
+#if __POSIX_VISIBLE >= 199309
 
 /* sigev_notify values
    NOTE: P1003.1c/D10, p. 34 adds SIGEV_THREAD.  */
@@ -162,7 +162,7 @@ struct sigevent {
     /* Notification function */
     void        *sigev_notify_attributes; /* Notification Attributes */
 };
-#endif /* defined(_POSIX_REALTIME_SIGNALS) || __POSIX_VISIBLE >= 199309 */
+#endif /* __POSIX_VISIBLE >= 199309 */
 
 #if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 200809
 

@@ -26,7 +26,7 @@
 
 _BEGIN_STD_C
 
-#if defined(_POSIX_PRIORITY_SCHEDULING)
+#if __POSIX_VISIBLE >= 199309
 /*
  *  XBD 13 - Set Scheduling Parameters, P1003.1b-2008, p. 1803
  */
@@ -59,16 +59,13 @@ int sched_get_priority_min(int __policy);
  *  XBD 13 - Get Scheduling Parameter Limits, P1003.1b-2008, p. 1802
  */
 int sched_rr_get_interval(pid_t __pid, struct timespec *__interval);
-#endif /* _POSIX_PRIORITY_SCHEDULING */
-
-#if defined(_POSIX_THREADS) || defined(_POSIX_PRIORITY_SCHEDULING) || __POSIX_VISIBLE >= 200809
 
 /*
  *  XBD 13 - Yield Processor, P1003.1b-2008, p. 1807
  */
 int sched_yield(void);
 
-#endif /* _POSIX_THREADS or _POSIX_PRIORITY_SCHEDULING or POSIX.1-2008 */
+#endif /* __POSIX_VISIBLE >= 199309 */
 
 #if __GNU_VISIBLE
 int sched_getcpu(void);
