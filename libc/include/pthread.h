@@ -128,6 +128,12 @@ int pthread_attr_setstacksize(pthread_attr_t *, size_t) __picolibc_export;
 int pthread_attr_getstack(const pthread_attr_t * __restrict, void ** __restrict,
                           size_t * __restrict) __picolibc_export;
 int pthread_attr_setstack(pthread_attr_t *, void *, size_t) __picolibc_export;
+#if __BSD_VISIBLE || __GNU_VISIBLE || __POSIX_VISIBLE < 200809
+/* Removed in POSIX.1-2008; stackaddr is the top of the stack */
+int pthread_attr_getstackaddr(const pthread_attr_t * __restrict, void ** __restrict)
+    __picolibc_export __deprecated;
+int pthread_attr_setstackaddr(pthread_attr_t *, void *) __picolibc_export __deprecated;
+#endif
 int pthread_attr_getguardsize(const pthread_attr_t * __restrict, size_t * __restrict)
     __picolibc_export;
 int pthread_attr_setguardsize(pthread_attr_t *, size_t) __picolibc_export;
