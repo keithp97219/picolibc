@@ -39,9 +39,11 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                              \
-    || ((defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING > 0) \
-        && (defined(_POSIX_TIMEOUTS) && _POSIX_TIMEOUTS > 0))
+#if !defined(__PICOLIBC__)                                                                 \
+    || ((defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING > 0)                    \
+        && (defined(_POSIX_TIMEOUTS) && _POSIX_TIMEOUTS > 0)                               \
+        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0) \
+        && (defined(__PICOLIBC_POSIX_SIGNALS) && __PICOLIBC_POSIX_SIGNALS > 0))
 
 #include <errno.h>
 #include <fcntl.h>
@@ -51,6 +53,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -103,16 +106,27 @@ wait_for(volatile int *flag)
     return *flag;
 }
 
+/* Give a notification that shouldn't come time to arrive */
+static void
+settle(void)
+{
+    struct timespec hundred_ms = { 0, 100000000L };
+
+    nanosleep(&hundred_ms, NULL);
+}
+
 int
 main(void)
 {
     struct mq_attr   attr = { 0 }, got;
-    struct sigevent  sev;
+    struct sigevent  sev, sig_sev;
     struct sigaction sa;
     struct timespec  deadline;
     char             buf[64];
     unsigned         prio;
     mqd_t            q;
+    pid_t            pid;
+    int              status;
 
     snprintf(name, sizeof(name), "/picolibc-test-mq-%ld", (long)getpid());
     (void)mq_unlink(name);
@@ -207,6 +221,59 @@ main(void)
         check(mq_send(q, "ping", 5, 0) == 0, "send for the thread");
         check(wait_for(&got_thread) && thread_value == 7, "thread notification");
         check(mq_receive(q, buf, sizeof(buf), NULL) == 5, "receive after the thread");
+
+        memset(&sig_sev, 0, sizeof(sig_sev));
+        sig_sev.sigev_notify = SIGEV_SIGNAL;
+        sig_sev.sigev_signo = SIGUSR1;
+        sig_sev.sigev_value.sival_int = 42;
+
+        errno = 0;
+        check(mq_notify((mqd_t)-1, &sig_sev) == -1 && errno == EBADF, "mq_notify of -1");
+
+        /* Only a message arriving at an empty queue is announced */
+        got_signal = 0;
+        check(mq_send(q, "full", 5, 0) == 0, "send to an empty queue");
+        check(mq_notify(q, &sig_sev) == 0, "register on a non-empty queue");
+        check(mq_send(q, "more", 5, 0) == 0, "send to a non-empty queue");
+        settle();
+        check(!got_signal, "no signal for a non-empty queue");
+        check(mq_receive(q, buf, sizeof(buf), NULL) == 5, "receive full");
+        check(mq_receive(q, buf, sizeof(buf), NULL) == 5, "receive more");
+        check(mq_send(q, "ping", 5, 0) == 0, "send to the emptied queue");
+        check(wait_for(&got_signal), "signal for the emptied queue");
+        check(mq_receive(q, buf, sizeof(buf), NULL) == 5, "receive ping");
+
+        /* Another process can't register while this one is */
+        check(mq_notify(q, &sig_sev) == 0, "register again");
+        pid = fork();
+        check(pid >= 0, "fork");
+        if (pid == 0)
+            _exit(mq_notify(q, &sig_sev) == -1 && errno == EBUSY ? 0 : 1);
+        check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+              "registration from another process");
+
+        /* A blocked receiver takes the message; the registration stays */
+        got_signal = 0;
+        pid = fork();
+        check(pid >= 0, "fork");
+        if (pid == 0) {
+            settle();
+            settle();
+            _exit(mq_send(q, "wake", 5, 0) == 0 ? 0 : 1);
+        }
+        check(mq_receive(q, buf, sizeof(buf), NULL) == 5 && strcmp(buf, "wake") == 0,
+              "blocked receive");
+        check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+              "child send");
+        settle();
+        check(!got_signal, "no signal with a blocked receiver");
+        errno = 0;
+        check(mq_notify(q, &sig_sev) == -1 && errno == EBUSY, "registration remains");
+        check(mq_notify(q, NULL) == 0, "remove the registration");
+        check(mq_send(q, "quiet", 6, 0) == 0, "send after removal");
+        settle();
+        check(!got_signal, "no signal after removal");
+        check(mq_receive(q, buf, sizeof(buf), NULL) == 6, "receive quiet");
     } else {
         check(errno == ENOSYS, "mq_notify SIGEV_NONE");
         printf("mq_notify not supported here, notification not tested\n");
