@@ -367,6 +367,12 @@ if fs.is_dir(machine_dir)
 
   linux_inc = include_directories(machine_dir, 'include')
 
+  # The POSIX options and option groups this OS layer provides
+  if really_install
+    install_headers('include/sys/_posix.h',
+                    install_dir: include_dir / 'sys')
+  endif
+
   foreach params : targets
     target = params['name']
     target_dir = params['dir']

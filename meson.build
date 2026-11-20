@@ -1762,6 +1762,11 @@ if fs.is_dir(machine_dir)
   inc_dirs = [machine_dir] + inc_dirs
 endif
 
+# libos/linux supplies <sys/_posix.h>, which <unistd.h> includes
+if get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
+  inc_dirs = ['libos/linux/include'] + inc_dirs
+endif
+
 inc = include_directories(inc_dirs)
 
 inc_args = []
