@@ -87,6 +87,44 @@ main(void)
             found = 1;
     check(found, "entry");
     check(closedir(d) == 0, "closedir");
+    errno = 0;
+    check(fcntl(dfd, F_GETFD) == -1 && errno == EBADF, "closedir closes the descriptor");
+
+    /* Not a descriptor */
+    errno = 0;
+    check(fdopendir(-1) == NULL && errno == EBADF, "EBADF for -1");
+    errno = 0;
+    check(fdopendir(dfd) == NULL && errno == EBADF, "EBADF for a closed descriptor");
+
+#ifdef O_SEARCH
+    /* A descriptor open only for searching can't be read */
+    dfd = open(dir, O_SEARCH | O_DIRECTORY);
+    check(dfd >= 0, "open dir O_SEARCH");
+    errno = 0;
+    check(fdopendir(dfd) == NULL && errno == EBADF, "EBADF for O_SEARCH");
+    check(close(dfd) == 0, "close");
+#endif
+
+    /* FD_CLOEXEC stays set */
+    dfd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    check(dfd >= 0, "open dir O_CLOEXEC");
+    d = fdopendir(dfd);
+    check(d != NULL, "fdopendir");
+    check(fcntl(dfd, F_GETFD) & FD_CLOEXEC, "FD_CLOEXEC not cleared");
+    check(closedir(d) == 0, "closedir");
+
+    /* The descriptor's offset picks the entries; where the end can be sought, none are left */
+    dfd = open(dir, O_RDONLY | O_DIRECTORY);
+    check(dfd >= 0, "open dir");
+    if (lseek(dfd, 0, SEEK_END) > 0) {
+        d = fdopendir(dfd);
+        check(d != NULL, "fdopendir");
+        errno = 0;
+        check(readdir(d) == NULL && errno == 0, "the offset decides the entries");
+        check(closedir(d) == 0, "closedir");
+    } else {
+        check(close(dfd) == 0, "close");
+    }
 
     check(unlink("file") == -1, "relative to cwd");
     check(chdir(dir) == 0 && unlink("file") == 0 && chdir("..") == 0, "cleanup");
