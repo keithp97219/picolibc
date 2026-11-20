@@ -94,12 +94,20 @@ lio_listio(int mode, struct aiocb * __restrict const list[__restrict], int nent,
     }
 
     if (wait) {
+        int cancel;
+
+        /*
+         * Cancelling the wait would leave the lock held and l in use,
+         * so this isn't a cancellation point
+         */
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cancel);
         pthread_mutex_lock(&__aio_lock);
         --l->count;
         while (l->count)
             pthread_cond_wait(&__aio_done, &__aio_lock);
         failed = l->failed;
         pthread_mutex_unlock(&__aio_lock);
+        pthread_setcancelstate(cancel, NULL);
     } else {
         __aio_lock_nosig(&old);
         if (--l->count == 0)

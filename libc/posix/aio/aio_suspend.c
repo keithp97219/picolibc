@@ -46,6 +46,13 @@ __aio_any_done(const struct aiocb * const list[], int nent)
     return false;
 }
 
+static void
+__aio_unlock(void *arg)
+{
+    (void)arg;
+    pthread_mutex_unlock(&__aio_lock);
+}
+
 int
 aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *timeout)
 {
@@ -70,6 +77,8 @@ aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *
         }
     }
     pthread_mutex_lock(&__aio_lock);
+    /* aio_suspend is a cancellation point; don't leave the lock held */
+    pthread_cleanup_push(__aio_unlock, NULL);
     while (!__aio_any_done(list, nent)) {
         if (timeout)
             ret = pthread_cond_clockwait(&__aio_done, &__aio_lock, CLOCK_MONOTONIC, &end);
@@ -79,7 +88,7 @@ aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *
             break;
         ret = 0;
     }
-    pthread_mutex_unlock(&__aio_lock);
+    pthread_cleanup_pop(1);
     if (ret) {
         errno = EAGAIN;
         return -1;
