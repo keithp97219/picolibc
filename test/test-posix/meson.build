@@ -65,6 +65,7 @@ if has_os_posix
     'test-alarm',
     'test-link',
     'test-mmap',
+    'test-mqueue',
     'test-pclose',
     'test-sbrk-blocked',
     'test-rtsig',
