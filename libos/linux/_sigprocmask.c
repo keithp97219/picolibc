@@ -53,7 +53,11 @@ _sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
         how = LINUX_SIG_SETMASK;
         break;
     default:
-        return EINVAL;
+        /* how only matters when changing the mask */
+        if (set)
+            return EINVAL;
+        how = LINUX_SIG_BLOCK;
+        break;
     }
     if (set) {
         _sigmask_to_linux(&kset, set);
