@@ -1,0 +1,40 @@
+test-argv | Hexagon-only argv test; skipping
+test-lseek-overflow | Linux supports 64-bit lseek, skipping semihost overflow test
+test-riscv-jvt | executing jvt tests / jvt not supported for this target
+test-scmpu | No RX string instructions, test skipped
+test-argv-native | Hexagon-only argv test; skipping
+test-lseek64-linux-native | POSIX I/O not enabled, skipping
+test-lseek-overflow-native | 
+test-riscv-jvt-native | executing jvt tests / jvt not supported for this target
+test-scmpu-native | No RX string instructions, test skipped
+test-time-native | __TIMESIZE is only 32 bits. Skipping test
+test-posix_getdents-native | no posix_getdents, skipping
+test-posix_close-native | no posix_close, skipping
+test-canonicalize | long double has no non-canonical encodings, skipping
+test-canonicalize-native | long double has no non-canonical encodings, skipping
+test-memcpy_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-memmove_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-memset_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-strcat_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-strcpy_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-strerrorlen_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-strerror_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-strncat_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-strncpy_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-strnlen_s-native | C library does not support __STDC_LIB_EXT1__, skipping
+test-sprintf-percent-n | printf: %n unsupported
+test-fclose-locking-error | 
+test-fdevclose-locking | 
+test-long-long-int | skipping long long I/O test
+test-fdevopen-native | fdevopen not supported, test skipped
+test-fmemopen-rplus-native | Picolibc fmemopen test skipped
+test-freopen-native | POSIX I/O testing disabled, skipping.
+test-funopen-native | funopen only available on picolibc
+test-fwrite-error-native | Skipping test-fwrite-error, not running picolibc
+test-sprintf-s-native | sprintf_s not available
+test-vfprintf-s-native | vsprintf_s not available
+test-vsnprintf-s-native | vsnprintf_s not available
+test-fdevclose-flush-error-native | Skipping
+test-fclose-locking-error-native | 
+test-fdevclose-locking-native | 
+iconvjp | No multi-byte support linked, SKIP test
