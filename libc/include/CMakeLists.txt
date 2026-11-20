@@ -64,6 +64,7 @@ picolibc_headers(""
   langinfo.h
   libgen.h
   limits.h
+  libintl.h
   locale.h
   malloc.h
   math.h

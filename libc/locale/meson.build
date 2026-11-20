@@ -37,6 +37,7 @@ srcs_locale = [
   'duplocale.c',
   'freelocale.c',
   'getlocalename_l.c',
+  'gettext.c',
   'localeconv.c',
   'localedata.c',
   'locale_ctype_ptr.c',
@@ -46,6 +47,7 @@ srcs_locale = [
   'newlocale.c',
   'nl_langinfo.c',
   'setlocale.c',
+  'textdomain.c',
   'timedata.c',
   'uselocale.c',
 ]

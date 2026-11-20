@@ -42,6 +42,7 @@ tests = [
   'test-ftrunc',
   'test-getcwd',
   'test-getdelim',
+  'test-gettext',
   'test-open_wmemstream',
   'test-getrlimit',
   'test-grp',
@@ -56,6 +57,7 @@ tests = [
   'test-stat',
   'test-statvfs',
   'test-stdatomic-functions',
+  'test-textdomain',
   ]
 
 tests_failure = []

@@ -41,6 +41,7 @@ set(tests
   test-fnmatch
   test-getcwd
   test-getdelim
+  test-gettext
   test-open_wmemstream
   test-grp
   test-dirent
@@ -51,6 +52,7 @@ set(tests
   test-signal
   test-stat
   test-stdatomic-functions
+  test-textdomain
   )
 
 foreach(test IN LISTS tests)
