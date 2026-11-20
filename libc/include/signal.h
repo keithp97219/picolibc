@@ -219,8 +219,7 @@ struct sigevent {
 #define NSIG _NSIG
 #endif
 
-/* Using __MISC_VISIBLE until POSIX Issue 8 is officially released */
-#if __MISC_VISIBLE
+#if __MISC_VISIBLE || __POSIX_VISIBLE >= 202405
 #if __SIZEOF_INT__ >= 4
 #define SIG2STR_MAX 17 /* (sizeof("RTMAX+") + sizeof("4294967295") - 1) */
 #else
