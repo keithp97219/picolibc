@@ -97,6 +97,25 @@ main(void)
     check(sigqueue(getpid(), 0, value) == 0, "sigqueue with no signal");
     errno = 0;
     check(sigqueue(getpid(), NSIG + 1, value) == -1 && errno == EINVAL, "sigqueue bad signal");
+    errno = 0;
+    check(sigqueue(getpid(), -1, value) == -1 && errno == EINVAL, "sigqueue negative signal");
+
+    /* A pointer value arrives intact */
+    value.sival_ptr = &value;
+    check(sigqueue(getpid(), SIGUSR2, value) == 0, "sigqueue pointer");
+    check(caught == SIGUSR2 && info.si_value.sival_ptr == &value, "queued pointer value");
+
+    /*
+     * EPERM for a process of another user. init usually runs as root,
+     * but in a container it may be ours, and then the call succeeds.
+     */
+    if (geteuid() != 0 && getuid() != 0) {
+        errno = 0;
+        check(sigqueue(1, 0, value) == 0 || errno == EPERM, "EPERM");
+    }
+    /* ESRCH for a process that doesn't exist; Linux pids are below 2^22 */
+    errno = 0;
+    check(sigqueue(0x7fffffff, 0, value) == -1 && errno == ESRCH, "ESRCH");
 
     printf("success\n");
     return 0;
