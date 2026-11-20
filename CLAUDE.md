@@ -73,7 +73,7 @@ Ordering bugs are intermittent, so repeat the thread and synchronization tests
 in each build directory:
 
 ```sh
-tests=$(meson test --list | grep -iE 'pthread|sem|rwlock|barrier|spin|cancel|atfork|timer|thread|mqueue|cpuclock|time64' | sed 's/^.*picolibc://')
+tests=$(meson test --list | grep -iE 'pthread|sem|rwlock|barrier|spin|cancel|atfork|timer|thread|mqueue|cpuclock|time64|aio|lio_|mtx|cnd|msgrcv|shmat|spawn' | sed 's/^.*picolibc://')
 meson test -t 4 --no-rebuild --repeat 200 $tests > stress.log 2>&1
 grep -E '^(Ok|Fail|Timeout):' stress.log
 ```
@@ -82,14 +82,33 @@ A test that passes 199 times and fails once is a finding, not noise.
 
 ## Expected results from emulation
 
-From a QEMU VM with a real Linux kernel, for the commit in `TEST-COMMIT`:
+This round tests `claude/posix-pse`, which adds a lot on top of the threads
+work: asynchronous I/O (worker threads), robust mutexes, posix_spawn, System V
+IPC, sockets and networking, ISO C threads, and more. Under qemu-user on x86,
+for the commit in `TEST-COMMIT`:
 
-- aarch64-linux-gnu: all pass (736 tests), 6 expected failures, 36 skipped.
-- arm-linux-gnueabihf: all pass (735 tests), 6 expected failures, 38 skipped.
-- test-mqueue's notification checks (mq_notify) run on a real kernel; they
-  print "mq_notify not supported here" and skip only under qemu-user.
-- libc-test's robust-mutex tests are skipped in their glibc `-native` form for
-  cross builds, which includes these cross-file builds.
+- aarch64-linux-gnu: all pass (1100 tests), 6 expected failures, 39 skipped.
+- arm-linux-gnueabihf: all pass (1095 tests), 6 expected failures, 43 skipped.
+
+On real hardware some of those skips should run instead, and must pass:
+
+- test-pthread_mutex_consistent (robust mutexes): qemu-user has no
+  set_robust_list, so it skips there ("robust mutexes not supported here").
+  On a real kernel it must run and pass, on both targets.
+- test-msgrcv on armhf: qemu misplaces the IPC_STAT fields for 32-bit ARM, so
+  it skips there ("IPC_STAT fields misplaced"). On real AArch32 it must pass;
+  this is the main check that 32-bit ARM's System V IPC structures and the
+  IPC_64 command flag are right. test-semop and test-shmat check the same
+  layout for semaphores and shared memory and pass under qemu.
+- test-telldir on armhf skips under qemu (64-bit host directory offsets); a
+  real 32-bit task gets 32-bit offsets, so it must pass.
+- test-mqueue's notification checks skip only under qemu-user.
+- The glibc `-native` forms of test-pthread_mutex_consistent, test-telldir
+  (armhf), test-msgrcv (armhf) and four posix_spawn tests are skipped by the
+  build off x86, so they don't run here either.
+
+Report every test that skips on real hardware with its message, so the
+emulation-only skips can be told apart.
 
 Known: test-setrlimit fails if the session's hard RLIMIT_CORE is 0 (as under
 `sudo -i`); the fix isn't in this commit. Run in a session with an unlimited
