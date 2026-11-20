@@ -84,6 +84,9 @@ __spawn_exec(const char *file, char * const argv[], char * const envp[], int sea
                 memcpy(buf, file, flen + 1);
             }
             execve(buf, argv, envp);
+            /* A file found but not executable ends the search, without trying sh */
+            if (errno == ENOEXEC)
+                return;
             /* Keep looking past directories that don't hold it */
             if (errno != ENOENT && errno != ENOTDIR)
                 saved = errno;
