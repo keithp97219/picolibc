@@ -98,12 +98,17 @@ test_extra_c_args = {}
 
 # Each entry is [directory, test name]
 posix_tests = []
+# Tests that skip without operating system support, found by their check
+posix_os_tests = []
 foreach d : posix_test_dirs
   dir_tests = []
   dir_thread_tests = []
   subdir(d)
   foreach t : dir_tests + dir_thread_tests
     posix_tests += [[d, t]]
+    if fs.read(d / t + '.c').contains('Without the system support this test needs')
+      posix_os_tests += t
+    endif
   endforeach
   test_skip_lock_valid += dir_thread_tests
 endforeach
@@ -148,6 +153,10 @@ foreach params : targets
     t1_dir = entry[0]
     t1 = entry[1]
     if test_skip.contains(t1)
+      continue
+    endif
+    # Without an OS they only skip, so building them for one target is enough
+    if not has_os_posix and target != targets[0]['name'] and t1 in posix_os_tests
       continue
     endif
 
