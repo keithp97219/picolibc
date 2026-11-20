@@ -37,6 +37,7 @@ picolibc_sources(
   creat.c
   collcmp.c
   confstr.c
+  ctermid.c
   dirname.c
   endgrent.c
   endpwent.c

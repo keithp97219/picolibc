@@ -37,6 +37,7 @@ srcs_posix = [
   'creat.c',
   'collcmp.c',
   'confstr.c',
+  'ctermid.c',
   'dirname.c',
   'endgrent.c',
   'endpwent.c',

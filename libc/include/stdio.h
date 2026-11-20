@@ -507,6 +507,7 @@ FILE *tmpfile(void) __picolibc_export;
 char *tmpnam(char *s) __picolibc_export;
 
 #if __POSIX_VISIBLE
+char   *ctermid(char *s) __picolibc_export;
 int     fseeko(FILE *stream, off_t offset, int whence) __nonnull((1)) __picolibc_export;
 off_t   ftello(FILE *stream) __nonnull((1)) __picolibc_export;
 ssize_t getline(char ** __restrict lineptr, size_t * __restrict n, FILE * __restrict stream)
@@ -606,6 +607,10 @@ int vfprintf_s(FILE * __restrict stream, const char * __restrict fmt, va_list ap
 #define L_tmpnam __L_tmpnam
 #else
 #define L_tmpnam 8
+#endif
+
+#if __POSIX_VISIBLE
+#define L_ctermid 9 /* "/dev/tty" */
 #endif
 
 #if __MISC_VISIBLE || XSI_VISIBLE

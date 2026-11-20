@@ -35,6 +35,7 @@
 
 tests = [
   'test-access',
+  'test-ctermid',
   'test-fnmatch',
   'test-ftrunc',
   'test-getcwd',
