@@ -68,6 +68,14 @@ main(void)
     static char const bs_1[] = { '\\' - 1, 0 };
     static char const bs01[] = { '\\' + 1, 0 };
     int               result = 0;
+    int               (*fnmatch_p)(const char *, const char *, int) = fnmatch;
+
+    /* The flags are separate bits; FNM_NOMATCH isn't success */
+    if (FNM_NOMATCH == 0 || (FNM_NOESCAPE & FNM_PATHNAME) || (FNM_NOESCAPE & FNM_PERIOD)
+        || (FNM_PATHNAME & FNM_PERIOD) || !FNM_NOESCAPE || !FNM_PATHNAME || !FNM_PERIOD)
+        result |= fail(512, __LINE__);
+    if (fnmatch_p("a", "a", 0) != 0)
+        result |= fail(512, __LINE__);
     /* ==== Start of tests in the "C" locale ==== */
     /* These are sanity checks. They all succeed on current platforms.  */
     if (!n("a*", "", 0))
