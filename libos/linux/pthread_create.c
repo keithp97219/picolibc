@@ -35,6 +35,7 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+#include <linux/linux-errno.h>
 #include <picotls.h>
 #include <stdalign.h>
 #include <stddef.h>
@@ -84,10 +85,14 @@ pthread_start(void *arg)
  * addresses, a guard region, the stack (unless the application
  * provided one), the TLS block and the thread descriptor followed by
  * its thread-specific data values.
+ *
+ * Returns ENOMEM when the memory can't be had and EAGAIN when another
+ * limit, such as the number of threads, is reached; thrd_create tells
+ * them apart.
  */
 int
-pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict attr,
-               void *(*start_routine)(void *), void * __restrict arg)
+_pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict attr,
+                void *(*start_routine)(void *), void * __restrict arg)
 {
     pthread_attr_t    default_attr;
     size_t            align, tls_size, desc_size, stack_size, guard_size, map_size;
@@ -130,7 +135,7 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
     if (__picolibc_add_overflow(guard_size, stack_size, &map_size)
         || __picolibc_add_overflow(map_size, tls_size + desc_size + align + 3 * PTHREAD_PAGE_SIZE,
                                    &map_size))
-        return EAGAIN;
+        return ENOMEM;
 
     stack_size = round_up(stack_size, PTHREAD_PAGE_SIZE);
     guard_size = round_up(guard_size, PTHREAD_PAGE_SIZE);
@@ -138,7 +143,7 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
 
     map = _pthread_map(map_size);
     if (!map)
-        return EAGAIN;
+        return ENOMEM;
     /* The guard region is best effort */
     if (guard_size)
         (void)_syscall_raw(LINUX_SYS_mprotect, map, guard_size, LINUX_PROT_NONE);
@@ -199,7 +204,7 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
     if (ret < 0) {
         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
         _pthread_unmap(map, map_size);
-        return EAGAIN;
+        return ret == -LINUX_ENOMEM ? ENOMEM : EAGAIN;
     }
 
     if (t->start_wait) {
@@ -219,4 +224,14 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
         }
     }
     return 0;
+}
+
+int
+pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict attr,
+               void *(*start_routine)(void *), void * __restrict arg)
+{
+    int ret = _pthread_create(thread, attr, start_routine, arg);
+
+    /* pthread_create reports a lack of memory as EAGAIN too */
+    return ret == ENOMEM ? EAGAIN : ret;
 }

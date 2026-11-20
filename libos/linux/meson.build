@@ -465,6 +465,8 @@ if fs.is_dir(machine_dir)
       '_sem_wait_timed.c',
       '_mq_notify_thread.c',
       '_timer_thread.c',
+      # Replaces the generic version
+      'thrd_create.c',
     ]
   endif
 

@@ -337,11 +337,15 @@ struct _sem_named {
 extern pthread_mutex_t    _sem_named_lock;
 extern struct _sem_named *_sem_named;
 
-/* Scheduling for a thread id; these return 0 or an errno value */
-int                       _pthread_setsched(int tid, int policy, int priority);
-int                       _pthread_getsched(int tid, int *policy, int *priority);
+/* pthread_create, but reports a lack of memory as ENOMEM */
+int        _pthread_create(pthread_t        *__restrict thread, const pthread_attr_t        *__restrict attr,
+                           void *(*start_routine)(void *), void        *__restrict arg);
 
-extern int                _pthread_concurrency;
+/* Scheduling for a thread id; these return 0 or an errno value */
+int        _pthread_setsched(int tid, int policy, int priority);
+int        _pthread_getsched(int tid, int *policy, int *priority);
+
+extern int _pthread_concurrency;
 
 /*
  * Cancellation uses a Linux real-time signal which picolibc's signal
