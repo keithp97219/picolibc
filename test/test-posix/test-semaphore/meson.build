@@ -34,10 +34,13 @@
 #
 
 dir_tests = [
+  'test-semaphore_h',
 ]
 
 # These use threads, so lock-valid.c doesn't apply
 dir_thread_tests = [
   'test-sem_init',
   'test-sem_open',
+  'test-sem_timedwait',
+  'test-sem_unlink',
 ]

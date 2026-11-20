@@ -36,6 +36,9 @@
 set(tests
   test-sem_init
   test-sem_open
+  test-sem_timedwait
+  test-sem_unlink
+  test-semaphore_h
   )
 
 foreach(test IN LISTS tests)
