@@ -73,6 +73,9 @@ sysconf(int name)
         return 100;
     case _SC_NGROUPS_MAX:
         return 65536;
+    case _SC_MQ_PRIO_MAX:
+        /* The kernel's MQ_PRIO_MAX */
+        return 32768;
     default:
         return __fallback_sysconf(name);
     }
