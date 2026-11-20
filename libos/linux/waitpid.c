@@ -45,6 +45,10 @@ waitpid(pid_t pid, int *wstatus, int options)
     pid_t ret;
     int   kstatus;
 
+    if (options & ~(WNOHANG | WUNTRACED | WCONTINUED)) {
+        errno = EINVAL;
+        return -1;
+    }
     if (options & WNOHANG)
         koptions |= LINUX_WNOHANG;
     if (options & WUNTRACED)
@@ -54,9 +58,12 @@ waitpid(pid_t pid, int *wstatus, int options)
     cancel = _cancel_enter();
     ret = _syscall(LINUX_SYS_wait4, pid, &kstatus, koptions, NULL);
     _cancel_leave(cancel);
-    if (ret != (pid_t)-1) {
+    /* With WNOHANG, 0 means no child changed state and there's no status */
+    if (ret > 0 && wstatus) {
         if (WIFSIGNALED(kstatus))
             kstatus = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus)));
+        else if (WIFSTOPPED(kstatus))
+            kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
         *wstatus = kstatus;
     }
     return ret;
