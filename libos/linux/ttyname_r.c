@@ -34,21 +34,34 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "local-termios.h"
 #include <unistd.h>
 #include <stdio.h>
 
 int
 ttyname_r(int fd, char *buf, size_t bufsize)
 {
-    char    fdpath[sizeof("/proc/self/fd/") + 12];
-    int     iret;
-    ssize_t ssret;
+    struct __kernel_termios2 ktermios;
+    char                     fdpath[sizeof("/proc/self/fd/") + 12];
+    long                     ret;
 
-    iret = snprintf(fdpath, sizeof(fdpath), "/proc/self/fd/%d", fd);
-    if (iret < 0)
-        return iret;
-    ssret = readlink(fdpath, buf, bufsize);
-    if (ssret < 0)
-        return -1;
+    /* Only a terminal has a terminal name */
+    ret = _syscall_raw(LINUX_SYS_ioctl, fd, LINUX_TCGETS2, &ktermios);
+    if (ret < 0)
+        return _syscall_errno(ret);
+    if (bufsize == 0)
+        return ERANGE;
+    (void)snprintf(fdpath, sizeof(fdpath), "/proc/self/fd/%d", fd);
+#ifdef LINUX_SYS_readlink
+    ret = _syscall_raw(LINUX_SYS_readlink, fdpath, buf, bufsize);
+#else
+    ret = _syscall_raw(LINUX_SYS_readlinkat, LINUX_AT_FDCWD, fdpath, buf, bufsize);
+#endif
+    if (ret < 0)
+        return _syscall_errno(ret);
+    /* readlink adds no null, and cuts off a name that doesn't fit */
+    if ((size_t)ret >= bufsize)
+        return ERANGE;
+    buf[ret] = '\0';
     return 0;
 }

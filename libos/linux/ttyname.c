@@ -35,6 +35,7 @@
 
 #define _DEFAULT_SOURCE
 #include <unistd.h>
+#include <errno.h>
 #include <limits.h>
 
 static char ttyname_buf[PATH_MAX];
@@ -42,7 +43,11 @@ static char ttyname_buf[PATH_MAX];
 char *
 ttyname(int fd)
 {
-    if (ttyname_r(fd, ttyname_buf, sizeof(ttyname_buf)) != 0)
+    int ret = ttyname_r(fd, ttyname_buf, sizeof(ttyname_buf));
+
+    if (ret != 0) {
+        errno = ret;
         return NULL;
+    }
     return ttyname_buf;
 }
