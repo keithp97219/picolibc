@@ -1,0 +1,263 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _XOPEN_SOURCE 800
+#include <time.h>
+
+/*
+ * gmtime, localtime, tzset and the XBD 8.3 TZ rules, asctime, ctime
+ * and difftime
+ */
+
+#include <errno.h>
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+/* glibc names tm_gmtoff and tm_zone only with _DEFAULT_SOURCE */
+#if defined(__PICOLIBC__) || defined(__USE_MISC)
+#define HAVE_TM_GMTOFF 1
+#endif
+
+static void
+set_tz(const char *tz)
+{
+    check(setenv("TZ", tz, 1) == 0, "setenv TZ");
+    tzset();
+}
+
+/* Local time at t, as "YYYY-MM-DD HH:MM:SS isdst" */
+static const char *
+local(time_t t)
+{
+    static char buf[64];
+    struct tm   tm, *ret;
+
+    ret = localtime_r(&t, &tm);
+    check(ret == &tm, "localtime_r returns its result");
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d %d", tm.tm_year + 1900, tm.tm_mon + 1,
+             tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, tm.tm_isdst);
+    return buf;
+}
+
+#define check_local(t, want)                                                                     \
+    do {                                                                                         \
+        const char *_got = local(t);                                                             \
+        if (strcmp(_got, want) != 0) {                                                           \
+            printf("TZ=%s, %lld: got \"%s\", want \"%s\"\n", getenv("TZ"), (long long)(t), _got, \
+                   want);                                                                        \
+            exit(1);                                                                             \
+        }                                                                                        \
+    } while (0)
+
+static int
+leap(int year)
+{
+    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+}
+
+/* Seconds since the Epoch for a UTC date, as XBD 4.19 defines them */
+static time_t
+utc(int year, int mon, int mday, int hour, int min, int sec)
+{
+    static const int before[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+    long long        days = before[mon - 1] + mday - 1 + (leap(year) && mon > 2);
+    int              y;
+
+    for (y = 1970; y < year; y++)
+        days += 365 + leap(y);
+    for (y = year; y < 1970; y++)
+        days -= 365 + leap(y);
+    return (time_t)(days * 86400 + hour * 3600 + min * 60 + sec);
+}
+
+int
+main(void)
+{
+    struct tm *tp, tm;
+    time_t     t;
+    char       buf[64];
+
+    /* gmtime follows XBD 4.19 */
+    t = utc(2024, 2, 29, 12, 34, 56);
+    tp = gmtime(&t);
+    check(tp != NULL, "gmtime");
+    check(tp->tm_year == 124 && tp->tm_mon == 1 && tp->tm_mday == 29 && tp->tm_hour == 12
+              && tp->tm_min == 34 && tp->tm_sec == 56,
+          "gmtime fields");
+    check(tp->tm_wday == 4 && tp->tm_yday == 59 && tp->tm_isdst == 0, "gmtime wday, yday, isdst");
+    t = -1;
+    tp = gmtime_r(&t, &tm);
+    check(tp == &tm, "gmtime_r returns its result");
+    check(tm.tm_year == 69 && tm.tm_mon == 11 && tm.tm_mday == 31 && tm.tm_hour == 23
+              && tm.tm_sec == 59 && tm.tm_wday == 3 && tm.tm_yday == 364,
+          "gmtime_r before the Epoch");
+#ifdef HAVE_TM_GMTOFF
+    check(tm.tm_gmtoff == 0 && tm.tm_zone != NULL && strcmp(tm.tm_zone, "UTC") == 0,
+          "gmtime_r sets tm_zone to \"UTC\"");
+#endif
+
+    /* EOVERFLOW when the year doesn't fit in an int */
+    if (sizeof(time_t) > sizeof(int)) {
+        t = (time_t)INT64_MAX;
+        errno = 0;
+        check(gmtime_r(&t, &tm) == NULL && errno == EOVERFLOW, "gmtime_r EOVERFLOW");
+        errno = 0;
+        check(gmtime(&t) == NULL && errno == EOVERFLOW, "gmtime EOVERFLOW");
+        set_tz("UTC0");
+        errno = 0;
+        check(localtime_r(&t, &tm) == NULL && errno == EOVERFLOW, "localtime_r EOVERFLOW");
+        errno = 0;
+        check(localtime(&t) == NULL && errno == EOVERFLOW, "localtime EOVERFLOW");
+    }
+
+    /* std offset: west is positive, '-' means east, hh[:mm[:ss]] */
+    set_tz("EST5");
+    check(timezone == 5 * 3600 && daylight == 0, "timezone and daylight for EST5");
+    check(strcmp(tzname[0], "EST") == 0, "tzname[0]");
+    check_local(0, "1969-12-31 19:00:00 0");
+    set_tz("ABC-5:30");
+    check(timezone == -(5 * 3600 + 30 * 60), "east offset with minutes");
+    check_local(0, "1970-01-01 05:30:00 0");
+    set_tz("ABC+1:02:03");
+    check(timezone == 3723, "offset with seconds and +");
+    check_local(3723, "1970-01-01 00:00:00 0");
+
+    /* Quoted names may hold digits and signs */
+    set_tz("<+0330>-3:30");
+    check(strcmp(tzname[0], "+0330") == 0 && timezone == -12600, "quoted std name");
+    set_tz("<UTC-4>4<UTC-3>,M3.2.0,M11.1.0");
+    check(strcmp(tzname[0], "UTC-4") == 0 && strcmp(tzname[1], "UTC-3") == 0, "quoted names");
+    check(daylight != 0, "daylight with a dst name");
+
+    /* Mm.n.d rules, the default 02:00 and the default one-hour DST */
+    set_tz("EST5EDT,M3.2.0,M11.1.0");
+    check(strcmp(tzname[0], "EST") == 0 && strcmp(tzname[1], "EDT") == 0, "tzname");
+    check(timezone == 18000 && daylight != 0, "timezone and daylight");
+    /* 2025: DST from March 9 02:00 EST to November 2 02:00 EDT */
+    check_local(utc(2025, 3, 9, 6, 59, 59), "2025-03-09 01:59:59 0");
+    check_local(utc(2025, 3, 9, 7, 0, 0), "2025-03-09 03:00:00 1");
+    check_local(utc(2025, 11, 2, 5, 59, 59), "2025-11-02 01:59:59 1");
+    check_local(utc(2025, 11, 2, 6, 0, 0), "2025-11-02 01:00:00 0");
+    t = utc(2025, 7, 1, 12, 0, 0);
+    tp = localtime(&t);
+    check(tp != NULL && tp->tm_isdst == 1 && tp->tm_hour == 8, "localtime in DST");
+    check(strcmp(tzname[1], "EDT") == 0, "localtime sets tzname");
+#ifdef HAVE_TM_GMTOFF
+    check(tp->tm_gmtoff == -4 * 3600 && strcmp(tp->tm_zone, "EDT") == 0, "DST tm_gmtoff, tm_zone");
+    t = utc(2025, 1, 1, 12, 0, 0);
+    tp = localtime(&t);
+    check(tp->tm_gmtoff == -5 * 3600 && strcmp(tp->tm_zone, "EST") == 0, "std tm_gmtoff, tm_zone");
+#endif
+
+    /* The rules apply to every year, never giving a negative tm_isdst */
+#ifdef __PICOLIBC__ /* glibc applies them only from 1970 */
+    check_local(utc(1960, 7, 1, 12, 0, 0), "1960-07-01 08:00:00 1");
+    check_local(utc(1960, 1, 1, 12, 0, 0), "1960-01-01 07:00:00 0");
+    check_local(utc(1901, 6, 1, 12, 0, 0), "1901-06-01 08:00:00 1");
+#endif
+
+    /* Week 5 is the last such day; times can be negative or past 24 hours */
+    set_tz("AAA3BBB,M3.5.0/-1,M10.5.0/26");
+    /* 2025: last Sunday of March is the 30th, of October the 26th */
+    check_local(utc(2025, 3, 30, 1, 59, 59), "2025-03-29 22:59:59 0");
+    check_local(utc(2025, 3, 30, 2, 0, 0), "2025-03-30 00:00:00 1");
+    check_local(utc(2025, 10, 27, 3, 59, 59), "2025-10-27 01:59:59 1");
+    check_local(utc(2025, 10, 27, 4, 0, 0), "2025-10-27 01:00:00 0");
+
+    /* An explicit dst offset */
+    set_tz("AAA3BBB1:30,M1.1.0,M12.5.6");
+    check_local(utc(2025, 6, 1, 12, 0, 0), "2025-06-01 10:30:00 1");
+
+    /* Jn doesn't count February 29; n does */
+    set_tz("AAA0BBB,J60/0,J300/0");
+    check_local(utc(2024, 2, 29, 12, 0, 0), "2024-02-29 12:00:00 0");
+    check_local(utc(2024, 3, 1, 0, 0, 0), "2024-03-01 01:00:00 1");
+    set_tz("AAA0BBB,59/0,300/0");
+    check_local(utc(2024, 2, 28, 23, 59, 59), "2024-02-28 23:59:59 0");
+    check_local(utc(2024, 2, 29, 0, 0, 0), "2024-02-29 01:00:00 1");
+    check_local(utc(2025, 2, 28, 23, 59, 59), "2025-02-28 23:59:59 0");
+    check_local(utc(2025, 3, 1, 0, 0, 0), "2025-03-01 01:00:00 1");
+
+    /* Southern hemisphere: DST spans the end of the year */
+    set_tz("AEST-10AEDT,M10.1.0,M4.1.0/3");
+    check_local(utc(2025, 1, 15, 0, 0, 0), "2025-01-15 11:00:00 1");
+    check_local(utc(2025, 7, 15, 0, 0, 0), "2025-07-15 10:00:00 0");
+    check_local(utc(2024, 12, 31, 14, 0, 0), "2025-01-01 01:00:00 1");
+
+    /* XBD 8.3: DST all year */
+    set_tz("EST5EDT,0/0,J365/25");
+#ifdef __PICOLIBC__ /* glibc misses the transition in the next year */
+    check_local(utc(2025, 1, 1, 0, 0, 0), "2024-12-31 20:00:00 1");
+    check_local(utc(2025, 1, 1, 4, 30, 0), "2025-01-01 00:30:00 1");
+#endif
+    check_local(utc(2025, 6, 1, 0, 0, 0), "2025-05-31 20:00:00 1");
+    check_local(utc(2025, 12, 31, 23, 0, 0), "2025-12-31 19:00:00 1");
+
+    /* asctime's format, and ctime is asctime(localtime()) */
+    memset(&tm, 0, sizeof(tm));
+    tm.tm_year = 73;
+    tm.tm_mon = 8;
+    tm.tm_mday = 16;
+    tm.tm_hour = 1;
+    tm.tm_min = 3;
+    tm.tm_sec = 52;
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    check(strcmp(asctime(&tm), "Sun Sep 16 01:03:52 1973\n") == 0, "asctime format");
+    tm.tm_mday = 6;
+    tm.tm_wday = 4;
+    check(strcmp(asctime(&tm), "Thu Sep  6 01:03:52 1973\n") == 0, "asctime pads the day");
+    set_tz("EST5EDT,M3.2.0,M11.1.0");
+    t = utc(2025, 7, 4, 16, 5, 6);
+    strcpy(buf, asctime(localtime(&t)));
+    check(strcmp(ctime(&t), buf) == 0, "ctime is asctime(localtime())");
+    check(strcmp(buf, "Fri Jul  4 12:05:06 2025\n") == 0, "ctime value");
+
+    /* difftime */
+    check(difftime(100, 40) == 60.0 && difftime(40, 100) == -60.0, "difftime");
+
+    printf("success\n");
+    return 0;
+}
