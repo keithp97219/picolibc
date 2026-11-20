@@ -66,3 +66,15 @@ Append yours under a heading naming the unit.
   example) should follow this.
 - **glibc doesn't define `NI_NUMERICSCOPE`**, which POSIX requires in
   `<netdb.h>`. Tests that use it need `#ifdef NI_NUMERICSCOPE`.
+
+## From the x86_64 host (after batch 1)
+
+- About a third of the test-posix tests use `_DEFAULT_SOURCE` or
+  `_GNU_SOURCE`, and most XSI tests use `_XOPEN_SOURCE 700`, so they can't
+  catch POSIX symbols hidden behind extension macros. 120 of the 128 compile
+  unchanged against picolibc with strict POSIX.1-2024 plus XSI 800. The
+  x86_64 host converts them after batch 2 is merged; units shouldn't
+  convert tests outside their own headers.
+- Names leaking in strict mode: `<stdio.h>` declares `setbuffer` and
+  `setlinebuf` unconditionally, and `<sys/wait.h>` declares `wait3`. These
+  are fixed on the x86_64 host.

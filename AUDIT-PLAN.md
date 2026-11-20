@@ -126,6 +126,19 @@ touch the same directory (for example 3, 4 and 5) side by side.
 > - **Test layout:** tests go in `test/test-posix/<header-dir>/test-<interface>.c`,
 >   named for the most fragile interface they check, and are registered in
 >   BOTH `meson.build` and `CMakeLists.txt`.
+> - **Feature-test macros:** use the minimal ones, so tests check the
+>   headers' visibility: `#define _POSIX_C_SOURCE 202405L`, plus
+>   `#define _XOPEN_SOURCE 800` only for XSI interfaces (not 700). Use
+>   `_DEFAULT_SOURCE` or `_GNU_SOURCE` only for a test of an extension, with
+>   a comment. Where glibc hides a POSIX.1-2024 interface without
+>   `_GNU_SOURCE`, define it for glibc alone, before any include:
+>   `#if defined(__has_include) && !__has_include(<picolibc.h>)` /
+>   `#define _GNU_SOURCE` / `#endif`, with a comment naming the interface.
+> - **Namespace:** also check the other direction. In strict mode
+>   (`_POSIX_C_SOURCE 202405L` and nothing else) the header must not
+>   declare names POSIX doesn't reserve for it, such as BSD or GNU
+>   extensions or removed interfaces. Report leaks as deviations; one way
+>   to test is to define a function with the leaked name in a strict test.
 > - **Gating:** tests compile everywhere and gate at run time. Copy the
 >   preamble from a neighbouring test, including the comment
 >   `/* Without the system support this test needs, it is skipped */`, and
