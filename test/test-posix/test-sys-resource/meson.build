@@ -34,6 +34,9 @@
 #
 
 dir_tests = [
+  'test-getpriority',
   'test-getrlimit',
+  'test-getrusage',
+  'test-setpriority',
   'test-setrlimit',
 ]

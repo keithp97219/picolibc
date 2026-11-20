@@ -38,6 +38,7 @@ set(tests
   test-psiginfo
   test-rtsig
   test-sigaction
+  test-sigaltstack
   test-signal
   test-sigqueue
   test-sigsuspend

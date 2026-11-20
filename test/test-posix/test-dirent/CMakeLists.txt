@@ -41,6 +41,7 @@ set(tests
   test-readdir
   test-readdir_r
   test-scandir
+  test-telldir
   )
 
 foreach(test IN LISTS tests)

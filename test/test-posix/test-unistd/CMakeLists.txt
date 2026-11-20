@@ -52,15 +52,19 @@ set(tests
   test-getcwd
   test-getgid
   test-getgroups
+  test-gethostid
   test-gethostname
   test-getlogin_r
   test-getpgid
+  test-getresgid
+  test-getresuid
   test-getsid
   test-getuid
   test-lchown
   test-link
   test-linkat
   test-lockf
+  test-nice
   test-pause
   test-pipe2
   test-posix-options
@@ -71,9 +75,12 @@ set(tests
   test-setegid
   test-seteuid
   test-setgid
+  test-setregid
+  test-setreuid
   test-setsid
   test-setuid
   test-symlinkat
+  test-sync
   test-sysconf
   test-truncate
   test-unlinkat

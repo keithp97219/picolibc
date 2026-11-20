@@ -41,9 +41,16 @@ dir_tests = [
   'test-readdir',
   'test-readdir_r',
   'test-scandir',
+  'test-telldir',
 ]
 
 # The native build reads directories through the host's struct dirent
 if enable_native_tests
   test_skip += ['test-readdir', 'test-dirfd', 'test-scandir']
+endif
+
+# Under QEMU's user-mode emulation of 32-bit ARM, glibc fails this too:
+# the 64-bit host kernel's directory offsets don't fit its long
+if host_cpu_family == 'arm'
+  test_skip_native += ['test-telldir']
 endif
