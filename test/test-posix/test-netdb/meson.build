@@ -43,3 +43,8 @@ dir_tests = [
   'test-getservbyname',
   'test-netdb_h',
 ]
+
+# Runs its DNS server in a thread
+dir_thread_tests = [
+  'test-dns',
+]

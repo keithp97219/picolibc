@@ -61,6 +61,27 @@
         }                                              \
     } while (0)
 
+#ifdef __PICOLIBC_NETWORK_DNS
+#ifndef TEST_FILE_NAME
+#define TEST_FILE_NAME "test-getnameinfo.conf"
+#endif
+
+/*
+ * Keep picolibc's resolver off the network: its configuration names a
+ * port nothing listens on, so names missing from /etc/hosts fail at once
+ */
+const char *__picolibc_resolv_conf = TEST_FILE_NAME;
+
+static void
+no_dns(void)
+{
+    FILE *f = fopen(TEST_FILE_NAME, "w");
+
+    check(f != NULL && fputs("nameserver 127.0.0.1:1\n", f) >= 0 && fclose(f) == 0,
+          "resolver configuration");
+}
+#endif
+
 /* Skips the test when the system has no sockets of this family */
 static int
 make_socket(int family, int type)
@@ -154,6 +175,10 @@ main(void)
     int                 ret;
     size_t              len;
 
+#ifdef __PICOLIBC_NETWORK_DNS
+    no_dns();
+#endif
+
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
     sin.sin_port = htons(80);
@@ -174,12 +199,14 @@ main(void)
 
     /*
      * An address from TEST-NET-1 has no name, though a DNS server may
-     * still supply one; NI_NAMEREQD never falls back to the number
+     * still supply one, or be unreachable; NI_NAMEREQD never falls back
+     * to the number
      */
     sin.sin_addr.s_addr = htonl(0xc0000201);
     ret = getnameinfo((struct sockaddr *)&sin, sizeof(sin), host, sizeof(host), NULL, 0,
                       NI_NAMEREQD);
-    check(ret == EAI_NONAME || (ret == 0 && strcmp(host, "192.0.2.1") != 0), "NI_NAMEREQD");
+    check(ret == EAI_NONAME || ret == EAI_AGAIN || (ret == 0 && strcmp(host, "192.0.2.1") != 0),
+          "NI_NAMEREQD");
     check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), host, 4, NULL, 0, NI_NUMERICHOST)
               == EAI_OVERFLOW,
           "EAI_OVERFLOW");
@@ -198,9 +225,17 @@ main(void)
           "EAI_FAMILY");
 
 #ifdef __PICOLIBC__
-    /* picolibc only reads the hosts file, which doesn't list TEST-NET-1 */
-    if (!in_hosts(htonl(0xc0000201)))
+    /*
+     * The hosts file doesn't list TEST-NET-1, and picolibc's DNS, if
+     * built, asks only this test's server, which can't be reached
+     */
+    if (!in_hosts(htonl(0xc0000201))) {
+#ifdef __PICOLIBC_NETWORK_DNS
+        check(ret == EAI_AGAIN, "NI_NAMEREQD with no server");
+#else
         check(ret == EAI_NONAME, "NI_NAMEREQD without a name");
+#endif
+    }
 #else
     (void)in_hosts;
 #endif
@@ -347,6 +382,9 @@ main(void)
     }
     (void)make_socket;
     (void)tcp_pair;
+#ifdef __PICOLIBC_NETWORK_DNS
+    (void)unlink(TEST_FILE_NAME);
+#endif
     printf("success\n");
     return 0;
 }

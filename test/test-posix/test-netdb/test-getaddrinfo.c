@@ -60,6 +60,27 @@
         }                                              \
     } while (0)
 
+#ifdef __PICOLIBC_NETWORK_DNS
+#ifndef TEST_FILE_NAME
+#define TEST_FILE_NAME "test-getaddrinfo.conf"
+#endif
+
+/*
+ * Keep picolibc's resolver off the network: its configuration names a
+ * port nothing listens on, so names missing from /etc/hosts fail at once
+ */
+const char *__picolibc_resolv_conf = TEST_FILE_NAME;
+
+static void
+no_dns(void)
+{
+    FILE *f = fopen(TEST_FILE_NAME, "w");
+
+    check(f != NULL && fputs("nameserver 127.0.0.1:1\n", f) >= 0 && fclose(f) == 0,
+          "resolver configuration");
+}
+#endif
+
 /* Skips the test when the system has no sockets of this family */
 static int
 make_socket(int family, int type)
@@ -133,6 +154,10 @@ main(void)
     struct sockaddr_in6 *sin6;
     static const char    zero[sizeof(sin->sin_zero)];
     int                  ret, fd;
+
+#ifdef __PICOLIBC_NETWORK_DNS
+    no_dns();
+#endif
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -344,6 +369,9 @@ main(void)
     check(getaddrinfo("127.0.0.1", NULL, &hints, &res) == EAI_BADFLAGS, "EAI_BADFLAGS");
     (void)make_socket;
     (void)tcp_pair;
+#ifdef __PICOLIBC_NETWORK_DNS
+    (void)unlink(TEST_FILE_NAME);
+#endif
     printf("success\n");
     return 0;
 }

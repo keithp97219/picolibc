@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-dns
   test-gai_strerror
   test-getaddrinfo
   test-gethostent
