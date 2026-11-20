@@ -49,13 +49,28 @@
         }                                              \
     } while (0)
 
+#define y(pattern, string, flags) (fnmatch((pattern), (string), (flags)) == 0)
+#define n(pattern, string, flags) (fnmatch((pattern), (string), (flags)) == FNM_NOMATCH)
+
 int
 main(void)
 {
     check(FNM_IGNORECASE == FNM_CASEFOLD, "FNM_IGNORECASE");
-    check(fnmatch("aB*", "Abc", FNM_CASEFOLD) == 0, "FNM_CASEFOLD");
-    check(fnmatch("aB*", "Abc", FNM_IGNORECASE) == 0, "FNM_IGNORECASE");
-    check(fnmatch("aB*", "Abc", 0) == FNM_NOMATCH, "case sensitive");
+    check(y("aB*", "Abc", FNM_IGNORECASE), "FNM_IGNORECASE");
+
+    /* A string matches if it would with either case of each character */
+    check(y("aBc", "AbC", FNM_CASEFOLD) && n("aBc", "AbC", 0), "ordinary");
+    check(n("abc", "abd", FNM_CASEFOLD), "mismatch");
+    check(y("*.C", "x.c", FNM_CASEFOLD) && y("?B", "ab", FNM_CASEFOLD), "wildcards");
+    check(y("\\A", "a", FNM_CASEFOLD), "escaped");
+    check(y(".X", ".x", FNM_CASEFOLD | FNM_PERIOD), "period");
+
+    /* Including in bracket expressions */
+    check(y("[a-c]x", "BX", FNM_CASEFOLD) && y("[A-C]", "b", FNM_CASEFOLD), "range");
+    check(n("[A-C]", "d", FNM_CASEFOLD), "range mismatch");
+    check(y("[B]", "b", FNM_CASEFOLD) && n("[B]", "c", FNM_CASEFOLD), "list");
+    check(n("[!a]", "A", FNM_CASEFOLD) && y("[!a]", "B", FNM_CASEFOLD), "non-matching list");
+    check(n("[[:upper:]]", "1", FNM_CASEFOLD), "class mismatch");
     printf("success\n");
     return 0;
 }
