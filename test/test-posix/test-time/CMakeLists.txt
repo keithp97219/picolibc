@@ -40,6 +40,7 @@ set(tests
   test-localtime
   test-mktime
   test-strftime_l
+  test-strptime
   test-time
   test-time_h
   test-timer_create
