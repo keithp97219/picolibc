@@ -1,0 +1,28 @@
+From ef0142a31be7ad9e5f372674916645c9130dc55e Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:07:44 +0000
+Subject: [PATCH 01/12] pthread.h: Define PTHREAD_NULL
+
+POSIX.1-2024 requires PTHREAD_NULL, a pthread_t constant that is not
+the ID of any thread.
+---
+ libc/include/pthread.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libc/include/pthread.h b/libc/include/pthread.h
+index 6ccf252de5..a11557ac8e 100644
+--- a/libc/include/pthread.h
++++ b/libc/include/pthread.h
+@@ -97,6 +97,9 @@ _BEGIN_STD_C
+ #define PTHREAD_CANCEL_ASYNCHRONOUS 1
+ #define PTHREAD_CANCELED            ((void *)-1)
+ 
++/* A pthread_t value which is never the thread ID of a thread */
++#define PTHREAD_NULL ((pthread_t)0)
++
+ /* Cleanup handlers live on the stack of the function using them */
+ struct __pthread_cleanup {
+     void                      (*__routine)(void *);
+-- 
+2.47.3
+

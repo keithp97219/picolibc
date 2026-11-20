@@ -1,0 +1,82 @@
+From 8d3e2075f89c15ab9894f1a739d071ad323ab51d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:07:44 +0000
+Subject: [PATCH 06/12] libos/linux: Keep cancellation points out of the if_
+ functions
+
+if_nametoindex, if_indextoname and if_nameindex called close or
+closedir, which made them cancellation points, which POSIX doesn't
+allow, and leaked the descriptor when cancelled.
+---
+ libos/linux/if_indextoname.c | 3 ++-
+ libos/linux/if_nameindex.c   | 9 ++++++++-
+ libos/linux/if_nametoindex.c | 3 ++-
+ 3 files changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/libos/linux/if_indextoname.c b/libos/linux/if_indextoname.c
+index 5cd74c47e3..5bc32269a2 100644
+--- a/libos/linux/if_indextoname.c
++++ b/libos/linux/if_indextoname.c
+@@ -49,7 +49,8 @@ if_indextoname(unsigned int index, char *name)
+     memset(&ifr, 0, sizeof(ifr));
+     ifr.ifr_ifindex = (int)index;
+     ret = (int)_syscall(LINUX_SYS_ioctl, fd, LINUX_SIOCGIFNAME, &ifr);
+-    close(fd);
++    /* Not close, which is a cancellation point */
++    (void)_syscall_raw(LINUX_SYS_close, fd);
+     if (ret < 0) {
+         if (errno == ENODEV)
+             errno = ENXIO;
+diff --git a/libos/linux/if_nameindex.c b/libos/linux/if_nameindex.c
+index a700991d1e..a7bf797d01 100644
+--- a/libos/linux/if_nameindex.c
++++ b/libos/linux/if_nameindex.c
+@@ -34,6 +34,7 @@
+  */
+ 
+ #include "local-socket.h"
++#include "local-cancel.h"
+ #include <dirent.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -53,10 +54,15 @@ if_nameindex(void)
+     size_t               i;
+     char                 (*found)[IF_NAMESIZE] = NULL;
+     unsigned int        *index = NULL;
++    int                  cancel;
+ 
++    /* closedir is a cancellation point, which if_nameindex isn't */
++    cancel = _cancel_disable();
+     dir = opendir("/sys/class/net");
+-    if (!dir)
++    if (!dir) {
++        _cancel_restore(cancel);
+         return NULL;
++    }
+     while ((ent = readdir(dir)) != NULL) {
+         unsigned int n;
+ 
+@@ -102,6 +108,7 @@ fail:
+         closedir(dir);
+     free(found);
+     free(index);
++    _cancel_restore(cancel);
+     if (!list)
+         errno = ENOBUFS;
+     return list;
+diff --git a/libos/linux/if_nametoindex.c b/libos/linux/if_nametoindex.c
+index bcba3dacba..9beaf40680 100644
+--- a/libos/linux/if_nametoindex.c
++++ b/libos/linux/if_nametoindex.c
+@@ -51,6 +51,7 @@ if_nametoindex(const char *name)
+     memset(&ifr, 0, sizeof(ifr));
+     strcpy(ifr.ifr_name, name);
+     ret = (int)_syscall(LINUX_SYS_ioctl, fd, LINUX_SIOCGIFINDEX, &ifr);
+-    close(fd);
++    /* Not close, which is a cancellation point */
++    (void)_syscall_raw(LINUX_SYS_close, fd);
+     return ret < 0 ? 0 : (unsigned int)ifr.ifr_ifindex;
+ }
+-- 
+2.47.3
+

@@ -1,0 +1,31 @@
+From 6e1b278c4796ecc9c01f262cd852df07713ac214 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 19:44:47 +0000
+Subject: [PATCH 02/25] time: Set errno to EOVERFLOW when gmtime_r can't
+ represent the year
+
+POSIX requires gmtime, gmtime_r, localtime and localtime_r to fail with
+EOVERFLOW when the result can't be represented.
+---
+ libc/time/gmtime_r.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libc/time/gmtime_r.c b/libc/time/gmtime_r.c
+index b891255d2f..2268b3d716 100644
+--- a/libc/time/gmtime_r.c
++++ b/libc/time/gmtime_r.c
+@@ -111,8 +111,10 @@ gmtime_r(const time_t * __restrict tim_p, struct tm * __restrict res)
+         ? yearday - (DAYS_PER_YEAR - DAYS_IN_JANUARY - DAYS_IN_FEBRUARY)
+         : yearday + DAYS_IN_JANUARY + DAYS_IN_FEBRUARY + isleap(erayear);
+     year = year - YEAR_BASE;
+-    if (sizeof(year) != sizeof(int) && (year > INT_MAX || year < INT_MIN))
++    if (sizeof(year) != sizeof(int) && (year > INT_MAX || year < INT_MIN)) {
++        errno = EOVERFLOW;
+         return NULL;
++    }
+ 
+     res->tm_year = year;
+     res->tm_mon = month;
+-- 
+2.47.3
+

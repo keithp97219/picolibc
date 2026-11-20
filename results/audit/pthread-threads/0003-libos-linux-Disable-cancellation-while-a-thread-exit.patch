@@ -1,0 +1,33 @@
+From af7ce91dc4e190139a177b6b1b9c134df7dbfdf3 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:07:44 +0000
+Subject: [PATCH 03/12] libos/linux: Disable cancellation while a thread exits
+
+pthread_exit must set the cancelability state to PTHREAD_CANCEL_DISABLE
+and the type to PTHREAD_CANCEL_DEFERRED before running cleanup
+handlers and destructors. A pending request used to act in a handler's
+cancellation point, cutting the handler short and replacing the
+exit value.
+---
+ libos/linux/pthread_exit.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libos/linux/pthread_exit.c b/libos/linux/pthread_exit.c
+index 85395294aa..818cf40608 100644
+--- a/libos/linux/pthread_exit.c
++++ b/libos/linux/pthread_exit.c
+@@ -42,6 +42,11 @@ pthread_exit(void *value_ptr)
+ {
+     struct __pthread *self = _pthread_self();
+     int               state = __PTHREAD_JOINABLE;
++
++    /* Cancellation stays disabled and deferred while the thread exits */
++    __atomic_store_n(&self->cancel_state, PTHREAD_CANCEL_DISABLE, __ATOMIC_SEQ_CST);
++    self->cancel_type = PTHREAD_CANCEL_DEFERRED;
++
+     _pthread_cleanup_exit(self);
+ 
+     _pthread_specific_exit(self);
+-- 
+2.47.3
+

@@ -1,0 +1,27 @@
+From 32fc5be488cce81d8cc48cd154b3732fb7a2d3aa Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 19:47:15 +0000
+Subject: [PATCH 02/23] libos/linux: Report ENOTSUP from posix_fallocate
+
+POSIX.1-2024 reports a file system that can't allocate space as
+ENOTSUP; EINVAL was the Issue 7 error.
+---
+ libos/linux/posix_fallocate.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libos/linux/posix_fallocate.c b/libos/linux/posix_fallocate.c
+index 70dc05f824..49039aa97c 100644
+--- a/libos/linux/posix_fallocate.c
++++ b/libos/linux/posix_fallocate.c
+@@ -55,6 +55,6 @@ posix_fallocate(int fd, off_t offset, off_t len)
+     if (ret >= 0)
+         return 0;
+     ret = _syscall_errno(ret);
+-    /* POSIX reports a file system without the support as EINVAL */
+-    return ret == EOPNOTSUPP ? EINVAL : (int)ret;
++    /* Linux's EOPNOTSUPP is also ENOTSUP, which POSIX uses here */
++    return ret == EOPNOTSUPP ? ENOTSUP : (int)ret;
+ }
+-- 
+2.47.3
+

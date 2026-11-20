@@ -1,0 +1,33 @@
+From 6b9b0dadfee65a61c46436470e6a0e1e99a201bb Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:09:52 +0000
+Subject: [PATCH 13/25] libos/linux: Fail with EINVAL in clock_nanosleep on the
+ thread's CPU-time clock
+
+POSIX requires EINVAL when clock_id is the calling thread's CPU-time
+clock. Linux has no sleep for CLOCK_THREAD_CPUTIME_ID and reported
+EOPNOTSUPP.
+---
+ libos/linux/clock_nanosleep.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/libos/linux/clock_nanosleep.c b/libos/linux/clock_nanosleep.c
+index 4a540b4cda..b6a332a743 100644
+--- a/libos/linux/clock_nanosleep.c
++++ b/libos/linux/clock_nanosleep.c
+@@ -52,6 +52,12 @@ clock_nanosleep(clockid_t id, int flags, const struct timespec *dur, struct time
+      * errno alone, so use _syscall_raw. The kernel checks the clock
+      * and the time.
+      */
++    /*
++     * POSIX requires EINVAL for the calling thread's CPU-time clock;
++     * Linux reports EOPNOTSUPP for CLOCK_THREAD_CPUTIME_ID
++     */
++    if (id == CLOCK_THREAD_CPUTIME_ID)
++        return EINVAL;
+     MAP_CLOCK_ID(kid, id);
+     if (flags == TIMER_ABSTIME)
+         kflags = LINUX_TIMER_ABSTIME;
+-- 
+2.47.3
+

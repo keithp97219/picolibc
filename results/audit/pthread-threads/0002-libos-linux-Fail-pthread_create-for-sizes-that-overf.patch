@@ -1,0 +1,44 @@
+From 4510b4b95c670f7ee8513e5a4f93d4f4b65271c8 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:07:44 +0000
+Subject: [PATCH 02/12] libos/linux: Fail pthread_create for sizes that
+ overflow
+
+Rounding a stack or guard size near SIZE_MAX up to pages wrapped
+around, so pthread_create made a thread with no stack or no guard
+area. Return EAGAIN instead.
+---
+ libos/linux/pthread_create.c | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/libos/linux/pthread_create.c b/libos/linux/pthread_create.c
+index 6419434acf..3836bb3c8f 100644
+--- a/libos/linux/pthread_create.c
++++ b/libos/linux/pthread_create.c
+@@ -113,9 +113,21 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
+     stack_size = 0;
+     guard_size = 0;
+     if (!attr->__stackaddr) {
+-        stack_size = round_up(attr->__stacksize, PTHREAD_PAGE_SIZE);
+-        guard_size = round_up(attr->__guardsize, PTHREAD_PAGE_SIZE);
++        stack_size = attr->__stacksize;
++        guard_size = attr->__guardsize;
+     }
++
++    /*
++     * Sizes too large to add up, with room for rounding each to pages,
++     * can't be mapped; don't let them wrap around to small ones
++     */
++    if (__picolibc_add_overflow(guard_size, stack_size, &map_size)
++        || __picolibc_add_overflow(map_size, tls_size + desc_size + align + 3 * PTHREAD_PAGE_SIZE,
++                                   &map_size))
++        return EAGAIN;
++
++    stack_size = round_up(stack_size, PTHREAD_PAGE_SIZE);
++    guard_size = round_up(guard_size, PTHREAD_PAGE_SIZE);
+     map_size = round_up(guard_size + stack_size + tls_size + desc_size + align, PTHREAD_PAGE_SIZE);
+ 
+     map = _pthread_map(map_size);
+-- 
+2.47.3
+

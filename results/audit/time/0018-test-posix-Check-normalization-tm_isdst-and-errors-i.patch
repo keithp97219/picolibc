@@ -1,0 +1,242 @@
+From 6ebd676e28a37569dda2f50ec79583b1e129cad5 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:14:21 +0000
+Subject: [PATCH 18/25] test-posix: Check normalization, tm_isdst and errors in
+ mktime
+
+---
+ test/test-posix/test-time/CMakeLists.txt |   1 +
+ test/test-posix/test-time/meson.build    |   1 +
+ test/test-posix/test-time/test-mktime.c  | 196 +++++++++++++++++++++++
+ 3 files changed, 198 insertions(+)
+ create mode 100644 test/test-posix/test-time/test-mktime.c
+
+diff --git a/test/test-posix/test-time/CMakeLists.txt b/test/test-posix/test-time/CMakeLists.txt
+index 0ee585123c..4a9bf00e59 100644
+--- a/test/test-posix/test-time/CMakeLists.txt
++++ b/test/test-posix/test-time/CMakeLists.txt
+@@ -38,6 +38,7 @@ set(tests
+   test-clock_gettime
+   test-clock_nanosleep
+   test-localtime
++  test-mktime
+   test-time
+   test-time_h
+   test-timer_create
+diff --git a/test/test-posix/test-time/meson.build b/test/test-posix/test-time/meson.build
+index b1ca8ffbd4..db32c79d3b 100644
+--- a/test/test-posix/test-time/meson.build
++++ b/test/test-posix/test-time/meson.build
+@@ -37,6 +37,7 @@ dir_tests = [
+   'test-clock_getcpuclockid',
+   'test-clock_nanosleep',
+   'test-localtime',
++  'test-mktime',
+   'test-time',
+   'test-time_h',
+   'test-timer_create',
+diff --git a/test/test-posix/test-time/test-mktime.c b/test/test-posix/test-time/test-mktime.c
+new file mode 100644
+index 0000000000..9aab72bc6b
+--- /dev/null
++++ b/test/test-posix/test-time/test-mktime.c
+@@ -0,0 +1,196 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _XOPEN_SOURCE 800
++#include <time.h>
++
++/* mktime: normalization, tm_isdst, the members it sets, and errors */
++
++#include <errno.h>
++#include <limits.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static void
++set_tz(const char *tz)
++{
++    check(setenv("TZ", tz, 1) == 0, "setenv TZ");
++    tzset();
++}
++
++static struct tm
++mk(int year, int mon, int mday, int hour, int min, int sec, int isdst)
++{
++    struct tm tm;
++
++    memset(&tm, 0, sizeof(tm));
++    tm.tm_year = year - 1900;
++    tm.tm_mon = mon - 1;
++    tm.tm_mday = mday;
++    tm.tm_hour = hour;
++    tm.tm_min = min;
++    tm.tm_sec = sec;
++    tm.tm_isdst = isdst;
++    tm.tm_wday = 9;
++    tm.tm_yday = 999;
++    return tm;
++}
++
++/* The members must be those localtime gives for the result */
++static void
++check_members(const struct tm *tm, time_t t, const char *what)
++{
++    struct tm lt;
++
++    check(localtime_r(&t, &lt) != NULL, what);
++    if (tm->tm_year != lt.tm_year || tm->tm_mon != lt.tm_mon || tm->tm_mday != lt.tm_mday
++        || tm->tm_hour != lt.tm_hour || tm->tm_min != lt.tm_min || tm->tm_sec != lt.tm_sec
++        || tm->tm_wday != lt.tm_wday || tm->tm_yday != lt.tm_yday || tm->tm_isdst != lt.tm_isdst) {
++        printf("%s: members differ from localtime\n", what);
++        exit(1);
++    }
++    check(tm->tm_isdst >= 0, what);
++}
++
++int
++main(void)
++{
++    struct tm tm;
++    time_t    t;
++
++    set_tz("UTC0");
++
++    /* Only year, mon, mday, hour, min, sec and isdst are used */
++    tm = mk(2025, 1, 1, 0, 0, 0, 0);
++    check(mktime(&tm) == 1735689600, "mktime UTC");
++    check(tm.tm_wday == 3 && tm.tm_yday == 0, "wday and yday computed");
++
++    /* Out-of-range members are brought into range */
++    tm = mk(2024, 13, 1, 0, 0, 0, 0); /* month 12 of 2024 is January 2025 */
++    check(mktime(&tm) == 1735689600 && tm.tm_year == 125 && tm.tm_mon == 0, "month overflow");
++    tm = mk(2025, 3, 0, 0, 0, 0, 0); /* March 0 is the last of February */
++    check(mktime(&tm) != (time_t)-1 && tm.tm_mon == 1 && tm.tm_mday == 28, "day 0");
++    tm = mk(2024, 1, 1, 0, 0, 0, 0);
++    tm.tm_mday = 60; /* February 29 2024 */
++    check(mktime(&tm) != (time_t)-1 && tm.tm_mon == 1 && tm.tm_mday == 29 && tm.tm_yday == 59,
++          "day 60 of a leap year");
++    tm = mk(2025, 1, 1, 0, 0, 0, 0);
++    tm.tm_sec = -1;
++    check(mktime(&tm) == 1735689599 && tm.tm_year == 124 && tm.tm_mon == 11 && tm.tm_mday == 31
++              && tm.tm_hour == 23 && tm.tm_min == 59 && tm.tm_sec == 59,
++          "negative seconds");
++    tm = mk(2025, 1, 1, 0, 0, 0, 0);
++    tm.tm_min = 24 * 60 * 31;
++    check(mktime(&tm) == 1735689600 + 31 * 86400 && tm.tm_mon == 1 && tm.tm_mday == 1,
++          "minutes carry into days");
++
++    /* -1 is a valid result, distinguished by the change to tm_wday */
++    tm = mk(1969, 12, 31, 23, 59, 59, 0);
++    errno = 0;
++    check(mktime(&tm) == (time_t)-1 && tm.tm_wday == 3 && errno == 0, "a result of -1");
++    set_tz("EST5");
++    tm = mk(1969, 12, 31, 23, 59, 59, 0);
++    check(mktime(&tm) == 5 * 3600 - 1 && tm.tm_wday == 3, "local 1969-12-31 23:59:59");
++
++    /* EOVERFLOW without changing tm_wday */
++    tm = mk(2025, 1, 1, 0, 0, 0, 0);
++    tm.tm_year = INT_MAX;
++    tm.tm_mon = 12;
++    errno = 0;
++    check(mktime(&tm) == (time_t)-1 && errno == EOVERFLOW && tm.tm_wday == 9, "tm_year overflow");
++
++    set_tz("EST5EDT,M3.2.0,M11.1.0");
++
++    /* tm_isdst 0: no DST adjustment, even in summer */
++    tm = mk(2025, 7, 1, 12, 0, 0, 0);
++    t = mktime(&tm);
++    check(t == 1751389200, "isdst 0 in summer is standard time");
++    check_members(&tm, t, "isdst 0 members");
++    check(tm.tm_hour == 13 && tm.tm_isdst == 1, "isdst 0 in summer normalized");
++
++    /* tm_isdst positive: adjust by the DST offset, even in winter */
++    tm = mk(2025, 1, 15, 12, 0, 0, 1);
++    t = mktime(&tm);
++    check(t == 1736956800, "isdst 1 in winter is daylight time");
++    check_members(&tm, t, "isdst 1 members");
++
++    /* tm_isdst negative: mktime decides */
++    tm = mk(2025, 7, 1, 12, 0, 0, -1);
++    t = mktime(&tm);
++    check(t == 1751385600 && tm.tm_isdst == 1 && tm.tm_hour == 12, "isdst -1 in summer");
++    tm = mk(2025, 1, 15, 12, 0, 0, -1);
++    t = mktime(&tm);
++    check(t == 1736960400 && tm.tm_isdst == 0, "isdst -1 in winter");
++
++    /* The repeated and the skipped hour: either reading, never -1 */
++    tm = mk(2025, 11, 2, 1, 30, 0, -1);
++    t = mktime(&tm);
++    check(t == 1762061400 || t == 1762065000, "repeated hour");
++    check_members(&tm, t, "repeated hour members");
++    tm = mk(2025, 3, 9, 2, 30, 0, -1);
++    t = mktime(&tm);
++    check(t == 1741505400 || t == 1741501800, "skipped hour");
++    check_members(&tm, t, "skipped hour members");
++
++    /* Before 1970 the rule still applies (not in glibc) */
++#ifdef __PICOLIBC__
++    tm = mk(1960, 7, 1, 12, 0, 0, -1);
++    t = mktime(&tm);
++    check(t == -299836800 && tm.tm_isdst == 1, "1960 summer");
++    check_members(&tm, t, "1960 members");
++#endif
++
++    /* Local timezone information is set as though by tzset */
++    check(setenv("TZ", "JST-9", 1) == 0, "setenv TZ");
++    tm = mk(2025, 1, 1, 9, 0, 0, -1);
++    check(mktime(&tm) == 1735689600 && tm.tm_isdst == 0, "TZ change seen by mktime");
++    check(timezone == -9 * 3600 && strcmp(tzname[0], "JST") == 0, "mktime sets tzname, timezone");
++#if defined(__PICOLIBC__) || defined(__USE_MISC)
++    check(tm.tm_gmtoff == 9 * 3600 && strcmp(tm.tm_zone, "JST") == 0,
++          "mktime sets tm_gmtoff, tm_zone");
++#endif
++
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

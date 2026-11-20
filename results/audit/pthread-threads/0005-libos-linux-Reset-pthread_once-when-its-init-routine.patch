@@ -1,0 +1,50 @@
+From c6bb1465916d75a208255905b0a64f10763b63bc Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:07:44 +0000
+Subject: [PATCH 05/12] libos/linux: Reset pthread_once when its init routine
+ is cancelled
+
+If the init routine is cancelled, once_control must be as if
+pthread_once had never been called. It stayed 'running', so every
+later caller waited forever.
+---
+ libos/linux/pthread_once.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/libos/linux/pthread_once.c b/libos/linux/pthread_once.c
+index 36e5156033..e33474838c 100644
+--- a/libos/linux/pthread_once.c
++++ b/libos/linux/pthread_once.c
+@@ -39,6 +39,19 @@
+ 
+ /* *once is 0 before the routine runs, 1 while it runs and 2 afterwards */
+ 
++/*
++ * An init routine cancelled at a cancellation point leaves *once as
++ * if pthread_once had never been called; a waiting caller runs it
++ */
++static void
++once_cancelled(void *arg)
++{
++    pthread_once_t *once = arg;
++
++    __atomic_store_n(once, 0, __ATOMIC_RELEASE);
++    _futex_wake((unsigned int *)once, INT_MAX, false);
++}
++
+ int
+ pthread_once(pthread_once_t *once, void (*init_routine)(void))
+ {
+@@ -48,7 +61,9 @@ pthread_once(pthread_once_t *once, void (*init_routine)(void))
+         if (state == 0) {
+             if (__atomic_compare_exchange_n(once, &state, 1, false, __ATOMIC_ACQUIRE,
+                                             __ATOMIC_ACQUIRE)) {
++                pthread_cleanup_push(once_cancelled, once);
+                 init_routine();
++                pthread_cleanup_pop(0);
+                 __atomic_store_n(once, 2, __ATOMIC_RELEASE);
+                 _futex_wake((unsigned int *)once, INT_MAX, false);
+                 return 0;
+-- 
+2.47.3
+

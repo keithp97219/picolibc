@@ -1,0 +1,53 @@
+From 20e9cba76b1b118b0f65c749ce839aee6dc0e179 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:14:22 +0000
+Subject: [PATCH 24/25] test-posix: Check errors for bad microseconds and paths
+ in utimes
+
+---
+ test/test-posix/test-sys-time/test-utimes.c | 29 +++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+
+diff --git a/test/test-posix/test-sys-time/test-utimes.c b/test/test-posix/test-sys-time/test-utimes.c
+index eb1e47e70f..12f28dfde7 100644
+--- a/test/test-posix/test-sys-time/test-utimes.c
++++ b/test/test-posix/test-sys-time/test-utimes.c
+@@ -81,6 +81,35 @@ main(void)
+     check(utimes("file", NULL) == 0 && stat("file", &st) == 0 && st.st_mtim.tv_sec > 1100000000,
+           "now");
+     check(utimes("missing", tv) == -1 && errno == ENOENT, "ENOENT");
++    check(utimes("", tv) == -1 && errno == ENOENT, "empty path");
++    check(utimes("file/", tv) == -1 && errno == ENOTDIR, "trailing slash on a file");
++
++    /* EINVAL for microseconds out of range; the times are unchanged */
++    {
++        /*
++         * 4294968 microseconds is 704 nanoseconds once multiplied in a
++         * 32-bit long; 32-bit glibc makes that mistake
++         */
++        static const suseconds_t bad[] = { -1, 1000000,
++#ifdef __PICOLIBC__
++                                           4294968
++#endif
++        };
++        struct timeval btv[2];
++        unsigned       i;
++
++        check(utimes("file", tv) == 0, "utimes");
++        for (i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
++            btv[0] = tv[0];
++            btv[1] = tv[1];
++            btv[i & 1].tv_usec = bad[i];
++            errno = 0;
++            check(utimes("file", btv) == -1 && errno == EINVAL, "EINVAL for tv_usec");
++        }
++        check(stat("file", &st) == 0 && st.st_atim.tv_sec == 1000000000
++                  && st.st_mtim.tv_sec == 1100000000,
++              "times unchanged after EINVAL");
++    }
+     check(unlink("file") == 0 && chdir("..") == 0 && rmdir(dir) == 0, "cleanup");
+     printf("success\n");
+     return 0;
+-- 
+2.47.3
+

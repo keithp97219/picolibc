@@ -1,0 +1,46 @@
+From 8c21a4ddc48506c5e2b23d6916179302fa5a5068 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:12:58 +0000
+Subject: [PATCH 14/25] stdlib: Free the old environment array after releasing
+ the lock in setenv
+
+setenv freed the array it had allocated before while holding the libc
+lock, which free also takes. With the non-recursive locks the tests
+use, the second setenv that grows the environment asserted.
+---
+ libc/stdlib/setenv.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdlib/setenv.c b/libc/stdlib/setenv.c
+index beeec0df97..1ac169254e 100644
+--- a/libc/stdlib/setenv.c
++++ b/libc/stdlib/setenv.c
+@@ -41,6 +41,7 @@ setenv(const char *name, const char *value, int rewrite)
+     size_t   offset;
+     char    *cur_entry;
+     char   **new_environ;
++    char   **old_environ = NULL;
+     char    *new_entry;
+     uint32_t old_sequence;
+     size_t   l_value, l_name;
+@@ -130,7 +131,7 @@ setenv(const char *name, const char *value, int rewrite)
+ 
+     if (new_environ) {
+         if (setenv_alloced)
+-            free(environ);
++            old_environ = environ;
+         environ = new_environ;
+         setenv_alloced = true;
+     }
+@@ -139,5 +140,8 @@ setenv(const char *name, const char *value, int rewrite)
+ 
+     __LIBC_UNLOCK();
+ 
++    /* free takes the lock too, so release the old array afterwards */
++    free(old_environ);
++
+     return 0;
+ }
+-- 
+2.47.3
+

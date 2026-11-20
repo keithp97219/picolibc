@@ -1,0 +1,30 @@
+From 262d8097eb36cd1bed11d2a45be6a583994013d7 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:03:08 +0000
+Subject: [PATCH 11/25] libos/linux: Report the kernel's DELAYTIMER_MAX from
+ sysconf
+
+sysconf(_SC_DELAYTIMER_MAX) returned the POSIX minimum of 32, but
+timer_getoverrun counts up to INT_MAX, as glibc reports. POSIX caps the
+overrun count at {DELAYTIMER_MAX}.
+---
+ libos/linux/sysconf.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libos/linux/sysconf.c b/libos/linux/sysconf.c
+index 17a056c42e..b2e036eb06 100644
+--- a/libos/linux/sysconf.c
++++ b/libos/linux/sysconf.c
+@@ -73,6 +73,9 @@ sysconf(int name)
+         return 100;
+     case _SC_NGROUPS_MAX:
+         return 65536;
++    case _SC_DELAYTIMER_MAX:
++        /* The kernel's timer overrun counts saturate at INT_MAX */
++        return INT_MAX;
+     case _SC_MQ_PRIO_MAX:
+         /* The kernel's MQ_PRIO_MAX */
+         return 32768;
+-- 
+2.47.3
+

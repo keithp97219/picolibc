@@ -1,0 +1,49 @@
+From 12f6a3722da0c0609ca4568bf9c73240dae60e53 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 19:47:41 +0000
+Subject: [PATCH 08/23] libos/linux: Report only ST_RDONLY and ST_NOSUID in
+ f_flag
+
+statvfs passed the kernel's mount flags through, including ST_VALID
+and others that <sys/statvfs.h> doesn't define. Map the two flags it
+does define.
+---
+ libos/linux/_statvfsbuf.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/_statvfsbuf.c b/libos/linux/_statvfsbuf.c
+index 47de8a1842..9cb51468eb 100644
+--- a/libos/linux/_statvfsbuf.c
++++ b/libos/linux/_statvfsbuf.c
+@@ -49,6 +49,16 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * f_favail is set equal to f_ffree: Linux statfs has no separate
+  * "available to non-privileged" inode count.
+  */
++/* The kernel's ST_ flags */
++#define LINUX_ST_RDONLY 0x0001
++#define LINUX_ST_NOSUID 0x0002
++
++#define MAP_FLAG(flag)                    \
++    do {                                  \
++        if (kbuf->f_flags & LINUX_##flag) \
++            buf->f_flag |= flag;          \
++    } while (0)
++
+ int
+ _statvfsbuf(struct statvfs *buf, const struct __kernel_statfs_size *kbuf)
+ {
+@@ -67,7 +77,10 @@ _statvfsbuf(struct statvfs *buf, const struct __kernel_statfs_size *kbuf)
+     else
+         /* f_fsid is narrower than the kernel fsid; just use the lower half */
+         buf->f_fsid = (unsigned long)kbuf->f_fsid.__val[0];
+-    buf->f_flag = (unsigned long)kbuf->f_flags;
++    /* Report only the flags <sys/statvfs.h> defines, not ST_VALID and the rest */
++    buf->f_flag = 0;
++    MAP_FLAG(ST_RDONLY);
++    MAP_FLAG(ST_NOSUID);
+     buf->f_namemax = (unsigned long)kbuf->f_namelen;
+     return 0;
+ }
+-- 
+2.47.3
+

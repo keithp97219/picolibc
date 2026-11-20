@@ -1,0 +1,259 @@
+From 68d220d55f89bd18066cd4fc170e355be1d105fc Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 19:51:54 +0000
+Subject: [PATCH 06/25] time: Set errno to ERANGE when the strftime result
+ doesn't fit
+
+POSIX requires ERANGE when the result, with its NUL, is longer than
+maxsize. With a maxsize of 0, strftime also wrote ordinary characters
+past the buffer, because maxsize - 1 wrapped around.
+---
+ libc/time/strftime.c | 68 ++++++++++++++++++++++++++++----------------
+ 1 file changed, 44 insertions(+), 24 deletions(-)
+
+diff --git a/libc/time/strftime.c b/libc/time/strftime.c
+index cafb66e9b3..557455c65f 100644
+--- a/libc/time/strftime.c
++++ b/libc/time/strftime.c
+@@ -301,6 +301,7 @@ locale, hard-coding the "C" locale settings.
+ #include <string.h>
+ #include <stdlib.h>
+ #include <limits.h>
++#include <errno.h>
+ #include <ctype.h>
+ #include <wctype.h>
+ #include <wchar.h>
+@@ -357,9 +358,12 @@ __ctloc(wchar_t *buf, const char *elem, size_t *len_ret)
+ #endif
+ #endif /* MAKE_WCSFTIME */
+ 
++/* What __strftime returns when the result doesn't fit */
++#define STRFTIME_ERANGE ((size_t)-1)
++
+ #define CHECK_LENGTH()                        \
+     if (len < 0 || (count += len) >= maxsize) \
+-    return 0
++    return STRFTIME_ERANGE
+ 
+ /* Enforce the coding assumptions that YEAR_BASE is positive.  (%C, %Y, etc.) */
+ #if YEAR_BASE < 0
+@@ -689,12 +693,16 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+     unsigned long width;
+     int           tzset_called = 0;
+ 
++    /* Not even the terminating NUL fits */
++    if (maxsize == 0)
++        return STRFTIME_ERANGE;
++
+     for (;;) {
+         while (*format && *format != CQ('%')) {
+             if (count < maxsize - 1)
+                 s[count++] = *format++;
+             else
+-                return 0;
++                return STRFTIME_ERANGE;
+         }
+         if (*format == CQ('\0'))
+             break;
+@@ -746,7 +754,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                 if (count < maxsize - 1)
+                     s[count++] = ctloc[i];
+                 else
+-                    return 0;
++                    return STRFTIME_ERANGE;
+             }
+             break;
+         case CQ('A'):
+@@ -755,7 +763,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                 if (count < maxsize - 1)
+                     s[count++] = ctloc[i];
+                 else
+-                    return 0;
++                    return STRFTIME_ERANGE;
+             }
+             break;
+         case CQ('b'):
+@@ -765,7 +773,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                 if (count < maxsize - 1)
+                     s[count++] = ctloc[i];
+                 else
+-                    return 0;
++                    return STRFTIME_ERANGE;
+             }
+             break;
+         case CQ('B'):
+@@ -774,7 +782,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                 if (count < maxsize - 1)
+                     s[count++] = ctloc[i];
+                 else
+-                    return 0;
++                    return STRFTIME_ERANGE;
+             }
+             break;
+         case CQ('c'):
+@@ -810,7 +818,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                 if (len > 0)
+                     count += len;
+                 else
+-                    return 0;
++                    return STRFTIME_ERANGE;
+             }
+             break;
+         case CQ('C'): {
+@@ -862,7 +870,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                 if (tim_p->tm_mday < 10) {
+                     if (*format == CQ('d')) {
+                         if (maxsize - count < 2)
+-                            return 0;
++                            return STRFTIME_ERANGE;
+                         len = conv_to_alt_digits(&s[count], maxsize - count, 0, *alt_digits);
+                         CHECK_LENGTH();
+                     }
+@@ -887,7 +895,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                 if (len > 0)
+                     count += len;
+                 else
+-                    return 0;
++                    return STRFTIME_ERANGE;
+             }
+             break;
+         case CQ('F'): { /* %F is equivalent to "%Y-%m-%d", flags and width can change
+@@ -897,7 +905,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+             if (len > 0)
+                 count += len;
+             else
+-                return 0;
++                return STRFTIME_ERANGE;
+         } break;
+         case CQ('g'):
+             /* Be careful of both overflow and negative years, thanks to
+@@ -954,7 +962,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+             STRCPY(fmt, CQ(".*u"));
+             len = t_snprintf(&s[count], maxsize - count, fmtbuf, (int)width, p_year);
+             if (len < 0 || (count += len) >= maxsize)
+-                return 0;
++                return STRFTIME_ERANGE;
+         } break;
+         case CQ('H'):
+ #ifdef _WANT_C99_TIME_FORMATS
+@@ -1012,7 +1020,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+             if (count < maxsize - 1)
+                 s[count++] = CQ('\n');
+             else
+-                return 0;
++                return STRFTIME_ERANGE;
+             break;
+         case CQ('p'):
+         case CQ('P'):
+@@ -1021,7 +1029,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                 if (count < maxsize - 1)
+                     s[count++] = (*format == CQ('P') ? (CHAR)TOLOWER(ctloc[i]) : ctloc[i]);
+                 else
+-                    return 0;
++                    return STRFTIME_ERANGE;
+             }
+             break;
+         case CQ('q'): /* GNU quarter year */
+@@ -1102,7 +1110,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+             if (count < maxsize - 1)
+                 s[count++] = CQ('\t');
+             else
+-                return 0;
++                return STRFTIME_ERANGE;
+             break;
+         case CQ('T'):
+             len = t_snprintf(&s[count], maxsize - count, CQ("%.2d:%.2d:%.2d"), tim_p->tm_hour,
+@@ -1125,7 +1133,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                 else
+                     s[count++] = CQ('0') + tim_p->tm_wday;
+             } else
+-                return 0;
++                return STRFTIME_ERANGE;
+             break;
+         case CQ('U'):
+ #ifdef _WANT_C99_TIME_FORMATS
+@@ -1186,7 +1194,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+             if (len > 0)
+                 count += len;
+             else
+-                return 0;
++                return STRFTIME_ERANGE;
+         } break;
+         case CQ('w'):
+ #ifdef _WANT_C99_TIME_FORMATS
+@@ -1200,7 +1208,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+             if (count < maxsize - 1)
+                 s[count++] = CQ('0') + tim_p->tm_wday;
+             else
+-                return 0;
++                return STRFTIME_ERANGE;
+             break;
+         case CQ('W'): {
+             int wday = (tim_p->tm_wday) ? tim_p->tm_wday - 1 : 6;
+@@ -1304,7 +1312,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+                         s[count++] = tznam[i];
+                     else {
+                         __LIBC_UNLOCK();
+-                        return 0;
++                        return STRFTIME_ERANGE;
+                     }
+                 }
+                 __LIBC_UNLOCK();
+@@ -1314,10 +1322,10 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+             if (count < maxsize - 1)
+                 s[count++] = CQ('%');
+             else
+-                return 0;
++                return STRFTIME_ERANGE;
+             break;
+         default:
+-            return 0;
++            return STRFTIME_ERANGE;
+         }
+         if (*format)
+             format++;
+@@ -1330,6 +1338,17 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p,
+     return count;
+ }
+ 
++/* Report a result that doesn't fit, leaving errno alone otherwise */
++static size_t
++strftime_result(size_t ret)
++{
++    if (ret == STRFTIME_ERANGE) {
++        errno = ERANGE;
++        return 0;
++    }
++    return ret;
++}
++
+ size_t
+ strftime(CHAR * __restrict s, size_t maxsize, const CHAR * __restrict format,
+          const struct tm * __restrict tim_p)
+@@ -1343,9 +1362,10 @@ strftime(CHAR * __restrict s, size_t maxsize, const CHAR * __restrict format,
+         free_era_info(era_info);
+     if (alt_digits)
+         free_alt_digits(alt_digits);
+-    return ret;
++    return strftime_result(ret);
+ #else  /* !_WANT_C99_TIME_FORMATS */
+-    return __strftime(s, maxsize, format, tim_p, __get_current_locale(), NULL, NULL);
++    return strftime_result(
++        __strftime(s, maxsize, format, tim_p, __get_current_locale(), NULL, NULL));
+ #endif /* !_WANT_C99_TIME_FORMATS */
+ }
+ 
+@@ -1361,8 +1381,8 @@ strftime_l(CHAR * __restrict s, size_t                  maxsize, const CHAR
+         free_era_info(era_info);
+     if (alt_digits)
+         free_alt_digits(alt_digits);
+-    return ret;
++    return strftime_result(ret);
+ #else  /* !_WANT_C99_TIME_FORMATS */
+-    return __strftime(s, maxsize, format, tim_p, locale, NULL, NULL);
++    return strftime_result(__strftime(s, maxsize, format, tim_p, locale, NULL, NULL));
+ #endif /* !_WANT_C99_TIME_FORMATS */
+ }
+-- 
+2.47.3
+

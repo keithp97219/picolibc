@@ -1,0 +1,29 @@
+From 4477876670e3d6eef010b461235989281915f74f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:06:44 +0000
+Subject: [PATCH 12/25] time: Give CLOCKS_PER_SEC the type clock_t
+
+POSIX and ISO C require it to be an expression with type clock_t; it
+was a plain int constant.
+---
+ libc/include/time.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libc/include/time.h b/libc/include/time.h
+index a5149aea73..2375969eca 100644
+--- a/libc/include/time.h
++++ b/libc/include/time.h
+@@ -55,8 +55,9 @@ _BEGIN_STD_C
+ #define _CLOCKS_PER_SEC_ 1000000
+ #endif
+ 
++/* POSIX and ISO C: an expression with type clock_t */
+ #ifndef CLOCKS_PER_SEC
+-#define CLOCKS_PER_SEC _CLOCKS_PER_SEC_
++#define CLOCKS_PER_SEC ((clock_t)_CLOCKS_PER_SEC_)
+ #endif
+ 
+ #ifndef _CLOCK_T_DECLARED
+-- 
+2.47.3
+

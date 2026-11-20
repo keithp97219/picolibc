@@ -1,0 +1,94 @@
+From 017d2e7c3d048c6220451cff348089fa684d871b Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 19:46:04 +0000
+Subject: [PATCH 03/25] time: Add tm_gmtoff and tm_zone to struct tm
+
+POSIX.1-2024 requires them. gmtime_r and timegm set them to 0 and
+"UTC"; localtime_r and mktime set them from the timezone rule in
+effect. Strict ISO C compiles see the reserved names __tm_gmtoff and
+__tm_zone, which keep the layout the same.
+---
+ libc/include/time.h   | 8 ++++++++
+ libc/time/gmtime_r.c  | 2 ++
+ libc/time/lcltime_r.c | 2 ++
+ libc/time/mktime.c    | 5 +++++
+ 4 files changed, 17 insertions(+)
+
+diff --git a/libc/include/time.h b/libc/include/time.h
+index c6221d9094..a5149aea73 100644
+--- a/libc/include/time.h
++++ b/libc/include/time.h
+@@ -79,6 +79,14 @@ struct tm {
+     int tm_wday;
+     int tm_yday;
+     int tm_isdst;
++    /* POSIX.1-2024 members; reserved names elsewhere */
++#if __POSIX_VISIBLE || __MISC_VISIBLE
++    long        tm_gmtoff; /* Seconds east of UTC */
++    const char *tm_zone;   /* Timezone abbreviation */
++#else
++    long        __tm_gmtoff;
++    const char *__tm_zone;
++#endif
+ };
+ 
+ #if __POSIX_VISIBLE
+diff --git a/libc/time/gmtime_r.c b/libc/time/gmtime_r.c
+index 2268b3d716..025228c228 100644
+--- a/libc/time/gmtime_r.c
++++ b/libc/time/gmtime_r.c
+@@ -121,6 +121,8 @@ gmtime_r(const time_t * __restrict tim_p, struct tm * __restrict res)
+     res->tm_mday = day;
+ 
+     res->tm_isdst = 0;
++    res->tm_gmtoff = 0;
++    res->tm_zone = "UTC";
+ 
+     return (res);
+ }
+diff --git a/libc/time/lcltime_r.c b/libc/time/lcltime_r.c
+index 3bc64b938b..da4c200cc4 100644
+--- a/libc/time/lcltime_r.c
++++ b/libc/time/lcltime_r.c
+@@ -62,6 +62,8 @@ localtime_r(const time_t * __restrict tim_p, struct tm * __restrict res)
+         res->tm_isdst = 0;
+ 
+     offset = (res->tm_isdst == 1 ? __tzinfo.rule[1].offset : __tzinfo.rule[0].offset);
++    res->tm_gmtoff = -offset;
++    res->tm_zone = tzname[res->tm_isdst == 1];
+ 
+     hours = (int)(offset / SECSPERHOUR);
+     offset = offset % SECSPERHOUR;
+diff --git a/libc/time/mktime.c b/libc/time/mktime.c
+index 9a389e82c6..71b10465c0 100644
+--- a/libc/time/mktime.c
++++ b/libc/time/mktime.c
+@@ -343,6 +343,7 @@ mktime(struct tm *tim_p)
+         offset = (time_t)__tzinfo.rule[1].offset;
+     else /* otherwise assume std time */
+         offset = (time_t)__tzinfo.rule[0].offset;
++    const char *zone = tzname[isdst == 1];
+ 
+     __LIBC_UNLOCK();
+ 
+@@ -355,6 +356,8 @@ mktime(struct tm *tim_p)
+ 
+     /* reset isdst flag to what we have calculated */
+     tim_p->tm_isdst = isdst;
++    tim_p->tm_gmtoff = -offset;
++    tim_p->tm_zone = zone;
+ 
+     set_tm_wday(days, tim_p);
+ 
+@@ -372,6 +375,8 @@ timegm(struct tm *tim_p)
+ 
+     /* The time is always UTC, so there is no daylight saving time. */
+     tim_p->tm_isdst = 0;
++    tim_p->tm_gmtoff = 0;
++    tim_p->tm_zone = "UTC";
+ 
+     set_tm_wday(days, tim_p);
+ 
+-- 
+2.47.3
+

@@ -1,0 +1,31 @@
+From 2336b20f6e6077d945b72d113cdfd6528dc19a40 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 19:47:41 +0000
+Subject: [PATCH 07/23] sys/stat: Define S_TYPEISMQ, S_TYPEISSEM and
+ S_TYPEISSHM
+
+Message queues, semaphores and shared memory objects aren't distinct
+file types, so the macros evaluate to zero.
+---
+ libc/include/sys/stat.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libc/include/sys/stat.h b/libc/include/sys/stat.h
+index bc9a803b7e..8a41b425b1 100644
+--- a/libc/include/sys/stat.h
++++ b/libc/include/sys/stat.h
+@@ -159,6 +159,11 @@ struct stat {
+ #define S_ISLNK(m)  (((m) & S_IFMT) == S_IFLNK)
+ #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
+ 
++/* Message queues, semaphores and shared memory objects aren't distinct file types */
++#define S_TYPEISMQ(buf)  ((buf)->st_mode - (buf)->st_mode)
++#define S_TYPEISSEM(buf) ((buf)->st_mode - (buf)->st_mode)
++#define S_TYPEISSHM(buf) ((buf)->st_mode - (buf)->st_mode)
++
+ int    chmod(const char *__path, mode_t __mode);
+ int    fchmod(int __fd, mode_t __mode);
+ int    fstat(int __fd, struct stat *__sbuf);
+-- 
+2.47.3
+

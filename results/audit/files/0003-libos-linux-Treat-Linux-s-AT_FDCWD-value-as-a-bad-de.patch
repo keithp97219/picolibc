@@ -1,0 +1,34 @@
+From bc7b91d1e91944722161e1f88e9b5a5152f6fbdb Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 19:47:15 +0000
+Subject: [PATCH 03/23] libos/linux: Treat Linux's AT_FDCWD value as a bad
+ descriptor
+
+picolibc's AT_FDCWD is -2, so -100 is neither AT_FDCWD nor a
+descriptor, and the *at functions must fail with EBADF for it
+rather than use the working directory.
+---
+ libos/linux/local-linux.h | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/local-linux.h b/libos/linux/local-linux.h
+index 64ae5b94f5..f1b0673190 100644
+--- a/libos/linux/local-linux.h
++++ b/libos/linux/local-linux.h
+@@ -69,7 +69,12 @@ int  _syscall_errno(long ret);
+ static inline int
+ _at_fd_to_linux(int fd)
+ {
+-    return fd == AT_FDCWD ? (int)LINUX_AT_FDCWD : fd;
++    if (fd == AT_FDCWD)
++        return (int)LINUX_AT_FDCWD;
++    /* Linux's AT_FDCWD isn't AT_FDCWD here, so it is just a bad descriptor */
++    if (fd == (int)LINUX_AT_FDCWD)
++        return -1;
++    return fd;
+ }
+ 
+ /* Translate AT_ flags, returning -1 for flags outside 'allowed' */
+-- 
+2.47.3
+

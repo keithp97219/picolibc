@@ -1,0 +1,59 @@
+From c48700d5968a5ce48d2b8b60ac14e3f8436ec547 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 19:47:41 +0000
+Subject: [PATCH 05/23] fcntl: Define O_TTY_INIT, the SEEK_ values and the file
+ modes
+
+<fcntl.h> must define O_TTY_INIT (zero is allowed), SEEK_SET,
+SEEK_CUR and SEEK_END for l_whence, and the file mode constants of
+<sys/stat.h>, which it now includes.
+---
+ libc/include/sys/_default_fcntl.h | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/libc/include/sys/_default_fcntl.h b/libc/include/sys/_default_fcntl.h
+index 37286fc8f7..a0b041b6df 100644
+--- a/libc/include/sys/_default_fcntl.h
++++ b/libc/include/sys/_default_fcntl.h
+@@ -4,6 +4,8 @@
+ #define _SYS__DEFAULT_FCNTL_H_
+ #include <sys/cdefs.h>
+ #include <sys/_types.h>
++/* <fcntl.h> provides the file mode constants from <sys/stat.h> */
++#include <sys/stat.h>
+ 
+ _BEGIN_STD_C
+ 
+@@ -74,6 +76,11 @@ typedef __pid_t pid_t; /* process id */
+ #define O_SEARCH    _FEXECSRCH
+ #endif
+ 
++#if __POSIX_VISIBLE >= 202405
++/* Zero, as POSIX allows; terminals start in whatever state the OS gives them */
++#define O_TTY_INIT 0
++#endif
++
+ #if __BSD_VISIBLE
+ #define O_DIRECT _FDIRECT
+ #endif
+@@ -150,6 +157,17 @@ typedef __pid_t pid_t; /* process id */
+ #define F_OFD_SETLKW 17 /* As F_SETLKW, for open file description locks */
+ #endif
+ 
++/* l_whence values */
++#ifndef SEEK_SET
++#define SEEK_SET 0 /* set file offset to offset */
++#endif
++#ifndef SEEK_CUR
++#define SEEK_CUR 1 /* set file offset to current plus offset */
++#endif
++#ifndef SEEK_END
++#define SEEK_END 2 /* set file offset to EOF plus offset */
++#endif
++
+ /* fcntl(2) flags (l_type field of flock structure) */
+ #define F_RDLCK 1 /* read lock */
+ #define F_WRLCK 2 /* write lock */
+-- 
+2.47.3
+

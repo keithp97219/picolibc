@@ -1,0 +1,85 @@
+From 95d6cc25a0e7ccfdcbd94842b28604fb9a076f7f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:04:28 +0000
+Subject: [PATCH 15/23] test-posix: Check AT_SYMLINK_NOFOLLOW on files and
+ errors in fchmodat
+
+---
+ test/test-posix/test-sys-stat/test-fchmodat.c | 43 ++++++++++++++++++-
+ 1 file changed, 42 insertions(+), 1 deletion(-)
+
+diff --git a/test/test-posix/test-sys-stat/test-fchmodat.c b/test/test-posix/test-sys-stat/test-fchmodat.c
+index d1e2515f8b..e89987a924 100644
+--- a/test/test-posix/test-sys-stat/test-fchmodat.c
++++ b/test/test-posix/test-sys-stat/test-fchmodat.c
+@@ -48,6 +48,7 @@
+ #include <dirent.h>
+ #include <errno.h>
+ #include <fcntl.h>
++#include <limits.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -71,9 +72,13 @@ int
+ main(void)
+ {
+     struct stat st;
++    char        abs_dir[PATH_MAX], path[PATH_MAX + 8];
+     int         dfd, fd, ret;
+ 
+     check(mkdtemp(dir) != NULL, "mkdtemp");
++    check(getcwd(abs_dir, sizeof(abs_dir) - sizeof(dir) - 1) != NULL, "getcwd");
++    strcat(abs_dir, "/");
++    strcat(abs_dir, dir);
+     dfd = open(dir, O_RDONLY | O_DIRECTORY);
+     check(dfd >= 0, "open dir");
+     fd = openat(dfd, "file", O_WRONLY | O_CREAT, 0600);
+@@ -89,8 +94,44 @@ main(void)
+     check(ret == 0 || errno == EOPNOTSUPP || errno == ENOTSUP, "AT_SYMLINK_NOFOLLOW");
+     check(fstatat(dfd, "file", &st, 0) == 0 && (st.st_mode & 07777) == 0640, "target unchanged");
+ 
++    /* AT_SYMLINK_NOFOLLOW changes the mode of anything but a symbolic link */
++    check(fchmodat(dfd, "file", 0604, AT_SYMLINK_NOFOLLOW) == 0, "AT_SYMLINK_NOFOLLOW on a file");
++    check(fstatat(dfd, "file", &st, 0) == 0 && (st.st_mode & 07777) == 0604, "file mode changed");
++    check(mkdirat(dfd, "sub", 0700) == 0, "mkdirat");
++    check(fchmodat(dfd, "sub", 0750, AT_SYMLINK_NOFOLLOW) == 0,
++          "AT_SYMLINK_NOFOLLOW on a directory");
++    check(fstatat(dfd, "sub", &st, 0) == 0 && (st.st_mode & 07777) == 0750, "directory mode");
++    errno = 0;
++    check(fchmodat(dfd, "missing", 0600, AT_SYMLINK_NOFOLLOW) == -1 && errno == ENOENT,
++          "AT_SYMLINK_NOFOLLOW ENOENT");
++    check(unlinkat(dfd, "sub", AT_REMOVEDIR) == 0, "remove sub");
++
++    /* AT_FDCWD and absolute paths */
++    check(fchdir(dfd) == 0, "fchdir");
++    check(fchmodat(AT_FDCWD, "file", 0600, 0) == 0, "AT_FDCWD");
++    check(chdir("/") == 0, "chdir /");
++    check(fstatat(dfd, "file", &st, 0) == 0 && (st.st_mode & 07777) == 0600, "AT_FDCWD mode");
++    snprintf(path, sizeof(path), "%s/file", abs_dir);
++    check(fchmodat(-1, path, 0640, 0) == 0, "absolute path ignores the descriptor");
++    check(fstatat(dfd, "file", &st, 0) == 0 && (st.st_mode & 07777) == 0640, "absolute mode");
++
++    /* Errors */
++    errno = 0;
++    check(fchmodat(-1, "file", 0600, 0) == -1 && errno == EBADF, "EBADF");
++    fd = openat(dfd, "file", O_RDONLY);
++    check(fd >= 0, "open file");
++    errno = 0;
++    check(fchmodat(fd, "file", 0600, 0) == -1 && errno == ENOTDIR, "ENOTDIR descriptor");
++    check(close(fd) == 0, "close file");
++    errno = 0;
++    check(fchmodat(dfd, "file", 0600, AT_REMOVEDIR) == -1 && errno == EINVAL, "EINVAL flag");
++    check(fstatat(dfd, "file", &st, 0) == 0 && (st.st_mode & 07777) == 0640,
++          "a failed call changes nothing");
++    errno = 0;
++    check(fchmodat(dfd, "", 0600, 0) == -1 && errno == ENOENT, "ENOENT empty path");
++
+     check(unlinkat(dfd, "link", 0) == 0 && unlinkat(dfd, "file", 0) == 0, "cleanup");
+-    check(close(dfd) == 0 && rmdir(dir) == 0, "rmdir");
++    check(close(dfd) == 0 && rmdir(abs_dir) == 0, "rmdir");
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

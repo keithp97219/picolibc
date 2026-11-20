@@ -1,0 +1,80 @@
+From 517804b49a16aba87d9a1c1e5e79c2ebd0403487 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:07:44 +0000
+Subject: [PATCH 07/12] aio: Don't leave the lock held when aio_suspend is
+ cancelled
+
+aio_suspend waits on a condition variable, so cancellation acted with
+the library's lock held and never released it, hanging every later
+aio call. Release it in a cleanup handler. lio_listio's wait isn't
+required to be a cancellation point, and it can't be cancelled safely,
+so disable cancellation there.
+---
+ libc/posix/aio/aio_suspend.c | 11 ++++++++++-
+ libc/posix/aio/lio_listio.c  |  8 ++++++++
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/libc/posix/aio/aio_suspend.c b/libc/posix/aio/aio_suspend.c
+index 3876f14330..fb2249745e 100644
+--- a/libc/posix/aio/aio_suspend.c
++++ b/libc/posix/aio/aio_suspend.c
+@@ -46,6 +46,13 @@ __aio_any_done(const struct aiocb * const list[], int nent)
+     return false;
+ }
+ 
++static void
++__aio_unlock(void *arg)
++{
++    (void)arg;
++    pthread_mutex_unlock(&__aio_lock);
++}
++
+ int
+ aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *timeout)
+ {
+@@ -70,6 +77,8 @@ aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *
+         }
+     }
+     pthread_mutex_lock(&__aio_lock);
++    /* aio_suspend is a cancellation point; don't leave the lock held */
++    pthread_cleanup_push(__aio_unlock, NULL);
+     while (!__aio_any_done(list, nent)) {
+         if (timeout)
+             ret = pthread_cond_clockwait(&__aio_done, &__aio_lock, CLOCK_MONOTONIC, &end);
+@@ -79,7 +88,7 @@ aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *
+             break;
+         ret = 0;
+     }
+-    pthread_mutex_unlock(&__aio_lock);
++    pthread_cleanup_pop(1);
+     if (ret) {
+         errno = EAGAIN;
+         return -1;
+diff --git a/libc/posix/aio/lio_listio.c b/libc/posix/aio/lio_listio.c
+index 11a3272e61..7c2286af49 100644
+--- a/libc/posix/aio/lio_listio.c
++++ b/libc/posix/aio/lio_listio.c
+@@ -94,12 +94,20 @@ lio_listio(int mode, struct aiocb * __restrict const list[__restrict], int nent,
+     }
+ 
+     if (wait) {
++        int cancel;
++
++        /*
++         * Cancelling the wait would leave the lock held and l in use,
++         * so this isn't a cancellation point
++         */
++        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cancel);
+         pthread_mutex_lock(&__aio_lock);
+         --l->count;
+         while (l->count)
+             pthread_cond_wait(&__aio_done, &__aio_lock);
+         failed = l->failed;
+         pthread_mutex_unlock(&__aio_lock);
++        pthread_setcancelstate(cancel, NULL);
+     } else {
+         __aio_lock_nosig(&old);
+         if (--l->count == 0)
+-- 
+2.47.3
+

@@ -1,0 +1,87 @@
+From 7a54a7928bffd4a9a3e707b8bb1ea77141b98175 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:07:44 +0000
+Subject: [PATCH 04/12] libos/linux: Don't interrupt threads with cancellation
+ disabled
+
+pthread_cancel signalled the target even with cancellation disabled,
+so system calls which never restart, such as nanosleep and poll, failed
+with EINTR. Only signal threads with cancellation enabled; the others
+act on the request at their next cancellation point after enabling it.
+---
+ libos/linux/_pthread_cancel_act.c    | 2 +-
+ libos/linux/local-cancel.h           | 4 ++--
+ libos/linux/pthread_cancel.c         | 7 +++++++
+ libos/linux/pthread_setcancelstate.c | 3 ++-
+ 4 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/libos/linux/_pthread_cancel_act.c b/libos/linux/_pthread_cancel_act.c
+index d5e98f070f..f3d35ad5c1 100644
+--- a/libos/linux/_pthread_cancel_act.c
++++ b/libos/linux/_pthread_cancel_act.c
+@@ -47,7 +47,7 @@ _pthread_cancel_act(struct __pthread *self)
+         (void)_pthread_mutex_lock_timed(mutex, CLOCK_REALTIME, NULL);
+         mutex->__count = self->cancel_mutex_count;
+     }
+-    self->cancel_state = PTHREAD_CANCEL_DISABLE;
++    __atomic_store_n(&self->cancel_state, PTHREAD_CANCEL_DISABLE, __ATOMIC_SEQ_CST);
+     self->cancel_point = 0;
+     pthread_exit(PTHREAD_CANCELED);
+ }
+diff --git a/libos/linux/local-cancel.h b/libos/linux/local-cancel.h
+index 1cc333d1b2..8df80d9423 100644
+--- a/libos/linux/local-cancel.h
++++ b/libos/linux/local-cancel.h
+@@ -85,7 +85,7 @@ _cancel_disable(void)
+     if (!self)
+         return PTHREAD_CANCEL_ENABLE;
+     old = self->cancel_state;
+-    self->cancel_state = PTHREAD_CANCEL_DISABLE;
++    __atomic_store_n(&self->cancel_state, PTHREAD_CANCEL_DISABLE, __ATOMIC_SEQ_CST);
+     return old;
+ }
+ 
+@@ -95,7 +95,7 @@ _cancel_restore(int old)
+     struct __pthread *self = _pthread_current;
+ 
+     if (self)
+-        self->cancel_state = old;
++        __atomic_store_n(&self->cancel_state, old, __ATOMIC_SEQ_CST);
+ }
+ 
+ #else
+diff --git a/libos/linux/pthread_cancel.c b/libos/linux/pthread_cancel.c
+index 561d741ea1..9523ca4f07 100644
+--- a/libos/linux/pthread_cancel.c
++++ b/libos/linux/pthread_cancel.c
+@@ -85,6 +85,13 @@ pthread_cancel(pthread_t thread)
+             _pthread_cancel_act(self);
+         return 0;
+     }
++    /*
++     * A thread with cancellation disabled acts on the request at its
++     * first cancellation point after enabling it. Signalling it now
++     * would only interrupt system calls which don't restart.
++     */
++    if (__atomic_load_n(&thread->cancel_state, __ATOMIC_SEQ_CST) != PTHREAD_CANCEL_ENABLE)
++        return 0;
+     /* Interrupt the thread in case it is blocked; an exited thread needs nothing */
+     tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
+     if (tid)
+diff --git a/libos/linux/pthread_setcancelstate.c b/libos/linux/pthread_setcancelstate.c
+index 57ce1be6d4..da7ac73167 100644
+--- a/libos/linux/pthread_setcancelstate.c
++++ b/libos/linux/pthread_setcancelstate.c
+@@ -45,7 +45,8 @@ pthread_setcancelstate(int state, int *oldstate)
+         return EINVAL;
+     if (oldstate)
+         *oldstate = self->cancel_state;
+-    self->cancel_state = state;
++    /* pthread_cancel reads this to decide whether to interrupt the thread */
++    __atomic_store_n(&self->cancel_state, state, __ATOMIC_SEQ_CST);
+     if (state == PTHREAD_CANCEL_ENABLE && self->cancel_type == PTHREAD_CANCEL_ASYNCHRONOUS
+         && __atomic_load_n(&self->cancel_pending, __ATOMIC_SEQ_CST))
+         _pthread_cancel_act(self);
+-- 
+2.47.3
+

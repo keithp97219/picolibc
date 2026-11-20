@@ -1,0 +1,489 @@
+From a2236db5ad22a9363d05cd2b72a53bdbf471ea7a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 20:07:58 +0000
+Subject: [PATCH 09/12] test-posix: Check guard areas, stack sizes and
+ scheduling attributes
+
+The guard area stops a stack overflow, sizes that can't be provided
+make pthread_create fail, EAGAIN without memory, inherited and explicit
+scheduling, EPERM without privilege, and attribute objects changed
+or shared after pthread_create.
+---
+ test/test-posix/test-pthread/CMakeLists.txt   |   1 +
+ test/test-posix/test-pthread/meson.build      |   1 +
+ .../test-pthread_attr_setguardsize.c          | 439 ++++++++++++++++++
+ 3 files changed, 441 insertions(+)
+ create mode 100644 test/test-posix/test-pthread/test-pthread_attr_setguardsize.c
+
+diff --git a/test/test-posix/test-pthread/CMakeLists.txt b/test/test-posix/test-pthread/CMakeLists.txt
+index f58d8dff4c..6b7886c21c 100644
+--- a/test/test-posix/test-pthread/CMakeLists.txt
++++ b/test/test-posix/test-pthread/CMakeLists.txt
+@@ -35,6 +35,7 @@
+ 
+ set(tests
+   test-pthread_atfork
++  test-pthread_attr_setguardsize
+   test-pthread_attr_setstackaddr
+   test-pthread_barrier_wait
+   test-pthread_cancel
+diff --git a/test/test-posix/test-pthread/meson.build b/test/test-posix/test-pthread/meson.build
+index 82ff601157..91bef24b9b 100644
+--- a/test/test-posix/test-pthread/meson.build
++++ b/test/test-posix/test-pthread/meson.build
+@@ -41,6 +41,7 @@ dir_tests = [
+ # These use threads, so lock-valid.c doesn't apply
+ dir_thread_tests = [
+   'test-pthread_atfork',
++  'test-pthread_attr_setguardsize',
+   'test-pthread_attr_setstackaddr',
+   'test-pthread_barrier_wait',
+   'test-pthread_cancel',
+diff --git a/test/test-posix/test-pthread/test-pthread_attr_setguardsize.c b/test/test-posix/test-pthread/test-pthread_attr_setguardsize.c
+new file mode 100644
+index 0000000000..75fb5b18af
+--- /dev/null
++++ b/test/test-posix/test-pthread/test-pthread_attr_setguardsize.c
+@@ -0,0 +1,439 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                                       \
++    || ((defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                                          \
++        && (defined(_POSIX_THREAD_ATTR_STACKSIZE) && _POSIX_THREAD_ATTR_STACKSIZE > 0)           \
++        && (defined(_POSIX_THREAD_ATTR_STACKADDR) && _POSIX_THREAD_ATTR_STACKADDR > 0)           \
++        && (defined(_POSIX_THREAD_PRIORITY_SCHEDULING) && _POSIX_THREAD_PRIORITY_SCHEDULING > 0) \
++        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0))
++
++#include <errno.h>
++#include <limits.h>
++#include <pthread.h>
++#include <sched.h>
++#include <signal.h>
++#include <stdbool.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
++
++/* Thread attributes: guard areas, stack sizes, scheduling and their effect on pthread_create */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* QEMU user mode accepts but ignores RLIMIT_AS */
++static bool
++is_qemu(void)
++{
++    FILE *f = fopen("/proc/cpuinfo", "r");
++    char  line[256];
++    bool  ret = false;
++
++    if (!f)
++        return false;
++    while (fgets(line, sizeof(line), f) != NULL) {
++        if (strncmp(line, "BogoMIPS", 8) == 0) {
++            ret = strstr(line, "100.00") != NULL;
++            break;
++        }
++    }
++    fclose(f);
++    return ret;
++}
++
++#define GUARD_SIZE (64 * 1024)
++#define STACK_SIZE (256 * 1024)
++
++/* Write below the bottom of the stack, into the middle of the guard area */
++static void *
++overflow(void *arg)
++{
++    volatile char  local = 0;
++    volatile char *below = (volatile char *)((uintptr_t)&local - STACK_SIZE - GUARD_SIZE / 2);
++
++    (void)arg;
++    *below = 1;
++    return NULL;
++}
++
++static void *
++return_arg(void *arg)
++{
++    return arg;
++}
++
++/* Use most of a large stack */
++#define BIG_STACK (1024 * 1024)
++
++static void *
++use_stack(void *arg)
++{
++    volatile char buf[BIG_STACK * 3 / 4];
++
++    memset((char *)buf, 0x5a, sizeof(buf));
++    return (void *)(uintptr_t)(buf[0] + buf[sizeof(buf) - 1] + (uintptr_t)arg);
++}
++
++static void *
++get_policy(void *arg)
++{
++    struct sched_param param;
++    int                policy;
++
++    (void)arg;
++    if (pthread_getschedparam(pthread_self(), &policy, &param) != 0)
++        return (void *)-1;
++    return (void *)(intptr_t)policy;
++}
++
++/* Threads which each create and join threads with one shared attributes object */
++static pthread_attr_t shared_attr;
++
++static void *
++create_many(void *arg)
++{
++    for (int i = 0; i < 50; i++) {
++        pthread_t thread;
++        void     *result;
++
++        if (pthread_create(&thread, &shared_attr, return_arg, arg) != 0)
++            return (void *)1;
++        if (pthread_join(thread, &result) != 0 || result != arg)
++            return (void *)2;
++    }
++    return NULL;
++}
++
++/* Run a check in a child process; returns its wait status */
++static int
++in_child(int (*func)(void))
++{
++    pid_t pid;
++    int   status;
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        _exit(func());
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    return status;
++}
++
++/* A guard area of at least guardsize bytes lies below the stack */
++static int
++guard_child(void)
++{
++    pthread_attr_t attr;
++    pthread_t      thread;
++
++    if (pthread_attr_init(&attr) != 0 || pthread_attr_setstacksize(&attr, STACK_SIZE) != 0
++        || pthread_attr_setguardsize(&attr, GUARD_SIZE) != 0)
++        return 10;
++    if (pthread_create(&thread, &attr, overflow, NULL) != 0)
++        return 11;
++    pthread_join(thread, NULL);
++    /* The write below the stack succeeded */
++    return 12;
++}
++
++/*
++ * A stack or guard size the system can't provide makes one of the
++ * attribute functions or pthread_create fail, instead of making a
++ * thread with less than was asked for
++ */
++static int
++size_child(size_t stacksize, size_t guardsize)
++{
++    pthread_attr_t attr;
++    pthread_t      thread;
++    int            ret;
++
++    if (pthread_attr_init(&attr) != 0)
++        return 10;
++    if (stacksize && pthread_attr_setstacksize(&attr, stacksize) != 0)
++        return 0;
++    if (guardsize && pthread_attr_setguardsize(&attr, guardsize) != 0)
++        return 0;
++    ret = pthread_create(&thread, &attr, return_arg, NULL);
++    if (ret == 0) {
++        pthread_join(thread, NULL);
++        return 11;
++    }
++    return 0;
++}
++
++static int
++huge_stack_child(void)
++{
++    return size_child(SIZE_MAX, 0);
++}
++
++static int
++huge_guard_child(void)
++{
++    return size_child(0, SIZE_MAX);
++}
++
++static int
++wrapped_guard_child(void)
++{
++    /* Rounding this up to a page wraps around to zero */
++    return size_child(0, SIZE_MAX - 4096 + 2);
++}
++
++/* pthread_create reports EAGAIN when there's no memory for the stack */
++static int
++eagain_child(void)
++{
++    pthread_attr_t attr;
++    pthread_t      thread;
++    struct rlimit  rl;
++    size_t         stacksize;
++    int            ret;
++
++    if (sizeof(void *) > 4) {
++        /* Far more than any address space */
++        stacksize = SIZE_MAX / 4;
++    } else {
++        /* Larger than the address space limit set here */
++        if (is_qemu()) {
++            printf("qemu ignores RLIMIT_AS, EAGAIN not checked\n");
++            return 0;
++        }
++        if (getrlimit(RLIMIT_AS, &rl) != 0)
++            return 10;
++        if (rl.rlim_max == RLIM_INFINITY || rl.rlim_max > 256UL * 1024 * 1024)
++            rl.rlim_cur = 256UL * 1024 * 1024;
++        else
++            rl.rlim_cur = rl.rlim_max;
++        if (setrlimit(RLIMIT_AS, &rl) != 0)
++            return 11;
++        stacksize = 1024UL * 1024 * 1024;
++    }
++    if (pthread_attr_init(&attr) != 0 || pthread_attr_setstacksize(&attr, stacksize) != 0)
++        return 12;
++    ret = pthread_create(&thread, &attr, return_arg, NULL);
++    if (ret == 0) {
++        pthread_join(thread, NULL);
++        return 13;
++    }
++    if (ret != EAGAIN) {
++        printf("pthread_create returned %d\n", ret);
++        return 14;
++    }
++    return 0;
++}
++
++static void
++check_child(int (*func)(void), const char *message)
++{
++    int status = in_child(func);
++
++    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
++        printf("%s: child status %#x\n", message, status);
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, message);
++}
++
++int
++main(void)
++{
++    pthread_attr_t     attr;
++    struct sched_param param;
++    pthread_t          thread, threads[4];
++    void              *result, *addr;
++    size_t             size;
++    int                value, status, policy;
++
++    /* Before any other thread exists, to keep the address space small */
++    check_child(eagain_child, "pthread_create EAGAIN");
++
++    /* guardsize: the value set is the value returned, even when rounded */
++    check(pthread_attr_init(&attr) == 0, "pthread_attr_init");
++    check(pthread_attr_getguardsize(&attr, &size) == 0, "default guardsize");
++    check(pthread_attr_setguardsize(&attr, 1000) == 0, "setguardsize");
++    check(pthread_attr_getguardsize(&attr, &size) == 0 && size == 1000, "getguardsize unrounded");
++    check(pthread_attr_setguardsize(&attr, 0) == 0, "setguardsize 0");
++    check(pthread_attr_getguardsize(&attr, &size) == 0 && size == 0, "getguardsize 0");
++    check(pthread_create(&thread, &attr, return_arg, (void *)1) == 0, "pthread_create no guard");
++    check(pthread_join(thread, &result) == 0 && result == (void *)1, "pthread_join no guard");
++    check(pthread_attr_destroy(&attr) == 0, "pthread_attr_destroy");
++
++    /* Overflowing the stack into the guard area is an error */
++    status = in_child(guard_child);
++    if (!WIFSIGNALED(status))
++        printf("guard area: child status %#x\n", status);
++    check(WIFSIGNALED(status) && (WTERMSIG(status) == SIGSEGV || WTERMSIG(status) == SIGBUS),
++          "stack overflow into the guard area");
++
++    /* Sizes that can't be provided aren't silently reduced */
++    check_child(huge_stack_child, "SIZE_MAX stacksize");
++    check_child(huge_guard_child, "SIZE_MAX guardsize");
++    check_child(wrapped_guard_child, "guardsize near SIZE_MAX");
++
++    /* The stack has at least stacksize bytes */
++    check(pthread_attr_init(&attr) == 0, "pthread_attr_init");
++    check(pthread_attr_setstacksize(&attr, BIG_STACK) == 0, "setstacksize");
++    check(pthread_create(&thread, &attr, use_stack, (void *)3) == 0, "pthread_create big stack");
++    check(pthread_join(thread, &result) == 0, "pthread_join big stack");
++    check(result == (void *)(uintptr_t)(0x5a + 0x5a + 3), "big stack thread result");
++
++    /* setstack: stacksize at least PTHREAD_STACK_MIN */
++    addr = malloc(PTHREAD_STACK_MIN);
++    check(addr != NULL, "malloc");
++    check(pthread_attr_setstack(&attr, addr, PTHREAD_STACK_MIN - 1) == EINVAL, "small setstack");
++    check(pthread_attr_setstack(&attr, addr, PTHREAD_STACK_MIN) == 0, "setstack minimum");
++    free(addr);
++    check(pthread_attr_destroy(&attr) == 0, "pthread_attr_destroy");
++
++    /* detachstate round trip */
++    check(pthread_attr_init(&attr) == 0, "pthread_attr_init");
++    check(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) == 0, "setdetachstate");
++    check(pthread_attr_getdetachstate(&attr, &value) == 0 && value == PTHREAD_CREATE_DETACHED,
++          "getdetachstate detached");
++    check(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE) == 0, "setdetachstate");
++    check(pthread_attr_getdetachstate(&attr, &value) == 0 && value == PTHREAD_CREATE_JOINABLE,
++          "getdetachstate joinable");
++
++    /* Changing the attributes afterwards doesn't affect a thread already created */
++    check(pthread_create(&thread, &attr, return_arg, (void *)4) == 0, "pthread_create");
++    check(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) == 0, "setdetachstate");
++    check(pthread_attr_destroy(&attr) == 0, "pthread_attr_destroy");
++    check(pthread_join(thread, &result) == 0 && result == (void *)4, "thread stayed joinable");
++
++    /* One attributes object used by simultaneous pthread_create calls */
++    check(pthread_attr_init(&shared_attr) == 0, "pthread_attr_init");
++    check(pthread_attr_setstacksize(&shared_attr, PTHREAD_STACK_MIN + 65536) == 0, "setstacksize");
++    for (int i = 0; i < 4; i++)
++        check(pthread_create(&threads[i], NULL, create_many, (void *)(intptr_t)(i + 1)) == 0,
++              "pthread_create");
++    for (int i = 0; i < 4; i++)
++        check(pthread_join(threads[i], &result) == 0 && result == NULL,
++              "simultaneous pthread_create with one attributes object");
++    check(pthread_attr_destroy(&shared_attr) == 0, "pthread_attr_destroy");
++
++    /* The policies SCHED_FIFO, SCHED_RR and SCHED_OTHER are supported */
++    check(pthread_attr_init(&attr) == 0, "pthread_attr_init");
++    check(pthread_attr_setschedpolicy(&attr, SCHED_FIFO) == 0, "setschedpolicy FIFO");
++    check(pthread_attr_getschedpolicy(&attr, &value) == 0 && value == SCHED_FIFO,
++          "getschedpolicy FIFO");
++    check(pthread_attr_setschedpolicy(&attr, SCHED_OTHER) == 0, "setschedpolicy OTHER");
++    check(pthread_attr_getschedpolicy(&attr, &value) == 0 && value == SCHED_OTHER,
++          "getschedpolicy OTHER");
++
++    /* With PTHREAD_INHERIT_SCHED the attribute's policy is ignored */
++    check(pthread_getschedparam(pthread_self(), &policy, &param) == 0, "pthread_getschedparam");
++    check(pthread_attr_setschedpolicy(&attr, policy == SCHED_FIFO ? SCHED_RR : SCHED_FIFO) == 0,
++          "setschedpolicy");
++    param.sched_priority = sched_get_priority_min(SCHED_FIFO);
++    check(pthread_attr_setschedparam(&attr, &param) == 0, "setschedparam");
++    check(pthread_attr_setinheritsched(&attr, PTHREAD_INHERIT_SCHED) == 0, "setinheritsched");
++    check(pthread_create(&thread, &attr, get_policy, NULL) == 0, "pthread_create inherit");
++    check(pthread_join(thread, &result) == 0, "pthread_join inherit");
++    check(result == (void *)(intptr_t)policy, "inherited policy, not the attribute's");
++
++    /*
++     * Explicit real-time scheduling: EPERM without the privilege to
++     * set it. Find out by trying on this thread, which a failed
++     * pthread_setschedparam or pthread_setschedprio leaves unchanged
++     */
++    {
++        struct sched_param rt = { .sched_priority = sched_get_priority_min(SCHED_FIFO) };
++        struct sched_param now, orig;
++        int                ret, now_policy;
++
++        check(pthread_getschedparam(pthread_self(), &policy, &orig) == 0, "pthread_getschedparam");
++        ret = pthread_setschedparam(pthread_self(), SCHED_FIFO, &rt);
++        check(ret == 0 || ret == EPERM, "pthread_setschedparam SCHED_FIFO");
++        check(pthread_getschedparam(pthread_self(), &now_policy, &now) == 0,
++              "pthread_getschedparam");
++        if (ret == 0) {
++            check(now_policy == SCHED_FIFO && now.sched_priority == rt.sched_priority,
++                  "pthread_setschedparam took effect");
++            check(pthread_setschedparam(pthread_self(), policy, &orig) == 0, "restore");
++        } else {
++            check(now_policy == policy && now.sched_priority == orig.sched_priority,
++                  "failed pthread_setschedparam changed the thread");
++        }
++        check(pthread_setschedprio(pthread_self(), 1000) != 0, "pthread_setschedprio 1000");
++        check(pthread_getschedparam(pthread_self(), &now_policy, &now) == 0 && now_policy == policy
++                  && now.sched_priority == orig.sched_priority,
++              "failed pthread_setschedprio changed the thread");
++
++        check(pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED) == 0, "setinheritsched");
++        check(pthread_attr_setschedpolicy(&attr, SCHED_FIFO) == 0, "setschedpolicy");
++        check(pthread_attr_setschedparam(&attr, &rt) == 0, "setschedparam");
++        result = NULL;
++        status = pthread_create(&thread, &attr, get_policy, NULL);
++        if (status == 0)
++            check(pthread_join(thread, &result) == 0, "pthread_join");
++        if (ret == 0)
++            check(status == 0 && result == (void *)(intptr_t)SCHED_FIFO,
++                  "explicit SCHED_FIFO with privilege");
++        else
++            check(status == EPERM, "explicit SCHED_FIFO without privilege is EPERM");
++    }
++    check(pthread_attr_destroy(&attr) == 0, "pthread_attr_destroy");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

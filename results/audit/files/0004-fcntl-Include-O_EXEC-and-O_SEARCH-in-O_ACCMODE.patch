@@ -1,0 +1,72 @@
+From fee0dab9889d667c9a41e8b7186f1af77d6ef01d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 19:47:24 +0000
+Subject: [PATCH 04/23] fcntl: Include O_EXEC and O_SEARCH in O_ACCMODE
+
+POSIX lists O_EXEC and O_SEARCH among the file access modes, which
+O_ACCMODE extracts from the F_GETFL result. Mask the other three
+modes explicitly where libos/linux passes them to the kernel.
+---
+ libc/include/sys/_default_fcntl.h    | 3 ++-
+ libos/linux/_open_flags_from_linux.c | 2 +-
+ libos/linux/_open_flags_to_linux.c   | 3 ++-
+ libos/linux/mq_open.c                | 2 +-
+ 4 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/libc/include/sys/_default_fcntl.h b/libc/include/sys/_default_fcntl.h
+index 18f97e93c7..37286fc8f7 100644
+--- a/libc/include/sys/_default_fcntl.h
++++ b/libc/include/sys/_default_fcntl.h
+@@ -43,7 +43,8 @@ typedef __pid_t pid_t; /* process id */
+ #define _FDIRECTORY 0x200000
+ #define _FEXECSRCH  0x400000
+ 
+-#define O_ACCMODE   (O_RDONLY | O_WRONLY | O_RDWR)
++/* O_EXEC and O_SEARCH are file access modes too */
++#define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR | _FEXECSRCH)
+ 
+ /*
+  * Flag values for open(2) and fcntl(2)
+diff --git a/libos/linux/_open_flags_from_linux.c b/libos/linux/_open_flags_from_linux.c
+index c249cc3555..cf9581f34c 100644
+--- a/libos/linux/_open_flags_from_linux.c
++++ b/libos/linux/_open_flags_from_linux.c
+@@ -39,7 +39,7 @@
+ int
+ _open_flags_from_linux(int kflags)
+ {
+-    int flags = kflags & O_ACCMODE;
++    int flags = kflags & (O_RDONLY | O_WRONLY | O_RDWR);
+ 
+     if (kflags & LINUX_O_APPEND)
+         flags |= O_APPEND;
+diff --git a/libos/linux/_open_flags_to_linux.c b/libos/linux/_open_flags_to_linux.c
+index bf291750e0..82d06c2f58 100644
+--- a/libos/linux/_open_flags_to_linux.c
++++ b/libos/linux/_open_flags_to_linux.c
+@@ -40,7 +40,8 @@ _open_flags_to_linux(int flags)
+ {
+     int kflags;
+ 
+-    kflags = flags & O_ACCMODE;
++    /* O_SEARCH is part of O_ACCMODE; it is mapped below */
++    kflags = flags & (O_RDONLY | O_WRONLY | O_RDWR);
+ #ifdef O_APPEND
+     if (flags & O_APPEND)
+         kflags |= LINUX_O_APPEND;
+diff --git a/libos/linux/mq_open.c b/libos/linux/mq_open.c
+index 78d6f1b0b7..c53f4e839d 100644
+--- a/libos/linux/mq_open.c
++++ b/libos/linux/mq_open.c
+@@ -42,7 +42,7 @@ mq_open(const char *name, int oflag, ...)
+ {
+     struct __kernel_mq_attr kattr, *pkattr = NULL;
+     const char             *kname = _mq_name(name);
+-    int                     kflags = oflag & O_ACCMODE;
++    int                     kflags = oflag & (O_RDONLY | O_WRONLY | O_RDWR);
+     int                     mode = 0;
+ 
+     if (!kname)
+-- 
+2.47.3
+
