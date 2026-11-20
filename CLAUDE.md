@@ -73,7 +73,7 @@ Ordering bugs are intermittent, so repeat the thread and synchronization tests
 in each build directory:
 
 ```sh
-tests=$(meson test --list | grep -iE 'pthread|sem|rwlock|barrier|spin|cancel|atfork|timer|aio|thread' | sed 's/^.*picolibc://')
+tests=$(meson test --list | grep -iE 'pthread|sem|rwlock|barrier|spin|cancel|atfork|timer|thread|mqueue|cpuclock|time64' | sed 's/^.*picolibc://')
 meson test -t 4 --no-rebuild --repeat 200 $tests > stress.log 2>&1
 grep -E '^(Ok|Fail|Timeout):' stress.log
 ```
@@ -82,10 +82,18 @@ A test that passes 199 times and fails once is a finding, not noise.
 
 ## Expected results from emulation
 
-- aarch64-linux-gnu: all pass (about 720 tests), 6 expected failures.
-- arm-linux-gnueabihf: all pass (about 720 tests), 6 expected failures.
+From a QEMU VM with a real Linux kernel, for the commit in `TEST-COMMIT`:
+
+- aarch64-linux-gnu: all pass (736 tests), 6 expected failures, 36 skipped.
+- arm-linux-gnueabihf: all pass (735 tests), 6 expected failures, 38 skipped.
+- test-mqueue's notification checks (mq_notify) run on a real kernel; they
+  print "mq_notify not supported here" and skip only under qemu-user.
 - libc-test's robust-mutex tests are skipped in their glibc `-native` form for
   cross builds, which includes these cross-file builds.
+
+Known: test-setrlimit fails if the session's hard RLIMIT_CORE is 0 (as under
+`sudo -i`); the fix isn't in this commit. Run in a session with an unlimited
+hard core limit (e.g. `chroot --userspec`), as for the previous round.
 
 Anything else that fails is new.
 
