@@ -34,13 +34,43 @@
  */
 
 #include "local-linux.h"
+#include <linux/linux-errno.h>
+#include <stdbool.h>
 #include <sys/socket.h>
+
+/* An AF_UNIX socket with neither a name nor a peer */
+static bool
+_unbound_local(int fd)
+{
+    struct sockaddr_storage ss;
+    int                     domain;
+    socklen_t               len = sizeof(domain);
+
+    if (_syscall_raw(LINUX_SYS_getsockopt, fd, SOL_SOCKET, SO_DOMAIN, &domain, &len) != 0
+        || domain != AF_UNIX)
+        return false;
+    len = sizeof(ss);
+    if (_syscall_raw(LINUX_SYS_getsockname, fd, &ss, &len) != 0 || len > sizeof(sa_family_t))
+        return false;
+    len = sizeof(ss);
+    return _syscall_raw(LINUX_SYS_getpeername, fd, &ss, &len) == -LINUX_ENOTCONN;
+}
 
 int
 listen(int fd, int backlog)
 {
+    long ret;
+
     /* Linux takes a negative backlog as the largest one */
     if (backlog < 0)
         backlog = 0;
-    return (int)_syscall(LINUX_SYS_listen, fd, backlog);
+    ret = _syscall_raw(LINUX_SYS_listen, fd, backlog);
+    if (ret == 0)
+        return 0;
+    /* Linux says EINVAL for an AF_UNIX socket without a name */
+    if (ret == -LINUX_EINVAL && _unbound_local(fd))
+        errno = EDESTADDRREQ;
+    else
+        errno = _syscall_errno(ret);
+    return -1;
 }
