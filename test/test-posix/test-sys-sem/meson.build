@@ -34,6 +34,9 @@
 #
 
 dir_tests = [
+  'test-semctl',
+  'test-semget',
   'test-semop',
+  'test-semop-block',
   'test-sys_sem_h',
 ]
