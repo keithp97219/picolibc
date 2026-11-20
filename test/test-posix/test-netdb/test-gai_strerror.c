@@ -120,6 +120,15 @@ main(void)
         for (j = 0; j < i; j++)
             check(strcmp(s, gai_strerror(errors[j])) != 0, "distinct messages");
     }
+
+    /* Anything else is an unknown error */
+    {
+        const char *s = gai_strerror(12345);
+
+        check(s != NULL && *s, "unknown error");
+        for (i = 0; i < sizeof(errors) / sizeof(errors[0]); i++)
+            check(strcmp(s, gai_strerror(errors[i])) != 0, "unknown error message");
+    }
     (void)make_socket;
     (void)tcp_pair;
     printf("success\n");
