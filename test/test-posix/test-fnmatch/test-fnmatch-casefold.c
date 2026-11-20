@@ -71,6 +71,19 @@ main(void)
     check(y("[B]", "b", FNM_CASEFOLD) && n("[B]", "c", FNM_CASEFOLD), "list");
     check(n("[!a]", "A", FNM_CASEFOLD) && y("[!a]", "B", FNM_CASEFOLD), "non-matching list");
     check(n("[[:upper:]]", "1", FNM_CASEFOLD), "class mismatch");
+
+    /*
+     * Character classes and ranges match the other case too: 'A' is
+     * in [[:upper:]] and [Z-a], so 'a' and 'z' are when ignoring
+     * case. (glibc doesn't fold the class or the range)
+     */
+    check(y("[[:upper:]]", "A", FNM_CASEFOLD) && y("[[:upper:]]", "a", FNM_CASEFOLD),
+          "upper class");
+    check(y("[[:lower:]]", "A", FNM_CASEFOLD) && y("[[:lower:]]", "a", FNM_CASEFOLD),
+          "lower class");
+    check(y("[Z-a]", "z", FNM_CASEFOLD) && y("[Z-a]", "A", FNM_CASEFOLD), "range of both cases");
+    check(y("[Z-a]", "_", FNM_CASEFOLD) && n("[Z-a]", "b", FNM_CASEFOLD), "range between cases");
+    check(n("[![:upper:]]", "a", FNM_CASEFOLD), "non-matching class");
     printf("success\n");
     return 0;
 }
