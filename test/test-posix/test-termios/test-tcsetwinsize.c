@@ -40,18 +40,25 @@
 /* Without the system support this test needs, it is skipped */
 #if !defined(__PICOLIBC__)                                                                  \
     || ((defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && __PICOLIBC_POSIX_DEVICE_SPECIFIC > 0) \
-        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0))
+        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0)                    \
+        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)  \
+        && (defined(__PICOLIBC_POSIX_SIGNALS) && __PICOLIBC_POSIX_SIGNALS > 0))
 
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
-/* tcsetwinsize sets the size tcgetwinsize reports */
+/*
+ * tcsetwinsize sets the size tcgetwinsize reports, and a change sends
+ * SIGWINCH to the foreground process group
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -81,6 +88,52 @@ open_pty(int *subsidiary, int flags)
     return manager;
 }
 
+#ifdef __PICOLIBC__
+/* Whether a blocked signal is pending; it is taken if it is */
+static int
+pending(int sig)
+{
+    sigset_t        set;
+    struct timespec ts = { 0 };
+
+    sigemptyset(&set);
+    sigaddset(&set, sig);
+    return sigtimedwait(&set, NULL, &ts) == sig;
+}
+
+/*
+ * In a new session with the pseudo-terminal as its controlling terminal,
+ * so this process is in the foreground process group
+ */
+static int
+session(const char *name)
+{
+    struct winsize ws, got;
+    sigset_t       set;
+    int            fd;
+
+    if (setsid() == (pid_t)-1)
+        return 77;
+    fd = open(name, O_RDWR);
+    if (fd < 0 || tcgetsid(fd) != getpid())
+        return 77;
+    sigemptyset(&set);
+    sigaddset(&set, SIGWINCH);
+    check(sigprocmask(SIG_BLOCK, &set, NULL) == 0, "block SIGWINCH");
+
+    check(tcgetwinsize(fd, &ws) == 0, "tcgetwinsize");
+    ws.ws_row = (unsigned short)(ws.ws_row == 33 ? 34 : 33);
+    check(tcsetwinsize(fd, &ws) == 0, "change the size");
+    check(pending(SIGWINCH), "a change sends SIGWINCH");
+    check(tcsetwinsize(fd, &ws) == 0, "the same size again");
+    check(!pending(SIGWINCH), "no SIGWINCH for the same size");
+    check(tcgetwinsize(fd, &got) == 0 && got.ws_row == ws.ws_row && got.ws_col == ws.ws_col,
+          "size set");
+    check(close(fd) == 0, "close");
+    return 0;
+}
+#endif
+
 int
 main(void)
 {
@@ -105,7 +158,31 @@ main(void)
     check(tcgetwinsize(fds[0], &got) == -1 && errno == ENOTTY, "tcgetwinsize ENOTTY");
     check(tcsetwinsize(fds[0], &ws) == -1 && errno == ENOTTY, "tcsetwinsize ENOTTY");
     check(tcgetwinsize(-1, &got) == -1 && errno == EBADF, "EBADF");
+    check(tcsetwinsize(-1, &ws) == -1 && errno == EBADF, "tcsetwinsize EBADF");
     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close pipe");
+    /* SIGWINCH, checked in a child that makes the terminal its controlling terminal */
+    {
+        char *name = ptsname(manager);
+        pid_t pid;
+        int   status;
+
+        check(name != NULL, "ptsname");
+        fflush(stdout);
+        pid = fork();
+        check(pid >= 0, "fork");
+        if (pid == 0) {
+            int ret = session(name);
+
+            fflush(stdout);
+            _exit(ret);
+        }
+        check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "child");
+        if (WEXITSTATUS(status) == 77)
+            printf("no controlling terminal, SIGWINCH not checked\n");
+        else
+            check(WEXITSTATUS(status) == 0, "SIGWINCH checks");
+    }
+
     check(close(subsidiary) == 0 && close(manager) == 0, "close");
     printf("success\n");
     return 0;
