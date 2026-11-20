@@ -10,23 +10,30 @@
  */
 
 #include "local.h"
+#include <limits.h>
+
+/* Days from 1970-01-01 to January 1 of year, for any year */
+static time_t
+days_to_year(int year)
+{
+    time_t y = (time_t)year - 1;
+    time_t d4 = (y >= 0 ? y : y - 3) / 4;
+    time_t d100 = (y >= 0 ? y : y - 99) / 100;
+    time_t d400 = (y >= 0 ? y : y - 399) / 400;
+
+    /* 719162 is the number of days from 0001-01-01 to 1970-01-01 */
+    return y * 365 + d4 - d100 + d400 - 719162;
+}
 
 int
 __tzcalc_limits(int year)
 {
-    int days, year_days, years;
-    int i, j;
-
-    if (year < EPOCH_YEAR)
-        return 0;
+    time_t days, year_days;
+    int    i, j;
 
     __tzinfo.year = year;
 
-    years = (year - EPOCH_YEAR);
-
-    year_days = years * 365 + (years - 1 + EPOCH_YEARS_SINCE_LEAP) / 4
-        - (years - 1 + EPOCH_YEARS_SINCE_CENTURY) / 100
-        + (years - 1 + EPOCH_YEARS_SINCE_LEAP_CENTURY) / 400;
+    year_days = days_to_year(year);
 
     for (i = 0; i < 2; ++i) {
         if (__tzinfo.rule[i].ch == 'J') {
@@ -46,7 +53,9 @@ __tzcalc_limits(int year)
             for (j = 1; j < __tzinfo.rule[i].m; ++j)
                 days += ip[j - 1];
 
-            m_wday = (EPOCH_WDAY + days) % DAYSPERWEEK;
+            m_wday = (int)((EPOCH_WDAY + days) % DAYSPERWEEK);
+            if (m_wday < 0)
+                m_wday += DAYSPERWEEK;
 
             wday_diff = __tzinfo.rule[i].d - m_wday;
             if (wday_diff < 0)
@@ -60,11 +69,46 @@ __tzcalc_limits(int year)
         }
 
         /* store the change-over time in GMT form by adding offset */
-        __tzinfo.rule[i].change
-            = (time_t)days * SECSPERDAY + __tzinfo.rule[i].s + __tzinfo.rule[i].offset;
+        __tzinfo.rule[i].change = days * SECSPERDAY + __tzinfo.rule[i].s + __tzinfo.rule[i].offset;
     }
 
     __tzinfo.north = (__tzinfo.rule[0].change < __tzinfo.rule[1].change);
 
     return 1;
+}
+
+/*
+ * Whether daylight saving time is in effect at t, whose UTC date is
+ * day yday of year. A rule's transitions can fall in the next or the
+ * previous year (EST5EDT,0/0,J365/25 ends DST on January 1), so near
+ * the ends of the year the neighbouring years' rules are checked too.
+ * Call with the lock held.
+ */
+int
+__tz_isdst(time_t t, int year, int yday)
+{
+    int north, k;
+
+    if (year != __tzinfo.year)
+        __tzcalc_limits(year);
+    north = __tzinfo.north;
+    for (k = 0; k < 3; k++) {
+        if (k == 1) {
+            if (yday > 7 || year == INT_MIN)
+                continue;
+            __tzcalc_limits(year - 1);
+        } else if (k == 2) {
+            if (yday < 357 || year == INT_MAX)
+                continue;
+            __tzcalc_limits(year + 1);
+        }
+        if (__tzinfo.north) {
+            if (t >= __tzinfo.rule[0].change && t < __tzinfo.rule[1].change)
+                return 1;
+        } else {
+            if (t >= __tzinfo.rule[1].change && t < __tzinfo.rule[0].change)
+                return 0;
+        }
+    }
+    return !north;
 }
