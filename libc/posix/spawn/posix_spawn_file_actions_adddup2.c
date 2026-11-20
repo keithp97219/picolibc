@@ -40,7 +40,7 @@ posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t *fa, int fd, int new
 {
     struct __spawn_action act = { .kind = __SPAWN_DUP2, .fd = fd, .newfd = newfd };
 
-    if (fd < 0 || newfd < 0)
+    if (!__spawn_fd_valid(fd) || !__spawn_fd_valid(newfd))
         return EBADF;
     return __spawn_add_action(fa, &act);
 }

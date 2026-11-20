@@ -42,6 +42,7 @@
 #include <sched.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 struct __posix_spawnattr {
     short              flags;
@@ -74,6 +75,15 @@ struct __posix_spawn_file_actions {
     size_t                 size;
     struct __spawn_action *actions;
 };
+
+/* Whether 'fd' is in the range of descriptors a process may have open */
+static inline int
+__spawn_fd_valid(int fd)
+{
+    long max = sysconf(_SC_OPEN_MAX);
+
+    return fd >= 0 && (max < 0 || fd < max);
+}
 
 /* Appends an action, copying 'path'; returns 0 or an error number */
 int __spawn_add_action(posix_spawn_file_actions_t *fa, const struct __spawn_action *action);

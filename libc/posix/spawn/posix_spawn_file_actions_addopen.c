@@ -43,7 +43,7 @@ posix_spawn_file_actions_addopen(posix_spawn_file_actions_t * __restrict fa, int
     struct __spawn_action act
         = { .kind = __SPAWN_OPEN, .fd = fd, .oflag = oflag, .mode = mode, .path = (char *)path };
 
-    if (fd < 0)
+    if (!__spawn_fd_valid(fd))
         return EBADF;
     return __spawn_add_action(fa, &act);
 }
