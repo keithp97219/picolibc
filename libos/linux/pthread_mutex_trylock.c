@@ -47,7 +47,7 @@ pthread_mutex_trylock(pthread_mutex_t *mutex)
     int               tid = 0;
     int               ret;
 
-    if (mutex->__type != PTHREAD_MUTEX_NORMAL || protocol != PTHREAD_PRIO_NONE) {
+    if (mutex->__type != PTHREAD_MUTEX_NORMAL || protocol != PTHREAD_PRIO_NONE || mutex->__robust) {
         self = _pthread_self();
         tid = self->tid;
     }
@@ -60,6 +60,12 @@ pthread_mutex_trylock(pthread_mutex_t *mutex)
         ret = _pthread_tpp_raise(self, ceiling);
         if (ret)
             return ret;
+    }
+    if (mutex->__robust) {
+        ret = _pthread_robust_lock(mutex, self, CLOCK_REALTIME, NULL, true);
+        if (ret && ret != EOWNERDEAD && protocol == PTHREAD_PRIO_PROTECT)
+            _pthread_tpp_lower(self, ceiling);
+        return ret;
     }
     if (!__atomic_compare_exchange_n(&mutex->__state, &state,
                                      protocol == PTHREAD_PRIO_INHERIT ? (unsigned int)tid : 1,

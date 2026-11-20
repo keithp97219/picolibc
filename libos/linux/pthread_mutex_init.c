@@ -35,11 +35,15 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+#include <errno.h>
 #include <limits.h>
 
 int
 pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t * __restrict attr)
 {
+    /* A robust mutex the system can't support would only hang */
+    if (attr && attr->__robust == PTHREAD_MUTEX_ROBUST && !_pthread_robust_available())
+        return ENOTSUP;
     mutex->__state = 0;
     mutex->__type = attr ? attr->__type : PTHREAD_MUTEX_DEFAULT;
     mutex->__pshared = attr ? attr->__pshared : PTHREAD_PROCESS_PRIVATE;
@@ -47,5 +51,9 @@ pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t
     mutex->__prioceiling = attr ? attr->__prioceiling : LINUX_PRIO_RT_MIN;
     mutex->__owner = 0;
     mutex->__count = 0;
+    mutex->__robust = attr ? attr->__robust : PTHREAD_MUTEX_STALLED;
+    mutex->__robust_state = _PTHREAD_ROBUST_CONSISTENT;
+    mutex->__robust_next = NULL;
+    mutex->__robust_prev = NULL;
     return 0;
 }

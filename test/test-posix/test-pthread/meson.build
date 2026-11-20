@@ -47,6 +47,7 @@ dir_thread_tests = [
   'test-pthread_exit',
   'test-pthread_getcpuclockid',
   'test-pthread_key_create',
+  'test-pthread_mutex_consistent',
   'test-pthread_mutex_timedlock',
   'test-pthread_mutexattr_setprotocol',
   'test-pthread_once',
@@ -55,3 +56,9 @@ dir_thread_tests = [
   'test-pthread_sigmask',
   'test-pthread_spin_lock',
 ]
+
+# QEMU's user-mode emulation has no robust lists, and glibc's robust
+# mutexes then wait forever for an owner that has died
+if host_cpu_family not in ['x86', 'x86_64']
+  test_skip_native += ['test-pthread_mutex_consistent']
+endif

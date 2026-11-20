@@ -56,6 +56,9 @@
 #define LINUX_FUTEX_UNLOCK_PI        7
 #define LINUX_FUTEX_LOCK_PI2         13
 #define LINUX_FUTEX_TID_MASK         0x3fffffffU
+#define LINUX_FUTEX_OWNER_DIED       0x40000000U
+#define LINUX_FUTEX_WAITERS          0x80000000U
+#define LINUX_FUTEX_TRYLOCK_PI       8
 
 /*
  * Use the 64-bit time futex call where the kernel has one, so that
@@ -139,6 +142,17 @@ struct __pthread {
     pthread_mutex_t           *cancel_mutex; /* relocked when a condition wait is cancelled */
     unsigned int               cancel_mutex_count;
     struct __pthread_specific *specific;
+
+    /*
+     * The robust mutexes held, which the kernel marks if the thread
+     * dies holding them; laid out as the kernel's robust_list_head
+     */
+    struct {
+        void *list;
+        long  futex_offset;
+        void *list_op_pending;
+    } robust;
+    bool robust_registered;
 };
 
 extern __thread struct __pthread *_pthread_current;
@@ -181,11 +195,28 @@ _pthread_mutex_pshared(pthread_mutex_t *mutex)
     return mutex->__pshared == PTHREAD_PROCESS_SHARED;
 }
 
+/* Robust mutex states */
+#define _PTHREAD_ROBUST_CONSISTENT     0
+#define _PTHREAD_ROBUST_INCONSISTENT   1
+#define _PTHREAD_ROBUST_NOTRECOVERABLE 2
+
+/*
+ * Robust mutexes keep the owner's thread id in the futex word, as
+ * priority inheritance ones do, so the kernel can mark them when the
+ * owner dies. Locking returns 0, EOWNERDEAD, ENOTRECOVERABLE or an
+ * error; unlocking assumes the caller owns the mutex.
+ */
+int  _pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t clock,
+                          const struct timespec *abstime, bool trylock);
+void _pthread_robust_unlock(pthread_mutex_t *mutex, struct __pthread *self);
+void _pthread_robust_reset(struct __pthread *self);
+bool _pthread_robust_available(void);
+
 static inline int
 _pthread_mutex_owner(pthread_mutex_t *mutex)
 {
-    /* Priority inheritance mutexes hold the owner in the futex word */
-    if (mutex->__protocol == PTHREAD_PRIO_INHERIT)
+    /* Priority inheritance and robust mutexes hold the owner in the futex word */
+    if (mutex->__protocol == PTHREAD_PRIO_INHERIT || mutex->__robust)
         return (int)(__atomic_load_n(&mutex->__state, __ATOMIC_RELAXED) & LINUX_FUTEX_TID_MASK);
     return __atomic_load_n(&mutex->__owner, __ATOMIC_RELAXED);
 }

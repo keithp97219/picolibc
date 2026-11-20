@@ -43,20 +43,23 @@ _pthread_mutex_unlock_ceiling(pthread_mutex_t *mutex, int ceiling)
     int               protocol = mutex->__protocol;
     bool              pshared = _pthread_mutex_pshared(mutex);
 
-    if (mutex->__type != PTHREAD_MUTEX_NORMAL || protocol != PTHREAD_PRIO_NONE)
+    if (mutex->__type != PTHREAD_MUTEX_NORMAL || protocol != PTHREAD_PRIO_NONE || mutex->__robust)
         self = _pthread_self();
-    if (mutex->__type != PTHREAD_MUTEX_NORMAL) {
+    /* Robust mutexes report unlocking by a thread that doesn't own them, whatever the type */
+    if (mutex->__type != PTHREAD_MUTEX_NORMAL || mutex->__robust) {
         if (_pthread_mutex_owner(mutex) != self->tid)
             return EPERM;
         if (mutex->__count) {
             mutex->__count--;
             return 0;
         }
-        if (protocol != PTHREAD_PRIO_INHERIT)
+        if (protocol != PTHREAD_PRIO_INHERIT && !mutex->__robust)
             __atomic_store_n(&mutex->__owner, 0, __ATOMIC_RELAXED);
     }
 
-    if (protocol == PTHREAD_PRIO_INHERIT) {
+    if (mutex->__robust) {
+        _pthread_robust_unlock(mutex, self);
+    } else if (protocol == PTHREAD_PRIO_INHERIT) {
         unsigned int state = (unsigned int)self->tid;
 
         /* With waiters the kernel hands the lock to the highest priority one */

@@ -88,7 +88,7 @@ _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock, const struct 
     int               tid = 0;
     int               ret;
 
-    if (mutex->__type != PTHREAD_MUTEX_NORMAL || protocol != PTHREAD_PRIO_NONE) {
+    if (mutex->__type != PTHREAD_MUTEX_NORMAL || protocol != PTHREAD_PRIO_NONE || mutex->__robust) {
         self = _pthread_self();
         tid = self->tid;
     }
@@ -102,6 +102,16 @@ _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock, const struct 
         ret = _pthread_tpp_raise(self, ceiling);
         if (ret)
             return ret;
+    }
+
+    if (mutex->__robust) {
+        ret = _pthread_robust_lock(mutex, self, clock, abstime, false);
+        /* As below, relocking a normal mutex must deadlock */
+        if (ret == EDEADLK && mutex->__type == PTHREAD_MUTEX_NORMAL)
+            ret = deadlock(clock, abstime);
+        if (ret && ret != EOWNERDEAD && protocol == PTHREAD_PRIO_PROTECT)
+            _pthread_tpp_lower(self, ceiling);
+        return ret;
     }
 
     if (protocol == PTHREAD_PRIO_INHERIT) {
