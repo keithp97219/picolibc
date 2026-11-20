@@ -473,9 +473,10 @@ if fs.is_dir(machine_dir)
 
   linux_inc = include_directories(machine_dir, 'include')
 
-  # The POSIX options and option groups this OS layer provides
+  # The POSIX options and option groups this OS layer provides, and
+  # its signal stack sizes
   if really_install
-    install_headers('include/sys/_posix.h',
+    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h'],
                     install_dir: include_dir / 'sys')
     # The socket ABI for picolibc's networking headers
     if network == 'linux'

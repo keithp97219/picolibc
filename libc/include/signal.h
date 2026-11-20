@@ -175,9 +175,14 @@ struct sigevent {
 #if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 200809
 
 /*
- * Minimum and default signal stack constants. Allow for target overrides
- * from <sys/features.h>.
+ * Minimum and default signal stack constants. Allow for overrides from
+ * the OS in <sys/_signal.h>.
  */
+#if defined(__has_include)
+#if __has_include(<sys/_signal.h>)
+#include <sys/_signal.h>
+#endif
+#endif
 #ifndef MINSIGSTKSZ
 #define MINSIGSTKSZ 2048
 #endif
