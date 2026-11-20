@@ -57,6 +57,7 @@ posix_dirs = [
   'stdio',
   'stdlib',
   'sys-wait',
+  'syslog',
   'unistd',
   'wordexp',
 ]
