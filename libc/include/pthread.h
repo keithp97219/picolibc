@@ -97,6 +97,9 @@ _BEGIN_STD_C
 #define PTHREAD_CANCEL_ASYNCHRONOUS 1
 #define PTHREAD_CANCELED            ((void *)-1)
 
+/* A pthread_t value which is never the thread ID of a thread */
+#define PTHREAD_NULL ((pthread_t)0)
+
 /* Cleanup handlers live on the stack of the function using them */
 struct __pthread_cleanup {
     void                      (*__routine)(void *);
