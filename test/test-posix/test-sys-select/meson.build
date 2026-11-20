@@ -36,4 +36,5 @@
 dir_tests = [
   'test-pselect',
   'test-select',
+  'test-sys_select_h',
 ]

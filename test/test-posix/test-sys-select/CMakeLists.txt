@@ -36,6 +36,7 @@
 set(tests
   test-pselect
   test-select
+  test-sys_select_h
   )
 
 foreach(test IN LISTS tests)
