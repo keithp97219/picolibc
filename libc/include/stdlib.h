@@ -189,7 +189,13 @@ extern __picolibc_export char *suboptarg; /* getsubopt(3) external variable */
 int                            getsubopt(char **, char                            *const *, char **) __picolibc_export;
 #endif
 #if __XSI_VISIBLE >= 500
-int grantpt(int fd) __picolibc_export;
+int   grantpt(int fd) __picolibc_export;
+int   posix_openpt(int flags) __picolibc_export;
+char *ptsname(int fd) __picolibc_export;
+int   unlockpt(int fd) __picolibc_export;
+#endif
+#if __XSI_VISIBLE >= 800 || __GNU_VISIBLE
+int ptsname_r(int fd, char *buf, size_t buflen) __picolibc_export;
 #endif
 #if __SVID_VISIBLE || __XSI_VISIBLE >= 4 || __BSD_VISIBLE
 char *initstate(unsigned, char *, size_t) __picolibc_export;
