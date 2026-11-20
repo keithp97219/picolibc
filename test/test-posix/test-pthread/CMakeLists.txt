@@ -50,6 +50,7 @@ set(tests
   test-pthread_mutex_timedlock
   test-pthread_mutexattr_setprotocol
   test-pthread_once
+  test-pthread_rwlock_rdlock
   test-pthread_rwlock_timedwrlock
   test-pthread_setschedparam
   test-pthread_sigmask
