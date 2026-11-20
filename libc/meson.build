@@ -41,6 +41,10 @@ if use_stdlib
   libdirs += ['native']
 endif
 
+if posix_threads
+  libdirs += ['threads']
+endif
+
 libnames = libdirs
 
 inc_sys_headers_machine = []

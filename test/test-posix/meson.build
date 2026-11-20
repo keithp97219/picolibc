@@ -66,6 +66,7 @@ posix_test_dirs = [
   'test-sys-utsname',
   'test-sys-wait',
   'test-termios',
+  'test-threads',
   'test-time',
   'test-unistd',
   'test-wchar',
