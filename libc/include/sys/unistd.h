@@ -654,6 +654,19 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define _POSIX2_C_BIND 202405L
 #endif
 
+/* Options picolibc builds on what the system provides */
+#if defined(__PICOLIBC_PTHREADS) && !defined(_POSIX_ASYNCHRONOUS_IO)
+/* Asynchronous I/O runs each request in a thread */
+#define _POSIX_ASYNCHRONOUS_IO 202405L
+#endif
+#if defined(_POSIX_THREADS) && !defined(__SINGLE_THREAD) && !defined(_POSIX_THREAD_SAFE_FUNCTIONS)
+#define _POSIX_THREAD_SAFE_FUNCTIONS 202405L
+#endif
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && !defined(_POSIX_SPAWN)
+/* posix_spawn uses fork and exec */
+#define _POSIX_SPAWN 202405L
+#endif
+
 /*
  * _POSIX_VERSION is the newest edition whose required options and
  * option groups are all present. Platforms that set it themselves keep
