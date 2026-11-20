@@ -184,7 +184,16 @@ sigaction(int sig, const struct sigaction *act, struct sigaction *oldact)
 #endif
         }
         if (oldact) {
-            oldact->sa_handler = oldfunc.sa_handler;
+            /*
+             * The kernel knows when the disposition is SIG_DFL or
+             * SIG_IGN: after SA_RESETHAND, or as inherited across exec
+             */
+            if (koldact.sa_handler == LINUX_SIG_DFL)
+                oldact->sa_handler = SIG_DFL;
+            else if (koldact.sa_handler == LINUX_SIG_IGN)
+                oldact->sa_handler = SIG_IGN;
+            else
+                oldact->sa_handler = oldfunc.sa_handler;
             _sigmask_from_linux(&oldact->sa_mask, &koldact.sa_mask);
 
             oldact->sa_flags = 0;
