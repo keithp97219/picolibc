@@ -33,15 +33,21 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
+#include "local-uio.h"
 #include "local-cancel.h"
-#include <sys/uio.h>
 
 ssize_t
 writev(int fd, const struct iovec *iov, int iovcnt)
 {
-    void *cancel = _cancel_enter();
-    long  ret = _syscall(LINUX_SYS_writev, fd, iov, iovcnt);
+    void *cancel;
+    long  ret;
+
+    cancel = _cancel_enter();
+    if (iovcnt > 0 && iovcnt <= IOV_MAX && !_iov_total_fits(iov, iovcnt)) {
+        _cancel_leave(cancel);
+        return -1;
+    }
+    ret = _syscall(LINUX_SYS_writev, fd, iov, iovcnt);
 
     _cancel_leave(cancel);
     return (ssize_t)ret;
