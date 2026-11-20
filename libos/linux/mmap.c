@@ -49,6 +49,11 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
     if (prot & PROT_EXEC)
         linux_prot |= LINUX_PROT_EXEC;
 
+    /* Exactly one of MAP_SHARED and MAP_PRIVATE; Linux reads both as MAP_SHARED_VALIDATE */
+    if ((flags & (MAP_SHARED | MAP_PRIVATE)) == (MAP_SHARED | MAP_PRIVATE)) {
+        errno = EINVAL;
+        return MAP_FAILED;
+    }
     if (flags & MAP_SHARED)
         linux_flags |= LINUX_MAP_SHARED;
     if (flags & MAP_PRIVATE)
@@ -62,9 +67,10 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
     /*
      * 32-bit ARM and i686: the mmap2 syscall takes the file offset in
      * units of pages (4096 bytes) rather than bytes.  POSIX requires
-     * that offset be a multiple of the page size; return EINVAL if not.
+     * that offset be a multiple of the page size; return EINVAL if not,
+     * or if the page number doesn't fit in the syscall's unsigned long.
      */
-    if (offset & 0xfff) {
+    if ((offset & 0xfff) || (offset >> 12) != (off_t)(unsigned long)(offset >> 12)) {
         errno = EINVAL;
         return MAP_FAILED;
     }
