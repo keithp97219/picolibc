@@ -39,6 +39,7 @@ set(tests
   test-psiginfo
   test-rtsig
   test-si_code
+  test-sig2str
   test-sigaction
   test-sigaltstack
   test-signal
