@@ -35,6 +35,7 @@
 
 dir_tests = [
   'test-msgrcv',
+  'test-sys_msg_h',
 ]
 
 # QEMU's user-mode emulation of 32-bit ARM misplaces the IPC_STAT

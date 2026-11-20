@@ -35,6 +35,7 @@
 
 set(tests
   test-shmat
+  test-sys_shm_h
   )
 
 foreach(test IN LISTS tests)

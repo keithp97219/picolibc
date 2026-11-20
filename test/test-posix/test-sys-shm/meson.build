@@ -35,4 +35,5 @@
 
 dir_tests = [
   'test-shmat',
+  'test-sys_shm_h',
 ]

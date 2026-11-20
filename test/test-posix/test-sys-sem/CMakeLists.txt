@@ -35,6 +35,7 @@
 
 set(tests
   test-semop
+  test-sys_sem_h
   )
 
 foreach(test IN LISTS tests)

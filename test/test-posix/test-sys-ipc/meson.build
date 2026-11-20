@@ -35,4 +35,5 @@
 
 dir_tests = [
   'test-ftok',
+  'test-sys_ipc_h',
 ]

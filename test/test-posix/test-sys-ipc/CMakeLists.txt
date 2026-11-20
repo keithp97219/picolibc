@@ -35,6 +35,7 @@
 
 set(tests
   test-ftok
+  test-sys_ipc_h
   )
 
 foreach(test IN LISTS tests)

@@ -35,4 +35,5 @@
 
 dir_tests = [
   'test-semop',
+  'test-sys_sem_h',
 ]

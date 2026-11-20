@@ -35,6 +35,7 @@
 
 set(tests
   test-msgrcv
+  test-sys_msg_h
   )
 
 foreach(test IN LISTS tests)
