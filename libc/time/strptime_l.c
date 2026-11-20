@@ -41,7 +41,9 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <stdbool.h>
 #include "locale_private.h"
+#include "local.h"
 
 static const int _DAYS_BEFORE_MONTH[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
 
@@ -54,6 +56,10 @@ static const int _DAYS_BEFORE_MONTH[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 2
 #define SET_WEEK_MON  (1 << 6)
 #define SET_WEEK_MON4 (1 << 7)
 #define SET_AMPM      (1 << 8)
+#define SET_HOUR      (1 << 9)
+#define SET_MIN       (1 << 10)
+#define SET_SEC       (1 << 11)
+#define SET_ISDST     (1 << 12)
 #define SET_YMD       (SET_YEAR | SET_MON | SET_MDAY)
 #define SET_WEEK      (SET_WEEK_SUN | SET_WEEK_MON | SET_WEEK_MON4)
 
@@ -154,170 +160,221 @@ set_week_number_mon4(struct tm *timeptr, int wnum)
     }
 }
 
+/* Parsing state shared by the recursive calls for %c, %D and so on */
+struct strptime_state {
+    int ymd;
+    int wnum;
+    int ampm;
+    int century; /* from %C, or INT_MIN */
+    int yy;      /* from %y, or -1 */
+};
+
+/*
+ * Convert a decimal number of at most width bytes (the sign, when
+ * allowed, counts) and check that it's within [min, max]. Leading
+ * white space is skipped.
+ */
+static const char *
+get_number(const char *buf, int width, bool sign, int min, int max, int *val, locale_t locale)
+{
+    const char *start;
+    long long   v = 0;
+    bool        neg = false;
+
+    while (isspace_l((unsigned char)*buf, locale))
+        ++buf;
+    start = buf;
+    if (sign && (*buf == '+' || *buf == '-')) {
+        neg = *buf == '-';
+        ++buf;
+    }
+    if (!isdigit_l((unsigned char)*buf, locale))
+        return NULL;
+    while (isdigit_l((unsigned char)*buf, locale) && buf - start < width) {
+        v = v * 10 + (*buf++ - '0');
+        if (v > (long long)INT_MAX + 1)
+            return NULL;
+    }
+    if (neg)
+        v = -v;
+    if (v < min || v > max)
+        return NULL;
+    *val = (int)v;
+    return buf;
+}
+
+/* Match either the full or the abbreviated name */
+static int
+match_name(const char * __restrict *buf, const char * const *full, const char * const *abbr,
+           int nstrs, locale_t locale)
+{
+    int ret = match_string(buf, full, nstrs, locale);
+
+    if (ret < 0)
+        ret = match_string(buf, abbr, nstrs, locale);
+    return ret;
+}
+
+#define NUMBER(w, sign, min, max)                                                 \
+    do {                                                                          \
+        buf = get_number(buf, width ? width : (w), sign, min, max, &ret, locale); \
+        if (buf == NULL)                                                          \
+            return NULL;                                                          \
+    } while (0)
+
 static char *
-__strptime(const char *buf, const char *format, struct tm *timeptr, locale_t locale)
+__strptime(const char *buf, const char *format, struct tm *timeptr, locale_t locale,
+           struct strptime_state *st)
 {
     char c;
-    int  ymd = 0;
-    int  wnum = 0;
-    int  ampm = 0;
 
     for (; (c = *format) != '\0'; ++format) {
         char *s;
         int   ret;
+        int   width = 0;
 
         if (isspace_l((unsigned char)c, locale)) {
             while (isspace_l((unsigned char)*buf, locale))
                 ++buf;
         } else if (c == '%' && format[1] != '\0') {
             c = *++format;
+            /* The 0 and + flags are ignored */
+            if (c == '0' || c == '+')
+                c = *++format;
+            /* A field width limits the bytes converted */
+            while (c >= '0' && c <= '9') {
+                if (width < 10000)
+                    width = width * 10 + (c - '0');
+                c = *++format;
+            }
             if (c == 'E' || c == 'O')
                 c = *++format;
             switch (c) {
             case 'A':
-                ret = match_string(&buf, TIME_WEEKDAY, TIME_WEEKDAY_NUM, locale);
-                if (ret < 0)
-                    return NULL;
-                timeptr->tm_wday = ret;
-                ymd |= SET_WDAY;
-                break;
             case 'a':
-                ret = match_string(&buf, TIME_WDAY, TIME_WDAY_NUM, locale);
+                ret = match_name(&buf, TIME_WEEKDAY, TIME_WDAY, TIME_WDAY_NUM, locale);
                 if (ret < 0)
                     return NULL;
                 timeptr->tm_wday = ret;
-                ymd |= SET_WDAY;
+                st->ymd |= SET_WDAY;
                 break;
             case 'B':
-                ret = match_string(&buf, TIME_MONTH, TIME_MONTH_NUM, locale);
-                if (ret < 0)
-                    return NULL;
-                timeptr->tm_mon = ret;
-                ymd |= SET_MON;
-                break;
             case 'b':
             case 'h':
-                ret = match_string(&buf, TIME_MON, TIME_MON_NUM, locale);
+                ret = match_name(&buf, TIME_MONTH, TIME_MON, TIME_MON_NUM, locale);
                 if (ret < 0)
                     return NULL;
                 timeptr->tm_mon = ret;
-                ymd |= SET_MON;
+                st->ymd |= SET_MON;
                 break;
             case 'C':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                timeptr->tm_year = (ret * 100) - TM_YEAR_BASE;
-                buf = s;
-                ymd |= SET_YEAR;
+                NUMBER(2, true, INT_MIN / 100, INT_MAX / 100);
+                st->century = ret;
+                st->ymd |= SET_YEAR;
                 break;
             case 'c': /* %a %b %e %H:%M:%S %Y */
-                s = __strptime(buf, TIME_C_FMT, timeptr, locale);
+                s = __strptime(buf, TIME_C_FMT, timeptr, locale, st);
                 if (s == NULL)
                     return NULL;
                 buf = s;
-                ymd |= SET_WDAY | SET_YMD;
                 break;
             case 'D': /* %m/%d/%y */
-                s = __strptime(buf, "%m/%d/%y", timeptr, locale);
+                s = __strptime(buf, "%m/%d/%y", timeptr, locale, st);
                 if (s == NULL)
                     return NULL;
                 buf = s;
-                ymd |= SET_YMD;
                 break;
             case 'd':
             case 'e':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
+                NUMBER(2, false, 1, 31);
+                timeptr->tm_mday = ret;
+                st->ymd |= SET_MDAY;
+                break;
+            case 'F': {
+                /* %Y-%m-%d, with any year width, all within the field width */
+                const char *end = width ? buf + width : NULL;
+                int         left;
+
+#define LEFT(w) (end ? ((left = (int)(end - buf)) < (w) ? left : (w)) : (w))
+                buf = get_number(buf, LEFT(INT_MAX), true, INT_MIN + TM_YEAR_BASE, INT_MAX, &ret,
+                                 locale);
+                if (buf == NULL || (end && buf >= end) || *buf != '-')
                     return NULL;
-                if (ret < 1 || 31 < ret)
+                timeptr->tm_year = ret - TM_YEAR_BASE;
+                ++buf;
+                buf = get_number(buf, LEFT(2), false, 1, 12, &ret, locale);
+                if (buf == NULL || (end && buf >= end) || *buf != '-')
+                    return NULL;
+                timeptr->tm_mon = ret - 1;
+                ++buf;
+                buf = get_number(buf, LEFT(2), false, 1, 31, &ret, locale);
+                if (buf == NULL)
                     return NULL;
                 timeptr->tm_mday = ret;
-                buf = s;
-                ymd |= SET_MDAY;
+#undef LEFT
+                st->century = INT_MIN;
+                st->yy = -1;
+                st->ymd |= SET_YMD;
                 break;
-            case 'F': /* %Y-%m-%d - GNU extension */
-                s = __strptime(buf, "%Y-%m-%d", timeptr, locale);
-                if (s == NULL || s == buf)
-                    return NULL;
-                buf = s;
-                ymd |= SET_YMD;
+            }
+            case 'G': /* The week-based year; its effect is unspecified */
+                NUMBER(4, true, INT_MIN, INT_MAX);
+                break;
+            case 'g':
+                NUMBER(2, true, -99, 99);
                 break;
             case 'H':
             case 'k': /* hour with leading space - GNU extension */
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (ret < 0 || 23 < ret)
-                    return NULL;
+                NUMBER(2, false, 0, 23);
                 timeptr->tm_hour = ret;
-                buf = s;
+                st->ymd |= SET_HOUR;
                 break;
             case 'I':
             case 'l': /* hour with leading space - GNU extension */
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (ret < 1 || 12 < ret)
-                    return NULL;
+                NUMBER(2, false, 1, 12);
                 if (ret == 12)
                     ret = 0;
                 timeptr->tm_hour = ret;
-                buf = s;
+                st->ymd |= SET_HOUR;
                 break;
             case 'j':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (ret < 1 || 366 < ret)
-                    return NULL;
+                NUMBER(3, false, 1, 366);
                 timeptr->tm_yday = ret - 1;
-                buf = s;
-                ymd |= SET_YDAY;
+                st->ymd |= SET_YDAY;
                 break;
             case 'm':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (ret < 1 || 12 < ret)
-                    return NULL;
+                NUMBER(2, false, 1, 12);
                 timeptr->tm_mon = ret - 1;
-                buf = s;
-                ymd |= SET_MON;
+                st->ymd |= SET_MON;
                 break;
             case 'M':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (ret < 0 || 59 < ret)
-                    return NULL;
+                NUMBER(2, false, 0, 59);
                 timeptr->tm_min = ret;
-                buf = s;
+                st->ymd |= SET_MIN;
                 break;
             case 'p':
-                ampm = match_string(&buf, TIME_AM_PM, TIME_AM_PM_NUM, locale);
-                if (ampm < 0)
+                st->ampm = match_string(&buf, TIME_AM_PM, TIME_AM_PM_NUM, locale);
+                if (st->ampm < 0)
                     return NULL;
-                ymd |= SET_AMPM;
+                st->ymd |= SET_AMPM;
                 break;
             case 'r': /* %I:%M:%S %p */
-                s = __strptime(buf, TIME_AMPM_FMT, timeptr, locale);
+                s = __strptime(buf, TIME_AMPM_FMT, timeptr, locale, st);
                 if (s == NULL)
                     return NULL;
                 buf = s;
                 break;
             case 'R': /* %H:%M */
-                s = __strptime(buf, "%H:%M", timeptr, locale);
+                s = __strptime(buf, "%H:%M", timeptr, locale, st);
                 if (s == NULL)
                     return NULL;
                 buf = s;
                 break;
-            case 's': /* seconds since Unix epoch - GNU extension */
+            case 's': /* seconds since Unix epoch */
             {
                 long long sec;
                 time_t    t;
                 int       save_errno;
-
                 save_errno = errno;
                 errno = 0;
                 sec = strtoll_l(buf, &s, 10, locale);
@@ -326,17 +383,15 @@ __strptime(const char *buf, const char *format, struct tm *timeptr, locale_t loc
                     return NULL;
                 errno = save_errno;
                 buf = s;
-                ymd |= SET_YDAY | SET_WDAY | SET_YMD;
+                st->century = INT_MIN;
+                st->yy = -1;
+                st->ymd |= SET_YDAY | SET_WDAY | SET_YMD | SET_HOUR | SET_MIN | SET_SEC | SET_ISDST;
                 break;
             }
             case 'S':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (ret < 0 || 61 < ret)
-                    return NULL;
+                NUMBER(2, false, 0, 60);
                 timeptr->tm_sec = ret;
-                buf = s;
+                st->ymd |= SET_SEC;
                 break;
             case 'n':
             case 't':
@@ -344,97 +399,116 @@ __strptime(const char *buf, const char *format, struct tm *timeptr, locale_t loc
                     ++buf;
                 break;
             case 'T': /* %H:%M:%S */
-                s = __strptime(buf, "%H:%M:%S", timeptr, locale);
+                s = __strptime(buf, "%H:%M:%S", timeptr, locale, st);
                 if (s == NULL)
                     return NULL;
                 buf = s;
                 break;
             case 'u':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (ret < 1 || 7 < ret)
-                    return NULL;
-                if (ret == 7)
-                    ret = 0;
-                timeptr->tm_wday = ret;
-                buf = s;
-                ymd |= SET_WDAY;
+                NUMBER(1, false, 1, 7);
+                timeptr->tm_wday = ret % 7;
+                st->ymd |= SET_WDAY;
                 break;
             case 'w':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (ret < 0 || 6 < ret)
-                    return NULL;
+                NUMBER(1, false, 0, 6);
                 timeptr->tm_wday = ret;
-                buf = s;
-                ymd |= SET_WDAY;
+                st->ymd |= SET_WDAY;
                 break;
             case 'U':
-                wnum = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (wnum < 0 || 53 < wnum)
-                    return NULL;
-                buf = s;
-                ymd |= SET_WEEK_SUN;
+                NUMBER(2, false, 0, 53);
+                st->wnum = ret;
+                st->ymd |= SET_WEEK_SUN;
                 break;
             case 'V':
-                wnum = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (wnum < 1 || 53 < wnum)
-                    return NULL;
-                buf = s;
-                ymd |= SET_WEEK_MON4;
+                NUMBER(2, false, 1, 53);
+                st->wnum = ret;
+                st->ymd |= SET_WEEK_MON4;
                 break;
             case 'W':
-                wnum = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (wnum < 0 || 53 < wnum)
-                    return NULL;
-                buf = s;
-                ymd |= SET_WEEK_MON;
+                NUMBER(2, false, 0, 53);
+                st->wnum = ret;
+                st->ymd |= SET_WEEK_MON;
                 break;
             case 'x':
-                s = __strptime(buf, TIME_X_FMT, timeptr, locale);
+                s = __strptime(buf, TIME_X_FMT, timeptr, locale, st);
                 if (s == NULL)
                     return NULL;
                 buf = s;
-                ymd |= SET_YMD;
                 break;
             case 'X':
-                s = __strptime(buf, TIME_UX_FMT, timeptr, locale);
+                s = __strptime(buf, TIME_UX_FMT, timeptr, locale, st);
                 if (s == NULL)
                     return NULL;
                 buf = s;
                 break;
             case 'y':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
-                if (ret < 0 || 99 < ret)
-                    return NULL;
-                if (ret < 70)
-                    timeptr->tm_year = 100 + ret;
-                else
-                    timeptr->tm_year = ret;
-                buf = s;
-                ymd |= SET_YEAR;
+                NUMBER(2, true, -99, 99);
+                st->yy = ret < 0 ? -ret : ret;
+                st->ymd |= SET_YEAR;
                 break;
             case 'Y':
-                ret = strtol_l(buf, &s, 10, locale);
-                if (s == buf)
-                    return NULL;
+                NUMBER(4, true, INT_MIN + TM_YEAR_BASE, INT_MAX);
                 timeptr->tm_year = ret - TM_YEAR_BASE;
-                buf = s;
-                ymd |= SET_YEAR;
+                st->century = INT_MIN;
+                st->yy = -1;
+                st->ymd |= SET_YEAR;
                 break;
-            case 'Z':
-                /* Unsupported. Just ignore.  */
+            case 'z': {
+                /* +hh, +hhmm or +hh:mm */
+                int sign, hh, mm = 0;
+
+                while (isspace_l((unsigned char)*buf, locale))
+                    ++buf;
+                if (*buf != '+' && *buf != '-')
+                    return NULL;
+                sign = *buf++ == '-' ? -1 : 1;
+                if (!isdigit_l((unsigned char)buf[0], locale)
+                    || !isdigit_l((unsigned char)buf[1], locale))
+                    return NULL;
+                hh = (buf[0] - '0') * 10 + (buf[1] - '0');
+                buf += 2;
+                if (*buf == ':' && isdigit_l((unsigned char)buf[1], locale))
+                    ++buf;
+                if (isdigit_l((unsigned char)buf[0], locale)
+                    && isdigit_l((unsigned char)buf[1], locale)) {
+                    mm = (buf[0] - '0') * 10 + (buf[1] - '0');
+                    buf += 2;
+                }
+                if (hh > 24 || mm > 59)
+                    return NULL;
+                /* struct tm has no member for the offset */
+                (void)sign;
                 break;
+            }
+            case 'Z': {
+                /* A timezone name: letters, or the characters of a quoted name */
+                const char *name;
+                size_t      len;
+
+                while (isspace_l((unsigned char)*buf, locale))
+                    ++buf;
+                name = buf;
+                if (isalpha_l((unsigned char)*buf, locale)) {
+                    while (isalpha_l((unsigned char)*buf, locale))
+                        ++buf;
+                } else {
+                    while (isalnum_l((unsigned char)*buf, locale) || *buf == '+' || *buf == '-')
+                        ++buf;
+                }
+                len = (size_t)(buf - name);
+                if (len == 0)
+                    return NULL;
+                tzset();
+                if (strlen(tzname[1]) == len && strncmp(name, tzname[1], len) == 0
+                    && strcmp(tzname[0], tzname[1]) != 0) {
+                    timeptr->tm_isdst = 1;
+                    st->ymd |= SET_ISDST;
+                } else if (strlen(tzname[0]) == len && strncmp(name, tzname[0], len) == 0) {
+                    timeptr->tm_isdst = 0;
+                    st->ymd |= SET_ISDST;
+                }
+                break;
+            }
             case '\0':
                 --format;
                 __fallthrough;
@@ -445,11 +519,7 @@ __strptime(const char *buf, const char *format, struct tm *timeptr, locale_t loc
                     return NULL;
                 break;
             default:
-                if (*buf == '%' || *++buf == c)
-                    ++buf;
-                else
-                    return NULL;
-                break;
+                return NULL;
             }
         } else {
             if (*buf == c)
@@ -458,26 +528,53 @@ __strptime(const char *buf, const char *format, struct tm *timeptr, locale_t loc
                 return NULL;
         }
     }
+    return (char *)buf;
+}
+
+/* Combine the parsed fields; returns the set of fields given */
+char *
+__strptime_fields(const char *buf, const char *format, struct tm *timeptr, locale_t locale,
+                  int *fields)
+{
+    struct strptime_state st = { 0, 0, 0, INT_MIN, -1 };
+    int                   ymd;
+
+    memset(timeptr, 0, sizeof(*timeptr));
+    buf = __strptime(buf, format, timeptr, locale, &st);
+    if (buf == NULL)
+        return NULL;
+    ymd = st.ymd;
+
+    /* %C gives the century, %y the year within it */
+    if (st.century != INT_MIN) {
+        long long year = (long long)st.century * 100 + (st.yy >= 0 ? st.yy : 0) - TM_YEAR_BASE;
+        if (st.century < 0)
+            year = (long long)st.century * 100 - (st.yy >= 0 ? st.yy : 0) - TM_YEAR_BASE;
+        if (year < INT_MIN || year > INT_MAX)
+            return NULL;
+        timeptr->tm_year = (int)year;
+    } else if (st.yy >= 0) {
+        /* [69,99] are 1969 to 1999, [00,68] are 2000 to 2068 */
+        timeptr->tm_year = st.yy < 69 ? st.yy + 100 : st.yy;
+    }
 
     if ((ymd & SET_WEEK) != 0 && (ymd & (SET_YEAR | SET_WDAY)) == (SET_YEAR | SET_WDAY)) {
         /* tm_year and week number, compute tm_yday */
-
         if (ymd & SET_WEEK_SUN)
-            set_week_number_sun(timeptr, wnum);
+            set_week_number_sun(timeptr, st.wnum);
         else if (ymd & SET_WEEK_MON4)
-            set_week_number_mon4(timeptr, wnum);
+            set_week_number_mon4(timeptr, st.wnum);
         else if (ymd & SET_WEEK_MON)
-            set_week_number_mon(timeptr, wnum);
+            set_week_number_mon(timeptr, st.wnum);
         ymd |= SET_YDAY;
     }
-
     if (ymd & SET_AMPM) {
         if (timeptr->tm_hour > 12)
             return NULL;
         else if (timeptr->tm_hour == 12)
-            timeptr->tm_hour = ampm * 12;
+            timeptr->tm_hour = st.ampm * 12;
         else
-            timeptr->tm_hour += ampm * 12;
+            timeptr->tm_hour += st.ampm * 12;
     }
 
     if ((ymd & SET_YMD) == SET_YMD) {
@@ -507,6 +604,7 @@ __strptime(const char *buf, const char *format, struct tm *timeptr, locale_t loc
                 }
                 timeptr->tm_mon = i - 1;
             }
+            ymd |= SET_MON;
         }
 
         if (!(ymd & SET_MDAY)) {
@@ -515,6 +613,7 @@ __strptime(const char *buf, const char *format, struct tm *timeptr, locale_t loc
             if (!is_leap_year(timeptr->tm_year + TM_YEAR_BASE) || timeptr->tm_mon < 2) {
                 timeptr->tm_mday++;
             }
+            ymd |= SET_MDAY;
         }
     }
 
@@ -524,14 +623,13 @@ __strptime(const char *buf, const char *format, struct tm *timeptr, locale_t loc
         timeptr->tm_wday = (fday + timeptr->tm_yday) % 7;
     }
 
-    timeptr->tm_isdst = -1;
-
+    if (fields)
+        *fields = ymd;
     return (char *)buf;
 }
 
 char *
 strptime_l(const char *buf, const char *format, struct tm *timeptr, locale_t locale)
 {
-    memset(timeptr, 0, sizeof(*timeptr));
-    return __strptime(buf, format, timeptr, locale);
+    return __strptime_fields(buf, format, timeptr, locale, NULL);
 }
