@@ -187,10 +187,60 @@ static const struct {
 
 #define NUM_CLASSES (sizeof(classes) / sizeof(classes[0]))
 
+/*
+ * Fetch one character of a bracket expression: an ordinary or escaped
+ * character, a collating symbol or an equivalence class. All collating
+ * elements are single characters here.
+ */
+static int
+bracketchar(const char **patternp, int flags, char *cp)
+{
+    const char *pattern = *patternp;
+    char        c = *pattern++;
+
+    if (c == '\\' && !(flags & FNM_NOESCAPE))
+        c = *pattern++;
+    if (c == EOS)
+        return (RANGE_ERROR);
+
+    /* Equivalence classes -- [=class=] */
+    if (c == '[' && pattern[0] == '=' && pattern[1] != EOS && pattern[2] == '='
+        && pattern[3] == ']') {
+        c = pattern[1];
+        pattern += 4;
+    }
+
+    /* Collating sequences -- [.symbol.] */
+    if (c == '[' && pattern[0] == '.' && pattern[1] != EOS) {
+        size_t col_len = 1;
+
+        /* Find the end of any potential collating symbol */
+        while (pattern[1 + col_len] != EOS) {
+            if (pattern[1 + col_len] == '.' && pattern[1 + col_len + 1] == ']') {
+                /* Found a collating symbol. */
+                if (col_len > 1) {
+                    /* We have no collating symbols longer than 1 char */
+                    return (RANGE_ERROR);
+                }
+                /* Extract collating symbol */
+                c = pattern[1];
+                /* Skip [. and .] */
+                pattern += 2 + 2;
+                break;
+            }
+            col_len++;
+        }
+    }
+
+    *cp = c;
+    *patternp = pattern;
+    return (RANGE_MATCH);
+}
+
 static int
 rangematch(const char *pattern, char test, int flags, char **newp)
 {
-    int  negate, ok;
+    int  negate, ok, first;
     char c, c2;
     char tests[3];
     int  ntests = 1, t;
@@ -221,50 +271,15 @@ rangematch(const char *pattern, char test, int flags, char **newp)
      * -- POSIX.2 2.8.3.2
      */
     ok = 0;
-    c = *pattern++;
-    do {
-        if (c == '\\' && !(flags & FNM_NOESCAPE))
-            c = *pattern++;
-        if (c == EOS)
-            return (RANGE_ERROR);
-
-        /* Equivalence classes -- [=class=] */
-        if (c == '[' && pattern[0] == '=' && pattern[1] != EOS && pattern[2] == '='
-            && pattern[3] == ']') {
-            c = pattern[1];
-            pattern += 4;
-        }
-
-        /* Collating sequences -- [.symbol.] */
-        if (c == '[' && pattern[0] == '.' && pattern[1] != EOS) {
-            size_t col_len = 1;
-
-            /* Find the end of any potential collating symbol */
-            while (pattern[1 + col_len] != EOS) {
-                if (pattern[1 + col_len] == '.' && pattern[1 + col_len + 1] == ']') {
-                    /* Found a collating symbol. */
-                    if (col_len > 1) {
-                        /* We have no collating symbols longer than 1 char */
-                        return (RANGE_ERROR);
-                    }
-                    /* Extract collating symbol */
-                    c = pattern[1];
-                    /* Skip [. and .] */
-                    pattern += 2 + 2;
-                    break;
-                }
-                col_len++;
-            }
-        }
-
+    for (first = 1; first || *pattern != ']'; first = 0) {
         /* Character class -- [:class:] */
-        if (c == '[' && pattern[0] == ':') {
+        if (pattern[0] == '[' && pattern[1] == ':') {
             size_t name_len = 0;
 
-            while (islower(pattern[1 + name_len]))
+            while (islower((unsigned char)pattern[2 + name_len]))
                 name_len++;
 
-            if (pattern[1 + name_len] == ':' && pattern[1 + name_len + 1] == ']') {
+            if (pattern[2 + name_len] == ':' && pattern[2 + name_len + 1] == ']') {
 
                 size_t class;
 
@@ -272,7 +287,7 @@ rangematch(const char *pattern, char test, int flags, char **newp)
 
                 for (class = 0; class < NUM_CLASSES; class++) {
                     if (name_len == strlen(classes[class].name)
-                        && strncmp(&pattern[1], classes[class].name, name_len) == 0) {
+                        && strncmp(&pattern[2], classes[class].name, name_len) == 0) {
                         for (t = 0; t < ntests; t++)
                             if (classes[class].func((unsigned char)tests[t]))
                                 ok = 1;
@@ -281,16 +296,18 @@ rangematch(const char *pattern, char test, int flags, char **newp)
                 }
 
                 /* Skip over the pattern and continue evaluating the expression */
-                pattern = pattern + 1 + name_len + 2;
+                pattern = pattern + 2 + name_len + 2;
                 continue;
             }
         }
 
-        if (*pattern == '-' && (c2 = *(pattern + 1)) != EOS && c2 != ']') {
-            pattern += 2;
-            if (c2 == '\\' && !(flags & FNM_NOESCAPE))
-                c2 = *pattern++;
-            if (c2 == EOS)
+        if (bracketchar(&pattern, flags, &c) == RANGE_ERROR)
+            return (RANGE_ERROR);
+
+        /* The end of a range may also be a collating symbol */
+        if (pattern[0] == '-' && pattern[1] != EOS && pattern[1] != ']') {
+            pattern++;
+            if (bracketchar(&pattern, flags, &c2) == RANGE_ERROR)
                 return (RANGE_ERROR);
 
             for (t = 0; t < ntests; t++)
@@ -307,8 +324,8 @@ rangematch(const char *pattern, char test, int flags, char **newp)
                 if (c == tests[t])
                     ok = 1;
         }
-    } while ((c = *pattern++) != ']');
+    }
 
-    *newp = (char *)pattern;
+    *newp = (char *)pattern + 1;
     return (ok == negate ? RANGE_NOMATCH : RANGE_MATCH);
 }
