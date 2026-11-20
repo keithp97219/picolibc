@@ -42,6 +42,7 @@ dir_srcs = [
   'execv.c',
   'execvp.c',
   'execvpe.c',
+  'gethostid.c',
   'getlogin.c',
   'getlogin_r.c',
   'getpass.c',
