@@ -36,6 +36,7 @@
 set(tests
   test-mq_close
   test-mq_notify
+  test-mq_open
   test-mq_receive
   test-mq_send
   test-mq_timedreceive
