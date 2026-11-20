@@ -495,17 +495,19 @@ __picolibc_export;
 int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath)
     __picolibc_export;
 #endif
-int   fseek(FILE *stream, long offset, int whence) __nonnull((1)) __picolibc_export;
-int   fsetpos(FILE *stream, const fpos_t *pos) __nonnull((1)) __picolibc_export;
-long  ftell(FILE *stream) __nonnull((1)) __picolibc_export;
-int   fileno(FILE *stream) __nonnull((1)) __picolibc_export;
-void  perror(const char *s) __picolibc_export;
-int   remove(const char *pathname) __picolibc_export;
-int   rename(const char *oldpath, const char *newpath) __picolibc_export;
-void  rewind(FILE *stream) __nonnull((1)) __picolibc_export;
-void  setbuf(FILE *stream, char *buf) __nonnull((1)) __picolibc_export;
-void  setbuffer(FILE *stream, char *buf, size_t size) __nonnull((1)) __picolibc_export;
-void  setlinebuf(FILE *stream) __nonnull((1)) __picolibc_export;
+int  fseek(FILE *stream, long offset, int whence) __nonnull((1)) __picolibc_export;
+int  fsetpos(FILE *stream, const fpos_t *pos) __nonnull((1)) __picolibc_export;
+long ftell(FILE *stream) __nonnull((1)) __picolibc_export;
+int  fileno(FILE *stream) __nonnull((1)) __picolibc_export;
+void perror(const char *s) __picolibc_export;
+int  remove(const char *pathname) __picolibc_export;
+int  rename(const char *oldpath, const char *newpath) __picolibc_export;
+void rewind(FILE *stream) __nonnull((1)) __picolibc_export;
+void setbuf(FILE *stream, char *buf) __nonnull((1)) __picolibc_export;
+#if __MISC_VISIBLE
+void setbuffer(FILE *stream, char *buf, size_t size) __nonnull((1)) __picolibc_export;
+void setlinebuf(FILE *stream) __nonnull((1)) __picolibc_export;
+#endif
 int   setvbuf(FILE *stream, char *buf, int mode, size_t size) __nonnull((1)) __picolibc_export;
 FILE *tmpfile(void) __picolibc_export;
 char *tmpnam(char *s) __picolibc_export;

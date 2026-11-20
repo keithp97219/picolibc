@@ -41,6 +41,9 @@
 
 _BEGIN_STD_C
 
+/* <ftw.h> is an XSI header */
+#if __XSI_VISIBLE || __MISC_VISIBLE
+
 struct FTW {
     int base;  /* Offset of the file name in the path */
     int level; /* Depth below the starting directory */
@@ -63,6 +66,8 @@ struct FTW {
 
 int nftw(const char *, int (*)(const char *, const struct stat *, int, struct FTW *), int, int)
     __picolibc_export;
+
+#endif /* __XSI_VISIBLE || __MISC_VISIBLE */
 
 _END_STD_C
 

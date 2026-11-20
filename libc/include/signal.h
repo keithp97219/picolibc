@@ -162,8 +162,10 @@ struct sigaction {
 /*
  * Possible values for ss_flags in stack_t below.
  */
+#if __XSI_VISIBLE || __MISC_VISIBLE
 #define SS_ONSTACK 0x1
 #define SS_DISABLE 0x2
+#endif
 
 /*
  * Structure used in sigaltstack call.
@@ -233,7 +235,7 @@ struct sigevent {
 };
 #endif /* __POSIX_VISIBLE >= 199309 */
 
-#if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 200809
+#if __XSI_VISIBLE || __MISC_VISIBLE
 
 /*
  * Minimum and default signal stack constants. Allow for overrides from
@@ -346,7 +348,7 @@ __sigaddset(sigset_t *what, int sig)
 #define sigaddset(what, sig) __sigaddset(what, sig)
 
 #endif
-#if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 200809
+#if __XSI_VISIBLE || __MISC_VISIBLE
 int sigaltstack(const stack_t * __restrict, stack_t * __restrict) __picolibc_export;
 #endif
 #if __POSIX_VISIBLE

@@ -39,7 +39,9 @@ _BEGIN_STD_C
 
 pid_t wait(int *);
 pid_t waitpid(pid_t, int *, int);
+#if __MISC_VISIBLE
 pid_t wait3(int *, int, struct rusage *);
+#endif
 
 #if __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 500
 #define WIFCONTINUED(w) ((w) == 0xffff)

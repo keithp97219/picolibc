@@ -123,7 +123,9 @@ struct stat {
 
 #define S_ISUID  0004000 /* set user id on execution */
 #define S_ISGID  0002000 /* set group id on execution */
-#define S_ISVTX  0001000 /* save swapped text even after use */
+#if __XSI_VISIBLE || __MISC_VISIBLE
+#define S_ISVTX 0001000 /* save swapped text even after use */
+#endif
 #if __BSD_VISIBLE
 #define S_IREAD  0000400 /* read permission, owner */
 #define S_IWRITE 0000200 /* write permission, owner */
