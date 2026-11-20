@@ -111,8 +111,10 @@ gmtime_r(const time_t * __restrict tim_p, struct tm * __restrict res)
         ? yearday - (DAYS_PER_YEAR - DAYS_IN_JANUARY - DAYS_IN_FEBRUARY)
         : yearday + DAYS_IN_JANUARY + DAYS_IN_FEBRUARY + isleap(erayear);
     year = year - YEAR_BASE;
-    if (sizeof(year) != sizeof(int) && (year > INT_MAX || year < INT_MIN))
+    if (sizeof(year) != sizeof(int) && (year > INT_MAX || year < INT_MIN)) {
+        errno = EOVERFLOW;
         return NULL;
+    }
 
     res->tm_year = year;
     res->tm_mon = month;
