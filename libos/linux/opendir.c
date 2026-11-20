@@ -51,6 +51,6 @@ opendir(const char *name)
         free(dir);
         return NULL;
     }
-    dir->fd = fd;
+    dir->__dd_fd = fd;
     return dir;
 }

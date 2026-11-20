@@ -41,7 +41,7 @@
 int
 closedir(DIR *dir)
 {
-    close(dir->fd);
+    close(dir->__dd_fd);
     free(dir);
     return 0;
 }

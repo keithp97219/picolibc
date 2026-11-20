@@ -53,6 +53,6 @@ opendir(const char *name)
     DIR *dir = calloc(1, sizeof(DIR));
     if (!dir)
         return 0;
-    dir->fd = (int)r0;
+    dir->__dd_fd = (int)r0;
     return dir;
 }

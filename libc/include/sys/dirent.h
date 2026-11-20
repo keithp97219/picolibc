@@ -66,14 +66,15 @@ struct posix_dent {
     char          d_name[];
 };
 
+/* The members use reserved names, as applications may define macros with any others */
 typedef struct {
-    int           fd;
-    size_t        offset;
-    size_t        count;
-    struct dirent dirent;
+    int           __dd_fd;
+    size_t        __dd_offset;
+    size_t        __dd_count;
+    struct dirent __dd_dirent;
     union {
-        char       buf[512];
-        __uint64_t align;
+        char       __dd_buf[512];
+        __uint64_t __dd_align;
     };
 } DIR;
 

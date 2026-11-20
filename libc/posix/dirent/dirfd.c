@@ -40,9 +40,9 @@
 int
 dirfd(DIR *dirp)
 {
-    if (dirp->fd < 0) {
+    if (dirp->__dd_fd < 0) {
         errno = ENOTSUP;
         return -1;
     }
-    return dirp->fd;
+    return dirp->__dd_fd;
 }

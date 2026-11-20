@@ -43,7 +43,7 @@ int
 closedir(DIR *dir)
 {
     register uintptr_t r0 __asm__("r0") = SYS_CLOSEDIR;
-    register uintptr_t r1 __asm__("r1") = (uintptr_t)dir->fd;
+    register uintptr_t r1 __asm__("r1") = (uintptr_t)dir->__dd_fd;
     __asm__ __volatile__(SWI : "=r"(r0), "=r"(r1) : "r"(r0), "r"(r1));
     int retval = (int)r0;
     free(dir);

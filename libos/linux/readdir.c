@@ -45,17 +45,18 @@ readdir(DIR *dir)
     struct __kernel_dirent64 *k_dirent;
     struct dirent            *dirent;
 
-    if (dir->offset == dir->count) {
-        ssize_t ret = _syscall(LINUX_SYS_getdents64, dir->fd, dir->buf, sizeof(dir->buf));
+    if (dir->__dd_offset == dir->__dd_count) {
+        ssize_t ret
+            = _syscall(LINUX_SYS_getdents64, dir->__dd_fd, dir->__dd_buf, sizeof(dir->__dd_buf));
         if (ret <= 0)
             return NULL;
-        dir->offset = 0;
-        dir->count = (size_t)ret;
+        dir->__dd_offset = 0;
+        dir->__dd_count = (size_t)ret;
     }
-    k_dirent = (struct __kernel_dirent64 *)(dir->buf + dir->offset);
-    dir->offset += k_dirent->d_reclen;
+    k_dirent = (struct __kernel_dirent64 *)(dir->__dd_buf + dir->__dd_offset);
+    dir->__dd_offset += k_dirent->d_reclen;
 
-    dirent = &dir->dirent;
+    dirent = &dir->__dd_dirent;
     dirent->d_ino = (ino_t)k_dirent->d_ino;
 
     MAP_DT(dirent->d_type, k_dirent->d_type);

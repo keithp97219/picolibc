@@ -41,17 +41,17 @@ telldir(DIR *dir)
 {
     __int64_t pos;
 
-    if (dir->offset == dir->count) {
-        pos = lseek(dir->fd, 0, SEEK_CUR);
+    if (dir->__dd_offset == dir->__dd_count) {
+        pos = lseek(dir->__dd_fd, 0, SEEK_CUR);
     } else {
         /* The kernel's offset of the entry readdir returned last */
         struct __kernel_dirent64 *k;
         size_t                    off = 0;
 
         do {
-            k = (struct __kernel_dirent64 *)(dir->buf + off);
+            k = (struct __kernel_dirent64 *)(dir->__dd_buf + off);
             off += k->d_reclen;
-        } while (off < dir->offset);
+        } while (off < dir->__dd_offset);
         pos = k->d_off;
     }
     if (pos != (long)pos) {

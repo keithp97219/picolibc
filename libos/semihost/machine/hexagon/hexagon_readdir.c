@@ -54,7 +54,7 @@ readdir(DIR *dir)
 {
     struct __semihost_dirent shd;
     register uintptr_t       r0 __asm__("r0") = SYS_READDIR;
-    register uintptr_t       r1 __asm__("r1") = (uintptr_t)dir->fd;
+    register uintptr_t       r1 __asm__("r1") = (uintptr_t)dir->__dd_fd;
     register uintptr_t       r2 __asm__("r2") = (uintptr_t)&shd;
     __asm__ __volatile__(SWI : "=r"(r0), "=r"(r1) : "r"(r0), "r"(r1), "r"(r2));
     if (r0 == 0) {
@@ -63,9 +63,9 @@ readdir(DIR *dir)
             hexagon_semihost_errno((int)r1);
         return 0;
     }
-    dir->dirent.d_ino = (ino_t)shd.d_ino;
-    dir->dirent.d_type = DT_UNKNOWN;
-    strncpy(dir->dirent.d_name, shd.d_name, sizeof(dir->dirent.d_name) - 1);
-    dir->dirent.d_name[sizeof(dir->dirent.d_name) - 1] = '\0';
-    return &dir->dirent;
+    dir->__dd_dirent.d_ino = (ino_t)shd.d_ino;
+    dir->__dd_dirent.d_type = DT_UNKNOWN;
+    strncpy(dir->__dd_dirent.d_name, shd.d_name, sizeof(dir->__dd_dirent.d_name) - 1);
+    dir->__dd_dirent.d_name[sizeof(dir->__dd_dirent.d_name) - 1] = '\0';
+    return &dir->__dd_dirent;
 }

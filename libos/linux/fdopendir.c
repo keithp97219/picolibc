@@ -52,6 +52,6 @@ fdopendir(int fd)
     dir = calloc(1, sizeof(DIR));
     if (!dir)
         return NULL;
-    dir->fd = fd;
+    dir->__dd_fd = fd;
     return dir;
 }

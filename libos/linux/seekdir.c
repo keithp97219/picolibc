@@ -38,7 +38,7 @@
 void
 seekdir(DIR *dir, long loc)
 {
-    (void)lseek(dir->fd, loc, SEEK_SET);
-    dir->offset = 0;
-    dir->count = 0;
+    (void)lseek(dir->__dd_fd, loc, SEEK_SET);
+    dir->__dd_offset = 0;
+    dir->__dd_count = 0;
 }

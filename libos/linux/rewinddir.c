@@ -40,8 +40,8 @@
 void
 rewinddir(DIR *dir)
 {
-    (void)lseek(dir->fd, 0, 0);
+    (void)lseek(dir->__dd_fd, 0, 0);
     /* Discard the entries read before the rewind */
-    dir->offset = 0;
-    dir->count = 0;
+    dir->__dd_offset = 0;
+    dir->__dd_count = 0;
 }
