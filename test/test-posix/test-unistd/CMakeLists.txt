@@ -59,6 +59,7 @@ set(tests
   test-lchown
   test-link
   test-linkat
+  test-lockf
   test-pause
   test-pipe2
   test-posix-options

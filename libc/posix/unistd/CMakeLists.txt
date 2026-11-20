@@ -43,6 +43,7 @@ picolibc_sources(
   getlogin.c
   getlogin_r.c
   getpass.c
+  lockf.c
   posix_close.c
   sleep.c
   )
