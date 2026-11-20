@@ -55,15 +55,45 @@
 #include <linux/linux-time.h>
 #include <linux/linux-wait.h>
 
-long  _syscall(long sys_call, ...);
+long _syscall(long sys_call, ...);
 
 /*
  * As _syscall, but returning the kernel's result, a negative Linux
  * errno value on failure, without touching errno. _syscall_errno
  * converts such a value to picolibc's errno.
  */
-long  _syscall_raw(long sys_call, ...);
-int   _syscall_errno(long ret);
+long _syscall_raw(long sys_call, ...);
+int  _syscall_errno(long ret);
+
+/* Translate the directory descriptor of the *at functions */
+static inline int
+_at_fd_to_linux(int fd)
+{
+    return fd == AT_FDCWD ? (int)LINUX_AT_FDCWD : fd;
+}
+
+/* Translate AT_ flags, returning -1 for flags outside 'allowed' */
+static inline int
+_at_flags_to_linux(int flags, int allowed)
+{
+    int kflags = 0;
+
+    if (flags & ~allowed)
+        return -1;
+    if (flags & AT_EACCESS)
+        kflags |= LINUX_AT_EACCESS;
+    if (flags & AT_SYMLINK_NOFOLLOW)
+        kflags |= LINUX_AT_SYMLINK_NOFOLLOW;
+    if (flags & AT_SYMLINK_FOLLOW)
+        kflags |= LINUX_AT_SYMLINK_FOLLOW;
+    if (flags & AT_REMOVEDIR)
+        kflags |= LINUX_AT_REMOVEDIR;
+#ifdef AT_EMPTY_PATH
+    if (flags & AT_EMPTY_PATH)
+        kflags |= LINUX_AT_EMPTY_PATH;
+#endif
+    return kflags;
+}
 
 /* Translate open flags */
 int   _open_flags_to_linux(int flags);

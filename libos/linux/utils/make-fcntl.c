@@ -103,6 +103,12 @@ main(void)
 #ifdef AT_REMOVEDIR
     printf("#define %-32.32s 0x%08x\n", "LINUX_AT_REMOVEDIR", AT_REMOVEDIR);
 #endif
+#ifdef AT_EACCESS
+    printf("#define %-32.32s 0x%08x\n", "LINUX_AT_EACCESS", AT_EACCESS);
+#endif
+#ifdef AT_SYMLINK_FOLLOW
+    printf("#define %-32.32s 0x%08x\n", "LINUX_AT_SYMLINK_FOLLOW", AT_SYMLINK_FOLLOW);
+#endif
 #ifdef AT_NO_AUTOMOUNT
     printf("#define %-32.32s 0x%08x\n", "LINUX_AT_NO_AUTOMOUNT", AT_NO_AUTOMOUNT);
 #endif

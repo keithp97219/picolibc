@@ -43,5 +43,6 @@ if has_os_posix
   dir_tests += [
     'test-pclose',
     'test-popen',
+    'test-renameat',
   ]
 endif

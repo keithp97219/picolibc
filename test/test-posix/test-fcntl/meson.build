@@ -38,5 +38,6 @@ dir_tests = []
 if has_os_posix
   dir_tests += [
     'test-fcntl',
+    'test-openat',
   ]
 endif

@@ -42,6 +42,7 @@ dir_tests = [
 
 if has_os_posix
   dir_tests += [
+    'test-fdopendir',
     'test-posix_getdents',
     'test-readdir_r',
   ]
