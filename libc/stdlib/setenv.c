@@ -41,6 +41,7 @@ setenv(const char *name, const char *value, int rewrite)
     size_t   offset;
     char    *cur_entry;
     char   **new_environ;
+    char   **old_environ = NULL;
     char    *new_entry;
     uint32_t old_sequence;
     size_t   l_value, l_name;
@@ -130,7 +131,7 @@ setenv(const char *name, const char *value, int rewrite)
 
     if (new_environ) {
         if (setenv_alloced)
-            free(environ);
+            old_environ = environ;
         environ = new_environ;
         setenv_alloced = true;
     }
@@ -138,6 +139,9 @@ setenv(const char *name, const char *value, int rewrite)
     environ[offset] = new_entry;
 
     __LIBC_UNLOCK();
+
+    /* free takes the lock too, so release the old array afterwards */
+    free(old_environ);
 
     return 0;
 }
