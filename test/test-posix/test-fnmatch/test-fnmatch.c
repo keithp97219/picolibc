@@ -239,6 +239,15 @@ main(void)
         result |= fail(128, __LINE__);
     if (!y("a/*", "a/.x", FNM_PATHNAME) || !y("*/x", ".a/x", FNM_PATHNAME))
         result |= fail(128, __LINE__);
+    /* Still after an earlier '*' in the pattern */
+    if (!n("*b/*", "ab/.x", FNM_PERIOD | FNM_PATHNAME)
+        || !n("*b/?x", "ab/.x", FNM_PERIOD | FNM_PATHNAME))
+        result |= fail(128, __LINE__);
+    if (!n("*b/[!a]x", "ab/.x", FNM_PERIOD | FNM_PATHNAME)
+        || !y("*b/.x", "ab/.x", FNM_PERIOD | FNM_PATHNAME))
+        result |= fail(128, __LINE__);
+    if (!y("*b*", "ab.x", FNM_PERIOD | FNM_PATHNAME) || !y("*x", "a.x", FNM_PERIOD | FNM_PATHNAME))
+        result |= fail(128, __LINE__);
     /* ==== End of tests in the "C" locale ==== */
     /* ==== Start of tests that require a specific locale ==== */
     /* This test fails on Solaris 11.4.  */
