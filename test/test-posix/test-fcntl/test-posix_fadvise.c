@@ -41,7 +41,8 @@
     || ((defined(_POSIX_ADVISORY_INFO) && _POSIX_ADVISORY_INFO > 0)                            \
         && (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)         \
         && (defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && __PICOLIBC_POSIX_FILE_SYSTEM_EXT > 0) \
-        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0))
+        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0)                       \
+        && (defined(__PICOLIBC_POSIX_FIFO) && __PICOLIBC_POSIX_FIFO > 0))
 
 #include <errno.h>
 #include <fcntl.h>
@@ -83,6 +84,18 @@ main(void)
     check(pipe(fds) == 0, "pipe");
     check(posix_fadvise(fds[0], 0, 0, POSIX_FADV_NORMAL) == ESPIPE, "ESPIPE");
     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close pipe");
+    /* A range past the end of the file is fine; a negative length isn't */
+    check(posix_fadvise(fd, 1000000, 4096, POSIX_FADV_WILLNEED) == 0, "past the end");
+    check(posix_fadvise(fd, 0, -1, POSIX_FADV_NORMAL) == EINVAL, "negative length");
+    /* A FIFO is ESPIPE too */
+    check(mkfifo("fifo", 0600) == 0, "mkfifo");
+    fds[0] = open("fifo", O_RDONLY | O_NONBLOCK);
+    check(fds[0] >= 0, "open FIFO");
+    check(posix_fadvise(fds[0], 0, 0, POSIX_FADV_NORMAL) == ESPIPE, "FIFO ESPIPE");
+    check(close(fds[0]) == 0 && unlink("fifo") == 0, "close FIFO");
+    /* errno isn't the way errors are reported */
+    errno = 0;
+    check(posix_fadvise(-1, 0, 0, POSIX_FADV_NORMAL) == EBADF && errno == 0, "errno untouched");
     check(close(fd) == 0 && unlink("file") == 0 && chdir("..") == 0 && rmdir(dir) == 0, "cleanup");
     printf("success\n");
     return 0;
