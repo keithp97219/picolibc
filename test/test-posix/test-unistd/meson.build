@@ -35,22 +35,35 @@
 
 dir_tests = [
   'test-access',
-  'test-ftrunc',
+  'test-ftruncate',
   'test-getcwd',
 ]
 
 if has_os_posix
   dir_tests += [
     'test-alarm',
+    'test-confstr',
+    'test-dup3',
     'test-execle',
-    'test-fileops',
+    'test-fchdir',
+    'test-fdatasync',
+    'test-fsync',
+    'test-getgid',
+    'test-getgroups',
+    'test-getlogin_r',
+    'test-getuid',
     'test-link',
+    'test-posix_close',
     'test-pread',
-    'test-sysinfo',
-    'test-uid',
+    'test-pwrite',
+    'test-setegid',
+    'test-seteuid',
+    'test-setgid',
+    'test-setuid',
+    'test-truncate',
   ]
 endif
 
 if oslib_test_variant == 'linux'
-  test_skip += ['test-ftrunc']
+  test_skip += ['test-ftruncate']
 endif

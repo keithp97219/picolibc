@@ -59,6 +59,7 @@ posix_test_dirs = [
   'test-sys-select',
   'test-sys-stat',
   'test-sys-statvfs',
+  'test-sys-utsname',
   'test-time',
   'test-unistd',
   'test-wchar',

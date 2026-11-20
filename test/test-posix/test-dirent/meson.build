@@ -40,6 +40,13 @@ dir_tests = [
   'test-scandir',
 ]
 
+if has_os_posix
+  dir_tests += [
+    'test-posix_getdents',
+    'test-readdir_r',
+  ]
+endif
+
 # The native build reads directories through the host's struct dirent
 if enable_native_tests
   test_skip += ['test-dirent', 'test-dirfd', 'test-scandir']

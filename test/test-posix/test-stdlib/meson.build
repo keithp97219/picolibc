@@ -39,6 +39,7 @@ if has_os_posix
   dir_tests += [
     'test-mkdtemp',
     'test-realpath',
+    'test-secure_getenv',
     'test-system',
   ]
 elif host_cpu_family == 'hexagon'

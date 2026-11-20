@@ -33,19 +33,19 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
+#define _POSIX_C_SOURCE 202405L
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 #ifndef TEST_FILE_NAME
-#define TEST_FILE_NAME "UID.TXT"
+#define TEST_FILE_NAME "FSYNC.TXT"
 #endif
 
-/* User and group ids agree with the owner of a new file */
+/* fsync succeeds on a written file */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -59,38 +59,17 @@
 int
 main(void)
 {
-    struct stat st;
-    gid_t       groups[256];
-    int         fd, ngroups;
+    int fd;
 
     (void)unlink(TEST_FILE_NAME);
-    fd = open(TEST_FILE_NAME, O_WRONLY | O_CREAT | O_EXCL, 0600);
-    check(fd >= 0, "create file");
-    check(fstat(fd, &st) == 0, "fstat");
+    fd = open(TEST_FILE_NAME, O_RDWR | O_CREAT | O_EXCL, 0600);
+    check(fd >= 0, "open");
+    check(write(fd, "0123456789", 10) == 10, "write");
+
+    check(fsync(fd) == 0, "fsync");
+
     check(close(fd) == 0, "close");
     check(unlink(TEST_FILE_NAME) == 0, "unlink");
-
-    /*
-     * getgroups fills in every entry completely. A call returning
-     * 16-bit ids would leave parts of the array untouched, whatever
-     * the ids are.
-     */
-    ngroups = getgroups(0, NULL);
-    check(ngroups >= 0 && ngroups <= 256, "number of groups");
-    memset(groups, 0xff, sizeof(groups));
-    check(getgroups(ngroups, groups) == ngroups, "getgroups");
-    for (int i = 0; i < ngroups; i++)
-        check((groups[i] >> 16) != 0xffff, "getgroups entry filled in");
-
-    check(st.st_uid == geteuid(), "file owner is the effective user");
-    check(getuid() == geteuid(), "real and effective users");
-    check(getgid() == getegid(), "real and effective groups");
-
-    /* Setting the ids to their current values succeeds */
-    check(setuid(getuid()) == 0, "setuid");
-    check(setgid(getgid()) == 0, "setgid");
-    check(seteuid(geteuid()) == 0, "seteuid");
-    check(setegid(getegid()) == 0, "setegid");
 
     printf("success\n");
     return 0;
