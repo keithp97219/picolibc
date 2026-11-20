@@ -52,6 +52,7 @@ set(tests
   test-getcwd
   test-getgid
   test-getgroups
+  test-gethostname
   test-getlogin_r
   test-getpgid
   test-getsid

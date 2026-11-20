@@ -34,10 +34,20 @@
  */
 
 #include "local-linux.h"
+#include <string.h>
+#include <sys/utsname.h>
 #include <unistd.h>
 
+/* POSIX truncates a name too long for the buffer */
 int
 gethostname(char *name, size_t size)
 {
-    return _syscall(LINUX_SYS_uname, name, size);
+    struct utsname u;
+    size_t         len;
+
+    if (uname(&u) < 0)
+        return -1;
+    len = strlen(u.nodename) + 1;
+    memcpy(name, u.nodename, len < size ? len : size);
+    return 0;
 }
