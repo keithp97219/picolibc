@@ -41,6 +41,7 @@ set(tests
   test-getnetbyname
   test-getprotobyname
   test-getservbyname
+  test-netdb_h
   )
 
 foreach(test IN LISTS tests)
