@@ -50,16 +50,20 @@ picolibc_headers(sys
   _initfini.h
   _intsup.h
   ioctl.h
+  ipc.h
   _leastint.h
   _locale.h
   lock.h
   mman.h
+  msg.h
   param.h
   queue.h
   resource.h
   sched.h
   select.h
   _select.h
+  sem.h
+  shm.h
   _sigset.h
   stat.h
   statvfs.h

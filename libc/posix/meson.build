@@ -56,6 +56,7 @@ posix_dirs = [
   'spawn',
   'stdio',
   'stdlib',
+  'sys-ipc',
   'sys-wait',
   'syslog',
   'unistd',
