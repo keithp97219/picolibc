@@ -51,6 +51,7 @@ if_nametoindex(const char *name)
     memset(&ifr, 0, sizeof(ifr));
     strcpy(ifr.ifr_name, name);
     ret = (int)_syscall(LINUX_SYS_ioctl, fd, LINUX_SIOCGIFINDEX, &ifr);
-    close(fd);
+    /* Not close, which is a cancellation point */
+    (void)_syscall_raw(LINUX_SYS_close, fd);
     return ret < 0 ? 0 : (unsigned int)ifr.ifr_ifindex;
 }

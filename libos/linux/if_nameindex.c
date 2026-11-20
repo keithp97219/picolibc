@@ -34,6 +34,7 @@
  */
 
 #include "local-socket.h"
+#include "local-cancel.h"
 #include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,10 +54,15 @@ if_nameindex(void)
     size_t               i;
     char                 (*found)[IF_NAMESIZE] = NULL;
     unsigned int        *index = NULL;
+    int                  cancel;
 
+    /* closedir is a cancellation point, which if_nameindex isn't */
+    cancel = _cancel_disable();
     dir = opendir("/sys/class/net");
-    if (!dir)
+    if (!dir) {
+        _cancel_restore(cancel);
         return NULL;
+    }
     while ((ent = readdir(dir)) != NULL) {
         unsigned int n;
 
@@ -102,6 +108,7 @@ fail:
         closedir(dir);
     free(found);
     free(index);
+    _cancel_restore(cancel);
     if (!list)
         errno = ENOBUFS;
     return list;

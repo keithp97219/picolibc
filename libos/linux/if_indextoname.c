@@ -49,7 +49,8 @@ if_indextoname(unsigned int index, char *name)
     memset(&ifr, 0, sizeof(ifr));
     ifr.ifr_ifindex = (int)index;
     ret = (int)_syscall(LINUX_SYS_ioctl, fd, LINUX_SIOCGIFNAME, &ifr);
-    close(fd);
+    /* Not close, which is a cancellation point */
+    (void)_syscall_raw(LINUX_SYS_close, fd);
     if (ret < 0) {
         if (errno == ENODEV)
             errno = ENXIO;
