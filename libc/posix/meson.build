@@ -94,6 +94,7 @@ srcs_posix = [
 # One directory for each header, holding the functions it declares
 posix_dirs = [
   'aio',
+  'spawn',
 ]
 
 foreach d : posix_dirs

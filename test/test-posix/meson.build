@@ -54,6 +54,7 @@ posix_test_dirs = [
   'test-sched',
   'test-semaphore',
   'test-signal',
+  'test-spawn',
   'test-stdatomic',
   'test-stdio',
   'test-stdlib',

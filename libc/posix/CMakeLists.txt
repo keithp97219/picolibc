@@ -90,3 +90,5 @@ picolibc_sources(
   vstrfmon.c
   wait.c
   )
+
+add_subdirectory(spawn)
