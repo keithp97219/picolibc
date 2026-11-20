@@ -40,6 +40,7 @@ set(tests
   test-fstatat
   test-futimens
   test-lstat
+  test-mkdir
   test-mkdirat
   test-mkfifo
   test-mkfifoat
