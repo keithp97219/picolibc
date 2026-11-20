@@ -44,6 +44,7 @@ tests = [
   'test-grp',
   'test-dirent',
   'test-posix-time',
+  'test-psiginfo',
   'test-pwd',
   'test-rename',
   'test-setrlimit',

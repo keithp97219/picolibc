@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 picolibc_sources(
+  psiginfo.c
   psignal.c
   sig2str.c
   sigaddset.c

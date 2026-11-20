@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 srcs_signal = [
+    'psiginfo.c',
     'psignal.c',
     'sig2str.c',
     'sigaddset.c',

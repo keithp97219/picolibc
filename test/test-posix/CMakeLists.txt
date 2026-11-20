@@ -42,6 +42,7 @@ set(tests
   test-grp
   test-dirent
   test-posix-time
+  test-psiginfo
   test-pwd
   test-signal
   test-stat
