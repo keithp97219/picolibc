@@ -313,9 +313,11 @@ rangematch(const char *pattern, char test, int flags, char **newp)
             for (t = 0; t < ntests; t++)
                 if (
 #ifdef __HAVE_REAL_STRCOLL
-                    __collate_range_cmp(c, tests[t]) <= 0 && __collate_range_cmp(tests[t], c2) <= 0
+                    __collate_range_cmp((unsigned char)c, (unsigned char)tests[t]) <= 0
+                    && __collate_range_cmp((unsigned char)tests[t], (unsigned char)c2) <= 0
 #else
-                    c <= tests[t] && tests[t] <= c2
+                    (unsigned char)c <= (unsigned char)tests[t]
+                    && (unsigned char)tests[t] <= (unsigned char)c2
 #endif
                 )
                     ok = 1;
