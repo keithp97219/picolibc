@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-mq_close
   test-mq_notify
   test-mq_timedreceive
   test-mq_timedsend
