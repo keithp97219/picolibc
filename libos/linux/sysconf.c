@@ -73,6 +73,9 @@ sysconf(int name)
         return 100;
     case _SC_NGROUPS_MAX:
         return 65536;
+    case _SC_DELAYTIMER_MAX:
+        /* The kernel's timer overrun counts saturate at INT_MAX */
+        return INT_MAX;
     case _SC_MQ_PRIO_MAX:
         /* The kernel's MQ_PRIO_MAX */
         return 32768;
