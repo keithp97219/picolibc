@@ -45,6 +45,22 @@
 #define LINUX_SIOCGIFNAME  0x8910
 #define LINUX_SIOCGIFINDEX 0x8933
 
+/* One past the largest socket type the kernel knows */
+#define LINUX_SOCK_MAX 11
+
+/*
+ * Linux says EINVAL for a socket type it doesn't know, or a type with
+ * unknown flags, and for an out-of-range protocol number. POSIX has
+ * EPROTOTYPE and EPROTONOSUPPORT for those.
+ */
+static inline int
+_socket_einval(int type)
+{
+    int base = type & ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
+
+    return base <= 0 || base >= LINUX_SOCK_MAX ? EPROTOTYPE : EPROTONOSUPPORT;
+}
+
 /* The 64-bit timeout SO_RCVTIMEO and SO_SNDTIMEO use on 32-bit targets */
 struct __kernel_sock_timeval {
     __int64_t tv_sec;

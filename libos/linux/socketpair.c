@@ -33,17 +33,20 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
-#include <sys/socket.h>
+#include "local-socket.h"
+#include <linux/linux-errno.h>
 
 int
 socketpair(int domain, int type, int protocol, int sv[2])
 {
     /* Linux stores the descriptors before it knows the call will work */
-    int fds[2];
+    int  fds[2];
+    long ret = _syscall_raw(LINUX_SYS_socketpair, domain, type, protocol, fds);
 
-    if (_syscall(LINUX_SYS_socketpair, domain, type, protocol, fds) < 0)
+    if (ret < 0) {
+        errno = ret == -LINUX_EINVAL ? _socket_einval(type) : _syscall_errno(ret);
         return -1;
+    }
     sv[0] = fds[0];
     sv[1] = fds[1];
     return 0;

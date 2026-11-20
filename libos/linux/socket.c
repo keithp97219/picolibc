@@ -33,11 +33,16 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
-#include <sys/socket.h>
+#include "local-socket.h"
+#include <linux/linux-errno.h>
 
 int
 socket(int domain, int type, int protocol)
 {
-    return (int)_syscall(LINUX_SYS_socket, domain, type, protocol);
+    long ret = _syscall_raw(LINUX_SYS_socket, domain, type, protocol);
+
+    if (ret >= 0)
+        return (int)ret;
+    errno = ret == -LINUX_EINVAL ? _socket_einval(type) : _syscall_errno(ret);
+    return -1;
 }
