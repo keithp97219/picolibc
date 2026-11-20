@@ -35,6 +35,7 @@
 
 dir_tests = [
   'test-alphasort',
+  'test-dirent_h',
   'test-dirfd',
   'test-fdopendir',
   'test-posix_getdents',

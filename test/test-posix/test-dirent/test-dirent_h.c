@@ -1,0 +1,210 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+#include <sys/types.h>
+
+/* <sys/types.h> defines reclen_t too (glibc 2.43 doesn't have it) */
+#ifndef __GLIBC__
+_Static_assert((reclen_t)-1 > 0, "reclen_t in <sys/types.h>");
+#endif
+
+/*
+ * Applications may define macros with any name POSIX doesn't reserve,
+ * so <dirent.h> must work after these. (POSIX reserves d_ for its
+ * structure members.)
+ */
+#define fd     1
+#define offset 2
+#define count  3
+#define buf    4
+#define align  5
+#define pos    6
+#define tell   7
+
+#include <dirent.h>
+
+#undef fd
+#undef offset
+#undef count
+#undef buf
+#undef align
+#undef pos
+#undef tell
+
+#include <stdio.h>
+#include <stdlib.h>
+
+/*
+ * In strict POSIX mode, the XSI functions and extensions aren't
+ * declared, so these names belong to the application.
+ */
+static int
+seekdir(int a)
+{
+    return a + 1;
+}
+
+static int
+telldir(int a)
+{
+    return a + 2;
+}
+
+static int
+fdclosedir(int a)
+{
+    return a + 3;
+}
+
+static int
+scandirat(int a)
+{
+    return a + 4;
+}
+
+static int
+versionsort(int a)
+{
+    return a + 5;
+}
+
+static int
+getdents(int a)
+{
+    return a + 6;
+}
+
+/* The types, structures, constants and prototypes <dirent.h> defines */
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+#define member_is(type, m, t) _Generic(((type *)0)->m, t: 1, default: 0)
+
+/* DIR may be incomplete, so only pointers to it */
+static DIR *dir_pointer;
+
+/* ino_t, size_t and ssize_t; reclen_t is checked below */
+_Static_assert((ino_t)-1 > 0 && (size_t)-1 > 0 && (ssize_t)-1 < 0, "ino_t, size_t, ssize_t");
+
+_Static_assert(member_is(struct dirent, d_ino, ino_t), "struct dirent d_ino");
+_Static_assert(_Generic(&((struct dirent *)0)->d_name[0], char *: 1, default: 0),
+               "struct dirent d_name");
+
+/*
+ * glibc 2.43 lacks posix_getdents, struct posix_dent, reclen_t and
+ * DT_MQ...DT_TMO, and defines the other DT_ names only for _DEFAULT_SOURCE
+ */
+#ifndef __GLIBC__
+#define HAVE_POSIX_DENT
+_Static_assert((reclen_t)-1 > 0, "reclen_t is unsigned");
+_Static_assert(member_is(struct posix_dent, d_ino, ino_t)
+                   && member_is(struct posix_dent, d_reclen, reclen_t)
+                   && member_is(struct posix_dent, d_type, unsigned char),
+               "struct posix_dent members");
+_Static_assert(_Generic(&((struct posix_dent *)0)->d_name[0], char *: 1, default: 0),
+               "struct posix_dent d_name");
+#endif
+
+/* The file types are usable in #if */
+#ifdef HAVE_POSIX_DENT
+#if DT_BLK == DT_CHR || DT_BLK == DT_DIR || DT_BLK == DT_FIFO || DT_BLK == DT_LNK                 \
+    || DT_BLK == DT_REG || DT_BLK == DT_SOCK || DT_BLK == DT_UNKNOWN || DT_CHR == DT_DIR          \
+    || DT_CHR == DT_FIFO || DT_CHR == DT_LNK || DT_CHR == DT_REG || DT_CHR == DT_SOCK             \
+    || DT_CHR == DT_UNKNOWN || DT_DIR == DT_FIFO || DT_DIR == DT_LNK || DT_DIR == DT_REG          \
+    || DT_DIR == DT_SOCK || DT_DIR == DT_UNKNOWN || DT_FIFO == DT_LNK || DT_FIFO == DT_REG        \
+    || DT_FIFO == DT_SOCK || DT_FIFO == DT_UNKNOWN || DT_LNK == DT_REG || DT_LNK == DT_SOCK       \
+    || DT_LNK == DT_UNKNOWN || DT_REG == DT_SOCK || DT_REG == DT_UNKNOWN || DT_SOCK == DT_UNKNOWN
+#error "DT_ values are not distinct"
+#endif
+
+#define DT_STD(x)                                                                       \
+    ((x) != DT_BLK && (x) != DT_CHR && (x) != DT_DIR && (x) != DT_FIFO && (x) != DT_LNK \
+     && (x) != DT_REG && (x) != DT_SOCK && (x) != DT_UNKNOWN)
+#if !(DT_STD(DT_MQ) && DT_STD(DT_SEM) && DT_STD(DT_SHM) && DT_MQ != DT_SEM && DT_MQ != DT_SHM \
+      && DT_SEM != DT_SHM)
+#error "DT_MQ, DT_SEM and DT_SHM are not distinct"
+#endif
+#endif
+
+/* The functions need system support */
+#include <unistd.h>
+#if !defined(__PICOLIBC__)                                                         \
+    || (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)
+#define CHECK_PROTOTYPES
+static int  ( *const p_alphasort)(const struct dirent **, const struct dirent **) = alphasort;
+static int  ( *const p_closedir)(DIR *) = closedir;
+static int  ( *const p_dirfd)(DIR *) = dirfd;
+static DIR *(* const p_fdopendir)(int) = fdopendir;
+static DIR *(* const p_opendir)(const char *) = opendir;
+static struct dirent *(* const p_readdir)(DIR *) = readdir;
+static void           (          *const p_rewinddir)(DIR *) = rewinddir;
+static int (* const p_scandir)(const char *, struct dirent ***, int (*)(const struct dirent *),
+                               int (*)(const struct dirent **, const struct dirent **))
+    = scandir;
+#ifdef HAVE_POSIX_DENT
+static ssize_t (* const p_posix_getdents)(int, void *, size_t, int) = posix_getdents;
+#endif
+#endif
+
+int
+main(void)
+{
+    check(dir_pointer == NULL, "DIR pointer");
+    check(seekdir(0) + telldir(0) + fdclosedir(0) + scandirat(0) + versionsort(0) + getdents(0)
+              == 21,
+          "application functions");
+#ifdef CHECK_PROTOTYPES
+    (void)p_alphasort;
+    (void)p_closedir;
+    (void)p_dirfd;
+    (void)p_fdopendir;
+    (void)p_opendir;
+    (void)p_readdir;
+    (void)p_rewinddir;
+    (void)p_scandir;
+#ifdef HAVE_POSIX_DENT
+    (void)p_posix_getdents;
+#endif
+#endif
+    printf("success\n");
+    return 0;
+}
