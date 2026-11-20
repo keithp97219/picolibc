@@ -188,6 +188,18 @@ main(void)
         result |= fail(128, __LINE__);
     if (!y("**a", "xa", 0) || !y("*a*", "a", 0) || !y("*/*", "a/b", 0) || !y("a*", "a/b", 0))
         result |= fail(128, __LINE__);
+    /* There is no limit on the number of '*' */
+    if (!y("*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*", "aaaaaaaaaaaaaaaaaaaaaaaa", 0))
+        result |= fail(128, __LINE__);
+    if (!n("*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*b", "aaaaaaaaaaaaaaaaaaaaaaaa", 0))
+        result |= fail(128, __LINE__);
+    if (!y("*a*b*a*b*a*b*a*b*a*b*a*b*a*b*a*b*a*b*a*b", "abababababababababababababababababababab",
+           0))
+        result |= fail(128, __LINE__);
+    if (!y("*/*a*/*a*/*a*/*a*/*a*/*a*/*a*/*a*/*a*/*a*/*", "a/a/a/a/a/a/a/a/a/a/a/a", FNM_PATHNAME))
+        result |= fail(128, __LINE__);
+    if (!n("*/*a*/*a*/*a*/*a*/*a*/*a*/*a*/*a*/*a*/*a*/*", "a/a/b/a/a/a/a/a/a/a/a/a", FNM_PATHNAME))
+        result |= fail(128, __LINE__);
 
     /* Backslash quotes the next character, inside brackets too */
     if (!y("\\*", "*", 0) || !n("\\*", "a", 0) || !y("\\?", "?", 0) || !n("\\?", "a", 0))
