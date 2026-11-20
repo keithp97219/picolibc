@@ -39,5 +39,8 @@
 int
 listen(int fd, int backlog)
 {
+    /* Linux takes a negative backlog as the largest one */
+    if (backlog < 0)
+        backlog = 0;
     return (int)_syscall(LINUX_SYS_listen, fd, backlog);
 }
