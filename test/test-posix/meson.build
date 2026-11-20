@@ -78,6 +78,7 @@ posix_test_dirs = [
   'test-sys-stat',
   'test-sys-statvfs',
   'test-sys-time',
+  'test-sys-times',
   'test-sys-uio',
   'test-sys-utsname',
   'test-sys-wait',
