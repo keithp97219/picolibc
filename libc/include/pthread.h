@@ -68,8 +68,22 @@ _BEGIN_STD_C
 #define PTHREAD_PRIO_INHERIT 1
 #define PTHREAD_PRIO_PROTECT 2
 
-#define PTHREAD_MUTEX_INITIALIZER                                                     \
-    { 0, PTHREAD_MUTEX_DEFAULT, PTHREAD_PROCESS_PRIVATE, PTHREAD_PRIO_NONE, 0, 0, 0 }
+/* Mutex robustness */
+#define PTHREAD_MUTEX_STALLED 0
+#define PTHREAD_MUTEX_ROBUST  1
+
+#define PTHREAD_MUTEX_INITIALIZER \
+    { 0,                          \
+      PTHREAD_MUTEX_DEFAULT,      \
+      PTHREAD_PROCESS_PRIVATE,    \
+      PTHREAD_PRIO_NONE,          \
+      0,                          \
+      0,                          \
+      0,                          \
+      PTHREAD_MUTEX_STALLED,      \
+      0,                          \
+      0,                          \
+      0 }
 #define PTHREAD_COND_INITIALIZER      { 0, CLOCK_REALTIME, PTHREAD_PROCESS_PRIVATE }
 #define PTHREAD_ONCE_INIT             0
 #define PTHREAD_RWLOCK_INITIALIZER    { 0, 0, 0, 0, PTHREAD_PROCESS_PRIVATE }
@@ -172,6 +186,7 @@ int pthread_mutex_timedlock(pthread_mutex_t * __restrict, const struct timespec 
 int pthread_mutex_clocklock(pthread_mutex_t * __restrict, clockid_t,
                             const struct timespec * __restrict) __picolibc_export;
 int pthread_mutex_unlock(pthread_mutex_t *) __picolibc_export;
+int pthread_mutex_consistent(pthread_mutex_t *) __picolibc_export;
 
 int pthread_mutexattr_init(pthread_mutexattr_t *) __picolibc_export;
 int pthread_mutexattr_destroy(pthread_mutexattr_t *) __picolibc_export;
@@ -181,6 +196,9 @@ int pthread_mutexattr_settype(pthread_mutexattr_t *, int) __picolibc_export;
 int pthread_mutexattr_getpshared(const pthread_mutexattr_t * __restrict, int * __restrict)
     __picolibc_export;
 int pthread_mutexattr_setpshared(pthread_mutexattr_t *, int) __picolibc_export;
+int pthread_mutexattr_getrobust(const pthread_mutexattr_t * __restrict, int * __restrict)
+    __picolibc_export;
+int pthread_mutexattr_setrobust(pthread_mutexattr_t *, int) __picolibc_export;
 int pthread_mutexattr_getprotocol(const pthread_mutexattr_t * __restrict, int * __restrict)
     __picolibc_export;
 int pthread_mutexattr_setprotocol(pthread_mutexattr_t *, int) __picolibc_export;

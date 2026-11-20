@@ -79,6 +79,10 @@ typedef struct {
     int          __prioceiling;
     int          __owner; /* thread id of the owner, for recursive and error checking mutexes */
     unsigned int __count; /* recursion depth beyond the first lock */
+    int          __robust;
+    int          __robust_state; /* consistent, inconsistent or not recoverable */
+    void        *__robust_next;  /* the owner's list of robust mutexes, for the kernel */
+    void        *__robust_prev;  /* the list link pointing at this mutex */
 } pthread_mutex_t;
 
 typedef struct {
@@ -86,6 +90,7 @@ typedef struct {
     int __pshared;
     int __protocol;
     int __prioceiling;
+    int __robust;
 } pthread_mutexattr_t;
 
 typedef struct {
