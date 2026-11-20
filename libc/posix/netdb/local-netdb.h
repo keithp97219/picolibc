@@ -108,4 +108,61 @@ int  __netdb_host_addrs(const char *name, struct __netdb_addr *addrs, int max, c
 /* The name of the host with 'addr' */
 bool __netdb_host_name(int family, const void *addr, char *buf, size_t len);
 
+#ifdef __PICOLIBC_NETWORK_DNS
+
+/*
+ * A small DNS resolver, used when the hosts database has no answer.
+ * It reads the resolver configuration from __picolibc_resolv_conf,
+ * which is "/etc/resolv.conf" unless a program defines its own.
+ */
+extern const char *__picolibc_resolv_conf;
+
+#define __DNS_NAME_MAX    255 /* longest name, in its dotted form */
+#define __DNS_SERVERS_MAX 3
+#define __DNS_SEARCH_MAX  6
+
+#define __DNS_TYPE_A      1
+#define __DNS_TYPE_CNAME  5
+#define __DNS_TYPE_PTR    12
+#define __DNS_TYPE_AAAA   28
+
+struct __dns_server {
+    int            family;
+    unsigned char  addr[16];
+    unsigned short port;
+};
+
+struct __dns_conf {
+    struct __dns_server servers[__DNS_SERVERS_MAX];
+    int                 nservers;
+    char                search[__DNS_SEARCH_MAX][__DNS_NAME_MAX + 1];
+    int                 nsearch;
+    int                 timeout;  /* seconds per attempt at each server */
+    int                 attempts; /* rounds through the servers */
+    int                 ndots;    /* names with fewer dots try the search list first */
+};
+
+/* Reads the configuration, filling in the defaults */
+void __dns_conf(struct __dns_conf *conf);
+
+/*
+ * Asks the servers for the records of 'type' for 'name'. Addresses (A,
+ * AAAA) go in 'addrs', up to 'max' of them; a PTR record's name goes in
+ * 'out'. CNAME records in the answer are followed, and 'out' (if not
+ * NULL, for A and AAAA) gets the name they lead to. Returns the number
+ * of records, 0 when the name exists without any, or an EAI_ value
+ * (which are negative).
+ */
+int  __dns_query(const struct __dns_conf *conf, const char *name, int type,
+                 struct __netdb_addr *addrs, int max, char *out, size_t outlen);
+
+/* As __netdb_host_addrs, from DNS; returns the count or an EAI_ value */
+int __dns_host_addrs(const char *name, int family, struct __netdb_addr *addrs, int max, char *canon,
+                     size_t canonlen);
+
+/* As __netdb_host_name, from DNS; returns 0 or an EAI_ value */
+int __dns_host_name(int family, const void *addr, char *buf, size_t len);
+
+#endif /* __PICOLIBC_NETWORK_DNS */
+
 #endif /* _LOCAL_NETDB_H_ */

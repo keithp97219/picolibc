@@ -94,6 +94,17 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
 
         if (!(flags & NI_NUMERICHOST) && lookup_family != AF_UNSPEC) {
             named = __netdb_host_name(lookup_family, lookup_addr, name, sizeof(name));
+#ifdef __PICOLIBC_NETWORK_DNS
+            /* Then DNS; its failures matter only when a name is required */
+            if (!named) {
+                int ret = __dns_host_name(lookup_family, lookup_addr, name, sizeof(name));
+
+                if (ret == 0)
+                    named = true;
+                else if ((flags & NI_NAMEREQD) && ret != EAI_NONAME)
+                    return ret;
+            }
+#endif
             if (named && (flags & NI_NOFQDN)) {
                 char *dot = strchr(name, '.');
 

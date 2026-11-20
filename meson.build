@@ -1609,6 +1609,18 @@ elif network == 'linux' and not network_linux_possible
 endif
 conf_data.set('__PICOLIBC_NETWORK', network != 'none', description: 'Networking interfaces are available')
 conf_data.set('__PICOLIBC_NETWORK_LINUX', network == 'linux', description: 'Networking uses the Linux API and ABI')
+
+# The DNS resolver used when the hosts database has no answer
+network_dns = get_option('network-dns')
+if network_dns == 'auto'
+  network_dns = network == 'linux'
+else
+  network_dns = network_dns == 'true'
+  if network_dns and network == 'none'
+    error('network-dns requires networking')
+  endif
+endif
+conf_data.set('__PICOLIBC_NETWORK_DNS', network_dns, description: 'Host names are looked up with DNS')
 conf_data.set('__THREAD_LOCAL_STORAGE_API', thread_local_storage and have_picolibc_tls_api, description: '_set_tls and _init_tls functions available')
 conf_data.set('__THREAD_LOCAL_STORAGE_RP2040', get_option('tls-rp2040'),
               description: 'Use Raspberry Pi RP2040 CPUID register to index thread local storage value')

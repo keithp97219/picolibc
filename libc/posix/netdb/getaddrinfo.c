@@ -204,6 +204,17 @@ getaddrinfo(const char * __restrict node, const char * __restrict service,
 
         canon_buf[0] = '\0';
         nfound = __netdb_host_addrs(node, found, __GAI_MAX_ADDRS, canon_buf, sizeof(canon_buf));
+#ifdef __PICOLIBC_NETWORK_DNS
+        /* Then DNS, for both families when IPv4 addresses may be mapped */
+        if (nfound == 0) {
+            int dns_family = family == AF_INET6 && (flags & AI_V4MAPPED) ? AF_UNSPEC : family;
+
+            nfound = __dns_host_addrs(node, dns_family, found, __GAI_MAX_ADDRS, canon_buf,
+                                      sizeof(canon_buf));
+            if (nfound < 0)
+                return nfound;
+        }
+#endif
         for (i = 0; i < nfound; i++)
             if (found[i].family == AF_INET6)
                 have6 = 1;

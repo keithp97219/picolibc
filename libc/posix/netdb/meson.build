@@ -66,4 +66,13 @@ if network != 'none'
     'setprotoent.c',
     'setservent.c',
   ]
+  if network_dns
+    dir_srcs += [
+      '__dns_conf.c',
+      '__dns_host_addrs.c',
+      '__dns_host_name.c',
+      '__dns_query.c',
+      '__dns_resolv_conf.c',
+    ]
+  endif
 endif

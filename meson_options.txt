@@ -249,6 +249,8 @@ option('posix-threads', type: 'combo', choices: ['auto', 'true', 'false'], value
        description: 'Provide POSIX threads and install pthread.h. "auto" enables them for the linux OS layer on machines with thread support')
 option('network', type: 'combo', choices: ['auto', 'none', 'linux'], value: 'auto',
        description: 'Networking API and ABI. "linux" uses the linux OS layer\'s sockets; "auto" selects it when that layer is built, and "none" otherwise')
+option('network-dns', type: 'combo', choices: ['auto', 'true', 'false'], value: 'auto',
+       description: 'Look up host names missing from /etc/hosts with DNS. "auto" enables it with network=linux')
 
 #
 # Dynamic loading (libdl) options
