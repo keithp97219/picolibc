@@ -48,6 +48,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
@@ -89,6 +90,23 @@ main(void)
     int fds[2];
 
     check(grantpt(manager) == 0, "grantpt");
+
+    /*
+     * The subsidiary belongs to the real user ID, readable and writable by
+     * it. Whether the group can write comes from the devpts mount's mode
+     * option, which neither picolibc nor glibc changes, so it isn't checked
+     */
+    {
+        struct stat st;
+        char       *name = ptsname(manager);
+
+        check(name != NULL && stat(name, &st) == 0, "stat subsidiary");
+        check(st.st_uid == getuid(), "owned by the real user ID");
+        check((st.st_mode & (S_IRUSR | S_IWUSR)) == (S_IRUSR | S_IWUSR),
+              "owner can read and write");
+        check((st.st_mode & (S_IRGRP | S_IXGRP | S_IRWXO | S_IXUSR)) == 0, "no other permissions");
+    }
+    check(grantpt(subsidiary) == -1 && errno == EINVAL, "a subsidiary isn't a manager");
     check(pipe(fds) == 0, "pipe");
     check(grantpt(fds[0]) == -1 && errno == EINVAL, "EINVAL");
     check(grantpt(-1) == -1 && errno == EBADF, "EBADF");

@@ -92,6 +92,8 @@ main(void)
     check(name != NULL && strncmp(name, "/dev/", 5) == 0, "a device name");
     check(pipe(fds) == 0, "pipe");
     check(ptsname(fds[0]) == NULL, "not a manager");
+    check(ptsname(subsidiary) == NULL, "a subsidiary isn't a manager");
+    check(ptsname(-1) == NULL, "not a descriptor");
     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close pipe");
     check(close(subsidiary) == 0 && close(manager) == 0, "close");
     printf("success\n");

@@ -92,12 +92,41 @@ main(void)
     int  subsidiary, manager = open_pty(&subsidiary);
     int  fds[2];
     char name[64];
+    char * volatile null_name = NULL;
+    size_t len;
 
     check(ptsname_r(manager, name, sizeof(name)) == 0, "ptsname_r");
     check(strcmp(name, ptsname(manager)) == 0, "matches ptsname");
+    len = strlen(name);
     check(ptsname_r(manager, name, 4) == ERANGE, "ERANGE");
+    check(ptsname_r(manager, name, len) == ERANGE, "no room for the null");
+    check(ptsname_r(manager, name, len + 1) == 0 && strlen(name) == len, "just enough room");
+#ifndef __GLIBC__
+    /*
+     * glibc crashes on a null name. The volatile pointer keeps compilers
+     * that know the argument as non-null quiet
+     */
+    check(ptsname_r(manager, null_name, sizeof(name)) == EINVAL, "null name");
+    check(ptsname_r(manager, null_name, 0) == EINVAL, "null name and no size");
+#else
+    (void)null_name;
+#endif
+    check(ptsname_r(-1, name, sizeof(name)) == EBADF, "EBADF");
+#ifdef _SC_TTY_NAME_MAX
+    check(sysconf(_SC_TTY_NAME_MAX) < 0 || strlen(name) < (size_t)sysconf(_SC_TTY_NAME_MAX),
+          "TTY_NAME_MAX");
+#endif
     check(pipe(fds) == 0, "pipe");
-    check(ptsname_r(fds[0], name, sizeof(name)) != 0, "not a manager");
+    {
+        int ret = ptsname_r(fds[0], name, sizeof(name));
+
+        check(ret == EINVAL || ret == ENOTTY, "not a manager");
+    }
+    {
+        int ret = ptsname_r(subsidiary, name, sizeof(name));
+
+        check(ret == EINVAL || ret == ENOTTY, "a subsidiary isn't a manager");
+    }
     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close pipe");
     check(close(subsidiary) == 0 && close(manager) == 0, "close");
     printf("success\n");

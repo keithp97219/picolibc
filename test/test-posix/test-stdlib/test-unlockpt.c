@@ -104,6 +104,7 @@ main(void)
     check(close(fds[0]) == 0, "close");
     check(pipe(fds) == 0, "pipe");
     check(unlockpt(fds[0]) == -1 && errno == EINVAL, "EINVAL");
+    check(unlockpt(-1) == -1 && errno == EBADF, "EBADF");
     check(close(fds[0]) == 0 && close(fds[1]) == 0 && close(manager) == 0, "close");
     (void)open_pty;
     printf("success\n");
