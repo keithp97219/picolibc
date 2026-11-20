@@ -86,6 +86,12 @@ typedef struct {
 #define DT_SOCK    7
 #define DT_UNKNOWN 0
 
+/* POSIX.1-2024 types picolibc never reports in d_type */
+#define DT_MQ  8
+#define DT_SEM 9
+#define DT_SHM 10
+#define DT_TMO 11
+
 _END_STD_C
 
 #endif
