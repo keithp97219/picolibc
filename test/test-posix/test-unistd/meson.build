@@ -68,6 +68,7 @@ dir_tests = [
   'test-pause',
   'test-pipe2',
   'test-posix-options',
+  'test-posix-profiles',
   'test-posix_close',
   'test-pread',
   'test-pwrite',
