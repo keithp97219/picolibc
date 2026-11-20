@@ -118,8 +118,10 @@ struct cmsghdr {
     ((size_t)(mhdr)->msg_controllen >= sizeof(struct cmsghdr) \
          ? (struct cmsghdr *)(mhdr)->msg_control              \
          : (struct cmsghdr *)0)
+/* A null cmsg gives the first header */
 #define CMSG_NXTHDR(mhdr, cmsg)                                                            \
-    ((cmsg)->cmsg_len < sizeof(struct cmsghdr)                                             \
+    (!(cmsg) ? CMSG_FIRSTHDR(mhdr)                                                         \
+         : (cmsg)->cmsg_len < sizeof(struct cmsghdr)                                       \
              || __CMSG_ALIGN((cmsg)->cmsg_len) + sizeof(struct cmsghdr)                    \
                  >= (size_t)((unsigned char *)(mhdr)->msg_control + (mhdr)->msg_controllen \
                              - (unsigned char *)(cmsg))                                    \
