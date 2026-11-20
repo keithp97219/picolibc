@@ -38,6 +38,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <sys/cdefs.h>
 #include <sys/_types.h>
+/* For O_RDONLY, O_RDWR, O_CREAT, O_EXCL and O_TRUNC */
+#include <fcntl.h>
 
 _BEGIN_STD_C
 
@@ -71,9 +73,7 @@ typedef __mode_t mode_t;
 #define MAP_PRIVATE   0x002 /* changes are private */
 #define MAP_FIXED     0x010 /* interpret addr exactly */
 #define MAP_ANONYMOUS 0x020 /* not backed by any file */
-#if __GNU_VISIBLE
-#define MAP_ANON MAP_ANONYMOUS
-#endif
+#define MAP_ANON      MAP_ANONYMOUS
 
 /*
  * Error return value from mmap().
