@@ -45,6 +45,7 @@ pthread_barrier_init(pthread_barrier_t * __restrict barrier,
     barrier->__count = count;
     barrier->__waiting = 0;
     barrier->__seq = 0;
+    barrier->__lock = 0;
     barrier->__pshared = attr ? attr->__pshared : PTHREAD_PROCESS_PRIVATE;
     return 0;
 }

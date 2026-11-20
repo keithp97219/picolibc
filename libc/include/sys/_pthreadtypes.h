@@ -119,7 +119,8 @@ typedef struct {
 typedef struct {
     unsigned int __count;
     unsigned int __waiting;
-    unsigned int __seq; /* advanced as each group of threads leaves */
+    unsigned int __seq;  /* advanced as each group of threads leaves */
+    unsigned int __lock; /* held while a thread arrives */
     int          __pshared;
 } pthread_barrier_t;
 
