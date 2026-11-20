@@ -119,9 +119,19 @@ main(void)
         check(if_indextoname(i->if_index, name) == name && strcmp(name, i->if_name) == 0,
               "if_indextoname");
     }
+    check(i->if_name == NULL, "terminator");
+
+    /* if_freenameindex leaves errno alone */
+    errno = EDOM;
     if_freenameindex(list);
+    check(errno == EDOM, "if_freenameindex errno");
+
     check(if_nametoindex("no-such-if") == 0, "missing name");
     check(if_indextoname(0x7fffffff, name) == NULL && errno == ENXIO, "missing index");
+    check(if_nametoindex("a-name-much-too-long-for-an-interface") == 0, "long name");
+    check(if_nametoindex("") == 0, "empty name");
+    errno = 0;
+    check(if_indextoname(0, name) == NULL && errno == ENXIO, "index zero");
     (void)make_socket;
     (void)tcp_pair;
     printf("success\n");
