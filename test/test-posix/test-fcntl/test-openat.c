@@ -67,8 +67,12 @@ static char dir[] = "tmp-XXXXXX";
 int
 main(void)
 {
-    int  dfd, fd;
-    char buf[4];
+    struct stat st;
+    mode_t      mask = umask(0);
+    int         dfd, fd;
+    char        buf[4];
+
+    umask(mask);
 
     check(mkdtemp(dir) != NULL, "mkdtemp");
     dfd = open(dir, O_RDONLY | O_DIRECTORY);
@@ -85,6 +89,20 @@ main(void)
     check(close(fd) == 0, "close");
     check(openat(dfd, "missing", O_RDONLY) == -1 && errno == ENOENT, "ENOENT");
     check(openat(dfd, "file", O_RDONLY | O_DIRECTORY) == -1 && errno == ENOTDIR, "ENOTDIR");
+
+    /* Errors for the descriptor */
+    errno = 0;
+    check(openat(-1, "file", O_RDONLY) == -1 && errno == EBADF, "EBADF");
+    fd = openat(dfd, "file", O_RDONLY);
+    check(fd >= 0, "openat read");
+    errno = 0;
+    check(openat(fd, "file", O_RDONLY) == -1 && errno == ENOTDIR, "ENOTDIR descriptor");
+    check(close(fd) == 0, "close");
+    /* The mode argument applies as for open */
+    fd = openat(dfd, "new", O_WRONLY | O_CREAT | O_EXCL, 0640);
+    check(fd >= 0, "openat create");
+    check(fstat(fd, &st) == 0 && (st.st_mode & 0777) == (0640 & ~mask), "openat mode");
+    check(close(fd) == 0 && unlinkat(dfd, "new", 0) == 0, "remove new");
 
     /* AT_FDCWD names the working directory */
     check(chdir(dir) == 0, "chdir");
