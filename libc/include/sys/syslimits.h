@@ -118,8 +118,8 @@
 #define _XOPEN_PATH_MAX 1024
 #endif
 
-#if __MISC_VISIBLE
-#define NSIG_MAX __LONG_WIDTH__ /* max signal number */
+#if __MISC_VISIBLE || __POSIX_VISIBLE >= 202405
+#define NSIG_MAX 64 /* signal numbers are less than this; matches sigset_t */
 #endif
 
 #endif
