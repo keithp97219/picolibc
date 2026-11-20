@@ -129,6 +129,11 @@ typedef __blksize_t blksize_t;
 #define _BLKSIZE_T_DECLARED
 #endif
 
+#ifndef _RECLEN_T_DECLARED
+typedef __size_t reclen_t;
+#define _RECLEN_T_DECLARED
+#endif
+
 #ifndef _CLOCK_T_DECLARED
 typedef __clock_t clock_t;
 #define _CLOCK_T_DECLARED

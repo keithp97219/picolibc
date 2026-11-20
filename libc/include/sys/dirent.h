@@ -46,7 +46,10 @@ typedef __ino_t ino_t; /* inode number */
 #define _INO_T_DECLARED
 #endif
 
-typedef size_t reclen_t;
+#ifndef _RECLEN_T_DECLARED
+typedef __size_t reclen_t;
+#define _RECLEN_T_DECLARED
+#endif
 
 #ifndef _SSIZE_T_DECLARED
 typedef __ssize_t ssize_t;
