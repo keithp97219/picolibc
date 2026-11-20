@@ -42,7 +42,7 @@ mq_open(const char *name, int oflag, ...)
 {
     struct __kernel_mq_attr kattr, *pkattr = NULL;
     const char             *kname = _mq_name(name);
-    int                     kflags = oflag & O_ACCMODE;
+    int                     kflags = oflag & (O_RDONLY | O_WRONLY | O_RDWR);
     int                     mode = 0;
 
     if (!kname)

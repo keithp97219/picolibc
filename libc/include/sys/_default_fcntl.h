@@ -43,7 +43,8 @@ typedef __pid_t pid_t; /* process id */
 #define _FDIRECTORY 0x200000
 #define _FEXECSRCH  0x400000
 
-#define O_ACCMODE   (O_RDONLY | O_WRONLY | O_RDWR)
+/* O_EXEC and O_SEARCH are file access modes too */
+#define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR | _FEXECSRCH)
 
 /*
  * Flag values for open(2) and fcntl(2)

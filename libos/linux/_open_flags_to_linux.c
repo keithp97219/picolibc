@@ -40,7 +40,8 @@ _open_flags_to_linux(int flags)
 {
     int kflags;
 
-    kflags = flags & O_ACCMODE;
+    /* O_SEARCH is part of O_ACCMODE; it is mapped below */
+    kflags = flags & (O_RDONLY | O_WRONLY | O_RDWR);
 #ifdef O_APPEND
     if (flags & O_APPEND)
         kflags |= LINUX_O_APPEND;

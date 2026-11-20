@@ -39,7 +39,7 @@
 int
 _open_flags_from_linux(int kflags)
 {
-    int flags = kflags & O_ACCMODE;
+    int flags = kflags & (O_RDONLY | O_WRONLY | O_RDWR);
 
     if (kflags & LINUX_O_APPEND)
         flags |= O_APPEND;
