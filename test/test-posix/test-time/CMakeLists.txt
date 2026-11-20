@@ -38,6 +38,7 @@ set(tests
   test-clock_gettime
   test-clock_nanosleep
   test-localtime
+  test-mktime
   test-time
   test-time_h
   test-timer_create
