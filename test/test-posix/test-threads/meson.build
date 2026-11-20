@@ -39,7 +39,14 @@ dir_tests = []
 dir_thread_tests = [
   'test-call_once',
   'test-cnd_timedwait',
+  'test-cnd_wait',
   'test-mtx_timedlock',
+  'test-mtx_trylock',
   'test-thrd_create',
+  'test-thrd_exit',
+  'test-thrd_join',
+  'test-thrd_sleep',
+  'test-threads_h',
   'test-tss_create',
+  'test-tss_delete',
 ]
