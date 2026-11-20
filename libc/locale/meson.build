@@ -34,6 +34,9 @@
 #
 
 srcs_locale = [
+  'catclose.c',
+  'catgets.c',
+  'catopen.c',
   'duplocale.c',
   'freelocale.c',
   'getlocalename_l.c',

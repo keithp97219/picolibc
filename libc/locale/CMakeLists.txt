@@ -33,6 +33,9 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 picolibc_sources(
+  catclose.c
+  catgets.c
+  catopen.c
   duplocale.c
   freelocale.c
   getlocalename_l.c

@@ -73,6 +73,7 @@ inc_headers = [
   'mqueue.h',
   'ndbm.h',
   'newlib.h',
+  'nl_types.h',
   'paths.h',
   'poll.h',
   'pwd.h',

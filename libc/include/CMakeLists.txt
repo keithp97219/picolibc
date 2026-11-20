@@ -73,6 +73,7 @@ picolibc_headers(""
   mqueue.h
   ndbm.h
   newlib.h
+  nl_types.h
   paths.h
   picotls.h
   poll.h

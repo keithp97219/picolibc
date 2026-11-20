@@ -36,6 +36,7 @@
 tests = [
   'test-access',
   'test-alphasort',
+  'test-catopen',
   'test-ctermid',
   'test-dirfd',
   'test-fnmatch',
