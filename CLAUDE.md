@@ -14,6 +14,8 @@ commit on real arm64 hardware and push the results back to this branch.
 - Push **only** to the `claude/arm64-testing` branch of `keithp97219/picolibc`,
   and never force-push. Never push any other branch or repository.
 - Don't modify the picolibc source you test. Report problems; don't fix them.
+  The one exception is an audit round (below), whose changes leave this
+  machine only as patch files on this branch.
 
 ## Why real hardware
 
@@ -137,3 +139,31 @@ git push origin HEAD:claude/arm64-testing
 ```
 
 When `TEST-COMMIT` changes on this branch, that's a request for another round.
+
+## Audit rounds
+
+`AUDIT-REQUEST` names the branch to audit and the units to run:
+
+```sh
+read base units < AUDIT-REQUEST
+git fetch origin "$base"
+```
+
+`AUDIT-PLAN.md` describes the units, the brief to give each unit's agent,
+and what each one delivers: `results/audit/<unit>/report.md` and the
+unit's commits as `git format-patch` files beside it. The pilot's reports
+are in `results/audit/pilot/`. Run each named unit in its own worktree with
+its own agent, up to the number the plan allows at once, then commit the
+results and push this branch as for a test round:
+
+```sh
+git add results/audit
+git commit -m "Audit results for <units>"
+git pull --rebase origin claude/arm64-testing
+git push origin HEAD:claude/arm64-testing
+```
+
+When `AUDIT-REQUEST` changes on this branch, that's a request for another
+audit round. A unit already in `results/audit/` isn't run again unless the
+request says so.
+
