@@ -168,12 +168,21 @@ sigaction(int sig, const struct sigaction *act, struct sigaction *oldact)
     ret = _syscall(LINUX_SYS_rt_sigaction, ksig, pact, poldact, __KERNEL_NSIG_BYTES);
 
     if (ret == 0) {
+        /* Without act, the handling is unchanged */
+        if (act) {
 #ifdef _USE_ATOMIC_SIGNAL
-        oldfunc = (sig_func_t)atomic_exchange(&_sig_func[sig], func);
+            oldfunc = (sig_func_t)atomic_exchange(&_sig_func[sig], func);
 #else
-        oldfunc = _sig_func[sig];
-        _sig_func[sig] = func;
+            oldfunc = _sig_func[sig];
+            _sig_func[sig] = func;
 #endif
+        } else {
+#ifdef _USE_ATOMIC_SIGNAL
+            oldfunc = (sig_func_t)atomic_load(&_sig_func[sig]);
+#else
+            oldfunc = _sig_func[sig];
+#endif
+        }
         if (oldact) {
             oldact->sa_handler = oldfunc.sa_handler;
             _sigmask_from_linux(&oldact->sa_mask, &koldact.sa_mask);
