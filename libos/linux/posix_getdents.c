@@ -40,28 +40,21 @@
 #include <string.h>
 
 /*
- * Let the kernel fill buf with its linux_dirent64 records, then convert
- * them in place. picolibc's posix_dent header is smaller than the
- * kernel's and needs no more alignment, so each converted record fits
- * where its source was and never reaches the next one.
+ * Convert the kernel's linux_dirent64 records in kbuf to posix_dent
+ * records in buf, stopping before the first that doesn't fit in nbyte.
+ * picolibc's posix_dent header is smaller than the kernel's and needs
+ * no more alignment, so when kbuf is buf each converted record fits
+ * where its source was and never reaches the next one. Returns the
+ * number of bytes used, or -1 with errno set, and the number of kernel
+ * bytes consumed in *used.
  */
-ssize_t
-posix_getdents(int fd, void *buf, size_t nbyte, int flags)
+static ssize_t
+__posix_getdents_convert(char *kbuf, size_t kcount, char *buf, size_t nbyte, size_t *used)
 {
-    char *in, *out, *end;
-    long  ret;
+    char  *in = kbuf, *out = buf;
+    char  *end = in + kcount;
+    size_t avail = nbyte;
 
-    /* POSIX.1-2024 defines no flags */
-    if (flags != 0) {
-        errno = EINVAL;
-        return -1;
-    }
-    ret = _syscall(LINUX_SYS_getdents64, fd, buf, nbyte);
-    if (ret <= 0)
-        return (ssize_t)ret;
-
-    in = out = buf;
-    end = in + ret;
     while (in < end) {
         struct __kernel_dirent64 *k = (struct __kernel_dirent64 *)in;
         struct posix_dent        *d = (struct posix_dent *)out;
@@ -78,6 +71,8 @@ posix_getdents(int fd, void *buf, size_t nbyte, int flags)
         }
         reclen = offsetof(struct posix_dent, d_name) + namelen + 1;
         reclen = (reclen + _Alignof(struct posix_dent) - 1) & ~(_Alignof(struct posix_dent) - 1);
+        if (reclen > avail)
+            break;
         MAP_DT(type, ktype);
 
         /* The name moves down within the same record, so read the header first */
@@ -86,7 +81,76 @@ posix_getdents(int fd, void *buf, size_t nbyte, int flags)
         d->d_reclen = reclen;
         d->d_type = type;
         out += reclen;
+        avail -= reclen;
         in += kreclen;
     }
-    return (ssize_t)(out - (char *)buf);
+    *used = (size_t)(in - kbuf);
+    return (ssize_t)(out - buf);
+}
+
+ssize_t
+posix_getdents(int fd, void *buf, size_t nbyte, int flags)
+{
+    union {
+        char                     bytes[sizeof(struct __kernel_dirent64)];
+        struct __kernel_dirent64 align;
+    } kbuf;
+    off_t   start;
+    size_t  used;
+    ssize_t out;
+    long    ret;
+
+    /* POSIX.1-2024 defines no flags */
+    if (flags != 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (nbyte >= sizeof(kbuf)) {
+        /* Big enough for any kernel record; convert in place */
+        ret = _syscall(LINUX_SYS_getdents64, fd, buf, nbyte);
+        if (ret <= 0)
+            return (ssize_t)ret;
+        return __posix_getdents_convert(buf, (size_t)ret, buf, nbyte, &used);
+    }
+
+    /*
+     * A posix_dent can be smaller than the kernel's record for the same
+     * name, so a buffer that holds the converted entry might not hold the
+     * kernel's. Read into a buffer large enough for any record, then move
+     * the offset back to the first entry that didn't fit.
+     */
+    start = lseek(fd, 0, SEEK_CUR);
+    if (start < 0)
+        return -1;
+    ret = _syscall(LINUX_SYS_getdents64, fd, kbuf.bytes, sizeof(kbuf));
+    if (ret <= 0)
+        return (ssize_t)ret;
+    out = __posix_getdents_convert(kbuf.bytes, (size_t)ret, buf, nbyte, &used);
+    if (out < 0)
+        return -1;
+    if (used < (size_t)ret) {
+        off_t next = start;
+
+        if (used > 0) {
+            /* d_off of the last record converted is where the next one starts */
+            size_t off = 0;
+
+            for (;;) {
+                struct __kernel_dirent64 *k = (struct __kernel_dirent64 *)(kbuf.bytes + off);
+
+                off += k->d_reclen;
+                if (off >= used) {
+                    next = k->d_off;
+                    break;
+                }
+            }
+        }
+        if (lseek(fd, next, SEEK_SET) < 0)
+            return -1;
+        if (out == 0) {
+            errno = EINVAL;
+            return -1;
+        }
+    }
+    return out;
 }
