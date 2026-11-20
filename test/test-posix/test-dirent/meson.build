@@ -44,8 +44,8 @@ dir_tests = [
   'test-telldir',
 ]
 
-# The native build reads directories through the host's struct dirent
-if enable_native_tests
+# The native configuration reads directories through the host's struct dirent
+if use_stdlib
   test_skip += ['test-readdir', 'test-dirfd', 'test-scandir']
 endif
 
