@@ -60,6 +60,9 @@
 #define LINE_MAX                            2048 /* max bytes in an input line */
 #define RE_DUP_MAX                          255  /* max RE's in interval notation */
 
+#define AIO_LISTIO_MAX                      64 /* max requests in one lio_listio */
+#define AIO_PRIO_DELTA_MAX                  20 /* max aio_reqprio; accepted but unused */
+
 #define _POSIX_AIO_LISTIO_MAX               2
 #define _POSIX_AIO_MAX                      1
 #define _POSIX_ARG_MAX                      4096

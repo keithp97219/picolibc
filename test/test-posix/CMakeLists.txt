@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+add_subdirectory(test-aio)
 add_subdirectory(test-dirent)
 add_subdirectory(test-fcntl)
 add_subdirectory(test-fnmatch)

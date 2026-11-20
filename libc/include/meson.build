@@ -115,7 +115,7 @@ endif
 inc_headers += ['picotls.h']
 
 if posix_threads
-  inc_headers += ['pthread.h', 'semaphore.h']
+  inc_headers += ['aio.h', 'pthread.h', 'semaphore.h']
 endif
 
 if enable_libdl

@@ -38,6 +38,7 @@
 # its tests in dir_tests, or dir_thread_tests for those needing POSIX
 # threads; its tests form a suite named after the directory.
 posix_test_dirs = [
+  'test-aio',
   'test-dirent',
   'test-fcntl',
   'test-fnmatch',

@@ -91,17 +91,31 @@ srcs_posix = [
   'wait.c',
 ]
 
+# One directory for each header, holding the functions it declares
+posix_dirs = [
+  'aio',
+]
+
+foreach d : posix_dirs
+  dir_srcs = []
+  subdir(d)
+  foreach file : dir_srcs
+    srcs_posix += d / file
+  endforeach
+endforeach
+
 srcs_posix_use = []
-foreach file : srcs_posix
+foreach path : srcs_posix
+  file = fs.name(path)
   s_file = fs.replace_suffix(file, '.S')
   if file in srcs_machine
-    message('libc/posix/' + file + ': machine overrides generic')
+    message('libc/posix/' + path + ': machine overrides generic')
   elif s_file in srcs_machine
-    message('libc/posix/' + s_file + ': machine overrides generic')
+    message('libc/posix/' + fs.replace_suffix(path, '.S') + ': machine overrides generic')
   elif file in srcs_libos
-    message('libc/posix/' + file + ': libos overrides generic')
+    message('libc/posix/' + path + ': libos overrides generic')
   else
-    srcs_posix_use += file
+    srcs_posix_use += path
   endif
 endforeach
 
