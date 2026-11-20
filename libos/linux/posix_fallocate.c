@@ -55,6 +55,6 @@ posix_fallocate(int fd, off_t offset, off_t len)
     if (ret >= 0)
         return 0;
     ret = _syscall_errno(ret);
-    /* POSIX reports a file system without the support as EINVAL */
-    return ret == EOPNOTSUPP ? EINVAL : (int)ret;
+    /* Linux's EOPNOTSUPP is also ENOTSUP, which POSIX uses here */
+    return ret == EOPNOTSUPP ? ENOTSUP : (int)ret;
 }
