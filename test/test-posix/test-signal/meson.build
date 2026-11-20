@@ -38,6 +38,7 @@ dir_tests = [
   'test-killpg',
   'test-psiginfo',
   'test-rtsig',
+  'test-si_code',
   'test-sigaction',
   'test-sigaltstack',
   'test-signal',
