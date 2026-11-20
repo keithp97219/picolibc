@@ -104,6 +104,35 @@ tcp_pair(int *client, int *server)
     check(close(listener) == 0, "close listener");
 }
 
+#define MAX_FDS 64
+
+/* Records which descriptors are open */
+static void
+open_fds(unsigned char *open)
+{
+    int fd;
+
+    for (fd = 0; fd < MAX_FDS; fd++)
+        open[fd] = fcntl(fd, F_GETFD) >= 0;
+}
+
+/* Counts the descriptors opened since 'before', failing if any lacks FD_CLOEXEC */
+static int
+new_fds(const unsigned char *before)
+{
+    int fd, n = 0;
+
+    for (fd = 0; fd < MAX_FDS; fd++) {
+        int flags = fcntl(fd, F_GETFD);
+
+        if (flags < 0 || before[fd])
+            continue;
+        check(flags & FD_CLOEXEC, "FD_CLOEXEC");
+        n++;
+    }
+    return n;
+}
+
 int
 main(void)
 {
@@ -122,6 +151,40 @@ main(void)
         n++;
     endservent();
     check(n > 0, "getservent");
+
+    /* A null protocol matches any; a given one must match */
+    s = getservbyname("domain", NULL);
+    check(s && s->s_port == htons(53), "domain, any protocol");
+    s = getservbyport(htons(53), NULL);
+    check(s && s->s_port == htons(53), "port 53, any protocol");
+    s = getservbyport(htons(53), "udp");
+    check(s && strcmp(s->s_proto, "udp") == 0, "port 53/udp");
+    s = getservbyname("ssh", "no-such-protocol");
+    check(s == NULL, "protocol mismatch");
+
+    /* setservent and endservent start again from the first entry, with FD_CLOEXEC */
+    {
+        unsigned char before[MAX_FDS];
+        char          first[256];
+
+        open_fds(before);
+        setservent(1);
+        s = getservent();
+        check(s != NULL, "first entry");
+        snprintf(first, sizeof(first), "%s/%s", s->s_name, s->s_proto);
+        (void)getservent();
+        (void)new_fds(before);
+        (void)getservbyname("http", "tcp");
+        (void)new_fds(before);
+        setservent(0);
+        s = getservent();
+        check(s && strncmp(first, s->s_name, strlen(s->s_name)) == 0, "setservent rewinds");
+        endservent();
+        check(new_fds(before) == 0, "endservent closes");
+        s = getservent();
+        check(s && strncmp(first, s->s_name, strlen(s->s_name)) == 0, "endservent rewinds");
+        endservent();
+    }
     (void)make_socket;
     (void)tcp_pair;
     printf("success\n");
