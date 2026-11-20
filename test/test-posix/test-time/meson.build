@@ -44,6 +44,7 @@ dir_tests = [
   'test-time',
   'test-time_h',
   'test-timer_create',
+  'test-timer_settime',
 ]
 
 # These use threads, so lock-valid.c doesn't apply

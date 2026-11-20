@@ -45,6 +45,7 @@ set(tests
   test-time
   test-time_h
   test-timer_create
+  test-timer_settime
   )
 
 foreach(test IN LISTS tests)
