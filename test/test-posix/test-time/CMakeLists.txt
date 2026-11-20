@@ -35,6 +35,7 @@
 
 set(tests
   test-clock_getcpuclockid
+  test-clock_gettime
   test-clock_nanosleep
   test-time
   test-time_h
