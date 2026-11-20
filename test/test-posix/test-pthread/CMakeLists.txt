@@ -45,6 +45,7 @@ set(tests
   test-pthread_create
   test-pthread_exit
   test-pthread_getcpuclockid
+  test-pthread_join
   test-pthread_h_sync
   test-pthread_h_threads
   test-pthread_key_create
