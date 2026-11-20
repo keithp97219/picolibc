@@ -44,6 +44,10 @@ pthread_exit(void *value_ptr)
     int               state = __PTHREAD_JOINABLE;
     __kernel_sigset_t cancel = {};
 
+    /* Cancellation stays disabled and deferred while the thread exits */
+    __atomic_store_n(&self->cancel_state, PTHREAD_CANCEL_DISABLE, __ATOMIC_SEQ_CST);
+    self->cancel_type = PTHREAD_CANCEL_DEFERRED;
+
     /*
      * Cancellation may exit from the handler of _PTHREAD_SIGCANCEL,
      * which blocks it; unblock it so this thread can still take part
