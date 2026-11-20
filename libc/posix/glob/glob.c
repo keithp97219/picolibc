@@ -107,7 +107,7 @@ glob_add(struct glob_state *st, const char *name, int mark)
     return 0;
 }
 
-/* A directory couldn't be read: give up if asked to */
+/* A directory couldn't be read, or a path was too long: give up if asked to */
 static int
 glob_error(struct glob_state *st, const char *dir, int err)
 {
@@ -128,8 +128,10 @@ glob_expand(struct glob_state *st, size_t plen, const char *pat)
 
     /* Copy separators */
     while (*pat == '/') {
-        if (plen + 1 >= sizeof(st->path))
-            return 0;
+        if (plen + 1 >= sizeof(st->path)) {
+            st->path[plen] = '\0';
+            return glob_error(st, st->path, ENAMETOOLONG);
+        }
         st->path[plen++] = *pat++;
     }
     st->path[plen] = '\0';
@@ -167,8 +169,10 @@ glob_expand(struct glob_state *st, size_t plen, const char *pat)
         for (i = 0; i < len; i++) {
             if (pat[i] == '\\' && !noescape && i + 1 < len)
                 i++;
-            if (plen + 1 >= sizeof(st->path))
-                return 0;
+            if (plen + 1 >= sizeof(st->path)) {
+                st->path[plen] = '\0';
+                return glob_error(st, st->path, ENAMETOOLONG);
+            }
             st->path[plen++] = pat[i];
         }
         return glob_expand(st, plen, end);
@@ -198,8 +202,12 @@ glob_expand(struct glob_state *st, size_t plen, const char *pat)
             if (fnmatch(comp, ent->d_name, FNM_PERIOD | (noescape ? FNM_NOESCAPE : 0)) != 0)
                 continue;
             nlen = strlen(ent->d_name);
-            if (plen + nlen >= sizeof(st->path))
+            if (plen + nlen >= sizeof(st->path)) {
+                ret = glob_error(st, dir, ENAMETOOLONG);
+                if (ret != 0)
+                    break;
                 continue;
+            }
             memcpy(st->path + plen, ent->d_name, nlen);
             ret = glob_expand(st, plen + nlen, end);
             /* The recursion overwrote the path; restore the directory */
