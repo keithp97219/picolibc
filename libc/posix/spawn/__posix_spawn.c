@@ -56,6 +56,11 @@ __spawn_exec(const char *file, char * const argv[], char * const envp[], int sea
         execve(file, argv, envp);
         return;
     }
+    /* An empty name names no file */
+    if (!*file) {
+        errno = ENOENT;
+        return;
+    }
     path = getenv("PATH");
     if (!path)
         path = _PATH_DEFPATH;
