@@ -45,6 +45,7 @@ endif
 
 if posix_threads
   dir_thread_tests += [
+    'test-exit-thread',
     'test-timer-thread',
   ]
 endif

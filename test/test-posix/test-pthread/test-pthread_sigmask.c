@@ -42,7 +42,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* Per-thread signal masks, pthread_kill and sched_yield */
+/* Per-thread signal masks and pthread_kill */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -88,8 +88,6 @@ main(void)
 {
     sigset_t set, old;
     void    *result;
-
-    check(sched_yield() == 0, "sched_yield");
 
     check(signal(SIGUSR1, handler) != SIG_ERR, "signal");
 

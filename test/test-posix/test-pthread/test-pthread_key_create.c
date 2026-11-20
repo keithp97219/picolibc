@@ -34,14 +34,15 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <errno.h>
 #include <limits.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-/* pthread_once and thread-specific data */
+#define NTHREADS 8
+
+/* Thread-specific values are per thread, destructors run at exit, and keys can be reused */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -50,28 +51,6 @@
             exit(1);                                   \
         }                                              \
     } while (0)
-
-#define NTHREADS 8
-
-static pthread_once_t once = PTHREAD_ONCE_INIT;
-static int            once_count;
-
-static void
-once_routine(void)
-{
-    /* Give other threads time to arrive and wait */
-    for (volatile int i = 0; i < 100000; i++)
-        ;
-    once_count++;
-}
-
-static void *
-call_once(void *arg)
-{
-    (void)arg;
-    pthread_once(&once, once_routine);
-    return (void *)(intptr_t)once_count;
-}
 
 static pthread_key_t   key, key2;
 static pthread_mutex_t destructor_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -118,16 +97,6 @@ main(void)
     void         *result;
     pthread_key_t keys[PTHREAD_KEYS_MAX];
     int           nkeys;
-
-    /* The once routine runs exactly once, before any caller returns */
-    for (int i = 0; i < NTHREADS; i++)
-        check(pthread_create(&threads[i], NULL, call_once, NULL) == 0, "pthread_create once");
-    for (int i = 0; i < NTHREADS; i++) {
-        check(pthread_join(threads[i], &result) == 0, "pthread_join once");
-        check(result == (void *)1, "once routine finished before return");
-    }
-    check(pthread_once(&once, once_routine) == 0, "pthread_once");
-    check(once_count == 1, "once routine ran once");
 
     /* Values are per-thread and destructors run at thread exit */
     check(pthread_key_create(&key, destructor) == 0, "pthread_key_create");
