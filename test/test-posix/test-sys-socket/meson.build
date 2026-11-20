@@ -46,4 +46,5 @@ dir_tests = [
   'test-socket',
   'test-socketpair',
   'test-sys_socket_h',
+  'test-sys_socket_names',
 ]
