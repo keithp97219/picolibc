@@ -168,11 +168,11 @@ int    stat(const char    *__restrict __path, struct stat    *__restrict __sbuf)
 mode_t umask(mode_t __mask);
 
 #if defined(__SPU__) || defined(__rtems__) || defined(__CYGWIN__) || __POSIX_VISIBLE >= 200112L \
-    || defined(__BSD_VISIBLE) || (_XOPEN_SOURCE - 0) >= 500
+    || __BSD_VISIBLE || (_XOPEN_SOURCE - 0) >= 500
 int lstat(const char * __restrict __path, struct stat * __restrict __buf);
 #endif
 
-#if defined(__SPU__) || defined(__rtems__) || defined(__CYGWIN__) || defined(__BSD_VISIBLE) \
+#if defined(__SPU__) || defined(__rtems__) || defined(__CYGWIN__) || __BSD_VISIBLE \
     || (_XOPEN_SOURCE - 0) >= 500 || __SVID_VISIBLE
 int mknod(const char *__path, mode_t __mode, dev_t __dev);
 #endif

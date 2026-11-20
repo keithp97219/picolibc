@@ -293,7 +293,7 @@ struct sigevent {
 #define SIGRTMIN 32
 #define SIGRTMAX 62
 
-#ifdef __GNU_VISIBLE
+#if __MISC_VISIBLE
 #define NSIG _NSIG
 #endif
 

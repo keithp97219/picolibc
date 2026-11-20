@@ -330,7 +330,7 @@ __picolibc_export;
 void clearerr(FILE *__stream) __nonnull((1)) __picolibc_export;
 int  ferror(FILE *__stream) __nonnull((1)) __picolibc_export;
 int  feof(FILE *__stream) __nonnull((1)) __picolibc_export;
-#ifdef __MISC_VISIBLE
+#if __MISC_VISIBLE
 void __fseterr(FILE *__stream) __nonnull((1)) __picolibc_export;
 #endif
 
@@ -345,13 +345,13 @@ void __fseterr(FILE *__stream) __nonnull((1)) __picolibc_export;
 #define clearerr(s) __clearerr_unlocked(s)
 #define ferror(s)   __ferror_unlocked(s)
 #define feof(s)     __feof_unlocked(s)
-#ifdef __MISC_VISIBLE
+#if __MISC_VISIBLE
 #define __fseterr(s) ____fseterr_unlocked(s)
 #endif
 #endif
 
 /* Expose the unlocked symbols when requested */
-#ifdef __MISC_VISIBLE
+#if __MISC_VISIBLE
 void clearerr_unlocked(FILE *__stream) __nonnull((1)) __picolibc_export;
 int  ferror_unlocked(FILE *__stream) __nonnull((1)) __picolibc_export;
 int  feof_unlocked(FILE *__stream) __nonnull((1)) __picolibc_export;
@@ -363,7 +363,7 @@ void __fseterr_unlocked(FILE *__stream) __nonnull((1)) __picolibc_export;
 #endif
 
 /* Expose printf variants */
-#ifdef __GNU_VISIBLE
+#if __GNU_VISIBLE
 int __d_vfprintf(FILE *__stream, const char *__fmt, __gnuc_va_list __ap)
     __FORMAT_ATTRIBUTE__(printf, 2, 0) __picolibc_export;
 int __f_vfprintf(FILE *__stream, const char *__fmt, __gnuc_va_list __ap)

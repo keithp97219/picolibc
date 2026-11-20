@@ -54,7 +54,7 @@ typedef __uid_t uid_t; /* user id */
 #define _UID_T_DECLARED
 #endif
 
-#ifdef __BSD_VISIBLE
+#if __BSD_VISIBLE
 #define _PATH_PASSWD "/etc/passwd"
 #endif
 
