@@ -35,6 +35,7 @@
 
 #include "local-socket.h"
 #include <sys/time.h>
+#include <string.h>
 
 int
 getsockopt(int fd, int level, int name, void * __restrict value, socklen_t * __restrict len)
@@ -42,19 +43,18 @@ getsockopt(int fd, int level, int name, void * __restrict value, socklen_t * __r
 #if __SIZEOF_LONG__ != 8
     /* The kernel's 64-bit timeouts have a 64-bit tv_usec */
     if (level == SOL_SOCKET && (name == SO_RCVTIMEO || name == SO_SNDTIMEO)) {
-        struct timeval              *tv = value;
-        struct __kernel_sock_timeval ktv;
+        struct timeval               tv;
+        struct __kernel_sock_timeval ktv = { 0, 0 };
         socklen_t                    klen = sizeof(ktv);
 
-        if (*len < sizeof(*tv)) {
-            errno = EINVAL;
-            return -1;
-        }
         if (_syscall(LINUX_SYS_getsockopt, fd, level, name, &ktv, &klen) < 0)
             return -1;
-        tv->tv_sec = ktv.tv_sec;
-        tv->tv_usec = (suseconds_t)ktv.tv_usec;
-        *len = sizeof(*tv);
+        tv.tv_sec = ktv.tv_sec;
+        tv.tv_usec = (suseconds_t)ktv.tv_usec;
+        /* A shorter buffer gets the start of the value */
+        if (*len > sizeof(tv))
+            *len = sizeof(tv);
+        memcpy(value, &tv, *len);
         return 0;
     }
 #endif
