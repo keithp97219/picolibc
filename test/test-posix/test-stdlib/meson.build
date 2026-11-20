@@ -37,10 +37,15 @@ dir_tests = []
 
 if has_os_posix
   dir_tests += [
+    'test-grantpt',
     'test-mkdtemp',
+    'test-posix_openpt',
+    'test-ptsname',
+    'test-ptsname_r',
     'test-realpath',
     'test-secure_getenv',
     'test-system',
+    'test-unlockpt',
   ]
 elif host_cpu_family == 'hexagon'
   dir_tests += [

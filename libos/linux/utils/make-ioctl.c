@@ -46,5 +46,9 @@ main(void)
     printf("#define LINUX_TIOCGWINSZ 0x%x\n", TIOCGWINSZ);
     printf("#define LINUX_TIOCSWINSZ 0x%x\n", TIOCSWINSZ);
     printf("#define LINUX_TIOCLINUX 0x%x\n", TIOCLINUX);
+    printf("#define LINUX_TCSBRK 0x%x\n", TCSBRK);
+    printf("#define LINUX_TIOCGSID 0x%x\n", TIOCGSID);
+    printf("#define LINUX_TIOCGPTN 0x%x\n", (unsigned)TIOCGPTN);
+    printf("#define LINUX_TIOCSPTLCK 0x%x\n", (unsigned)TIOCSPTLCK);
     return 0;
 }
