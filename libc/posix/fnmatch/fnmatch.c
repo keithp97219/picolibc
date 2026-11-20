@@ -216,9 +216,6 @@ rangematch(const char *pattern, char test, int flags, char **newp)
         if (c == EOS)
             return (RANGE_ERROR);
 
-        if (c == '/' && (flags & FNM_PATHNAME))
-            return (RANGE_NOMATCH);
-
         /* Equivalence classes -- [=class=] */
         if (c == '[' && pattern[0] == '=' && pattern[1] != EOS && pattern[2] == '='
             && pattern[3] == ']') {
