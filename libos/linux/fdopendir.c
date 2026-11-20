@@ -42,11 +42,20 @@ fdopendir(int fd)
 {
     struct stat st;
     DIR        *dir;
+    long        flags;
 
     if (fstat(fd, &st) < 0)
         return NULL;
     if (!S_ISDIR(st.st_mode)) {
         errno = ENOTDIR;
+        return NULL;
+    }
+    /* An O_SEARCH (O_PATH) descriptor can't read the directory */
+    flags = _syscall(LINUX_SYS_fcntl, fd, LINUX_F_GETFL);
+    if (flags < 0)
+        return NULL;
+    if (flags & LINUX_O_PATH) {
+        errno = EBADF;
         return NULL;
     }
     dir = calloc(1, sizeof(DIR));
