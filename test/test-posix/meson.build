@@ -79,6 +79,7 @@ if has_os_posix
     'test-glob',
     'test-mkdtemp',
     'test-link',
+    'test-fileops',
     'test-mmap',
     'test-mqueue',
     'test-pclose',
