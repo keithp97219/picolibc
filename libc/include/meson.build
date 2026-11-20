@@ -109,6 +109,7 @@ inc_headers = [
   'unctrl.h',
   'unistd.h',
   'utime.h',
+  'utmpx.h',
   'utmp.h',
   'wchar.h',
   'wctype.h',

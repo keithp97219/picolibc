@@ -83,6 +83,7 @@ posix_test_dirs = [
   'test-threads',
   'test-time',
   'test-unistd',
+  'test-utmpx',
   'test-wchar',
   'test-wordexp',
 ]

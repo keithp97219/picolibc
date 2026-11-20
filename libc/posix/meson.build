@@ -60,6 +60,7 @@ posix_dirs = [
   'sys-wait',
   'syslog',
   'unistd',
+  'utmpx',
   'wordexp',
 ]
 
