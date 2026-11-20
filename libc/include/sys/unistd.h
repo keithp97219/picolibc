@@ -150,9 +150,12 @@ int fchownat(int __dirfd, const char *__path, uid_t __owner, gid_t __group, int 
 int fexecve(int __fd, char * const __argv[], char * const __envp[]) __picolibc_export;
 #endif
 pid_t fork(void) __picolibc_export;
-long  fpathconf(int __fd, int __name) __picolibc_export;
-long  __fallback_fpathconf(int __td, int __name) __picolibc_export;
-int   fsync(int __fd) __picolibc_export;
+#if __POSIX_VISIBLE >= 202405
+pid_t _Fork(void) __picolibc_export;
+#endif
+long fpathconf(int __fd, int __name) __picolibc_export;
+long __fallback_fpathconf(int __td, int __name) __picolibc_export;
+int  fsync(int __fd) __picolibc_export;
 #if __POSIX_VISIBLE >= 199309
 int fdatasync(int __fd) __picolibc_export;
 #endif

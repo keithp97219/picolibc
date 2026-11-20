@@ -41,6 +41,27 @@ pid_t wait(int *);
 pid_t waitpid(pid_t, int *, int);
 pid_t wait3(int *, int, struct rusage *);
 
+#if __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 500
+#define WIFCONTINUED(w) ((w) == 0xffff)
+#endif
+
+#if __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE
+#include <signal.h>
+
+/* waitid options */
+#define WEXITED  8
+#define WSTOPPED WUNTRACED
+#define WNOWAIT  0x10
+
+typedef enum {
+    P_ALL,
+    P_PID,
+    P_PGID,
+} idtype_t;
+
+int waitid(idtype_t, id_t, siginfo_t *, int);
+#endif
+
 _END_STD_C
 
 #endif

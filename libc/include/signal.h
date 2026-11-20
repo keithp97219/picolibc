@@ -81,6 +81,14 @@ union sigval {
 #define SI_ASYNCIO 4 /* Indicates completion of asycnhronous IO */
 #define SI_MESGQ   5 /* Indicates arrival of a message at an empty queue */
 
+/* si_code values for SIGCHLD */
+#define CLD_EXITED    16 /* Child has exited */
+#define CLD_KILLED    17 /* Child has terminated abnormally and did not create a core file */
+#define CLD_DUMPED    18 /* Child has terminated abnormally and created a core file */
+#define CLD_TRAPPED   19 /* Traced child has trapped */
+#define CLD_STOPPED   20 /* Child has stopped */
+#define CLD_CONTINUED 21 /* Stopped child has continued */
+
 typedef struct {
     int          si_signo;  /* Signal number */
     int          si_code;   /* Cause of the signal */
