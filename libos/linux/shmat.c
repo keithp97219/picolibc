@@ -41,5 +41,5 @@ shmat(int id, const void *addr, int flags)
 {
     long ret = _syscall(LINUX_SYS_shmat, id, addr, flags);
 
-    return ret == -1 ? (void *)-1 : (void *)ret;
+    return ret == -1 ? SHM_FAILED : (void *)ret;
 }

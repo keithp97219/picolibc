@@ -38,11 +38,15 @@
 
 #include <sys/cdefs.h>
 #include <sys/ipc.h>
+#include <sys/_stdint.h>
 
 _BEGIN_STD_C
 
 #define SHM_RDONLY 010000 /* Attach read-only (else read-write) */
 #define SHM_RND    020000 /* Round attach address to SHMLBA */
+
+/* What shmat returns on failure */
+#define SHM_FAILED ((void *)(intptr_t)-1)
 
 /* Segment low boundary address multiple; ARM Linux needs four pages */
 #ifdef __arm__
