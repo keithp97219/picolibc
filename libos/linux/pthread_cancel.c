@@ -94,6 +94,13 @@ pthread_cancel(pthread_t thread)
             _pthread_cancel_act(self);
         return 0;
     }
+    /*
+     * A thread with cancellation disabled acts on the request at its
+     * first cancellation point after enabling it. Signalling it now
+     * would only interrupt system calls which don't restart.
+     */
+    if (__atomic_load_n(&thread->cancel_state, __ATOMIC_SEQ_CST) != PTHREAD_CANCEL_ENABLE)
+        return 0;
     /* Interrupt the thread in case it is blocked; an exited thread needs nothing */
     tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
     if (tid)

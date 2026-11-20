@@ -45,7 +45,8 @@ pthread_setcancelstate(int state, int *oldstate)
         return EINVAL;
     if (oldstate)
         *oldstate = self->cancel_state;
-    self->cancel_state = state;
+    /* pthread_cancel reads this to decide whether to interrupt the thread */
+    __atomic_store_n(&self->cancel_state, state, __ATOMIC_SEQ_CST);
     if (state == PTHREAD_CANCEL_ENABLE && self->cancel_type == PTHREAD_CANCEL_ASYNCHRONOUS
         && __atomic_load_n(&self->cancel_pending, __ATOMIC_SEQ_CST))
         _pthread_cancel_act(self);

@@ -85,7 +85,7 @@ _cancel_disable(void)
     if (!self)
         return PTHREAD_CANCEL_ENABLE;
     old = self->cancel_state;
-    self->cancel_state = PTHREAD_CANCEL_DISABLE;
+    __atomic_store_n(&self->cancel_state, PTHREAD_CANCEL_DISABLE, __ATOMIC_SEQ_CST);
     return old;
 }
 
@@ -95,7 +95,7 @@ _cancel_restore(int old)
     struct __pthread *self = _pthread_current;
 
     if (self)
-        self->cancel_state = old;
+        __atomic_store_n(&self->cancel_state, old, __ATOMIC_SEQ_CST);
 }
 
 #else

@@ -47,7 +47,7 @@ _pthread_cancel_act(struct __pthread *self)
         (void)_pthread_mutex_lock_timed(mutex, CLOCK_REALTIME, NULL);
         mutex->__count = self->cancel_mutex_count;
     }
-    self->cancel_state = PTHREAD_CANCEL_DISABLE;
+    __atomic_store_n(&self->cancel_state, PTHREAD_CANCEL_DISABLE, __ATOMIC_SEQ_CST);
     self->cancel_point = 0;
     pthread_exit(PTHREAD_CANCELED);
 }
