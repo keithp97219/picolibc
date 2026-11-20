@@ -81,6 +81,35 @@ main(void)
     check(utimes("file", NULL) == 0 && stat("file", &st) == 0 && st.st_mtim.tv_sec > 1100000000,
           "now");
     check(utimes("missing", tv) == -1 && errno == ENOENT, "ENOENT");
+    check(utimes("", tv) == -1 && errno == ENOENT, "empty path");
+    check(utimes("file/", tv) == -1 && errno == ENOTDIR, "trailing slash on a file");
+
+    /* EINVAL for microseconds out of range; the times are unchanged */
+    {
+        /*
+         * 4294968 microseconds is 704 nanoseconds once multiplied in a
+         * 32-bit long; 32-bit glibc makes that mistake
+         */
+        static const suseconds_t bad[] = { -1, 1000000,
+#ifdef __PICOLIBC__
+                                           4294968
+#endif
+        };
+        struct timeval btv[2];
+        unsigned       i;
+
+        check(utimes("file", tv) == 0, "utimes");
+        for (i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+            btv[0] = tv[0];
+            btv[1] = tv[1];
+            btv[i & 1].tv_usec = bad[i];
+            errno = 0;
+            check(utimes("file", btv) == -1 && errno == EINVAL, "EINVAL for tv_usec");
+        }
+        check(stat("file", &st) == 0 && st.st_atim.tv_sec == 1000000000
+                  && st.st_mtim.tv_sec == 1100000000,
+              "times unchanged after EINVAL");
+    }
     check(unlink("file") == 0 && chdir("..") == 0 && rmdir(dir) == 0, "cleanup");
     printf("success\n");
     return 0;
