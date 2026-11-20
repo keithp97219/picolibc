@@ -35,5 +35,6 @@
 
 dir_tests = [
   'test-poll',
+  'test-poll_h',
   'test-ppoll',
 ]

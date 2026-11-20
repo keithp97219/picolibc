@@ -35,6 +35,7 @@
 
 set(tests
   test-poll
+  test-poll_h
   test-ppoll
   )
 
