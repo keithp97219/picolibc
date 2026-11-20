@@ -496,15 +496,19 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define _SC_V7_ILP32_OFF32               89
 #define _SC_V6_ILP32_OFF32               _SC_V7_ILP32_OFF32
 #define _SC_XBS5_ILP32_OFF32             _SC_V7_ILP32_OFF32
+#define _SC_V8_ILP32_OFF32               _SC_V7_ILP32_OFF32
 #define _SC_V7_ILP32_OFFBIG              90
 #define _SC_V6_ILP32_OFFBIG              _SC_V7_ILP32_OFFBIG
 #define _SC_XBS5_ILP32_OFFBIG            _SC_V7_ILP32_OFFBIG
+#define _SC_V8_ILP32_OFFBIG              _SC_V7_ILP32_OFFBIG
 #define _SC_V7_LP64_OFF64                91
 #define _SC_V6_LP64_OFF64                _SC_V7_LP64_OFF64
 #define _SC_XBS5_LP64_OFF64              _SC_V7_LP64_OFF64
+#define _SC_V8_LP64_OFF64                _SC_V7_LP64_OFF64
 #define _SC_V7_LPBIG_OFFBIG              92
 #define _SC_V6_LPBIG_OFFBIG              _SC_V7_LPBIG_OFFBIG
 #define _SC_XBS5_LPBIG_OFFBIG            _SC_V7_LPBIG_OFFBIG
+#define _SC_V8_LPBIG_OFFBIG              _SC_V7_LPBIG_OFFBIG
 #define _SC_XOPEN_CRYPT                  93
 #define _SC_XOPEN_ENH_I18N               94
 #define _SC_XOPEN_LEGACY                 95
@@ -673,6 +677,25 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && !defined(_POSIX_SPAWN)
 /* posix_spawn uses fork and exec */
 #define _POSIX_SPAWN 202405L
+#endif
+
+/*
+ * Programming environments, from the type sizes; off_t is always 64
+ * bits. Targets with 16-bit int support none of them.
+ */
+#if __SIZEOF_INT__ >= 4
+#if __SIZEOF_LONG__ == 4 && __SIZEOF_POINTER__ == 4
+#define _POSIX_V8_ILP32_OFFBIG 1
+#define _POSIX_V7_ILP32_OFFBIG 1
+#endif
+#if __SIZEOF_INT__ == 4 && __SIZEOF_LONG__ == 8 && __SIZEOF_POINTER__ == 8
+#define _POSIX_V8_LP64_OFF64 1
+#define _POSIX_V7_LP64_OFF64 1
+#endif
+#if __SIZEOF_LONG__ >= 8 && __SIZEOF_POINTER__ >= 8
+#define _POSIX_V8_LPBIG_OFFBIG 1
+#define _POSIX_V7_LPBIG_OFFBIG 1
+#endif
 #endif
 
 /*
