@@ -46,12 +46,14 @@
 
 /* Options POSIX.1-2024 requires, provided by the kernel */
 #define _POSIX_CHOWN_RESTRICTED             1
+#define _POSIX_JOB_CONTROL                  1
 #define _POSIX_NO_TRUNC                     1
 #define _POSIX_SAVED_IDS                    1
 #define _POSIX_SHELL                        1
 #define _POSIX_VDISABLE                     '\0'
 
 /* Options */
+#define _POSIX_ADVISORY_INFO                202405L
 #define _POSIX_CLOCK_SELECTION              202405L
 #define _POSIX_CPUTIME                      202405L
 #define _POSIX_FSYNC                        202405L
@@ -61,6 +63,7 @@
 #define _POSIX_MEMORY_PROTECTION            202405L
 #define _POSIX_MESSAGE_PASSING              202405L
 #define _POSIX_MONOTONIC_CLOCK              202405L
+#define _POSIX_PRIORITY_SCHEDULING          202405L
 #define _POSIX_REALTIME_SIGNALS             202405L
 #define _POSIX_SHARED_MEMORY_OBJECTS        202405L
 #define _POSIX_SYNCHRONIZED_IO              202405L
@@ -83,16 +86,26 @@
 #define _POSIX_THREAD_PROCESS_SHARED        202405L
 #endif
 
-/* Option groups */
+/* Option groups; POSIX_DYNAMIC_LINKING and POSIX_NETWORKING are missing */
 #define __PICOLIBC_POSIX_C_LIB_EXT          202405L
 #define __PICOLIBC_POSIX_DEVICE_IO          202405L
+#define __PICOLIBC_POSIX_DEVICE_SPECIFIC    202405L
 #define __PICOLIBC_POSIX_DEVICE_SPECIFIC_R  202405L
 #define __PICOLIBC_POSIX_FD_MGMT            202405L
+#define __PICOLIBC_POSIX_FIFO               202405L
+#define __PICOLIBC_POSIX_FIFO_FD            202405L
+#define __PICOLIBC_POSIX_FILE_ATTRIBUTES    202405L
+#define __PICOLIBC_POSIX_FILE_ATTRIBUTES_FD 202405L
 #define __PICOLIBC_POSIX_FILE_SYSTEM        202405L
 #define __PICOLIBC_POSIX_FILE_SYSTEM_EXT    202405L
-#define __PICOLIBC_POSIX_PIPE               200809L /* no pipe2 */
+#define __PICOLIBC_POSIX_FILE_SYSTEM_FD     202405L
+#define __PICOLIBC_POSIX_MULTI_PROCESS      202405L
+#define __PICOLIBC_POSIX_MULTI_PROCESS_FD   202405L
+#define __PICOLIBC_POSIX_PIPE               202405L
 #define __PICOLIBC_POSIX_SIGNALS            202405L
 #define __PICOLIBC_POSIX_SINGLE_PROCESS     202405L
+#define __PICOLIBC_POSIX_SYMBOLIC_LINKS     202405L
+#define __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD  202405L
 #define __PICOLIBC_POSIX_USER_GROUPS        202405L
 
 /* clang-format on */
