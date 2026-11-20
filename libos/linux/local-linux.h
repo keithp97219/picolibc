@@ -80,7 +80,12 @@ long _pthread_setxid(long nr, long a, long b, long c);
 static inline int
 _at_fd_to_linux(int fd)
 {
-    return fd == AT_FDCWD ? (int)LINUX_AT_FDCWD : fd;
+    if (fd == AT_FDCWD)
+        return (int)LINUX_AT_FDCWD;
+    /* Linux's AT_FDCWD isn't AT_FDCWD here, so it is just a bad descriptor */
+    if (fd == (int)LINUX_AT_FDCWD)
+        return -1;
+    return fd;
 }
 
 /* Translate AT_ flags, returning -1 for flags outside 'allowed' */
