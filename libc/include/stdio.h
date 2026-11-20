@@ -491,6 +491,10 @@ __picolibc_export;
 FILE *open_memstream(char **bufp, size_t *sizep) __malloc_like_with_free(fclose, 1)
 __picolibc_export;
 #endif
+#if __ATFILE_VISIBLE
+int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath)
+    __picolibc_export;
+#endif
 int   fseek(FILE *stream, long offset, int whence) __nonnull((1)) __picolibc_export;
 int   fsetpos(FILE *stream, const fpos_t *pos) __nonnull((1)) __picolibc_export;
 long  ftell(FILE *stream) __nonnull((1)) __picolibc_export;
