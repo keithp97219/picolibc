@@ -33,13 +33,15 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _POSIX_C_SOURCE 202405L
+#define _XOPEN_SOURCE 800
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                  \
-    || ((defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES) && __PICOLIBC_POSIX_FILE_ATTRIBUTES > 0) \
-        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0))
+#if !defined(__PICOLIBC__)                                                                    \
+    || ((defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES) && __PICOLIBC_POSIX_FILE_ATTRIBUTES > 0)   \
+        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)        \
+        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && __PICOLIBC_POSIX_FILE_SYSTEM_FD > 0)  \
+        && (defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS) && __PICOLIBC_POSIX_SYMBOLIC_LINKS > 0))
 
 #include <errno.h>
 #include <fcntl.h>
@@ -61,10 +63,12 @@
 int
 main(void)
 {
-    char        dir[] = "chmod-XXXXXX";
-    char        file[64], missing[64], notdir[64];
-    struct stat st;
-    int         fd;
+    char            dir[] = "chmod-XXXXXX";
+    char            file[64], missing[64], notdir[64];
+    struct stat     st;
+    struct timespec times[2], ctime;
+    long            tries = 0;
+    int             fd;
 
     check(mkdtemp(dir) != NULL, "mkdtemp");
     snprintf(file, sizeof(file), "%s/file", dir);
@@ -82,6 +86,65 @@ main(void)
     check(chmod(dir, 0755) == 0 && stat(dir, &st) == 0 && S_ISDIR(st.st_mode)
               && (st.st_mode & 0777) == 0755,
           "directory");
+
+    /* S_ISUID, S_ISGID and S_ISVTX can be set; S_ISGID needs the file's group */
+    check(stat(file, &st) == 0, "stat for the group");
+    check(chmod(file, S_ISUID | 0700) == 0 && stat(file, &st) == 0
+              && (st.st_mode & 07777) == (S_ISUID | 0700),
+          "S_ISUID");
+    if (st.st_gid == getegid()) {
+        check(chmod(file, S_ISGID | 0750) == 0 && stat(file, &st) == 0
+                  && (st.st_mode & 07777) == (S_ISGID | 0750),
+              "S_ISGID");
+    }
+    check(chmod(dir, S_ISVTX | 0700) == 0 && stat(dir, &st) == 0
+              && (st.st_mode & 07777) == (S_ISVTX | 0700),
+          "S_ISVTX on a directory");
+    check(chmod(dir, 0700) == 0, "directory mode back");
+
+    /* File type bits in mode are ignored */
+    check(chmod(file, S_IFDIR | 0604) == 0, "file type bits");
+    check(stat(file, &st) == 0 && S_ISREG(st.st_mode) && (st.st_mode & 07777) == 0604,
+          "file type bits ignored");
+
+    /* The change time is marked for update */
+    times[0].tv_sec = 1000000000;
+    times[0].tv_nsec = 0;
+    times[1] = times[0];
+    check(utimensat(AT_FDCWD, file, times, 0) == 0 && stat(file, &st) == 0, "set times");
+    ctime = st.st_ctim;
+    do {
+        check(chmod(file, 0600) == 0 && stat(file, &st) == 0, "chmod again");
+        check(chmod(file, 0640) == 0 && stat(file, &st) == 0, "chmod again");
+    } while (st.st_ctim.tv_sec == ctime.tv_sec && st.st_ctim.tv_nsec == ctime.tv_nsec
+             && ++tries < 1000000);
+    check(st.st_ctim.tv_sec > ctime.tv_sec
+              || (st.st_ctim.tv_sec == ctime.tv_sec && st.st_ctim.tv_nsec > ctime.tv_nsec),
+          "st_ctim advanced");
+    check(st.st_mtim.tv_sec == 1000000000, "st_mtim unchanged");
+
+    /* Only the owner can change the mode; root can change anything */
+    if (geteuid() != 0) {
+        check(stat("/", &st) == 0, "stat /");
+        if (st.st_uid != geteuid()) {
+            errno = 0;
+            check(chmod("/", st.st_mode & 07777) == -1 && errno == EPERM, "EPERM");
+        }
+        /* Search permission on the path prefix */
+        check(chmod(dir, 0600) == 0, "remove search permission");
+        errno = 0;
+        check(chmod(file, 0600) == -1 && errno == EACCES, "EACCES");
+        check(chmod(dir, 0700) == 0, "restore search permission");
+    }
+    snprintf(notdir, sizeof(notdir), "%s/file/", dir);
+    errno = 0;
+    check(chmod(notdir, 0600) == -1 && errno == ENOTDIR, "ENOTDIR trailing slash");
+    snprintf(notdir, sizeof(notdir), "%s/loop", dir);
+    check(symlink("loop", notdir) == 0, "symlink loop");
+    errno = 0;
+    check(chmod(notdir, 0600) == -1 && errno == ELOOP, "ELOOP");
+    check(unlink(notdir) == 0, "unlink loop");
+    snprintf(notdir, sizeof(notdir), "%s/file/x", dir);
 
     errno = 0;
     check(chmod(missing, 0600) == -1 && errno == ENOENT, "ENOENT");

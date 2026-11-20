@@ -68,7 +68,7 @@ int
 main(void)
 {
     struct stat st;
-    int         fd;
+    int         fd, fd2;
 
     check(mkdtemp(dir) != NULL, "mkdtemp");
     check(chdir(dir) == 0, "chdir");
@@ -76,7 +76,27 @@ main(void)
     check(fd >= 0, "create file");
     check(fchmod(fd, 0604) == 0, "fchmod");
     check(fstat(fd, &st) == 0 && (st.st_mode & 07777) == 0604, "mode");
+    /* S_ISUID can be set, and the file type bits are ignored */
+    check(fchmod(fd, S_IFDIR | S_ISUID | 0700) == 0, "fchmod S_ISUID");
+    check(fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && (st.st_mode & 07777) == (S_ISUID | 0700),
+          "S_ISUID set, type kept");
+    /* A descriptor open only for reading is enough */
+    fd2 = open("file", O_RDONLY);
+    check(fd2 >= 0 && fchmod(fd2, 0600) == 0 && fstat(fd, &st) == 0 && (st.st_mode & 07777) == 0600,
+          "fchmod read-only descriptor");
+    check(close(fd2) == 0, "close read-only descriptor");
+    /* Only the owner can change the mode; root can change anything */
+    if (geteuid() != 0) {
+        fd2 = open("/", O_RDONLY);
+        check(fd2 >= 0 && fstat(fd2, &st) == 0, "open /");
+        if (st.st_uid != geteuid()) {
+            errno = 0;
+            check(fchmod(fd2, st.st_mode & 07777) == -1 && errno == EPERM, "EPERM");
+        }
+        check(close(fd2) == 0, "close /");
+    }
     check(close(fd) == 0, "close");
+    errno = 0;
     check(fchmod(fd, 0600) == -1 && errno == EBADF, "EBADF");
     check(unlink("file") == 0 && chdir("..") == 0 && rmdir(dir) == 0, "cleanup");
     printf("success\n");
