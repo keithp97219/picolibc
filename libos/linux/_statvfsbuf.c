@@ -49,6 +49,16 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * f_favail is set equal to f_ffree: Linux statfs has no separate
  * "available to non-privileged" inode count.
  */
+/* The kernel's ST_ flags */
+#define LINUX_ST_RDONLY 0x0001
+#define LINUX_ST_NOSUID 0x0002
+
+#define MAP_FLAG(flag)                    \
+    do {                                  \
+        if (kbuf->f_flags & LINUX_##flag) \
+            buf->f_flag |= flag;          \
+    } while (0)
+
 int
 _statvfsbuf(struct statvfs *buf, const struct __kernel_statfs_size *kbuf)
 {
@@ -67,7 +77,10 @@ _statvfsbuf(struct statvfs *buf, const struct __kernel_statfs_size *kbuf)
     else
         /* f_fsid is narrower than the kernel fsid; just use the lower half */
         buf->f_fsid = (unsigned long)kbuf->f_fsid.__val[0];
-    buf->f_flag = (unsigned long)kbuf->f_flags;
+    /* Report only the flags <sys/statvfs.h> defines, not ST_VALID and the rest */
+    buf->f_flag = 0;
+    MAP_FLAG(ST_RDONLY);
+    MAP_FLAG(ST_NOSUID);
     buf->f_namemax = (unsigned long)kbuf->f_namelen;
     return 0;
 }
