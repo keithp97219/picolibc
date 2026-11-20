@@ -155,6 +155,17 @@ typedef __pid_t pid_t; /* process id */
 #define F_OFD_GETLK  15 /* As F_GETLK, for open file description locks */
 #define F_OFD_SETLK  16 /* As F_SETLK, for open file description locks */
 #define F_OFD_SETLKW 17 /* As F_SETLKW, for open file description locks */
+#define F_GETOWN_EX  18 /* As F_GETOWN, using struct f_owner_ex */
+#define F_SETOWN_EX  19 /* As F_SETOWN, using struct f_owner_ex */
+
+/* f_owner_ex type values */
+#define F_OWNER_PID  1 /* pid is a process ID */
+#define F_OWNER_PGRP 2 /* pid is a process group ID */
+
+struct f_owner_ex {
+    int     type; /* F_OWNER_PID or F_OWNER_PGRP */
+    __pid_t pid;  /* process or process group ID */
+};
 #endif
 
 /* l_whence values */

@@ -36,6 +36,7 @@
 #include "local-linux.h"
 #include "local-cancel.h"
 #include <fcntl.h>
+#include <limits.h>
 #include <stdarg.h>
 
 /*
@@ -58,9 +59,18 @@
 #define LINUX_F_OFD_SETLK_64  37
 #define LINUX_F_OFD_SETLKW_64 38
 
-#define LINUX_F_RDLCK         0
-#define LINUX_F_WRLCK         1
-#define LINUX_F_UNLCK         2
+#define LINUX_F_OWNER_TID     0
+#define LINUX_F_OWNER_PID     1
+#define LINUX_F_OWNER_PGRP    2
+
+struct __kernel_f_owner_ex {
+    int type;
+    int pid;
+};
+
+#define LINUX_F_RDLCK 0
+#define LINUX_F_WRLCK 1
+#define LINUX_F_UNLCK 2
 
 struct __kernel_flock64 {
     short     l_type;
@@ -124,6 +134,52 @@ _fcntl_lock(int fd, int kop, struct flock *fl)
     return (int)ret;
 }
 
+/* Gets the SIGURG owner; F_GETOWN can't return negative values from the kernel */
+static int
+_fcntl_getown(int fd, struct f_owner_ex *owner)
+{
+    struct __kernel_f_owner_ex kowner;
+
+    if (_syscall(LINUX_SYS_fcntl, fd, LINUX_F_GETOWN_EX, &kowner) < 0)
+        return -1;
+    switch (kowner.type) {
+    case LINUX_F_OWNER_PGRP:
+        owner->type = F_OWNER_PGRP;
+        break;
+    default:
+        /* A thread owner (F_OWNER_TID) is reported as a process */
+        owner->type = F_OWNER_PID;
+        break;
+    }
+    owner->pid = kowner.pid;
+    return 0;
+}
+
+static int
+_fcntl_setown(int fd, const struct f_owner_ex *owner)
+{
+    struct __kernel_f_owner_ex kowner;
+
+    switch (owner->type) {
+    case F_OWNER_PID:
+        kowner.type = LINUX_F_OWNER_PID;
+        break;
+    case F_OWNER_PGRP:
+        kowner.type = LINUX_F_OWNER_PGRP;
+        break;
+    default:
+        errno = EINVAL;
+        return -1;
+    }
+    /* Linux reports ESRCH for a negative ID, POSIX EINVAL */
+    if (owner->pid < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    kowner.pid = owner->pid;
+    return (int)_syscall(LINUX_SYS_fcntl, fd, LINUX_F_SETOWN_EX, &kowner);
+}
+
 int
 fcntl(int fd, int op, ...)
 {
@@ -154,6 +210,39 @@ fcntl(int fd, int op, ...)
         op = LINUX_F_SETFL;
         arg = 1;
         break;
+    case F_GETOWN: {
+        struct f_owner_ex owner;
+
+        if (_fcntl_getown(fd, &owner) < 0)
+            return -1;
+        return owner.type == F_OWNER_PGRP ? -owner.pid : owner.pid;
+    }
+    case F_SETOWN: {
+        struct f_owner_ex owner = { .type = F_OWNER_PID };
+
+        va_start(ap, op);
+        owner.pid = va_arg(ap, int);
+        va_end(ap);
+        /* Negative values name process groups */
+        if (owner.pid == INT_MIN) {
+            errno = EINVAL;
+            return -1;
+        }
+        if (owner.pid < 0) {
+            owner.type = F_OWNER_PGRP;
+            owner.pid = -owner.pid;
+        }
+        return _fcntl_setown(fd, &owner);
+    }
+    case F_GETOWN_EX:
+    case F_SETOWN_EX: {
+        struct f_owner_ex *owner;
+
+        va_start(ap, op);
+        owner = va_arg(ap, struct f_owner_ex *);
+        va_end(ap);
+        return op == F_GETOWN_EX ? _fcntl_getown(fd, owner) : _fcntl_setown(fd, owner);
+    }
     case F_GETLK:
     case F_SETLK:
     case F_SETLKW:
