@@ -35,6 +35,7 @@
 
 dir_tests = [
   'test-pthread_h_sync',
+  'test-pthread_h_threads',
 ]
 
 # These use threads, so lock-valid.c doesn't apply
