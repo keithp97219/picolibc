@@ -104,6 +104,35 @@ tcp_pair(int *client, int *server)
     check(close(listener) == 0, "close listener");
 }
 
+#define MAX_FDS 64
+
+/* Records which descriptors are open */
+static void
+open_fds(unsigned char *open)
+{
+    int fd;
+
+    for (fd = 0; fd < MAX_FDS; fd++)
+        open[fd] = fcntl(fd, F_GETFD) >= 0;
+}
+
+/* Counts the descriptors opened since 'before', failing if any lacks FD_CLOEXEC */
+static int
+new_fds(const unsigned char *before)
+{
+    int fd, n = 0;
+
+    for (fd = 0; fd < MAX_FDS; fd++) {
+        int flags = fcntl(fd, F_GETFD);
+
+        if (flags < 0 || before[fd])
+            continue;
+        check(flags & FD_CLOEXEC, "FD_CLOEXEC");
+        n++;
+    }
+    return n;
+}
+
 int
 main(void)
 {
@@ -125,6 +154,47 @@ main(void)
     }
     endhostent();
     check(localhost, "localhost");
+
+    /* sethostent and endhostent start again from the first entry */
+    {
+        unsigned char before[MAX_FDS];
+        char          first[256];
+
+        open_fds(before);
+        sethostent(1);
+        h = gethostent();
+        check(h != NULL, "first entry");
+        snprintf(first, sizeof(first), "%s", h->h_name);
+        (void)gethostent();
+#ifdef __PICOLIBC__
+        /* picolibc keeps the hosts file open */
+        if (access("/etc/hosts", R_OK) == 0)
+            check(new_fds(before) == 1, "hosts file open");
+#endif
+        (void)new_fds(before);
+        sethostent(0);
+        h = gethostent();
+        check(h && strcmp(h->h_name, first) == 0, "sethostent rewinds");
+        (void)gethostent();
+        endhostent();
+        check(new_fds(before) == 0, "endhostent closes");
+        h = gethostent();
+        check(h && strcmp(h->h_name, first) == 0, "endhostent rewinds");
+        endhostent();
+    }
+
+    /* Addresses are in network byte order: localhost is in 127/8 */
+    while ((h = gethostent()) != NULL) {
+        char **alias;
+        int    named = strcmp(h->h_name, "localhost") == 0;
+
+        for (alias = h->h_aliases; *alias; alias++)
+            if (strcmp(*alias, "localhost") == 0)
+                named = 1;
+        if (named && h->h_addrtype == AF_INET)
+            check((unsigned char)h->h_addr_list[0][0] == 127, "localhost address");
+    }
+    endhostent();
     (void)make_socket;
     (void)tcp_pair;
     printf("success\n");
