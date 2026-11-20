@@ -91,16 +91,17 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level)
     if ((w->flags & FTW_PHYS) ? lstat(w->path, &st) : stat(w->path, &st)) {
         int error = errno;
 
-        /* A symbolic link to nothing, or something that can't be examined */
         if (!(w->flags & FTW_PHYS) && error == ENOENT && lstat(w->path, &st) == 0
             && S_ISLNK(st.st_mode)) {
+            /* A symbolic link to nothing */
             type = FTW_SLN;
-        } else if (level == 0) {
-            /* The starting path must exist and be searchable */
+        } else if (level > 0 && error == EACCES) {
+            /* No permission to examine it */
+            type = FTW_NS;
+        } else {
+            /* The starting path must exist and be searchable; other failures are errors */
             errno = error;
             return -1;
-        } else {
-            type = FTW_NS;
         }
         return __nftw_call(w, &st, type, &ftw);
     }
@@ -112,8 +113,11 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level)
         return __nftw_call(w, &st, FTW_F, &ftw);
 
     dir = opendir(w->path);
-    if (!dir)
-        return __nftw_call(w, &st, FTW_DNR, &ftw);
+    if (!dir) {
+        if (errno == EACCES)
+            return __nftw_call(w, &st, FTW_DNR, &ftw);
+        return -1;
+    }
     if (!(w->flags & FTW_DEPTH)) {
         ret = __nftw_call(w, &st, FTW_D, &ftw);
         if (ret) {
@@ -123,9 +127,16 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level)
     }
     ret = 0;
     sep = len && w->path[len - 1] != '/';
-    while (!ret && (ent = readdir(dir)) != NULL) {
+    while (!ret) {
         size_t start = len + (size_t)sep, nlen;
 
+        errno = 0;
+        ent = readdir(dir);
+        if (!ent) {
+            if (errno)
+                ret = -1;
+            break;
+        }
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
             continue;
         nlen = strlen(ent->d_name);
