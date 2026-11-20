@@ -53,6 +53,13 @@ struct __nftw {
     char      cwd[PATH_MAX]; /* the starting directory, for FTW_CHDIR */
 };
 
+/* The directories being walked, innermost first, to find links back to them */
+struct __nftw_dir {
+    dev_t              dev;
+    ino_t              ino;
+    struct __nftw_dir *up;
+};
+
 /*
  * Calls the function. For FTW_CHDIR, that happens in the file's
  * directory, returning to the starting directory afterwards so the
@@ -80,13 +87,14 @@ __nftw_call(struct __nftw *w, const struct stat *st, int type, struct FTW *ftw)
 }
 
 static int
-__nftw_walk(struct __nftw *w, size_t len, int base, int level)
+__nftw_walk(struct __nftw *w, size_t len, int base, int level, struct __nftw_dir *up)
 {
-    struct stat    st;
-    struct FTW     ftw = { .base = base, .level = level };
-    int            type, ret, sep;
-    DIR           *dir;
-    struct dirent *ent;
+    struct stat       st;
+    struct FTW        ftw = { .base = base, .level = level };
+    struct __nftw_dir here, *a;
+    int               type, ret, sep;
+    DIR              *dir;
+    struct dirent    *ent;
 
     if ((w->flags & FTW_PHYS) ? lstat(w->path, &st) : stat(w->path, &st)) {
         int error = errno;
@@ -112,6 +120,11 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level)
     if (!S_ISDIR(st.st_mode))
         return __nftw_call(w, &st, FTW_F, &ftw);
 
+    /* A directory reached again through a symbolic link isn't walked twice */
+    for (a = up; a; a = a->up)
+        if (a->dev == st.st_dev && a->ino == st.st_ino)
+            return (w->flags & FTW_DEPTH) ? 0 : __nftw_call(w, &st, FTW_D, &ftw);
+
     dir = opendir(w->path);
     if (!dir) {
         if (errno == EACCES)
@@ -125,6 +138,9 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level)
             return ret;
         }
     }
+    here.dev = st.st_dev;
+    here.ino = st.st_ino;
+    here.up = up;
     ret = 0;
     sep = len && w->path[len - 1] != '/';
     while (!ret) {
@@ -148,7 +164,7 @@ __nftw_walk(struct __nftw *w, size_t len, int base, int level)
         if (sep)
             w->path[len] = '/';
         memcpy(w->path + start, ent->d_name, nlen + 1);
-        ret = __nftw_walk(w, start + nlen, (int)start, level + 1);
+        ret = __nftw_walk(w, start + nlen, (int)start, level + 1, &here);
         w->path[len] = '\0';
     }
     closedir(dir);
@@ -184,7 +200,7 @@ nftw(const char *path, __nftw_fn fn, int fd_limit, int flags)
         return -1;
     }
     slash = strrchr(path, '/');
-    ret = __nftw_walk(w, len, slash && slash[1] ? (int)(slash - path + 1) : 0, 0);
+    ret = __nftw_walk(w, len, slash && slash[1] ? (int)(slash - path + 1) : 0, 0, NULL);
     free(w);
     return ret;
 }
