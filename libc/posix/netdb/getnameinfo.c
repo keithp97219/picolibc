@@ -34,6 +34,7 @@
  */
 
 #include "local-netdb.h"
+#include <net/if.h>
 #include <string.h>
 
 #define __GNI_FLAGS                                                                          \
@@ -45,6 +46,7 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
 {
     const void *addr, *lookup_addr;
     int         family, lookup_family, port;
+    uint32_t    scope = 0;
     char        name[__NETDB_LINE_MAX];
 
     if (flags & ~__GNI_FLAGS)
@@ -62,6 +64,7 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
 
         addr = &sin6->sin6_addr;
         port = ntohs(sin6->sin6_port);
+        scope = sin6->sin6_scope_id;
     } else {
         return EAI_FAMILY;
     }
@@ -103,6 +106,17 @@ getnameinfo(const struct sockaddr * __restrict sa, socklen_t salen, char * __res
                 return EAI_NONAME;
             if (!inet_ntop(family, addr, name, sizeof(name)))
                 return EAI_SYSTEM;
+            /* The scope follows a '%', as an interface name for link-local addresses */
+            if (scope) {
+                const struct in6_addr *a6 = addr;
+                char                  *end = name + strlen(name);
+
+                *end++ = '%';
+                if ((flags & NI_NUMERICSCOPE)
+                    || !(IN6_IS_ADDR_LINKLOCAL(a6) || IN6_IS_ADDR_MC_LINKLOCAL(a6))
+                    || !if_indextoname(scope, end))
+                    snprintf(end, IF_NAMESIZE, "%lu", (unsigned long)scope);
+            }
         }
         if (strlen(name) >= hostlen)
             return EAI_OVERFLOW;
