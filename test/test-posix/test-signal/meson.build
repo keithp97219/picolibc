@@ -54,5 +54,10 @@ dir_tests = [
   'test-sigwaitinfo',
 ]
 
+# raise is checked in a second thread
+dir_thread_tests = [
+  'test-raise-thread',
+]
+
 # glibc doesn't have sig2str and str2sig
 test_skip_native += ['test-sig2str']

@@ -37,6 +37,7 @@ set(tests
   test-kill
   test-killpg
   test-psiginfo
+  test-raise-thread
   test-rtsig
   test-si_code
   test-sig2str
