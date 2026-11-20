@@ -83,6 +83,8 @@ dir_tests = [
   'test-symlinkat',
   'test-sync',
   'test-sysconf',
+  'test-tcsetpgrp',
+  'test-ttyname_r',
   'test-truncate',
   'test-unlinkat',
 ]

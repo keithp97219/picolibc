@@ -35,6 +35,10 @@
 
 dir_tests = [
   'test-tcdrain',
+  'test-tcflow',
+  'test-tcflush',
   'test-tcgetsid',
   'test-tcsendbreak',
+  'test-tcsetattr',
+  'test-tcsetwinsize',
 ]
