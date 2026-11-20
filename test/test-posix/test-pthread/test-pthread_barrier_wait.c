@@ -43,12 +43,19 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdint.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #define NTHREADS 6
 #define NROUNDS  1000
+
+/* More threads than the barrier count, so rounds overlap */
+#define NCROWD         8
+#define CROWD_COUNT    2
+#define CROWD_ARRIVALS 100000
 
 /* Barrier attributes, and rounds where every thread arrives before any leaves */
 
@@ -84,13 +91,83 @@ rounds(void *arg)
     return NULL;
 }
 
+/*
+ * Threads counted in before calling pthread_barrier_wait and out
+ * after it returns. Each thread leaving belongs to a completed round,
+ * so no more threads can have left than fill the rounds that the
+ * arrivals so far could have completed.
+ */
+static unsigned crowd_in, crowd_out;
+
+/*
+ * Threads take arrivals from a shared budget, a multiple of the
+ * count, so every round fills however the threads pair up
+ */
+static int      crowd_budget = CROWD_ARRIVALS;
+
+static void *
+crowd(void *arg)
+{
+    (void)arg;
+    while (__atomic_sub_fetch(&crowd_budget, 1, __ATOMIC_RELAXED) >= 0) {
+        unsigned out, in;
+        int      ret;
+
+        __atomic_add_fetch(&crowd_in, 1, __ATOMIC_SEQ_CST);
+        ret = pthread_barrier_wait(&barrier);
+        check(ret == 0 || ret == PTHREAD_BARRIER_SERIAL_THREAD, "crowd barrier wait");
+        out = __atomic_add_fetch(&crowd_out, 1, __ATOMIC_SEQ_CST);
+        in = __atomic_load_n(&crowd_in, __ATOMIC_SEQ_CST);
+        /* The others would wait forever for a thread that stopped, so exit at once */
+        if (out > in / CROWD_COUNT * CROWD_COUNT) {
+            printf("left before its round was full: out %u in %u\n", out, in);
+            exit(1);
+        }
+    }
+    return NULL;
+}
+
+static volatile sig_atomic_t caught;
+static int                   arriving, left;
+
+static void
+handler(int sig)
+{
+    (void)sig;
+    caught = 1;
+}
+
+/* Waits at the barrier with the main thread */
+static void *
+wait_through_signal(void *arg)
+{
+    int ret;
+
+    (void)arg;
+    __atomic_store_n(&arriving, 1, __ATOMIC_SEQ_CST);
+    ret = pthread_barrier_wait(&barrier);
+    __atomic_store_n(&left, 1, __ATOMIC_SEQ_CST);
+    return (void *)(intptr_t)(ret == 0 || ret == PTHREAD_BARRIER_SERIAL_THREAD ? 0 : 1);
+}
+
+static void
+pause_ms(long ms)
+{
+    struct timespec ts = { .tv_sec = 0, .tv_nsec = ms * 1000 * 1000 };
+
+    while (nanosleep(&ts, &ts) != 0)
+        ;
+}
+
 int
 main(void)
 {
-    pthread_t             threads[NTHREADS];
+    struct sigaction      act = { 0 };
+    pthread_t             thread;
+    pthread_t             threads[NCROWD];
     pthread_barrierattr_t attr;
     void                 *result;
-    int                   value;
+    int                   value, ret;
 
     /* Attributes */
     check(pthread_barrierattr_init(&attr) == 0, "pthread_barrierattr_init");
@@ -117,6 +194,36 @@ main(void)
     for (int r = 0; r < NROUNDS; r++)
         check(serial[r] == 1, "one serial thread per round");
     check(pthread_barrier_destroy(&barrier) == 0, "pthread_barrier_destroy");
+
+    /* With more threads than the count, nobody leaves before its round is full */
+    check(pthread_barrier_init(&barrier, NULL, CROWD_COUNT) == 0, "pthread_barrier_init crowd");
+    for (int i = 0; i < NCROWD; i++)
+        check(pthread_create(&threads[i], NULL, crowd, NULL) == 0, "pthread_create crowd");
+    for (int i = 0; i < NCROWD; i++) {
+        check(pthread_join(threads[i], &result) == 0, "pthread_join crowd");
+        check(result == NULL, "thread left the barrier before its round was full");
+    }
+    check(pthread_barrier_destroy(&barrier) == 0, "pthread_barrier_destroy crowd");
+
+    /* A thread keeps waiting at the barrier after a signal handler returns */
+    act.sa_handler = handler;
+    sigemptyset(&act.sa_mask);
+    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
+    check(pthread_barrier_init(&barrier, NULL, 2) == 0, "pthread_barrier_init signal");
+    check(pthread_create(&thread, NULL, wait_through_signal, NULL) == 0, "pthread_create");
+    while (!__atomic_load_n(&arriving, __ATOMIC_SEQ_CST))
+        pause_ms(1);
+    pause_ms(20);
+    check(pthread_kill(thread, SIGUSR1) == 0, "pthread_kill");
+    while (!caught)
+        pause_ms(1);
+    pause_ms(20);
+    check(!__atomic_load_n(&left, __ATOMIC_SEQ_CST), "left the barrier after a signal");
+    ret = pthread_barrier_wait(&barrier);
+    check(ret == 0 || ret == PTHREAD_BARRIER_SERIAL_THREAD, "barrier wait with signalled thread");
+    check(pthread_join(thread, &result) == 0, "pthread_join");
+    check(result == NULL, "signalled thread barrier wait");
+    check(pthread_barrier_destroy(&barrier) == 0, "pthread_barrier_destroy signal");
 
     printf("success\n");
     return 0;
