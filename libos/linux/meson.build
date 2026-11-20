@@ -64,6 +64,7 @@ if fs.is_dir(machine_dir)
     'chdir.c',
     'chmod.c',
     'chown.c',
+    'clock.c',
     'clock_gettime.c',
     'clock_getcpuclockid.c',
     'clock_getres.c',
