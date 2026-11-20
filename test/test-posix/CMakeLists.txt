@@ -36,6 +36,7 @@
 set(tests
   test-access
   test-ctermid
+  test-dirfd
   test-fnmatch
   test-getcwd
   test-getdelim

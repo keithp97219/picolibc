@@ -36,6 +36,7 @@
 tests = [
   'test-access',
   'test-ctermid',
+  'test-dirfd',
   'test-fnmatch',
   'test-ftrunc',
   'test-getcwd',
@@ -59,6 +60,7 @@ test_skip = []
 if enable_native_tests
   test_skip += [
     'test-dirent',
+    'test-dirfd',
   ]
 endif
 
