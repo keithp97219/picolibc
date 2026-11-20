@@ -95,7 +95,7 @@ static const int commands[] = {
     F_SETLKW,
     F_GETOWN,
     F_SETOWN,
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc has these only for _GNU_SOURCE */
     F_OFD_GETLK,
     F_OFD_SETLK,
@@ -135,7 +135,7 @@ static const int creation_flags[] = {
     O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_NOCTTY, O_NOFOLLOW, O_TRUNC,
 };
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 /* O_TTY_INIT may be zero; otherwise it is bitwise-distinct from the other flags */
 #if O_TTY_INIT != 0                                                                        \
     && ((O_TTY_INIT                                                                        \
@@ -159,7 +159,7 @@ static const int access_modes[] = {
     O_RDONLY,
     O_WRONLY,
     O_RDWR,
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc doesn't define O_EXEC or O_SEARCH; they may be equal */
     O_EXEC,
 #endif
@@ -254,7 +254,7 @@ main(void)
     for (i = 0; i < COUNT(access_modes); i++)
         check((access_modes[i] & O_ACCMODE) == access_modes[i],
               "O_ACCMODE covers the access modes");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     check((O_SEARCH & O_ACCMODE) == O_SEARCH, "O_ACCMODE covers O_SEARCH");
 #endif
     check(DISTINCT(at_flags), "AT_ flags are distinct");

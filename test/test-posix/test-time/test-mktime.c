@@ -176,7 +176,7 @@ main(void)
     check_members(&tm, t, "skipped hour members");
 
     /* Before 1970 the rule still applies (not in glibc) */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     tm = mk(1960, 7, 1, 12, 0, 0, -1);
     t = mktime(&tm);
     check(t == -299836800 && tm.tm_isdst == 1, "1960 summer");

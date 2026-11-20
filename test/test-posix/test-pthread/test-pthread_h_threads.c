@@ -38,7 +38,7 @@
 #define _POSIX_C_SOURCE 202405L
 #include <pthread.h>
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 #if !defined(PTHREAD_CANCEL_ASYNCHRONOUS) || !defined(PTHREAD_CANCEL_ENABLE)                       \
     || !defined(PTHREAD_CANCEL_DEFERRED) || !defined(PTHREAD_CANCEL_DISABLE)                       \
     || !defined(PTHREAD_CANCELED) || !defined(PTHREAD_CREATE_DETACHED)                             \

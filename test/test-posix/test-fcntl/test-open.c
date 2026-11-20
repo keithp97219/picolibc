@@ -191,7 +191,7 @@ main(void)
     /* O_NOCTTY and O_NONBLOCK are ignored for regular files */
     fd2 = open(name("file"), O_RDONLY | O_NOCTTY | O_NONBLOCK);
     check(fd2 >= 0 && close(fd2) == 0, "O_NOCTTY and O_NONBLOCK");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc doesn't define O_TTY_INIT, which is ignored for other files */
     fd2 = open(name("file"), O_RDONLY | O_TTY_INIT);
     check(fd2 >= 0 && close(fd2) == 0, "O_TTY_INIT");
@@ -217,7 +217,7 @@ main(void)
     fd2 = open(dir, O_RDONLY | O_DIRECTORY);
     check(fd2 >= 0 && close(fd2) == 0, "O_DIRECTORY");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc defines neither O_SEARCH nor O_EXEC; picolibc gives them one value */
     fd2 = open(dir, O_SEARCH);
     check(fd2 >= 0, "O_SEARCH");

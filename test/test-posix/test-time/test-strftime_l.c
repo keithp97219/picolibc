@@ -53,7 +53,7 @@
     } while (0)
 
 /* glibc doesn't set errno when the result doesn't fit */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 #define IS_ERANGE(e) ((e) == ERANGE)
 #else
 #define IS_ERANGE(e) 1
@@ -157,7 +157,7 @@ main(void)
     fmt(&tm, "%Od %Oe %OH %OI %Om %OM %OS", "02  2 13 01 01 05 09");
     fmt(&tm, "%Ou %OU %OV %Ow %OW %Oy", "6 00 53 6 00 99");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* POSIX.1-2024 flags and widths (glibc ignores the + flag) */
     tm = date(1970, 1, 1, 4, 0);
     fmt(&tm, "%+4Y", "1970");

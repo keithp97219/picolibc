@@ -91,7 +91,7 @@ main(void)
          * 32-bit long; 32-bit glibc makes that mistake
          */
         static const suseconds_t bad[] = { -1, 1000000,
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
                                            4294968
 #endif
         };

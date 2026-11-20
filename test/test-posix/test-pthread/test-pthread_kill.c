@@ -110,7 +110,7 @@ main(void)
     nanosleep(&pause, NULL);
     check(pthread_kill(zombie, 0) == 0, "signal 0 to an exited thread");
     check(pthread_kill(zombie, SIGUSR1) == 0, "signal to an exited thread");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc returns 0 for an exited thread without checking the signal */
     check(pthread_kill(zombie, 12345) == EINVAL, "EINVAL for an exited thread");
 #endif

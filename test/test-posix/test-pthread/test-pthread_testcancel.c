@@ -460,7 +460,7 @@ do_thrd_sleep(void)
 #endif
 
 /* glibc 2.43 declares these only for _GNU_SOURCE, or not at all */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 static void
 do_accept4(void)
 {
@@ -581,7 +581,7 @@ not_if_indextoname(void)
 }
 
 /* glibc 2.43's if_nameindex is a cancellation point, which POSIX doesn't allow */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 static void
 not_if_nameindex(void)
 {
@@ -654,7 +654,7 @@ static const struct call calls[] = {
     CP(cnd_timedwait),
     CP(thrd_sleep),
 #endif
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     CP(accept4),
     CP(cond_clockwait),
     CP(posix_close),
@@ -669,7 +669,7 @@ static const struct call calls[] = {
     NOT_CP(misc),
     NOT_CP(if_nametoindex),
     NOT_CP(if_indextoname),
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     NOT_CP(if_nameindex),
 #endif
 };

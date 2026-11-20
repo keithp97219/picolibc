@@ -216,7 +216,7 @@ main(void)
     check(getnameinfo((struct sockaddr *)&sin6, sizeof(sin6) - 1, host, sizeof(host), NULL, 0, 0)
               == EAI_FAMILY,
           "short IPv6 length");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc succeeds without doing anything */
     check(getnameinfo((struct sockaddr *)&sin, sizeof(sin), NULL, 0, NULL, 0, 0) == EAI_NONAME,
           "neither host nor service");

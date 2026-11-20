@@ -78,7 +78,7 @@ main(void)
     errno = 0;
     check(mq_close((mqd_t)-1) == -1 && errno == EBADF, "mq_close of -1");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc closes any file descriptor passed to mq_close */
     check(pipe(fds) == 0, "pipe");
     errno = 0;

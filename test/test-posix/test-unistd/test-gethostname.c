@@ -65,7 +65,7 @@ main(void)
     check(uname(&u) == 0, "uname");
     check(gethostname(name, sizeof(name)) == 0, "gethostname");
     check(strcmp(name, u.nodename) == 0, "nodename");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* POSIX truncates the name for a short buffer; glibc fails with ENAMETOOLONG */
     memset(guard, 'g', sizeof(guard));
     check(gethostname(small, sizeof(small)) == 0, "short buffer");

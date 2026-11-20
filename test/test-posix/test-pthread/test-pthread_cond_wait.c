@@ -157,7 +157,7 @@ wait_through_signal(void *arg)
     return (void *)(intptr_t)ret;
 }
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 static pthread_mutex_t robust;
 static int             died, relocking;
 
@@ -310,7 +310,7 @@ main(void)
     check(pthread_join(thread, &result) == 0, "pthread_join");
     check(result == NULL, "every wait returned 0");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /*
      * A robust mutex whose owner died while this thread waited is
      * acquired with EOWNERDEAD. Picolibc only: glibc can't tell when

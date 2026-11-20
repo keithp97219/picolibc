@@ -152,7 +152,7 @@ static int  ( *const p_pthread_kill)(pthread_t, int) = pthread_kill;
 static int  ( *const p_pthread_sigmask)(int, const sigset_t  *restrict, sigset_t  *restrict)
     = pthread_sigmask;
 static int (* const p_raise)(int) = raise;
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 /* glibc doesn't have sig2str and str2sig */
 static int (* const p_sig2str)(int, char *) = sig2str;
 static int (* const p_str2sig)(const char * restrict, int * restrict) = str2sig;
@@ -185,7 +185,7 @@ static const void * const prototypes[] = {
     &p_sigfillset,   &p_sigismember,     &p_signal,     &p_sigpending,
     &p_sigprocmask,  &p_sigqueue,        &p_sigsuspend, &p_sigtimedwait,
     &p_sigwait,      &p_sigwaitinfo,
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     &p_sig2str,      &p_str2sig,
 #endif
 };
@@ -248,11 +248,11 @@ main(void)
     }
     check(SIGRTMIN > 0 && SIGRTMAX >= SIGRTMIN, "SIGRTMIN and SIGRTMAX are positive");
     check(SIGRTMAX - SIGRTMIN + 1 >= _POSIX_RTSIG_MAX, "at least _POSIX_RTSIG_MAX signals");
-#if defined(RTSIG_MAX) && defined(__PICOLIBC__)
+#if defined(RTSIG_MAX) && !defined(__GLIBC__)
     /* glibc's RTSIG_MAX (32) counts the two signals it keeps for itself */
     check(SIGRTMAX - SIGRTMIN + 1 >= RTSIG_MAX, "at least RTSIG_MAX real-time signals");
 #endif
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc doesn't define NSIG_MAX */
     check(NSIG_MAX > SIGRTMAX, "NSIG_MAX past SIGRTMAX");
 #endif

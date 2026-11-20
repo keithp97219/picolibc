@@ -254,7 +254,7 @@ main(void)
 
     /* GLOB_MARK marks directories, including through symbolic links */
     expands("more/*", GLOB_MARK, 0, N(marked));
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc returns "//" */
     check(glob("/", GLOB_MARK, NULL, &g) == 0, "GLOB_MARK /");
     check(g.gl_pathc == 1 && strcmp(g.gl_pathv[0], "/") == 0, "GLOB_MARK leaves / alone");

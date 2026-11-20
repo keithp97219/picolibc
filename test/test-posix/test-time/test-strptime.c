@@ -96,7 +96,7 @@ main(void)
     parse("12345", "%Y", "5");
     check(tm.tm_year == 1234 - 1900, "%Y reads four digits");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* Field widths and the 0 and + flags (glibc ignores them) */
     parse("12345", "%5Y", "");
     check(tm.tm_year == 12345 - 1900, "%5Y");
@@ -143,7 +143,7 @@ main(void)
     parse("0", "%d", NULL);
     parse("13", "%m", NULL);
     parse("24", "%H", NULL);
-#ifdef __PICOLIBC__ /* glibc accepts these */
+#ifndef __GLIBC__ /* glibc accepts these */
     parse("60", "%M", NULL);
     parse("61", "%S", NULL);
 #endif
@@ -196,7 +196,7 @@ main(void)
     parse("1700000000", "%s", "");
 
     /* %Z matches tzname and sets tm_isdst */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     parse("EDT", "%Z", ""); /* glibc doesn't set tm_isdst */
     check(tm.tm_isdst == 1, "%Z dst name");
 #endif

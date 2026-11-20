@@ -42,7 +42,7 @@
  * Picolibc defines the constants as macros; glibc makes most of them
  * enumerators, which the static assertions below still check
  */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 #if !defined(PTHREAD_BARRIER_SERIAL_THREAD) || !defined(PTHREAD_MUTEX_DEFAULT)   \
     || !defined(PTHREAD_MUTEX_ERRORCHECK) || !defined(PTHREAD_MUTEX_NORMAL)      \
     || !defined(PTHREAD_MUTEX_RECURSIVE) || !defined(PTHREAD_MUTEX_ROBUST)       \
@@ -155,7 +155,7 @@ proto(pthread_spin_trylock, int, pthread_spinlock_t *);
 proto(pthread_spin_unlock, int, pthread_spinlock_t *);
 
 /* glibc 2.43 declares the clock_id variants only for _GNU_SOURCE */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 proto(pthread_cond_clockwait, int, pthread_cond_t * restrict, pthread_mutex_t * restrict, clockid_t,
       const struct timespec * restrict);
 proto(pthread_mutex_clocklock, int, pthread_mutex_t * restrict, clockid_t,
@@ -239,7 +239,7 @@ main(void)
         &p_pthread_spin_lock,
         &p_pthread_spin_trylock,
         &p_pthread_spin_unlock,
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
         &p_pthread_cond_clockwait,
         &p_pthread_mutex_clocklock,
         &p_pthread_rwlock_clockrdlock,

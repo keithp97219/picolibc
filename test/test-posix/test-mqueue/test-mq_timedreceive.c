@@ -116,7 +116,7 @@ main(void)
     check(mq_timedreceive(q, buf, sizeof(buf), NULL, &past) == 2 && strcmp(buf, "a") == 0,
           "message waiting and a passed deadline");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /*
      * glibc hands the deadline to Linux, which rejects these before
      * looking at the queue

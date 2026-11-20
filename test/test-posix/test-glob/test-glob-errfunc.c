@@ -157,7 +157,7 @@ main(void)
     globfree(&g);
     if (!root)
         check(seen_eacces == 1, "EACCES reported");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc skips the looping link without reporting it */
     check(seen_eloop == 1, "ELOOP reported");
 #endif

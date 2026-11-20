@@ -195,7 +195,7 @@ main(void)
 #endif
 
     /* The rules apply to every year, never giving a negative tm_isdst */
-#ifdef __PICOLIBC__ /* glibc applies them only from 1970 */
+#ifndef __GLIBC__ /* glibc applies them only from 1970 */
     check_local(utc(1960, 7, 1, 12, 0, 0), "1960-07-01 08:00:00 1");
     check_local(utc(1960, 1, 1, 12, 0, 0), "1960-01-01 07:00:00 0");
     check_local(utc(1901, 6, 1, 12, 0, 0), "1901-06-01 08:00:00 1");
@@ -231,7 +231,7 @@ main(void)
 
     /* XBD 8.3: DST all year */
     set_tz("EST5EDT,0/0,J365/25");
-#ifdef __PICOLIBC__ /* glibc misses the transition in the next year */
+#ifndef __GLIBC__ /* glibc misses the transition in the next year */
     check_local(utc(2025, 1, 1, 0, 0, 0), "2024-12-31 20:00:00 1");
     check_local(utc(2025, 1, 1, 4, 30, 0), "2025-01-01 00:30:00 1");
 #endif

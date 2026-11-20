@@ -166,17 +166,17 @@ main(void)
     check(lio_listio(42, list, 4, NULL) == -1 && errno == EINVAL, "bad mode");
 
     /* Invalid requests fail the list, each with its own status */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc doesn't check the priority */
     rd.aio_reqprio = -1;
 #endif
     wr.aio_lio_opcode = 42;
     check(lio_listio(LIO_WAIT, list, 4, NULL) == -1 && errno == EIO, "invalid requests");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     check(aio_error(&rd) == EINVAL && aio_return(&rd) == -1 && errno == EINVAL, "bad priority");
 #endif
     check(aio_error(&wr) == EINVAL, "bad opcode");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc queues the others and reports success */
     check(lio_listio(LIO_NOWAIT, list, 4, NULL) == -1 && errno == EIO, "invalid LIO_NOWAIT");
 #endif

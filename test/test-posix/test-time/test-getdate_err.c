@@ -102,7 +102,7 @@ main(void)
     check(getdate("Monday") == NULL && getdate_err == 1, "DATEMSK null");
 
     /* 2: the template file can't be opened */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc checks the file status first and reports 3 */
     check(setenv("DATEMSK", "missing", 1) == 0, "setenv");
     check(getdate("Monday") == NULL && getdate_err == 2, "no template file");
@@ -168,7 +168,7 @@ main(void)
     r = get("23:59", &now);
     check(r != NULL && r->tm_mday == now.tm_mday && r->tm_mon == now.tm_mon, "later hour today");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* Only a month: this month or the next such month, first day (glibc keeps the day) */
     r = get("January", &now);
     check(r != NULL && r->tm_mon == 0 && r->tm_mday == 1, "month alone");

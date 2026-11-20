@@ -265,7 +265,7 @@ main(void)
     hints.ai_flags = 0;
     ret = getaddrinfo("127.0.0.1", NULL, &hints, &res);
     check(ret != 0, "IPv4 address for AF_INET6");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc returns its own EAI_ADDRFAMILY */
     check(ret == EAI_NONAME, "IPv4 address for AF_INET6 error");
 #endif

@@ -57,7 +57,7 @@ static suseconds_t    us;
 
 _Static_assert(_Generic(tv.tv_sec, time_t: 1, default: 0), "tv_sec is a time_t");
 /* 32-bit glibc with a 64-bit time_t uses a wider type for tv_usec */
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 _Static_assert(_Generic(tv.tv_usec, suseconds_t: 1, default: 0), "tv_usec is a suseconds_t");
 #endif
 _Static_assert((suseconds_t)-1 < 0, "suseconds_t is signed");

@@ -54,7 +54,7 @@
 #define TEST_FILE_NAME "test-psiginfo.txt"
 #endif
 
-#ifndef __PICOLIBC__
+#ifdef __GLIBC__
 /*
  * qemu's user-mode emulation reports BogoMIPS as 100.00 for every Arm
  * CPU; real hardware reports twice its timer frequency
@@ -109,7 +109,7 @@ main(void)
     psiginfo(&info, NULL);
     psignal(SIGTERM, "other");
     psignal(SIGTERM, "");
-#ifndef __PICOLIBC__
+#ifdef __GLIBC__
     /* glibc changes errno here under qemu's user-mode emulation */
     if (is_qemu())
         errno = 0;

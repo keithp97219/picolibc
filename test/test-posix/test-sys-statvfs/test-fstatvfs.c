@@ -75,7 +75,7 @@ check_counts(const struct statvfs *sv)
     check(sv->f_ffree <= sv->f_files, "f_ffree <= f_files");
     check(sv->f_favail <= sv->f_ffree, "f_favail <= f_ffree");
     check(sv->f_namemax > 0, "f_namemax");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc passes on the kernel's other mount flags, such as ST_NODEV */
     check((sv->f_flag & ~(unsigned long)(ST_RDONLY | ST_NOSUID)) == 0,
           "f_flag holds only ST_ flags");

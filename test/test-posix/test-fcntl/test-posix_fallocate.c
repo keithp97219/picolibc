@@ -157,7 +157,7 @@ main(void)
     check(posix_fallocate(fds[1], 0, 10) == ESPIPE, "FIFO ESPIPE");
     check(close(fds[0]) == 0 && close(fds[1]) == 0 && unlink("fifo") == 0, "close FIFO");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /*
      * procfs can't allocate space for its regular files. glibc emulates
      * posix_fallocate with writes there, which would change the name.

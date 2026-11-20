@@ -132,7 +132,7 @@ main(void)
     check(inet_pton(AF_INET, "256.1.1.1", &in) == 0, "octet too big");
     check(inet_pton(AF_INET, "1.2.3", &in) == 0, "too few parts");
     check(inet_pton(AF_INET, "1.2.3.4.5", &in) == 0, "too many parts");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* POSIX allows leading zeros in each decimal part; glibc rejects them */
     check(inet_pton(AF_INET, "001.002.003.010", &in) == 1 && in.s_addr == htonl(0x0102030a),
           "leading zeros");

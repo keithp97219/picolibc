@@ -98,7 +98,7 @@ main(void)
     /* None of the failures queued anything */
     check(mq_getattr(q, &got) == 0 && got.mq_curmsgs == 1, "one message queued");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /*
      * glibc hands the deadline to Linux, which rejects these before
      * looking at the queue

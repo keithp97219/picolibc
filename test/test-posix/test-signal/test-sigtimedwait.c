@@ -143,7 +143,7 @@ main(void)
     check(sigpending(&pending) == 0 && !sigismember(&pending, SIGRTMIN + 1),
           "accepted signal no longer pending");
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /*
      * The timeout need only be checked when the call would wait; glibc
      * passes it to Linux, which always checks it

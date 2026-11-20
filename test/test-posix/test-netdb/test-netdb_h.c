@@ -103,7 +103,7 @@ _Static_assert(AI_ALL_FLAGS == AI_SUM_FLAGS && AI_PASSIVE && AI_CANONNAME && AI_
 _Static_assert(NI_ALL_FLAGS == NI_SUM_FLAGS && NI_NOFQDN && NI_NUMERICHOST && NI_NAMEREQD
                    && NI_NUMERICSERV && NI_DGRAM,
                "NI flags");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
 _Static_assert(NI_NUMERICSCOPE != 0, "NI_NUMERICSCOPE");
 #endif
 

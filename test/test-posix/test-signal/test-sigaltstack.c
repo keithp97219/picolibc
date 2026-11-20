@@ -142,7 +142,7 @@ main(void)
         ss.ss_flags <<= 1;
     errno = 0;
     check(sigaltstack(&ss, NULL) == -1 && errno == EINVAL, "unknown flag");
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* glibc passes SS_ONSTACK to Linux, which accepts it */
     ss.ss_flags = SS_ONSTACK;
     errno = 0;

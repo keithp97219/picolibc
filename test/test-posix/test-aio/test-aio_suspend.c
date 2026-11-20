@@ -112,7 +112,7 @@ main(void)
     cb.aio_offset = 0;
     cb.aio_sigevent.sigev_notify = SIGEV_NONE;
 
-#ifdef __PICOLIBC__
+#ifndef __GLIBC__
     /* Entries may be NULL; with nothing to wait for, it times out (glibc returns at once) */
     list[0] = none;
     check(aio_suspend(list, 1, &timeout) == -1 && errno == EAGAIN, "timeout");
