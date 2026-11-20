@@ -119,9 +119,21 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict 
     stack_size = 0;
     guard_size = 0;
     if (!attr->__stackaddr) {
-        stack_size = round_up(attr->__stacksize, PTHREAD_PAGE_SIZE);
-        guard_size = round_up(attr->__guardsize, PTHREAD_PAGE_SIZE);
+        stack_size = attr->__stacksize;
+        guard_size = attr->__guardsize;
     }
+
+    /*
+     * Sizes too large to add up, with room for rounding each to pages,
+     * can't be mapped; don't let them wrap around to small ones
+     */
+    if (__picolibc_add_overflow(guard_size, stack_size, &map_size)
+        || __picolibc_add_overflow(map_size, tls_size + desc_size + align + 3 * PTHREAD_PAGE_SIZE,
+                                   &map_size))
+        return EAGAIN;
+
+    stack_size = round_up(stack_size, PTHREAD_PAGE_SIZE);
+    guard_size = round_up(guard_size, PTHREAD_PAGE_SIZE);
     map_size = round_up(guard_size + stack_size + tls_size + desc_size + align, PTHREAD_PAGE_SIZE);
 
     map = _pthread_map(map_size);
