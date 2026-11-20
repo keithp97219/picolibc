@@ -34,7 +34,10 @@
 #
 
 set(tests
+  test-msgctl
+  test-msgget
   test-msgrcv
+  test-msgsnd
   test-sys_msg_h
   )
 

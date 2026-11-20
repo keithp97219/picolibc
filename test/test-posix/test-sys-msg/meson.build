@@ -34,12 +34,9 @@
 #
 
 dir_tests = [
+  'test-msgctl',
+  'test-msgget',
   'test-msgrcv',
+  'test-msgsnd',
   'test-sys_msg_h',
 ]
-
-# QEMU's user-mode emulation of 32-bit ARM misplaces the IPC_STAT
-# fields, which the picolibc test notices but glibc's can't
-if host_cpu_family == 'arm'
-  test_skip_native += ['test-msgrcv']
-endif
