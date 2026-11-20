@@ -36,6 +36,7 @@
 dir_tests = [
   'test-clock_getcpuclockid',
   'test-clock_nanosleep',
+  'test-getdate_err',
   'test-localtime',
   'test-mktime',
   'test-strftime_l',
