@@ -150,6 +150,11 @@ main(void)
         result |= fail(64, __LINE__);
     if (!y("[[=a=]b]", "a", 0) || !y("[[=a=]b]", "b", 0) || !n("[[=a=]b]", "c", 0))
         result |= fail(64, __LINE__);
+    /* Either end of a range may be a collating symbol */
+    if (!y("[a-[.c.]]", "b", 0) || !n("[a-[.c.]]", "d", 0) || !y("[[.a.]-c]", "b", 0))
+        result |= fail(64, __LINE__);
+    if (!y("[!a-[.c.]]", "d", 0) || !n("[!a-[.c.]]", "c", 0) || !y("[[.-.]-[.0.]]", ".", 0))
+        result |= fail(64, __LINE__);
 
     /* Every character class required in all locales */
     if (!y("[[:alnum:]]", "7", 0) || !n("[[:alnum:]]", "_", 0))
