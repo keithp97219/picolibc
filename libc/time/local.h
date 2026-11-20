@@ -71,8 +71,21 @@ timebase_to_clockid(int base)
     }
 }
 
-int                  __tzcalc_limits(int __year);
-int                  __tz_isdst(time_t __t, int __year, int __yday);
+int   __tzcalc_limits(int __year);
+int   __tz_isdst(time_t __t, int __year, int __yday);
+char *__strptime_fields(const char *buf, const char *format, struct tm *timeptr, locale_t locale,
+                        int *fields);
+
+/* The fields __strptime_fields reports */
+#define __STRPTIME_MDAY  (1 << 0)
+#define __STRPTIME_MON   (1 << 1)
+#define __STRPTIME_YEAR  (1 << 2)
+#define __STRPTIME_WDAY  (1 << 3)
+#define __STRPTIME_YDAY  (1 << 4)
+#define __STRPTIME_HOUR  (1 << 9)
+#define __STRPTIME_MIN   (1 << 10)
+#define __STRPTIME_SEC   (1 << 11)
+#define __STRPTIME_ISDST (1 << 12)
 
 extern const uint8_t __month_lengths[2][MONSPERYEAR];
 extern char          __tzname_std[TZNAME_MAX + 2];
