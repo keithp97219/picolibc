@@ -277,6 +277,14 @@ int setpgrp(void) __picolibc_export;
 int setregid(gid_t __rgid, gid_t __egid) __picolibc_export;
 int setreuid(uid_t __ruid, uid_t __euid) __picolibc_export;
 #endif
+#if __GNU_VISIBLE || __XSI_VISIBLE >= 800
+int getresgid(gid_t * __restrict __rgid, gid_t * __restrict __egid, gid_t * __restrict __sgid)
+    __picolibc_export;
+int getresuid(uid_t * __restrict __ruid, uid_t * __restrict __euid, uid_t * __restrict __suid)
+    __picolibc_export;
+int setresgid(gid_t __rgid, gid_t __egid, gid_t __sgid) __picolibc_export;
+int setresuid(uid_t __ruid, uid_t __euid, uid_t __suid) __picolibc_export;
+#endif
 pid_t setsid(void) __picolibc_export;
 int   setuid(uid_t __uid) __picolibc_export;
 #if __BSD_VISIBLE || (__XSI_VISIBLE && __XSI_VISIBLE < 500)
