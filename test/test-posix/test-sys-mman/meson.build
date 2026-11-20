@@ -36,5 +36,11 @@
 dir_tests = [
   'test-mlock',
   'test-mmap',
+  'test-mprotect',
+  'test-msync',
+  'test-munmap',
+  'test-posix_madvise',
   'test-shm_open',
+  'test-shm_unlink',
+  'test-sys_mman_h',
 ]

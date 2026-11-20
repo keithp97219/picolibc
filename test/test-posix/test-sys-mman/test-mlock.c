@@ -82,9 +82,26 @@ main(void)
 
     errno = 0;
     check(mlockall(0) == -1 && errno == EINVAL, "no flags");
+    /* No system has a flag this high, and an unimplemented flag must fail */
+    errno = 0;
+    check(mlockall(MCL_CURRENT | 0x40000000) == -1 && errno == EINVAL, "unimplemented flag");
+    errno = 0;
+    check(mlockall(MCL_FUTURE | 0x100) == -1 && errno == EINVAL, "unimplemented flag 0x100");
     errno = 0;
     check(mlock(mem, (size_t)-page) == -1 && (errno == ENOMEM || errno == EINVAL), "huge range");
-    check(munmap(mem, 2 * page) == 0, "munmap");
+
+    /* A range that isn't all mapped */
+    check(munmap(mem + page, page) == 0, "munmap second page");
+    errno = 0;
+    check(munlock(mem, 2 * page) == -1 && errno == ENOMEM, "munlock of a hole");
+    if (mlock(mem, page) == 0) {
+        errno = 0;
+        check(mlock(mem, 2 * page) == -1 && errno == ENOMEM, "mlock of a hole");
+        check(munlock(mem, page) == 0, "munlock");
+    } else {
+        printf("can't lock memory (errno %d), skipping mlock of a hole\n", errno);
+    }
+    check(munmap(mem, page) == 0, "munmap");
     printf("success\n");
     return 0;
 }
