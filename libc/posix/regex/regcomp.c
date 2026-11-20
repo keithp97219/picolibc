@@ -707,6 +707,9 @@ p_bracket(struct parse *p)
         CHadd(cs, '-');
     (void)MUSTEAT(']', REG_EBRACK);
 
+    if (p->error != 0) /* don't mess things up further */
+        return;
+
     if (p->g->cflags & REG_ICASE) {
         int i;
         int ci;
@@ -1138,10 +1141,7 @@ seterr(struct parse *p, int e)
 {
     if (p->error == 0) /* keep earliest error condition */
         p->error = e;
-    free(p->g->sets);
-    free(p->g->setbits);
-    p->g->sets = NULL;
-    p->g->setbits = NULL;
+    /* The sets stay until regfree, as callers may still hold one */
     p->next = regcomp_nuls; /* try to bring things to a halt */
     p->end = regcomp_nuls;
     return (0); /* make the return value well-defined */
