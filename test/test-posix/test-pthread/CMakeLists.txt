@@ -35,6 +35,7 @@
 
 set(tests
   test-pthread_atfork
+  test-pthread_attr_setguardsize
   test-pthread_attr_setstackaddr
   test-pthread_barrier_wait
   test-pthread_cancel
