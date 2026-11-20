@@ -36,6 +36,7 @@
 # test-statvfs needs the OS fallback library, which the CMake build doesn't have
 
 set(tests
+  test-fstatvfs
   test-sys_statvfs_h
   )
 
