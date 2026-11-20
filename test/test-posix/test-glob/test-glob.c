@@ -41,6 +41,7 @@
     || ((defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)             \
         && (defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && __PICOLIBC_POSIX_FILE_SYSTEM_EXT > 0))
 
+#include <errno.h>
 #include <glob.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,6 +54,23 @@ static char               dir[] = "test-glob-XXXXXX";
 static const char * const files[] = { "a.c", "b.c", "c.h", ".hidden.c", "sub/x.c", "st*r", "star" };
 #define NFILES (sizeof(files) / sizeof(files[0]))
 
+/* More names, in their own directory: 'd' directories, 'l' links to "dir" */
+static const struct {
+    char        type;
+    const char *name;
+} more[] = {
+    { 'd', "more"         },
+    { 'f', "more/B"       },
+    { 'f', "more/a"       },
+    { 'f', "more/b"       },
+    { 'd', "more/dir"     },
+    { 'l', "more/link"    },
+    { 'd', "more/a[b"     },
+    { 'f', "more/a[b/c]d" },
+    { 'f', "more/abd"     },
+};
+#define NMORE (sizeof(more) / sizeof(more[0]))
+
 static void
 cleanup(void)
 {
@@ -62,6 +80,13 @@ cleanup(void)
     for (i = 0; i < NFILES; i++) {
         snprintf(path, sizeof(path), "%s/%s", dir, files[i]);
         (void)unlink(path);
+    }
+    for (i = NMORE; i-- > 0;) {
+        snprintf(path, sizeof(path), "%s/%s", dir, more[i].name);
+        if (more[i].type == 'd')
+            (void)rmdir(path);
+        else
+            (void)unlink(path);
     }
     snprintf(path, sizeof(path), "%s/sub", dir);
     (void)rmdir(path);
@@ -121,6 +146,14 @@ main(void)
     static const char * const a_c[] = { "a.c" };
     static const char * const escaped[] = { "st*r" };
     static const char * const stars[] = { "st*r", "star" };
+    static const char * const sorted[]
+        = { "more/B", "more/a", "more/a[b", "more/abd", "more/b", "more/dir", "more/link" };
+    static const char * const marked[]
+        = { "more/B", "more/a", "more/a[b/", "more/abd", "more/b", "more/dir/", "more/link/" };
+    static const char * const slash[] = { "more/a[b/c]d" };
+    static const char * const ab[] = { "more/a", "more/b" };
+    static const char * const appended[] = { "more/b", "more/B", "more/a" };
+    char                      pattern[64];
     char                      path[64];
     glob_t                    g;
     size_t                    i;
@@ -135,6 +168,19 @@ main(void)
         f = fopen(path, "w");
         check(f != NULL, path);
         fclose(f);
+    }
+    for (i = 0; i < NMORE; i++) {
+        snprintf(path, sizeof(path), "%s/%s", dir, more[i].name);
+        if (more[i].type == 'd') {
+            check(mkdir(path, 0700) == 0, path);
+        } else if (more[i].type == 'l') {
+            check(symlink("dir", path) == 0, path);
+        } else {
+            FILE *f = fopen(path, "w");
+
+            check(f != NULL, path);
+            fclose(f);
+        }
     }
 
     /* Sorted, and a leading period must be matched explicitly */
@@ -176,6 +222,68 @@ main(void)
     snprintf(path, sizeof(path), "%s/c.h", dir);
     check(strcmp(g.gl_pathv[4], path) == 0 && g.gl_pathv[5] == NULL, "appended entry");
     globfree(&g);
+
+    /* Sorted in the C locale collating sequence */
+    expands("more/*", 0, 0, N(sorted));
+
+    /* GLOB_MARK marks directories, including through symbolic links */
+    expands("more/*", GLOB_MARK, 0, N(marked));
+#ifdef __PICOLIBC__
+    /* glibc returns "//" */
+    check(glob("/", GLOB_MARK, NULL, &g) == 0, "GLOB_MARK /");
+    check(g.gl_pathc == 1 && strcmp(g.gl_pathv[0], "/") == 0, "GLOB_MARK leaves / alone");
+    globfree(&g);
+#endif
+
+    /* A bracket expression can't contain a slash; the '[' is then ordinary */
+    expands("more/a[b/c]d", 0, 0, N(slash));
+
+    /* GLOB_NOSORT returns the same names, in any order */
+    snprintf(path, sizeof(path), "%s/more/[ab]", dir);
+    check(glob(path, GLOB_NOSORT, NULL, &g) == 0, "GLOB_NOSORT");
+    check(g.gl_pathc == 2 && g.gl_pathv[2] == NULL, "GLOB_NOSORT count");
+    check(strcmp(g.gl_pathv[0], g.gl_pathv[1]) != 0, "GLOB_NOSORT distinct");
+    for (i = 0; i < 2; i++) {
+        size_t len = strlen(g.gl_pathv[i]);
+
+        check(len > 0 && (g.gl_pathv[i][len - 1] == 'a' || g.gl_pathv[i][len - 1] == 'b'),
+              "GLOB_NOSORT names");
+    }
+    globfree(&g);
+
+    /* GLOB_NOCHECK returns the pattern unchanged, only when nothing matches */
+    snprintf(path, sizeof(path), "%s/more/x\\*", dir);
+    check(glob(path, GLOB_NOCHECK, NULL, &g) == 0, "GLOB_NOCHECK escaped");
+    check(g.gl_pathc == 1 && strcmp(g.gl_pathv[0], path) == 0 && g.gl_pathv[1] == NULL,
+          "GLOB_NOCHECK keeps the backslash");
+    globfree(&g);
+    expands("more/[ab]", GLOB_NOCHECK, 0, N(ab));
+    expands("more/b*", GLOB_NOCHECK, 0, appended, 1);
+
+    /* GLOB_DOOFFS with GLOB_NOCHECK, as when building an argument list */
+    g.gl_offs = 1;
+    snprintf(path, sizeof(path), "%s/none*", dir);
+    check(glob(path, GLOB_DOOFFS | GLOB_NOCHECK, NULL, &g) == 0, "GLOB_DOOFFS | GLOB_NOCHECK");
+    check(g.gl_pathc == 1 && g.gl_pathv[0] == NULL, "GLOB_DOOFFS | GLOB_NOCHECK slot");
+    check(strcmp(g.gl_pathv[1], path) == 0 && g.gl_pathv[2] == NULL,
+          "GLOB_DOOFFS | GLOB_NOCHECK pattern");
+    globfree(&g);
+
+    /* GLOB_APPEND keeps the earlier names first, then sorts the new ones */
+    snprintf(path, sizeof(path), "%s/more/b", dir);
+    check(glob(path, 0, NULL, &g) == 0, "before GLOB_APPEND");
+    snprintf(pattern, sizeof(pattern), "%s/more/[aB]", dir);
+    check(glob(pattern, GLOB_APPEND, NULL, &g) == 0, "GLOB_APPEND");
+    check(g.gl_pathc == 3 && g.gl_pathv[3] == NULL, "GLOB_APPEND count");
+    for (i = 0; i < 3; i++) {
+        snprintf(path, sizeof(path), "%s/%s", dir, appended[i]);
+        check(strcmp(g.gl_pathv[i], path) == 0, "GLOB_APPEND order");
+    }
+
+    /* globfree leaves errno alone */
+    errno = EINTR;
+    globfree(&g);
+    check(errno == EINTR, "globfree errno");
 
     cleanup();
     printf("success\n");
