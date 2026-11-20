@@ -138,14 +138,31 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   flags with the `MAP_*` macros; error-number functions use
 >   `_syscall_raw`/`_syscall_errno`. No master/slave terminology.
 > - **Robust tests:** use unique file names and avoid timing assumptions.
+> - **Never use `git stash`:** the stash is shared by every worktree, and
+>   parallel units have swapped changes through it. To prove a fix, reverse
+>   it with `git show <fix> -- libc libos | git apply -R`, test, then
+>   reapply.
+> - **Name lookups:** picolibc never uses DNS. Use the reserved `.invalid`
+>   domain for names that must not resolve, and run "no name" checks only
+>   under `__PICOLIBC__`.
+> - **glibc header gaps:** glibc declares several POSIX.1-2024 additions only
+>   with `_GNU_SOURCE`, and defines many constants as enumerators. Check
+>   constants with `_Static_assert` rather than `#ifdef`.
+> - **Full suite:** run without `--no-rebuild`, which leaves some
+>   generated test inputs unbuilt.
+> - **qemu-user:** the x86_64 host also runs every test for aarch64 and
+>   armhf under qemu-user, which you can't see from real hardware. qemu
+>   ignores SA_NOCLDSTOP and SA_NOCLDWAIT, keeps the top real-time signals,
+>   and lacks robust futex lists. Where a check depends on such a kernel
+>   detail, relax it only under qemu, detected with the `is_qemu()` helper in
+>   `test-signal/test-sigaction.c` (BogoMIPS 100.00 in /proc/cpuinfo), and
+>   print what was skipped.
 > - **Cross-cutting issues:** record them in `cross-cutting.md` and don't
 >   fix them.
 >
 > **Verify** on this host:
 > - aarch64-linux-gnu and arm-linux-gnueabihf (`meson test -t 4`, full
 >   suite);
-> - bare-metal arm (`scripts/do-arm-configure`, `meson test -t 20` for the
->   touched suites) when library code changed;
 > - the CMake build (`scripts/do-cmake-<arch>-configure`, then
 >   `ninja test`).
 >
@@ -155,6 +172,7 @@ touch the same directory (for example 3, 4 and 5) side by side.
 
 The x86_64 host fetches `claude/arm64-testing`, applies the unit's patches to
 `claude/posix-spec-audit` with `git am`, reviews them, and runs x86_64,
-i686, native and CMake there. A unit whose patches don't apply, because
+i686, native, bare-metal arm (under qemu, much faster here) and CMake there.
+A unit whose patches don't apply, because
 an earlier unit touched the same lines, is rebased here.
 Disagreements go back as notes in the unit's report.
