@@ -53,6 +53,12 @@ _pthread_cond_wait_timed(pthread_cond_t *cond, pthread_mutex_t *mutex, clockid_t
         return EINVAL;
 
     self = _pthread_self();
+
+    /* Fail before touching a mutex another thread may hold */
+    if ((mutex->__type != PTHREAD_MUTEX_NORMAL || mutex->__robust)
+        && _pthread_mutex_owner(mutex) != self->tid)
+        return EPERM;
+
     cancel = self->cancel_state == PTHREAD_CANCEL_ENABLE;
 
     /* A request already pending acts with the mutex still held */
