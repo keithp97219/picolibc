@@ -41,6 +41,7 @@ dir_tests = [
   'test-si_code',
   'test-sig2str',
   'test-sigaction',
+  'test-sigaction-ucontext',
   'test-sigaltstack',
   'test-sigismember',
   'test-signal',
