@@ -40,7 +40,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 int
 msync(void *addr, size_t len, int flags)
 {
-    int linux_flags = 0;
+    int   linux_flags = 0;
+    void *cancel = _cancel_enter();
+    long  ret;
 
     if (flags & MS_ASYNC)
         linux_flags |= LINUX_MS_ASYNC;
@@ -49,9 +51,13 @@ msync(void *addr, size_t len, int flags)
     if (flags & MS_INVALIDATE)
         linux_flags |= LINUX_MS_INVALIDATE;
 
-    void *cancel = _cancel_enter();
-    long  ret = (int)_syscall(LINUX_SYS_msync, addr, len, linux_flags);
-
+    /* The mapping above would drop unknown flags; check them in the cancellation point */
+    if (flags & ~(MS_ASYNC | MS_SYNC | MS_INVALIDATE)) {
+        errno = EINVAL;
+        ret = -1;
+    } else {
+        ret = _syscall(LINUX_SYS_msync, addr, len, linux_flags);
+    }
     _cancel_leave(cancel);
-    return ret;
+    return (int)ret;
 }
