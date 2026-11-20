@@ -39,6 +39,7 @@
 # threads; its tests form a suite named after the directory.
 posix_test_dirs = [
   'test-dirent',
+  'test-fcntl',
   'test-fnmatch',
   'test-glob',
   'test-grp',

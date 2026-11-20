@@ -131,6 +131,8 @@ if fs.is_dir(machine_dir)
     'munmap.c',
     'nanosleep.c',
     'open.c',
+    '_open_flags_from_linux.c',
+    '_open_flags_to_linux.c',
     'opendir.c',
     'pathconf.c',
     'pause.c',

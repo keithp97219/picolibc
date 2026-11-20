@@ -42,13 +42,16 @@ fcntl(int fd, int op, ...)
 {
     va_list ap;
     int     arg = 0;
+    long    ret;
 
     switch (op) {
     case F_DUPFD:
         op = LINUX_F_DUPFD;
+        arg = 1;
         break;
     case F_DUPFD_CLOEXEC:
         op = LINUX_F_DUPFD_CLOEXEC;
+        arg = 1;
         break;
     case F_GETFD:
         op = LINUX_F_GETFD;
@@ -74,5 +77,12 @@ fcntl(int fd, int op, ...)
     if (arg)
         arg = va_arg(ap, int);
     va_end(ap);
-    return _syscall(LINUX_SYS_fcntl, fd, op, arg);
+
+    /* The file status flags have different values in Linux */
+    if (op == LINUX_F_SETFL)
+        arg = _open_flags_to_linux(arg);
+    ret = _syscall(LINUX_SYS_fcntl, fd, op, arg);
+    if (op == LINUX_F_GETFL && ret >= 0)
+        ret = _open_flags_from_linux((int)ret);
+    return (int)ret;
 }

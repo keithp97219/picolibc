@@ -34,6 +34,7 @@
 #
 
 add_subdirectory(test-dirent)
+add_subdirectory(test-fcntl)
 add_subdirectory(test-fnmatch)
 add_subdirectory(test-glob)
 add_subdirectory(test-grp)

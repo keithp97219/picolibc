@@ -55,15 +55,19 @@
 #include <linux/linux-time.h>
 #include <linux/linux-wait.h>
 
-long _syscall(long sys_call, ...);
+long  _syscall(long sys_call, ...);
 
 /*
  * As _syscall, but returning the kernel's result, a negative Linux
  * errno value on failure, without touching errno. _syscall_errno
  * converts such a value to picolibc's errno.
  */
-long _syscall_raw(long sys_call, ...);
-int  _syscall_errno(long ret);
+long  _syscall_raw(long sys_call, ...);
+int   _syscall_errno(long ret);
+
+/* Translate open flags */
+int   _open_flags_to_linux(int flags);
+int   _open_flags_from_linux(int kflags);
 
 /* Create a child process; fork and _Fork add their bookkeeping */
 pid_t _fork_raw(void);
