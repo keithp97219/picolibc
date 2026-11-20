@@ -113,6 +113,20 @@ main(void)
     check(strcmp(inet_ntoa(in), "192.168.0.1") == 0, "address");
     in.s_addr = htonl(0xffffffff);
     check(strcmp(inet_ntoa(in), "255.255.255.255") == 0, "broadcast");
+
+    in.s_addr = 0;
+    check(strcmp(inet_ntoa(in), "0.0.0.0") == 0, "zero");
+
+    /* The address is in network byte order */
+    {
+        unsigned char *p = (unsigned char *)&in.s_addr;
+
+        p[0] = 10;
+        p[1] = 0;
+        p[2] = 0;
+        p[3] = 255;
+        check(strcmp(inet_ntoa(in), "10.0.0.255") == 0, "network order");
+    }
     (void)make_socket;
     (void)tcp_pair;
     printf("success\n");

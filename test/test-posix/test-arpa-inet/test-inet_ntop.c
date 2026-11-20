@@ -133,6 +133,37 @@ main(void)
     check(v6("::ffff:1.2.3.4"), "IPv4-mapped");
     check(v6("fe80::1"), "link local");
     check(inet_ntop(12345, &in, buf, sizeof(buf)) == NULL && errno == EAFNOSUPPORT, "EAFNOSUPPORT");
+
+    /* The buffer sizes from <netinet/in.h> are enough; one byte less is not */
+    in.s_addr = htonl(0xffffffff);
+    check(inet_ntop(AF_INET, &in, buf, INET_ADDRSTRLEN) == buf
+              && strcmp(buf, "255.255.255.255") == 0,
+          "INET_ADDRSTRLEN");
+    errno = 0;
+    check(inet_ntop(AF_INET, &in, buf, 15) == NULL && errno == ENOSPC, "IPv4 one byte short");
+    {
+        unsigned char addr[16];
+
+        memset(addr, 0xff, sizeof(addr));
+        check(inet_ntop(AF_INET6, addr, buf, INET6_ADDRSTRLEN) == buf
+                  && strcmp(buf, "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff") == 0,
+              "longest IPv6");
+        errno = 0;
+        check(inet_ntop(AF_INET6, addr, buf, 39) == NULL && errno == ENOSPC, "IPv6 one byte short");
+        check(inet_pton(AF_INET6, "::1", addr) == 1, "::1");
+        errno = 0;
+        check(inet_ntop(AF_INET6, addr, buf, 3) == NULL && errno == ENOSPC, "IPv6 ENOSPC");
+        check(inet_ntop(AF_INET6, addr, buf, 4) == buf && strcmp(buf, "::1") == 0,
+              "IPv6 just fits");
+    }
+
+    /* IPv4 text converts back to the same address */
+    check(inet_pton(AF_INET, "10.20.30.40", &in) == 1
+              && inet_ntop(AF_INET, &in, buf, sizeof(buf)) == buf
+              && strcmp(buf, "10.20.30.40") == 0,
+          "IPv4 round trip");
+    check(v6("1:2:3:4:5:6:7:8"), "no zeros");
+    check(v6("1::"), "trailing zeros");
     (void)make_socket;
     (void)tcp_pair;
     printf("success\n");

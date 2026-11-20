@@ -117,6 +117,28 @@ main(void)
     check(inet_addr("08.1.1.1") == (in_addr_t)-1, "bad octal");
     check(inet_addr("1.2.3.4x") == (in_addr_t)-1, "trailing junk");
     check(inet_addr("") == (in_addr_t)-1, "empty");
+
+    /* Each form, with the parts in any base */
+    check(inet_addr("0377.0xff.255.0") == htonl(0xffffff00), "mixed bases");
+    check(inet_addr("0X7F.1") == htonl(0x7f000001), "upper case 0X");
+    check(inet_addr("10.0xffffff") == htonl(0x0affffff), "24-bit part");
+    check(inet_addr("10.1.0xffff") == htonl(0x0a01ffff), "16-bit part");
+    check(inet_addr("0") == 0, "zero");
+    check(inet_addr("10.0x1000000") == (in_addr_t)-1, "24-bit part too big");
+    check(inet_addr("10.1.65536") == (in_addr_t)-1, "16-bit part too big");
+    check(inet_addr("4294967296") == (in_addr_t)-1, "32-bit part too big");
+    check(inet_addr("1.2.3.4.5") == (in_addr_t)-1, "five parts");
+    check(inet_addr("1..2") == (in_addr_t)-1, "empty part");
+    check(inet_addr("1.2.3.") == (in_addr_t)-1, "trailing dot");
+    check(inet_addr("0x1g") == (in_addr_t)-1, "bad hex");
+
+    /* The result is in network byte order */
+    {
+        in_addr_t      a = inet_addr("1.2.3.4");
+        unsigned char *p = (unsigned char *)&a;
+
+        check(p[0] == 1 && p[1] == 2 && p[2] == 3 && p[3] == 4, "network order");
+    }
     (void)make_socket;
     (void)tcp_pair;
     printf("success\n");
