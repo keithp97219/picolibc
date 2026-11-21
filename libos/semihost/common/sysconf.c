@@ -44,7 +44,7 @@ sysconf(int name)
     case _SC_CLK_TCK:
         return sys_semihost_tickfreq();
     default:
-        errno = EINVAL;
-        return -1;
+        /* The options and limits that don't depend on the host */
+        return __fallback_sysconf(name);
     }
 }
