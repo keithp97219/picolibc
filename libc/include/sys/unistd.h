@@ -319,7 +319,6 @@ extern __picolibc_export int   optind;
 extern __picolibc_export int   opterr;
 extern __picolibc_export int   optopt;
 int                            getopt(int, char                            *const[], const char *) __picolibc_export;
-extern __picolibc_export int   optreset; /* getopt(3) external variable */
 
 #if __BSD_VISIBLE || (__XSI_VISIBLE >= 4 && __POSIX_VISIBLE < 200809)
 pid_t vfork(void) __picolibc_export;
