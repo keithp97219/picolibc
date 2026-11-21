@@ -50,7 +50,8 @@
 #define _POSIX_NO_TRUNC                     1
 #define _POSIX_SAVED_IDS                    1
 #define _POSIX_SHELL                        1
-#define _POSIX_VDISABLE                     '\0'
+/* 0 rather than '\0', which is unsigned in #if where char is */
+#define _POSIX_VDISABLE                     0
 
 /* Options */
 #define _POSIX_ADVISORY_INFO                202405L
