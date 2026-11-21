@@ -33,5 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 dir_tests = [
+  'test-ffsll',
+  'test-strcasecmp_l',
   'test-strings_h',
 ]

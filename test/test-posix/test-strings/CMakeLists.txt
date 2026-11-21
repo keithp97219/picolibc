@@ -33,6 +33,8 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 set(tests
+  test-ffsll
+  test-strcasecmp_l
   test-strings_h
   )
 
