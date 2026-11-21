@@ -42,6 +42,7 @@ set(tests
   test-ptsname_r
   test-realpath
   test-secure_getenv
+  test-setenv
   test-stdlib_h
   test-stdlib_h-iso
   test-stdlib_h-names
