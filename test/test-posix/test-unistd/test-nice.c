@@ -42,6 +42,7 @@
 #if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
 
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/resource.h>
@@ -60,10 +61,24 @@ int
 main(void)
 {
     int prio = getpriority(PRIO_PROCESS, 0), ret;
+    int privileged = 0;
 
     errno = 0;
     ret = nice(0);
     check(errno == 0 && ret == prio, "nice(0)");
+
+    /* Lowering the nice value needs privileges; a failure leaves it alone */
+    errno = 0;
+    ret = nice(-1);
+    if (ret == -1 && errno != 0) {
+        check(errno == EPERM, "EPERM");
+        check(getpriority(PRIO_PROCESS, 0) == prio, "unchanged after EPERM");
+    } else {
+        check(ret == (prio > -20 ? prio - 1 : -20), "nice(-1)");
+        prio = ret;
+        privileged = 1;
+    }
+
     if (prio < 19) {
         errno = 0;
         ret = nice(1);
@@ -73,6 +88,23 @@ main(void)
     errno = 0;
     ret = nice(100);
     check(errno == 0 && ret == 19, "clamped");
+    check(getpriority(PRIO_PROCESS, 0) == 19, "clamped value applied");
+
+    /* glibc adds incr to the nice value without a limit, so the sum overflows */
+#ifndef __GLIBC__
+    /* However large the increment, the value stops at the limit */
+    errno = 0;
+    ret = nice(INT_MAX);
+    check(errno == 0 && ret == 19, "nice(INT_MAX)");
+#endif
+    errno = 0;
+    ret = nice(INT_MIN);
+    if (privileged)
+        check(ret == -20, "nice(INT_MIN)");
+    else
+        check(ret == -1 && errno == EPERM && getpriority(PRIO_PROCESS, 0) == 19,
+              "nice(INT_MIN) without privileges");
+
     printf("success\n");
     return 0;
 }

@@ -70,6 +70,7 @@ set(tests
   test-linkat
   test-lockf
   test-nice
+  test-nice-thread
   test-pathconf
   test-pause
   test-pipe2
