@@ -33,20 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _LOCAL_CANCEL_H_
-#define _LOCAL_CANCEL_H_
+#include "local-pthread.h"
 
-/*
- * Bracket the blocking part of each cancellation point, as
- * libos/linux does. libos/freebsd has no threads yet, so these do
- * nothing; the threads backend replaces them with the libos/linux
- * versions (pending cancellation acts on entry, one arriving while
- * blocked acts from the cancellation signal handler).
- */
+void
+_futex_wake(unsigned int *addr, int count, bool pshared)
+{
+    int op = pshared ? FREEBSD_UMTX_OP_WAKE : FREEBSD_UMTX_OP_WAKE_PRIVATE;
 
-#define _cancel_disable()    0
-#define _cancel_restore(old) ((void)(old))
-#define _cancel_enter()      ((void *)0)
-#define _cancel_leave(self)  ((void)(self))
-
-#endif /* _LOCAL_CANCEL_H_ */
+    (void)_syscall_raw(FREEBSD_SYS__umtx_op, addr, op, (long)count, NULL, NULL);
+}

@@ -35,11 +35,15 @@
 
 #include "local-freebsd.h"
 #include <freebsd/freebsd-errno.h>
+#include "local-cancel.h"
 
 int
 close(int fd)
 {
-    long ret = _syscall_raw(FREEBSD_SYS_close, fd);
+    void *cancel = _cancel_enter();
+    long  ret = _syscall_raw(FREEBSD_SYS_close, fd);
+
+    _cancel_leave(cancel);
 
     /*
      * FreeBSD releases the descriptor even when close is interrupted.
