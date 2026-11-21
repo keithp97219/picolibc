@@ -34,6 +34,7 @@
 
 dir_tests = [
   'test-memchr-pages',
+  'test-strerror_r',
   'test-string_h',
   'test-strnlen-pages',
 ]
