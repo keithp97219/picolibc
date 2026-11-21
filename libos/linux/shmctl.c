@@ -44,6 +44,12 @@ shmctl(int id, int cmd, struct shmid_ds *buf)
 
     switch (cmd) {
     case IPC_STAT:
+        /*
+         * The kernel writes the whole structure, but QEMU's user-mode
+         * emulation may fill in only the low half of each time and of
+         * the mode; start from zeros so the rest reads as zero
+         */
+        memset(&k, 0, sizeof(k));
         if (_syscall(LINUX_SYS_shmctl, id, cmd | LINUX_IPC_64, &k) < 0)
             return -1;
         _ipc_perm_from_linux(&buf->shm_perm, &k.shm_perm);
