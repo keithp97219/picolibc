@@ -59,6 +59,7 @@ posix_test_dirs = [
   'test-locale',
   'test-monetary',
   'test-mqueue',
+  'test-ndbm',
   'test-net-if',
   'test-netdb',
   'test-netinet-in',
