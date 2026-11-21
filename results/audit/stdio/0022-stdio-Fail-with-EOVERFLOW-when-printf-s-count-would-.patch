@@ -1,0 +1,56 @@
+From c6a8db23c5c20764e2b5dffc895f1a8dd774b349 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:24:58 +0000
+Subject: [PATCH 22/39] stdio: Fail with EOVERFLOW when printf's count would
+ pass INT_MAX
+
+POSIX.1-2024 fprintf shall fail with EOVERFLOW when the value to be
+returned is greater than INT_MAX. The int count overflowed instead.
+---
+ libc/stdio/vfprintf.c | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/libc/stdio/vfprintf.c b/libc/stdio/vfprintf.c
+index d3bf3f94ef..7315a95646 100644
+--- a/libc/stdio/vfprintf.c
++++ b/libc/stdio/vfprintf.c
+@@ -684,17 +684,21 @@ vfprintf(FILE *stream, const CHAR *fmt, va_list ap_orig)
+ #ifdef WIDE_CHARS
+ #define my_putc(c, stream)                     \
+     do {                                       \
++        if (stream_len == INT_MAX)             \
++            goto overflow;                     \
+         ++stream_len;                          \
+         if (putwc_unlocked(c, stream) == WEOF) \
+             goto fail;                         \
+     } while (0)
+ #else
+     int (*put)(char, FILE *) = stream->put;
+-#define my_putc(c, stream)      \
+-    do {                        \
+-        ++stream_len;           \
+-        if (put(c, stream) < 0) \
+-            goto fail;          \
++#define my_putc(c, stream)         \
++    do {                           \
++        if (stream_len == INT_MAX) \
++            goto overflow;         \
++        ++stream_len;              \
++        if (put(c, stream) < 0)    \
++            goto fail;             \
+     } while (0)
+ #endif
+ #endif
+@@ -924,6 +928,9 @@ ret:
+ #endif
+     __funlock_return(stream, stream_len);
+ #undef my_putc
++overflow:
++    /* The count would be more than INT_MAX */
++    errno = EOVERFLOW;
+ fail:
+     stream->flags |= __SERR;
+     stream_len = -1;
+-- 
+2.47.3
+

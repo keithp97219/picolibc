@@ -1,0 +1,36 @@
+From 5798f31a82ecb4747ecae5fd3cecc614e5d741cc Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:23:19 +0000
+Subject: [PATCH 21/39] stdio: Fail with EBADF in freopen with a null pathname
+ and an invalid descriptor
+
+POSIX.1-2024 freopen shall fail with EBADF when the descriptor
+underlying the stream isn't valid and pathname is a null pointer. It
+succeeded, leaving a stream on the closed descriptor.
+---
+ libc/stdio/freopen.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdio/freopen.c b/libc/stdio/freopen.c
+index 03367aef95..588cab144a 100644
+--- a/libc/stdio/freopen.c
++++ b/libc/stdio/freopen.c
+@@ -66,8 +66,14 @@ freopen(const char *pathname, const char *mode, FILE *stream)
+          */
+         (void)bufio_close(pf);
+         fd = open(pathname, open_flags, 0666);
+-    } else
++    } else {
+         fd = _FDEV_BUFIO_FD(pf);
++#ifdef __PICOLIBC_POSIX_FD_MGMT
++        /* Fail with EBADF when the descriptor isn't valid */
++        if (fcntl(fd, F_GETFD) < 0)
++            fd = -1;
++#endif
++    }
+ 
+     /* Errors and end-of-file are cleared, as is the orientation */
+     stream->flags &= ~(__SRD | __SWR | __SERR | __SEOF | __SWIDE);
+-- 
+2.47.3
+

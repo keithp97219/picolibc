@@ -1,0 +1,262 @@
+From 13247b3aca6853f1f994612dd33b9643ea50b910 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:25:40 +0000
+Subject: [PATCH 12/20] unistd.h: Give the V8 sysconf and confstr names their
+ own values
+
+The _SC_V8_*, _CS_POSIX_V8_* and _CS_V8_ENV names shared the values of
+their V7 counterparts. POSIX allows only _SC_PAGESIZE and _SC_PAGE_SIZE
+to be the same; an application switching on the names couldn't list
+both. sysconf and confstr answer the V8 names as they do the V7 ones,
+with V8 environment names in _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS.
+---
+ libc/include/sys/unistd.h   | 40 ++++++++++++++++++-------------------
+ libc/posix/unistd/confstr.c | 36 +++++++++++++++++++++++----------
+ libos/fallback/sysconf.c    | 24 ++++++++++++++++++++++
+ 3 files changed, 69 insertions(+), 31 deletions(-)
+
+diff --git a/libc/include/sys/unistd.h b/libc/include/sys/unistd.h
+index a301569c8a..3f5d6bdefd 100644
+--- a/libc/include/sys/unistd.h
++++ b/libc/include/sys/unistd.h
+@@ -507,19 +507,15 @@ int     unlinkat(int, const char *, int) __picolibc_export;
+ #define _SC_V7_ILP32_OFF32               89
+ #define _SC_V6_ILP32_OFF32               _SC_V7_ILP32_OFF32
+ #define _SC_XBS5_ILP32_OFF32             _SC_V7_ILP32_OFF32
+-#define _SC_V8_ILP32_OFF32               _SC_V7_ILP32_OFF32
+ #define _SC_V7_ILP32_OFFBIG              90
+ #define _SC_V6_ILP32_OFFBIG              _SC_V7_ILP32_OFFBIG
+ #define _SC_XBS5_ILP32_OFFBIG            _SC_V7_ILP32_OFFBIG
+-#define _SC_V8_ILP32_OFFBIG              _SC_V7_ILP32_OFFBIG
+ #define _SC_V7_LP64_OFF64                91
+ #define _SC_V6_LP64_OFF64                _SC_V7_LP64_OFF64
+ #define _SC_XBS5_LP64_OFF64              _SC_V7_LP64_OFF64
+-#define _SC_V8_LP64_OFF64                _SC_V7_LP64_OFF64
+ #define _SC_V7_LPBIG_OFFBIG              92
+ #define _SC_V6_LPBIG_OFFBIG              _SC_V7_LPBIG_OFFBIG
+ #define _SC_XBS5_LPBIG_OFFBIG            _SC_V7_LPBIG_OFFBIG
+-#define _SC_V8_LPBIG_OFFBIG              _SC_V7_LPBIG_OFFBIG
+ #define _SC_XOPEN_CRYPT                  93
+ #define _SC_XOPEN_ENH_I18N               94
+ #define _SC_XOPEN_LEGACY                 95
+@@ -569,6 +565,10 @@ int     unlinkat(int, const char *, int) __picolibc_export;
+ #define _SC_NPROCESSORS_CONF             139
+ #define _SC_NPROCESSORS_ONLN             140
+ #define _SC_DEVICE_CONTROL               141
++#define _SC_V8_ILP32_OFF32               142
++#define _SC_V8_ILP32_OFFBIG              143
++#define _SC_V8_LP64_OFF64                144
++#define _SC_V8_LPBIG_OFFBIG              145
+ 
+ /*
+  *  pathconf values per IEEE Std 1003.1, 2008 Edition
+@@ -604,72 +604,72 @@ int     unlinkat(int, const char *, int) __picolibc_export;
+ 
+ #define _CS_PATH                           0
+ #define _CS_POSIX_V7_ILP32_OFF32_CFLAGS    1
+-#define _CS_POSIX_V8_ILP32_OFF32_CFLAGS    _CS_POSIX_V7_ILP32_OFF32_CFLAGS
+ #define _CS_POSIX_V6_ILP32_OFF32_CFLAGS    _CS_POSIX_V7_ILP32_OFF32_CFLAGS
+ #define _CS_XBS5_ILP32_OFF32_CFLAGS        _CS_POSIX_V7_ILP32_OFF32_CFLAGS
+ #define _CS_POSIX_V7_ILP32_OFF32_LDFLAGS   2
+-#define _CS_POSIX_V8_ILP32_OFF32_LDFLAGS   _CS_POSIX_V7_ILP32_OFF32_LDFLAGS
+ #define _CS_POSIX_V6_ILP32_OFF32_LDFLAGS   _CS_POSIX_V7_ILP32_OFF32_LDFLAGS
+ #define _CS_XBS5_ILP32_OFF32_LDFLAGS       _CS_POSIX_V7_ILP32_OFF32_LDFLAGS
+ #define _CS_POSIX_V7_ILP32_OFF32_LIBS      3
+-#define _CS_POSIX_V8_ILP32_OFF32_LIBS      _CS_POSIX_V7_ILP32_OFF32_LIBS
+ #define _CS_POSIX_V6_ILP32_OFF32_LIBS      _CS_POSIX_V7_ILP32_OFF32_LIBS
+ #define _CS_XBS5_ILP32_OFF32_LIBS          _CS_POSIX_V7_ILP32_OFF32_LIBS
+ #define _CS_XBS5_ILP32_OFF32_LINTFLAGS     4
+ #define _CS_POSIX_V7_ILP32_OFFBIG_CFLAGS   5
+-#define _CS_POSIX_V8_ILP32_OFFBIG_CFLAGS   _CS_POSIX_V7_ILP32_OFFBIG_CFLAGS
+ #define _CS_POSIX_V6_ILP32_OFFBIG_CFLAGS   _CS_POSIX_V7_ILP32_OFFBIG_CFLAGS
+ #define _CS_XBS5_ILP32_OFFBIG_CFLAGS       _CS_POSIX_V7_ILP32_OFFBIG_CFLAGS
+ #define _CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS  6
+-#define _CS_POSIX_V8_ILP32_OFFBIG_LDFLAGS  _CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS
+ #define _CS_POSIX_V6_ILP32_OFFBIG_LDFLAGS  _CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS
+ #define _CS_XBS5_ILP32_OFFBIG_LDFLAGS      _CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS
+ #define _CS_POSIX_V7_ILP32_OFFBIG_LIBS     7
+-#define _CS_POSIX_V8_ILP32_OFFBIG_LIBS     _CS_POSIX_V7_ILP32_OFFBIG_LIBS
+ #define _CS_POSIX_V6_ILP32_OFFBIG_LIBS     _CS_POSIX_V7_ILP32_OFFBIG_LIBS
+ #define _CS_XBS5_ILP32_OFFBIG_LIBS         _CS_POSIX_V7_ILP32_OFFBIG_LIBS
+ #define _CS_XBS5_ILP32_OFFBIG_LINTFLAGS    8
+ #define _CS_POSIX_V7_LP64_OFF64_CFLAGS     9
+-#define _CS_POSIX_V8_LP64_OFF64_CFLAGS     _CS_POSIX_V7_LP64_OFF64_CFLAGS
+ #define _CS_POSIX_V6_LP64_OFF64_CFLAGS     _CS_POSIX_V7_LP64_OFF64_CFLAGS
+ #define _CS_XBS5_LP64_OFF64_CFLAGS         _CS_POSIX_V7_LP64_OFF64_CFLAGS
+ #define _CS_POSIX_V7_LP64_OFF64_LDFLAGS    10
+-#define _CS_POSIX_V8_LP64_OFF64_LDFLAGS    _CS_POSIX_V7_LP64_OFF64_LDFLAGS
+ #define _CS_POSIX_V6_LP64_OFF64_LDFLAGS    _CS_POSIX_V7_LP64_OFF64_LDFLAGS
+ #define _CS_XBS5_LP64_OFF64_LDFLAGS        _CS_POSIX_V7_LP64_OFF64_LDFLAGS
+ #define _CS_POSIX_V7_LP64_OFF64_LIBS       11
+-#define _CS_POSIX_V8_LP64_OFF64_LIBS       _CS_POSIX_V7_LP64_OFF64_LIBS
+ #define _CS_POSIX_V6_LP64_OFF64_LIBS       _CS_POSIX_V7_LP64_OFF64_LIBS
+ #define _CS_XBS5_LP64_OFF64_LIBS           _CS_POSIX_V7_LP64_OFF64_LIBS
+ #define _CS_XBS5_LP64_OFF64_LINTFLAGS      12
+ #define _CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS   13
+-#define _CS_POSIX_V8_LPBIG_OFFBIG_CFLAGS   _CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS
+ #define _CS_POSIX_V6_LPBIG_OFFBIG_CFLAGS   _CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS
+ #define _CS_XBS5_LPBIG_OFFBIG_CFLAGS       _CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS
+ #define _CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS  14
+-#define _CS_POSIX_V8_LPBIG_OFFBIG_LDFLAGS  _CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS
+ #define _CS_POSIX_V6_LPBIG_OFFBIG_LDFLAGS  _CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS
+ #define _CS_XBS5_LPBIG_OFFBIG_LDFLAGS      _CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS
+ #define _CS_POSIX_V7_LPBIG_OFFBIG_LIBS     15
+-#define _CS_POSIX_V8_LPBIG_OFFBIG_LIBS     _CS_POSIX_V7_LPBIG_OFFBIG_LIBS
+ #define _CS_POSIX_V6_LPBIG_OFFBIG_LIBS     _CS_POSIX_V7_LPBIG_OFFBIG_LIBS
+ #define _CS_XBS5_LPBIG_OFFBIG_LIBS         _CS_POSIX_V7_LPBIG_OFFBIG_LIBS
+ #define _CS_XBS5_LPBIG_OFFBIG_LINTFLAGS    16
+ #define _CS_POSIX_V7_WIDTH_RESTRICTED_ENVS 17
+-#define _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS _CS_POSIX_V7_WIDTH_RESTRICTED_ENVS
+ #define _CS_POSIX_V6_WIDTH_RESTRICTED_ENVS _CS_POSIX_V7_WIDTH_RESTRICTED_ENVS
+ #define _CS_XBS5_WIDTH_RESTRICTED_ENVS     _CS_POSIX_V7_WIDTH_RESTRICTED_ENVS
+ #define _CS_POSIX_V7_THREADS_CFLAGS        18
+-#define _CS_POSIX_V8_THREADS_CFLAGS        _CS_POSIX_V7_THREADS_CFLAGS
+ #define _CS_POSIX_V7_THREADS_LDFLAGS       19
+-#define _CS_POSIX_V8_THREADS_LDFLAGS       _CS_POSIX_V7_THREADS_LDFLAGS
+ #define _CS_V7_ENV                         20
+-#define _CS_V8_ENV                         _CS_V7_ENV
+ #define _CS_V6_ENV                         _CS_V7_ENV
+ #define _CS_LFS_CFLAGS                     21
+ #define _CS_LFS_LDFLAGS                    22
+ #define _CS_LFS_LIBS                       23
+ #define _CS_LFS_LINTFLAGS                  24
++#define _CS_POSIX_V8_ILP32_OFF32_CFLAGS    25
++#define _CS_POSIX_V8_ILP32_OFF32_LDFLAGS   26
++#define _CS_POSIX_V8_ILP32_OFF32_LIBS      27
++#define _CS_POSIX_V8_ILP32_OFFBIG_CFLAGS   28
++#define _CS_POSIX_V8_ILP32_OFFBIG_LDFLAGS  29
++#define _CS_POSIX_V8_ILP32_OFFBIG_LIBS     30
++#define _CS_POSIX_V8_LP64_OFF64_CFLAGS     31
++#define _CS_POSIX_V8_LP64_OFF64_LDFLAGS    32
++#define _CS_POSIX_V8_LP64_OFF64_LIBS       33
++#define _CS_POSIX_V8_LPBIG_OFFBIG_CFLAGS   34
++#define _CS_POSIX_V8_LPBIG_OFFBIG_LDFLAGS  35
++#define _CS_POSIX_V8_LPBIG_OFFBIG_LIBS     36
++#define _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS 37
++#define _CS_POSIX_V8_THREADS_CFLAGS        38
++#define _CS_POSIX_V8_THREADS_LDFLAGS       39
++#define _CS_V8_ENV                         40
+ 
+ /*
+  * The POSIX options and option groups the system provides, and the
+diff --git a/libc/posix/unistd/confstr.c b/libc/posix/unistd/confstr.c
+index cfa7e85e4d..4589204892 100644
+--- a/libc/posix/unistd/confstr.c
++++ b/libc/posix/unistd/confstr.c
+@@ -54,21 +54,31 @@
+      && FITS(ptrdiff_t) && FITS(size_t) && FITS(speed_t) && FITS(ssize_t) && FITS(suseconds_t) \
+      && FITS(tcflag_t) && FITS(wchar_t) && FITS(wint_t))
+ 
+-/* The programming environments picolibc was built for */
+-static const char envs[] = ""
++/* The programming environments picolibc was built for, in V7 and V8 */
++#define ENVS(v) ENV_ILP32_OFF32(v) ENV_ILP32_OFFBIG(v) ENV_LP64_OFF64(v) ENV_LPBIG_OFFBIG(v)
+ #ifdef _POSIX_V8_ILP32_OFF32
+-                           "POSIX_V8_ILP32_OFF32\n"
++#define ENV_ILP32_OFF32(v) "POSIX_" v "_ILP32_OFF32\n"
++#else
++#define ENV_ILP32_OFF32(v)
+ #endif
+ #ifdef _POSIX_V8_ILP32_OFFBIG
+-                           "POSIX_V8_ILP32_OFFBIG\n"
++#define ENV_ILP32_OFFBIG(v) "POSIX_" v "_ILP32_OFFBIG\n"
++#else
++#define ENV_ILP32_OFFBIG(v)
+ #endif
+ #ifdef _POSIX_V8_LP64_OFF64
+-                           "POSIX_V8_LP64_OFF64\n"
++#define ENV_LP64_OFF64(v) "POSIX_" v "_LP64_OFF64\n"
++#else
++#define ENV_LP64_OFF64(v)
+ #endif
+ #ifdef _POSIX_V8_LPBIG_OFFBIG
+-                           "POSIX_V8_LPBIG_OFFBIG\n"
++#define ENV_LPBIG_OFFBIG(v) "POSIX_" v "_LPBIG_OFFBIG\n"
++#else
++#define ENV_LPBIG_OFFBIG(v)
+ #endif
+-    ;
++
++static const char envs_v7[] = "" ENVS("V7");
++static const char envs_v8[] = "" ENVS("V8");
+ 
+ /*
+  * _CS_PATH and the width-restricted environments have values. The
+@@ -86,13 +96,17 @@ confstr(int name, char *buf, size_t len)
+         value = "/bin:/usr/bin";
+         size = strlen(value) + 1;
+         break;
+-    case _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS:
++    case _CS_POSIX_V7_WIDTH_RESTRICTED_ENVS:
+         /* Newline-separated, without a newline at the end */
+-        value = envs;
+-        size = WIDTH_RESTRICTED && sizeof(envs) > 1 ? sizeof(envs) - 1 : 1;
++        value = envs_v7;
++        size = WIDTH_RESTRICTED && sizeof(envs_v7) > 1 ? sizeof(envs_v7) - 1 : 1;
++        break;
++    case _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS:
++        value = envs_v8;
++        size = WIDTH_RESTRICTED && sizeof(envs_v8) > 1 ? sizeof(envs_v8) - 1 : 1;
+         break;
+     default:
+-        if (name < 0 || name > _CS_LFS_LINTFLAGS) {
++        if (name < 0 || name > _CS_V8_ENV) {
+             errno = EINVAL;
+             return 0;
+         }
+diff --git a/libos/fallback/sysconf.c b/libos/fallback/sysconf.c
+index c6f29f3ae4..4b5129dafe 100644
+--- a/libos/fallback/sysconf.c
++++ b/libos/fallback/sysconf.c
+@@ -477,24 +477,48 @@ __fallback_sysconf(int name)
+         return _POSIX_V7_ILP32_OFF32;
+ #else
+         return -1;
++#endif
++    case _SC_V8_ILP32_OFF32:
++#ifdef _POSIX_V8_ILP32_OFF32
++        return _POSIX_V8_ILP32_OFF32;
++#else
++        return -1;
+ #endif
+     case _SC_V7_ILP32_OFFBIG:
+ #ifdef _POSIX_V7_ILP32_OFFBIG
+         return _POSIX_V7_ILP32_OFFBIG;
+ #else
+         return -1;
++#endif
++    case _SC_V8_ILP32_OFFBIG:
++#ifdef _POSIX_V8_ILP32_OFFBIG
++        return _POSIX_V8_ILP32_OFFBIG;
++#else
++        return -1;
+ #endif
+     case _SC_V7_LP64_OFF64:
+ #ifdef _POSIX_V7_LP64_OFF64
+         return _POSIX_V7_LP64_OFF64;
+ #else
+         return -1;
++#endif
++    case _SC_V8_LP64_OFF64:
++#ifdef _POSIX_V8_LP64_OFF64
++        return _POSIX_V8_LP64_OFF64;
++#else
++        return -1;
+ #endif
+     case _SC_V7_LPBIG_OFFBIG:
+ #ifdef _POSIX_V7_LPBIG_OFFBIG
+         return _POSIX_V7_LPBIG_OFFBIG;
+ #else
+         return -1;
++#endif
++    case _SC_V8_LPBIG_OFFBIG:
++#ifdef _POSIX_V8_LPBIG_OFFBIG
++        return _POSIX_V8_LPBIG_OFFBIG;
++#else
++        return -1;
+ #endif
+     case _SC_XOPEN_CRYPT:
+ #ifdef _XOPEN_CRYPT
+-- 
+2.47.3
+

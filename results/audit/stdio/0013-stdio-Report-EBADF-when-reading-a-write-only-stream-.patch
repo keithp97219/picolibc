@@ -1,0 +1,250 @@
+From f01fb2776e0ff8dbd0d27144e251ce98746c754b Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:49 +0000
+Subject: [PATCH 13/39] stdio: Report EBADF when reading a write-only stream or
+ writing a read-only one
+
+POSIX.1-2024 fgetc and fputc shall fail with EBADF when the descriptor
+isn't open for reading (writing), and the error indicator is set. The
+byte and wide functions returned EOF with errno untouched, and the
+output functions didn't set the error indicator.
+---
+ libc/stdio/fgetc.c       |  2 +-
+ libc/stdio/fgets.c       |  6 +++++-
+ libc/stdio/fgetwc.c      |  4 +++-
+ libc/stdio/fgetws.c      |  6 +++++-
+ libc/stdio/fputc.c       |  4 +++-
+ libc/stdio/fputs.c       |  4 +++-
+ libc/stdio/fputwc.c      |  4 +++-
+ libc/stdio/fputws.c      |  4 +++-
+ libc/stdio/fread.c       |  7 ++++++-
+ libc/stdio/fwrite.c      |  7 ++++++-
+ libc/stdio/local-stdio.h | 11 +++++++++++
+ libc/stdio/puts.c        |  4 +++-
+ libc/stdio/vfprintf.c    |  4 +++-
+ 13 files changed, 55 insertions(+), 12 deletions(-)
+
+diff --git a/libc/stdio/fgetc.c b/libc/stdio/fgetc.c
+index 812efbc140..a6b4b6b477 100644
+--- a/libc/stdio/fgetc.c
++++ b/libc/stdio/fgetc.c
+@@ -41,7 +41,7 @@ __STDIO_UNLOCKED(getc)(FILE *stream)
+     __ungetc_t unget;
+ 
+     if ((stream->flags & __SRD) == 0) {
+-        stream->flags |= __SERR;
++        __stdio_bad_dir(stream);
+         return EOF;
+     }
+ 
+diff --git a/libc/stdio/fgets.c b/libc/stdio/fgets.c
+index fffe77119d..5a3f03880e 100644
+--- a/libc/stdio/fgets.c
++++ b/libc/stdio/fgets.c
+@@ -38,7 +38,11 @@ fgets(char *str, int size, FILE *stream)
+     int   c;
+ 
+     __flockfile(stream);
+-    if ((stream->flags & __SRD) == 0 || size <= 0)
++    if ((stream->flags & __SRD) == 0) {
++        __stdio_bad_dir(stream);
++        __funlock_return(stream, NULL);
++    }
++    if (size <= 0)
+         __funlock_return(stream, NULL);
+ 
+     size--;
+diff --git a/libc/stdio/fgetwc.c b/libc/stdio/fgetwc.c
+index 1f08c78741..df19190db7 100644
+--- a/libc/stdio/fgetwc.c
++++ b/libc/stdio/fgetwc.c
+@@ -45,8 +45,10 @@ __STDIO_UNLOCKED(getwc)(FILE *stream)
+ 
+     stream->flags |= __SWIDE;
+ 
+-    if ((stream->flags & __SRD) == 0)
++    if ((stream->flags & __SRD) == 0) {
++        __stdio_bad_dir(stream);
+         return WEOF;
++    }
+ 
+     if ((unget = __atomic_exchange_ungetc(&stream->unget, 0)) != 0)
+         return (wint_t)(unget - 1);
+diff --git a/libc/stdio/fgetws.c b/libc/stdio/fgetws.c
+index d466b01300..7aa5a5c61f 100644
+--- a/libc/stdio/fgetws.c
++++ b/libc/stdio/fgetws.c
+@@ -35,7 +35,11 @@ __STDIO_UNLOCKED(fgetws)(wchar_t *str, int size, FILE *stream)
+     wchar_t *cp;
+     wint_t   c;
+ 
+-    if ((stream->flags & __SRD) == 0 || size <= 0)
++    if ((stream->flags & __SRD) == 0) {
++        __stdio_bad_dir(stream);
++        return NULL;
++    }
++    if (size <= 0)
+         return NULL;
+ 
+     size--;
+diff --git a/libc/stdio/fputc.c b/libc/stdio/fputc.c
+index 9c90296fd1..8367377390 100644
+--- a/libc/stdio/fputc.c
++++ b/libc/stdio/fputc.c
+@@ -37,8 +37,10 @@
+ int
+ __STDIO_UNLOCKED(putc)(int c, FILE *stream)
+ {
+-    if ((stream->flags & __SWR) == 0)
++    if ((stream->flags & __SWR) == 0) {
++        __stdio_bad_dir(stream);
+         return EOF;
++    }
+ 
+     if (stream->put(c, stream) < 0) {
+         stream->flags |= __SERR;
+diff --git a/libc/stdio/fputs.c b/libc/stdio/fputs.c
+index a393e2aca6..241e786135 100644
+--- a/libc/stdio/fputs.c
++++ b/libc/stdio/fputs.c
+@@ -39,8 +39,10 @@ fputs(const char *str, FILE *stream)
+     int  ret = EOF;
+ 
+     __flockfile(stream);
+-    if ((stream->flags & __SWR) == 0)
++    if ((stream->flags & __SWR) == 0) {
++        __stdio_bad_dir(stream);
+         goto fail;
++    }
+ 
+     put = stream->put;
+ 
+diff --git a/libc/stdio/fputwc.c b/libc/stdio/fputwc.c
+index f215bf54f9..749d61817a 100644
+--- a/libc/stdio/fputwc.c
++++ b/libc/stdio/fputwc.c
+@@ -43,8 +43,10 @@ __STDIO_UNLOCKED(putwc)(wchar_t c, FILE *stream)
+ 
+     stream->flags |= __SWIDE;
+ 
+-    if ((stream->flags & __SWR) == 0)
++    if ((stream->flags & __SWR) == 0) {
++        __stdio_bad_dir(stream);
+         return WEOF;
++    }
+ 
+     u.wc = c;
+     for (i = 0; i < sizeof(wchar_t); i++)
+diff --git a/libc/stdio/fputws.c b/libc/stdio/fputws.c
+index c0c9eef258..2d677f618d 100644
+--- a/libc/stdio/fputws.c
++++ b/libc/stdio/fputws.c
+@@ -38,8 +38,10 @@ fputws(const wchar_t *str, FILE *stream)
+     int     rv = 0;
+ 
+     __flockfile(stream);
+-    if ((stream->flags & __SWR) == 0)
++    if ((stream->flags & __SWR) == 0) {
++        __stdio_bad_dir(stream);
+         __funlock_return(stream, EOF);
++    }
+ 
+     while ((c = *str++) != L'\0')
+         if (putwc_unlocked(c, stream) == WEOF)
+diff --git a/libc/stdio/fread.c b/libc/stdio/fread.c
+index 77b7362501..3b208f0484 100644
+--- a/libc/stdio/fread.c
++++ b/libc/stdio/fread.c
+@@ -46,9 +46,14 @@ fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+     int      c;
+ 
+     __flockfile(stream);
+-    if ((stream->flags & __SRD) == 0 || size == 0)
++    if (size == 0 || nmemb == 0)
+         __funlock_return(stream, 0);
+ 
++    if ((stream->flags & __SRD) == 0) {
++        __stdio_bad_dir(stream);
++        __funlock_return(stream, 0);
++    }
++
+ #ifdef __FAST_BUFIO
+     size_t bytes;
+     if ((stream->flags & __SBUF) != 0 && !mul_overflow(size, nmemb, &bytes) && bytes > 0) {
+diff --git a/libc/stdio/fwrite.c b/libc/stdio/fwrite.c
+index ad2c954b9c..c2ab0bf254 100644
+--- a/libc/stdio/fwrite.c
++++ b/libc/stdio/fwrite.c
+@@ -42,9 +42,14 @@ fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
+     const uint8_t *cp = (const uint8_t *)ptr;
+ 
+     __flockfile(stream);
+-    if ((stream->flags & __SWR) == 0 || size == 0)
++    if (size == 0 || nmemb == 0)
+         __funlock_return(stream, 0);
+ 
++    if ((stream->flags & __SWR) == 0) {
++        __stdio_bad_dir(stream);
++        __funlock_return(stream, 0);
++    }
++
+ #ifdef __FAST_BUFIO
+     size_t               bytes;
+     struct __file_bufio *bf = (struct __file_bufio *)stream;
+diff --git a/libc/stdio/local-stdio.h b/libc/stdio/local-stdio.h
+index 217f611e9b..08932a81c4 100644
+--- a/libc/stdio/local-stdio.h
++++ b/libc/stdio/local-stdio.h
+@@ -582,6 +582,17 @@ void       __picolibc_non_atomic_store_ungetc(__ungetc_t *p, __ungetc_t v);
+ 
+ #endif /* __ATOMIC_UNGETC */
+ 
++/*
++ * Reading a stream not open for reading, or writing one not open for
++ * writing, sets the error indicator and fails with EBADF
++ */
++static inline void
++__stdio_bad_dir(FILE *stream)
++{
++    stream->flags |= __SERR;
++    errno = EBADF;
++}
++
+ static inline int
+ __fflush_locked(FILE *stream)
+ {
+diff --git a/libc/stdio/puts.c b/libc/stdio/puts.c
+index 9ba1cbc416..2c2bed31fa 100644
+--- a/libc/stdio/puts.c
++++ b/libc/stdio/puts.c
+@@ -41,8 +41,10 @@ puts(const char *str)
+ 
+     __flockfile(out);
+ 
+-    if ((out->flags & __SWR) == 0)
++    if ((out->flags & __SWR) == 0) {
++        __stdio_bad_dir(out);
+         goto exit;
++    }
+ 
+     put = out->put;
+     while ((c = *str++) != '\0')
+diff --git a/libc/stdio/vfprintf.c b/libc/stdio/vfprintf.c
+index 47b4bc8833..d3bf3f94ef 100644
+--- a/libc/stdio/vfprintf.c
++++ b/libc/stdio/vfprintf.c
+@@ -701,8 +701,10 @@ vfprintf(FILE *stream, const CHAR *fmt, va_list ap_orig)
+ 
+     __flockfile(stream);
+ 
+-    if ((stream->flags & __SWR) == 0)
++    if ((stream->flags & __SWR) == 0) {
++        __stdio_bad_dir(stream);
+         __funlock_return(stream, EOF);
++    }
+ 
+ #ifdef _NEED_IO_POS_ARGS
+     va_copy(ap, ap_orig);
+-- 
+2.47.3
+

@@ -1,0 +1,36 @@
+From d6ba829625ed6bd914ecb74764f13442a703d822 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:01 +0000
+Subject: [PATCH 02/39] stdio: Use putwc_unlocked inside vfwprintf
+
+vfwprintf holds the stream lock already, so taking it again in putwc
+is a recursive acquire. With stdio-locking, lock-valid.c caught this in
+test-open_wmemstream.
+---
+ libc/stdio/vfprintf.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/libc/stdio/vfprintf.c b/libc/stdio/vfprintf.c
+index 7320ff268c..47b4bc8833 100644
+--- a/libc/stdio/vfprintf.c
++++ b/libc/stdio/vfprintf.c
+@@ -682,11 +682,11 @@ vfprintf(FILE *stream, const CHAR *fmt, va_list ap_orig)
+ 
+ #ifndef my_putc
+ #ifdef WIDE_CHARS
+-#define my_putc(c, stream)            \
+-    do {                              \
+-        ++stream_len;                 \
+-        if (putwc(c, stream) == WEOF) \
+-            goto fail;                \
++#define my_putc(c, stream)                     \
++    do {                                       \
++        ++stream_len;                          \
++        if (putwc_unlocked(c, stream) == WEOF) \
++            goto fail;                         \
+     } while (0)
+ #else
+     int (*put)(char, FILE *) = stream->put;
+-- 
+2.47.3
+

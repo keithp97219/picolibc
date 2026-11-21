@@ -1,0 +1,159 @@
+From e38777ce90f26239b193ded14d3758bc94fd1e20 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:09:29 +0000
+Subject: [PATCH 06/12] setjmp.h: Make siglongjmp a function, and hide the
+ POSIX names from ISO C
+
+POSIX: siglongjmp "shall be declared as a function"; it was only a
+macro, so (siglongjmp)(env, val) and &siglongjmp didn't compile.
+sigjmp_buf, sigsetjmp and siglongjmp were also visible in strict ISO
+C mode, and sigjmp_buf's members and the prototypes' parameters used
+plain names an application macro could break.
+---
+ libc/include/setjmp.h        | 21 +++++++++--------
+ libc/signal/CMakeLists.txt   |  1 +
+ libc/signal/meson.build      |  1 +
+ libc/signal/sigjmp_getsigs.c |  4 ++--
+ libc/signal/sigjmp_setsigs.c |  4 ++--
+ libc/signal/siglongjmp.c     | 45 ++++++++++++++++++++++++++++++++++++
+ 6 files changed, 63 insertions(+), 13 deletions(-)
+ create mode 100644 libc/signal/siglongjmp.c
+
+diff --git a/libc/include/setjmp.h b/libc/include/setjmp.h
+index b77b207cb2..efd2b83d81 100644
+--- a/libc/include/setjmp.h
++++ b/libc/include/setjmp.h
+@@ -46,19 +46,22 @@ SUCH DAMAGE.
+ 
+ _BEGIN_STD_C
+ 
++__noreturn void     longjmp(jmp_buf __jmpb, int __retval) __picolibc_export;
++__returns_twice int setjmp(jmp_buf __jmpb) __picolibc_export;
++
++#if __POSIX_VISIBLE
+ typedef struct {
+-    int        savesigs;
+-    __sigset_t sigs;
+-    jmp_buf    jmpb;
++    int        __savesigs;
++    __sigset_t __sigs;
++    jmp_buf    __jmpb;
+ } sigjmp_buf[1];
+ 
+-__noreturn void     longjmp(jmp_buf __jmpb, int __retval) __picolibc_export;
+-__returns_twice int setjmp(jmp_buf __jmpb) __picolibc_export;
+-void                __sigjmp_getsigs(sigjmp_buf jmpb, int savesigs) __picolibc_export;
+-void                __sigjmp_setsigs(sigjmp_buf jmpb) __picolibc_export;
++__noreturn void siglongjmp(sigjmp_buf __jmpb, int __retval) __picolibc_export;
++void            __sigjmp_getsigs(sigjmp_buf __jmpb, int __savesigs) __picolibc_export;
++void            __sigjmp_setsigs(sigjmp_buf __jmpb) __picolibc_export;
+ 
+-#define sigsetjmp(__e, __s)  (__sigjmp_getsigs((__e), (__s)), setjmp((__e)[0].jmpb))
+-#define siglongjmp(__e, __v) (__sigjmp_setsigs((__e)), longjmp((__e)[0].jmpb, (__v)))
++#define sigsetjmp(__e, __s) (__sigjmp_getsigs((__e), (__s)), setjmp((__e)[0].__jmpb))
++#endif
+ 
+ _END_STD_C
+ 
+diff --git a/libc/signal/CMakeLists.txt b/libc/signal/CMakeLists.txt
+index 26dd47e1c5..2c0ad078f5 100644
+--- a/libc/signal/CMakeLists.txt
++++ b/libc/signal/CMakeLists.txt
+@@ -43,4 +43,5 @@ picolibc_sources(
+   sigismember.c
+   sigjmp_getsigs.c
+   sigjmp_setsigs.c
++  siglongjmp.c
+   )  
+diff --git a/libc/signal/meson.build b/libc/signal/meson.build
+index 0f5714367b..19a9152971 100644
+--- a/libc/signal/meson.build
++++ b/libc/signal/meson.build
+@@ -43,6 +43,7 @@ srcs_signal = [
+     'sigismember.c',
+     'sigjmp_getsigs.c',
+     'sigjmp_setsigs.c',
++    'siglongjmp.c',
+ ]
+ 
+ srcs_signal_use = []
+diff --git a/libc/signal/sigjmp_getsigs.c b/libc/signal/sigjmp_getsigs.c
+index 16e54b9983..3853708bef 100644
+--- a/libc/signal/sigjmp_getsigs.c
++++ b/libc/signal/sigjmp_getsigs.c
+@@ -41,6 +41,6 @@
+ void
+ __sigjmp_getsigs(sigjmp_buf jmpb, int savesigs)
+ {
+-    if ((jmpb[0].savesigs = savesigs) != 0)
+-        sigprocmask(SIG_SETMASK, NULL, &jmpb[0].sigs);
++    if ((jmpb[0].__savesigs = savesigs) != 0)
++        sigprocmask(SIG_SETMASK, NULL, &jmpb[0].__sigs);
+ }
+diff --git a/libc/signal/sigjmp_setsigs.c b/libc/signal/sigjmp_setsigs.c
+index 82aa783036..a90c0f4bb1 100644
+--- a/libc/signal/sigjmp_setsigs.c
++++ b/libc/signal/sigjmp_setsigs.c
+@@ -41,6 +41,6 @@
+ void
+ __sigjmp_setsigs(sigjmp_buf jmpb)
+ {
+-    if (jmpb[0].savesigs)
+-        sigprocmask(SIG_SETMASK, &jmpb[0].sigs, NULL);
++    if (jmpb[0].__savesigs)
++        sigprocmask(SIG_SETMASK, &jmpb[0].__sigs, NULL);
+ }
+diff --git a/libc/signal/siglongjmp.c b/libc/signal/siglongjmp.c
+new file mode 100644
+index 0000000000..92c52af26f
+--- /dev/null
++++ b/libc/signal/siglongjmp.c
+@@ -0,0 +1,45 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _DEFAULT_SOURCE
++#include <setjmp.h>
++
++/* Restores the signal mask if sigsetjmp saved it, then jumps */
++void
++siglongjmp(sigjmp_buf jmpb, int val)
++{
++    __sigjmp_setsigs(jmpb);
++    longjmp(jmpb[0].__jmpb, val);
++}
+-- 
+2.47.3
+

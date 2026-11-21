@@ -1,0 +1,48 @@
+From 316a86ce6010dd4b0c629b31be3b26fea1955a46 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:40 +0000
+Subject: [PATCH 12/39] stdio: Keep the end-of-file indicator sticky for
+ buffered files
+
+ISO C fgetc: if the end-of-file indicator for the stream is set, fgetc
+returns EOF. bufio read again, so data appended to a file after the
+end-of-file appeared without clearerr. Other stream types (fdevopen
+devices) keep reading as before.
+---
+ libc/stdio/bufio.c | 4 ++++
+ libc/stdio/fread.c | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/libc/stdio/bufio.c b/libc/stdio/bufio.c
+index 43dc7386c0..da7fa1e902 100644
+--- a/libc/stdio/bufio.c
++++ b/libc/stdio/bufio.c
+@@ -186,6 +186,10 @@ __bufio_get(FILE *f)
+     int                  ret;
+     bool                 flushed = false;
+ 
++    /* Once the end-of-file indicator is set, reads return EOF */
++    if (f->flags & __SEOF)
++        return _FDEV_EOF;
++
+ again:
+     __bufio_lock(f);
+     if (__bufio_setdir_locked(f, __SRD) < 0) {
+diff --git a/libc/stdio/fread.c b/libc/stdio/fread.c
+index 2fc99afd14..77b7362501 100644
+--- a/libc/stdio/fread.c
++++ b/libc/stdio/fread.c
+@@ -78,6 +78,10 @@ fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+                 cp += this_time;
+                 bytes -= this_time;
+             } else {
++                /* Once the end-of-file indicator is set, reads return EOF */
++                if (stream->flags & __SEOF)
++                    break;
++
+                 /* Flush stdout if reading from stdin */
+                 if (!flushed) {
+                     flushed = true;
+-- 
+2.47.3
+

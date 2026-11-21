@@ -1,0 +1,197 @@
+From 88bc96fb283429f994b38b05c89380f3e303c31c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:42:50 +0000
+Subject: [PATCH 28/39] test-posix: Check EBADF for the wrong direction and
+ sticky end-of-file
+
+---
+ test/test-posix/test-stdio/CMakeLists.txt |   1 +
+ test/test-posix/test-stdio/meson.build    |   1 +
+ test/test-posix/test-stdio/test-fgetc.c   | 151 ++++++++++++++++++++++
+ 3 files changed, 153 insertions(+)
+ create mode 100644 test/test-posix/test-stdio/test-fgetc.c
+
+diff --git a/test/test-posix/test-stdio/CMakeLists.txt b/test/test-posix/test-stdio/CMakeLists.txt
+index fe9ad68319..52b822c67b 100644
+--- a/test/test-posix/test-stdio/CMakeLists.txt
++++ b/test/test-posix/test-stdio/CMakeLists.txt
+@@ -36,6 +36,7 @@
+ set(tests
+   test-ctermid
+   test-fdopen
++  test-fgetc
+   test-fopen
+   test-fseek
+   test-getdelim
+diff --git a/test/test-posix/test-stdio/meson.build b/test/test-posix/test-stdio/meson.build
+index 624a6b66bf..a680d76720 100644
+--- a/test/test-posix/test-stdio/meson.build
++++ b/test/test-posix/test-stdio/meson.build
+@@ -36,6 +36,7 @@
+ dir_tests = [
+   'test-ctermid',
+   'test-fdopen',
++  'test-fgetc',
+   'test-fopen',
+   'test-fseek',
+   'test-getdelim',
+diff --git a/test/test-posix/test-stdio/test-fgetc.c b/test/test-posix/test-stdio/test-fgetc.c
+new file mode 100644
+index 0000000000..263102975c
+--- /dev/null
++++ b/test/test-posix/test-stdio/test-fgetc.c
+@@ -0,0 +1,151 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_FD_MGMT)
++
++#include <errno.h>
++#include <fcntl.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <wchar.h>
++
++/*
++ * fgetc and fputc: EBADF and the error indicator for the wrong direction
++ * (also through the other byte and wide functions), and the end-of-file
++ * indicator staying set
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define bad(call, fail, message)                                         \
++    do {                                                                 \
++        clearerr(f);                                                     \
++        errno = 0;                                                       \
++        check((call) == (fail) && errno == EBADF && ferror(f), message); \
++    } while (0)
++
++int
++main(void)
++{
++    char  dir[] = "fgetc-XXXXXX";
++    FILE *f;
++    char  buf[8];
++    int   fd;
++
++    check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
++
++    /* Reading a stream open only for writing */
++    f = fopen("data", "w");
++    check(f != NULL, "open w");
++    bad(fgetc(f), EOF, "fgetc on a write-only stream");
++    bad(getc(f), EOF, "getc on a write-only stream");
++    bad(fgets(buf, sizeof(buf), f), NULL, "fgets on a write-only stream");
++    bad(fread(buf, 1, 1, f), 0, "fread on a write-only stream");
++    check(fputs("ab", f) >= 0 && fclose(f) == 0, "write");
++
++    /* Writing a stream open only for reading */
++    f = fopen("data", "r");
++    check(f != NULL, "open r");
++    bad(fputc('x', f), EOF, "fputc on a read-only stream");
++    bad(putc('x', f), EOF, "putc on a read-only stream");
++    bad(fputs("x", f), EOF, "fputs on a read-only stream");
++    bad(fwrite("x", 1, 1, f), 0, "fwrite on a read-only stream");
++    bad(fprintf(f, "x") < 0, 1, "fprintf on a read-only stream");
++    clearerr(f);
++
++    /* The wide functions, on streams of their own as they set the orientation */
++    {
++        FILE *r = f;
++
++        f = fopen("wide", "w");
++        check(f != NULL, "open wide w");
++        bad(fgetwc(f), WEOF, "fgetwc on a write-only stream");
++        check(fclose(f) == 0, "close wide");
++        f = fopen("wide", "r");
++        check(f != NULL, "open wide r");
++        bad(fputwc(L'x', f), WEOF, "fputwc on a read-only stream");
++        check(fclose(f) == 0, "close wide");
++        f = r;
++    }
++
++    /* Once end-of-file is seen, fgetc keeps returning EOF */
++    check(fgetc(f) == 'a' && fgetc(f) == 'b' && fgetc(f) == EOF && feof(f), "end of file");
++    fd = open("data", O_WRONLY | O_APPEND);
++    check(fd >= 0 && write(fd, "cd", 2) == 2 && close(fd) == 0, "append more data");
++    check(fgetc(f) == EOF && feof(f), "fgetc with the end-of-file indicator set");
++    check(fread(buf, 1, 1, f) == 0, "fread with the end-of-file indicator set");
++    check(fgets(buf, sizeof(buf), f) == NULL, "fgets with the end-of-file indicator set");
++    {
++        char  *line = NULL;
++        size_t n = 0;
++
++        check(getline(&line, &n, f) == -1, "getline with the end-of-file indicator set");
++        free(line);
++    }
++    clearerr(f);
++    check(fgetc(f) == 'c', "clearerr lets reading continue");
++    check(fgetc(f) == 'd' && fgetc(f) == EOF && feof(f), "end of file again");
++    check(ungetc('z', f) == 'z' && !feof(f) && fgetc(f) == 'z', "ungetc clears end-of-file");
++    check(fclose(f) == 0, "close");
++
++    check(unlink("data") == 0 && unlink("wide") == 0 && chdir("..") == 0 && rmdir(dir) == 0,
++          "cleanup");
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

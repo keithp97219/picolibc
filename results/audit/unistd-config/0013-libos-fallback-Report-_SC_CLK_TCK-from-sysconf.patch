@@ -1,0 +1,37 @@
+From 8e36b1579fb14b741c4914388502ee8851f66876 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:42:25 +0000
+Subject: [PATCH 13/20] libos/fallback: Report _SC_CLK_TCK from sysconf
+
+POSIX requires sysconf to answer _SC_CLK_TCK, but the fallback failed
+it with EINVAL. picolibc's clock() takes times() ticks as
+CLOCKS_PER_SEC, so that is the tick rate.
+---
+ libos/fallback/sysconf.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/libos/fallback/sysconf.c b/libos/fallback/sysconf.c
+index 4b5129dafe..8016623c7e 100644
+--- a/libos/fallback/sysconf.c
++++ b/libos/fallback/sysconf.c
+@@ -41,6 +41,7 @@
+ #include <errno.h>
+ #include <signal.h>
+ #include <stdio.h>
++#include <time.h>
+ 
+ #ifndef __weak_reference
+ #define __fallback_sysconf sysconf
+@@ -67,6 +68,9 @@ __fallback_sysconf(int name)
+         return ATEXIT_MAX;
+     case _SC_CHILD_MAX:
+         return CHILD_MAX;
++    case _SC_CLK_TCK:
++        /* clock() reports times() ticks as CLOCKS_PER_SEC */
++        return CLOCKS_PER_SEC;
+     case _SC_DELAYTIMER_MAX:
+         return _POSIX_DELAYTIMER_MAX;
+     /*
+-- 
+2.47.3
+

@@ -1,0 +1,30 @@
+From 699e13ea03c6252a6cd86c5e3c2c26975a792395 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:08:07 +0000
+Subject: [PATCH 07/20] libos/semihost: Answer the other sysconf names from the
+ fallback
+
+The semihost sysconf knew only _SC_CLK_TCK and failed every other name
+with EINVAL, including the options and limits <unistd.h> and
+<limits.h> define, which POSIX requires it to report.
+---
+ libos/semihost/common/sysconf.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libos/semihost/common/sysconf.c b/libos/semihost/common/sysconf.c
+index ffcb4a486e..ddae64827c 100644
+--- a/libos/semihost/common/sysconf.c
++++ b/libos/semihost/common/sysconf.c
+@@ -44,7 +44,7 @@ sysconf(int name)
+     case _SC_CLK_TCK:
+         return sys_semihost_tickfreq();
+     default:
+-        errno = EINVAL;
+-        return -1;
++        /* The options and limits that don't depend on the host */
++        return __fallback_sysconf(name);
+     }
+ }
+-- 
+2.47.3
+

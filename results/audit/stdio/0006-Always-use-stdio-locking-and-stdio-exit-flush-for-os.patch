@@ -1,0 +1,97 @@
+From d6d853088844e9a6e5af1b2382acf15652946343 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:01 +0000
+Subject: [PATCH 06/39] Always use stdio-locking and stdio-exit-flush for
+ os-linux
+
+POSIX.1-2024 XSH 2.5: each stream has a lock, taken by every function
+that reads, writes or positions it, as if by flockfile. Without
+stdio-locking, flockfile took the global C library lock, which other
+threads' stdio calls never take.
+
+ISO C exit: all open streams with unwritten buffered data are flushed.
+Without stdio-exit-flush only stdout was.
+---
+ doc/build.md      | 2 +-
+ doc/locking.md    | 3 ++-
+ meson.build       | 9 +++++++--
+ meson_options.txt | 4 ++--
+ 4 files changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/doc/build.md b/doc/build.md
+index 8cfe756de2..f408332817 100644
+--- a/doc/build.md
++++ b/doc/build.md
+@@ -182,7 +182,7 @@ locking as described in [locking.md](locking.md).
+ | Option                      | Default | Description                                                                          |
+ | ------                      | ------- | -----------                                                                          |
+ | single-thread               | false   | Disable support for locks                                                            |
+-| stdio-locking               | false   | Perform POSIX-conforming per-file locking for all stdio operations (ignored when single-thread is true) |
++| stdio-locking               | false   | Perform POSIX-conforming per-file locking for all stdio operations (ignored when single-thread is true; always on with os-linux) |
+ | posix-threads               | auto    | Provide POSIX threads (`<pthread.h>`) and real library locks from the OS layer. 'auto' enables them for os-linux on machines with thread support (currently x86); requires thread local storage and not single-thread |
+ | network                     | auto    | Networking API and ABI: 'linux' uses the linux OS layer's sockets; 'auto' selects it when that layer is built, and 'none' otherwise |
+ | network-dns                 | auto    | Look up host names missing from /etc/hosts with DNS, configured by /etc/resolv.conf. 'auto' enables it with network=linux |
+diff --git a/doc/locking.md b/doc/locking.md
+index 0639f80fc7..662dd11403 100644
+--- a/doc/locking.md
++++ b/doc/locking.md
+@@ -21,7 +21,8 @@ Picolibc uses per-file locks for the buffered POSIX file backend, but
+ it doesn't require any locks for the bulk of the implementation. You
+ can enable POSIX-compliant locking in stdio with
+ -Dstdio-locking=true. That will prevent I/O from stdio operations from
+-interleaving between threads.
++interleaving between threads. Builds with -Dos-linux=true always use it,
++along with -Dstdio-exit-flush=true.
+ 
+ ## Where Picolibc uses atomics
+ 
+diff --git a/meson.build b/meson.build
+index 0dbf496833..d49ce12eb7 100644
+--- a/meson.build
++++ b/meson.build
+@@ -642,7 +642,12 @@ printf_percent_n = get_option('printf-percent-n')
+ minimal_io_long_long = get_option('minimal-io-long-long')
+ fast_bufio = get_option('fast-bufio')
+ io_wchar = get_option('io-wchar')
+-stdio_locking = get_option('stdio-locking') and not get_option('single-thread')
++# Linux builds get the POSIX stream behaviour: a lock for each stream
++# (XSH 2.5) and every stream flushed at exit (ISO C exit)
++stdio_posix_streams = get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
++stdio_locking = ((get_option('stdio-locking') or stdio_posix_streams)
++                 and not get_option('single-thread'))
++stdio_exit_flush = get_option('stdio-exit-flush') or stdio_posix_streams
+ 
+ foreach format : ['d', 'f', 'l', 'i', 'm']
+ 
+@@ -1597,7 +1602,7 @@ conf_data.set('__IO_PERCENT_B', io_percent_b)
+ conf_data.set('__IO_LENGTH_W', io_length_w)
+ conf_data.set('__IO_LONG_DOUBLE', io_long_double)
+ conf_data.set('__IO_WCHAR', io_wchar)
+-conf_data.set('__STDIO_EXIT_FLUSH', get_option('stdio-exit-flush'))
++conf_data.set('__STDIO_EXIT_FLUSH', stdio_exit_flush)
+ conf_data.set('__ASSERT_VERBOSE', get_option('assert-verbose'), description: 'assert() is verbose by default')
+ conf_data.set('__SINGLE_THREAD', get_option('single-thread'), description: 'Disable multi-thread support')
+ conf_data.set('__HAVE_FCNTL', get_option('have-fcntl'), description: 'System provides fcntl function')
+diff --git a/meson_options.txt b/meson_options.txt
+index e48677d40f..598781caea 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -182,13 +182,13 @@ option('fast-bufio', type: 'boolean', value: false,
+ option('io-wchar', type: 'boolean', value: false,
+        description: 'enable wide character support in printf/scanf (requires multi-byte support)')
+ option('stdio-locking', type: 'boolean', value: false,
+-       description: 'perform POSIX-conforming file locking for all stdio operations')
++       description: 'perform POSIX-conforming file locking for all stdio operations (always on with os-linux)')
+ option('have-fcntl', type: 'boolean', value: false,
+        description: 'system provides fcntl function')
+ option('fstat-bufsiz', type: 'boolean', value: false,
+        description: 'use fstat to detect optimum buffer sizes for stdio')
+ option('stdio-exit-flush', type: 'boolean', value: false,
+-       description: 'flush all runtime allocated bufio files at exit and fflush(NULL)')
++       description: 'flush all runtime allocated bufio files at exit and fflush(NULL) (always on with os-linux)')
+ 
+ #
+ # Internationalization options
+-- 
+2.47.3
+

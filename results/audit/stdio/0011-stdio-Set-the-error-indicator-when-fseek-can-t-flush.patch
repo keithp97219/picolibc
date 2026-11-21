@@ -1,0 +1,41 @@
+From f40fb1fedae80d8d6473a74d6ff16ee636671bae Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:40 +0000
+Subject: [PATCH 11/39] stdio: Set the error indicator when fseek can't flush
+ the stream
+
+POSIX.1-2024 fseek: if a read or write error occurs, the error indicator
+for the stream shall be set and fseek fails. rewind now clears the
+indicator after its seek, so that it still ends clear.
+---
+ libc/stdio/bufio.c  | 1 +
+ libc/stdio/rewind.c | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdio/bufio.c b/libc/stdio/bufio.c
+index 8fac09103f..43dc7386c0 100644
+--- a/libc/stdio/bufio.c
++++ b/libc/stdio/bufio.c
+@@ -260,6 +260,7 @@ __bufio_seek(FILE *f, off_t offset, int whence)
+          * same logic once the buffer is empty.
+          */
+         if (__bufio_setdir_locked(f, __SRD) < 0) {
++            f->flags |= __SERR;
+             goto exit;
+         }
+     }
+diff --git a/libc/stdio/rewind.c b/libc/stdio/rewind.c
+index ccc8b8e63f..370dd14048 100644
+--- a/libc/stdio/rewind.c
++++ b/libc/stdio/rewind.c
+@@ -38,6 +38,6 @@
+ void
+ rewind(FILE *stream)
+ {
+-    clearerr(stream);
+     (void)fseek(stream, 0L, SEEK_SET);
++    clearerr(stream);
+ }
+-- 
+2.47.3
+

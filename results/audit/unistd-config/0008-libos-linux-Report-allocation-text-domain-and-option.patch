@@ -1,0 +1,46 @@
+From c884ef1429758fa3192019249521afe847f6b4da Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:08:39 +0000
+Subject: [PATCH 08/20] libos/linux: Report allocation, text domain and option
+ values from pathconf
+
+_PC_ALLOC_SIZE_MIN was 0, though every file takes whole fragments, and
+the recommended transfer size and alignment ignored the file system's
+block size. _PC_TEXTDOMAIN_MAX was the POSIX minimum of 11 where a
+domain can be as long as a file name less ".mo". _PC_CHOWN_RESTRICTED
+and _PC_NO_TRUNC now match <unistd.h>, and _PC_PRIO_IO says Linux has
+no prioritized I/O.
+---
+ libos/linux/local-statfs.h | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/libos/linux/local-statfs.h b/libos/linux/local-statfs.h
+index 990562501f..e697af7af0 100644
+--- a/libos/linux/local-statfs.h
++++ b/libos/linux/local-statfs.h
+@@ -83,6 +83,22 @@ _pathconf_statvfs(const struct statvfs *buf, int name)
+         return LINUX_POSIX_VDISABLE;
+     case _PC_TIMESTAMP_RESOLUTION:
+         return 1;
++    case _PC_TEXTDOMAIN_MAX:
++        /* A domain names a "<domain>.mo" file */
++        return (long)buf->f_namemax - 3;
++    case _PC_ALLOC_SIZE_MIN:
++        /* Files take whole fragments */
++        return (long)buf->f_frsize;
++    case _PC_REC_MIN_XFER_SIZE:
++    case _PC_REC_XFER_ALIGN:
++        return (long)buf->f_bsize;
++    case _PC_CHOWN_RESTRICTED:
++        return _POSIX_CHOWN_RESTRICTED;
++    case _PC_NO_TRUNC:
++        return _POSIX_NO_TRUNC;
++    case _PC_PRIO_IO:
++        /* Linux has no prioritized I/O */
++        return -1;
+     }
+     return __fallback_fpathconf(-1, name);
+ }
+-- 
+2.47.3
+

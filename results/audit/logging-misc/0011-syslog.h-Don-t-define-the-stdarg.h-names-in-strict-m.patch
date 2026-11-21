@@ -1,0 +1,30 @@
+From e263648aee7cd8ade4f2b5e1182222968de9eccc Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:12:48 +0000
+Subject: [PATCH 11/12] syslog.h: Don't define the <stdarg.h> names in strict
+ mode
+
+Only vsyslog, an extension, needs va_list, but <syslog.h> included
+<stdarg.h> always, defining va_start, va_arg, va_end and va_copy.
+---
+ libc/include/syslog.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libc/include/syslog.h b/libc/include/syslog.h
+index 000fc97a3b..6c72e1c359 100644
+--- a/libc/include/syslog.h
++++ b/libc/include/syslog.h
+@@ -37,7 +37,10 @@
+ #define _SYSLOG_H_
+ 
+ #include <sys/cdefs.h>
++#if __BSD_VISIBLE || __GNU_VISIBLE
++/* Only vsyslog needs va_list; <syslog.h> may not define the va_ names */
+ #include <stdarg.h>
++#endif
+ 
+ _BEGIN_STD_C
+ 
+-- 
+2.47.3
+

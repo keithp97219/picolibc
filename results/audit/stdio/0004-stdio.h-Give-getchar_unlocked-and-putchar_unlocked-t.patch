@@ -1,0 +1,34 @@
+From fad65716916cb64d0cbb3815a8dd0c7ee2443cd4 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:01 +0000
+Subject: [PATCH 04/39] stdio.h: Give getchar_unlocked and putchar_unlocked the
+ right arguments
+
+Without stdio-locking, putchar_unlocked was a macro taking two arguments,
+so putchar_unlocked(c) didn't compile, and getchar_unlocked took one.
+---
+ libc/include/stdio.h | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/libc/include/stdio.h b/libc/include/stdio.h
+index 94857b586b..ed906127fd 100644
+--- a/libc/include/stdio.h
++++ b/libc/include/stdio.h
+@@ -565,10 +565,10 @@ void funlockfile(FILE *) __nonnull((1)) __picolibc_export;
+ int putc_unlocked(int, FILE *) __nonnull((2)) __picolibc_export;
+ int putchar_unlocked(int) __picolibc_export;
+ #ifndef __STDIO_LOCKING
+-#define getc_unlocked(f)       getc(f)
+-#define getchar_unlocked(f)    getc(stdin)
+-#define putc_unlocked(c, f)    putc(c, f)
+-#define putchar_unlocked(c, f) putc(c, stdout)
++#define getc_unlocked(f)    getc(f)
++#define getchar_unlocked()  getc(stdin)
++#define putc_unlocked(c, f) putc(c, f)
++#define putchar_unlocked(c) putc(c, stdout)
+ #endif
+ #endif
+ 
+-- 
+2.47.3
+

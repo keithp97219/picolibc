@@ -1,0 +1,166 @@
+From 75e84415f19c2ebafe27eb021b44b9edb9e79b3d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:10 +0000
+Subject: [PATCH 07/39] stdio: Start fdopen and standard streams at the
+ descriptor's offset
+
+XSH fdopen: the file position indicator of the new stream is set to the
+file offset of the descriptor. bufio started every stream at 0, so
+ftell was wrong, fflush on an input stream moved the descriptor to the
+wrong place, and a seek inside the buffer read the wrong data. Streams
+on descriptors that may have been used (fdopen and the standard
+streams) now read the offset the first time it is needed.
+---
+ libc/include/stdio-bufio.h   |  1 +
+ libc/stdio/bufio.c           |  6 ++++++
+ libc/stdio/fdopen.c          |  6 +++++-
+ libc/stdio/local-stdio.h     | 20 ++++++++++++++++++++
+ libc/stdio/posixiob_stderr.c |  2 +-
+ libc/stdio/posixiob_stdin.c  |  2 +-
+ libc/stdio/posixiob_stdout.c |  5 +++--
+ 7 files changed, 37 insertions(+), 5 deletions(-)
+
+diff --git a/libc/include/stdio-bufio.h b/libc/include/stdio-bufio.h
+index cb4cbdb40a..641bda2991 100644
+--- a/libc/include/stdio-bufio.h
++++ b/libc/include/stdio-bufio.h
+@@ -45,6 +45,7 @@
+ #define __BFALL 0x0004 /* FILE is allocated by stdio */
+ #define __BFPTR 0x0008 /* funcs need pointers instead of ints */
+ #define __BPIPE 0x0010 /* FILE is opened with popen */
++#define __BSYNC 0x0020 /* pos must be read from the fd before use */
+ 
+ union __file_bufio_cookie {
+     int   fd;
+diff --git a/libc/stdio/bufio.c b/libc/stdio/bufio.c
+index eb578661c1..6423a5c078 100644
+--- a/libc/stdio/bufio.c
++++ b/libc/stdio/bufio.c
+@@ -57,6 +57,8 @@ __bufio_flush_locked(FILE *f)
+     switch (bf->dir) {
+     case __SWR:
+         /* Flush everything, drop contents if that doesn't work */
++        if (bf->len)
++            bufio_sync_pos(bf);
+         buf = bf->buf;
+         while (bf->len) {
+             ssize_t this = bufio_write(bf, buf, bf->len);
+@@ -71,6 +73,7 @@ __bufio_flush_locked(FILE *f)
+         break;
+     case __SRD:
+         /* Move the FD back to the current read position */
++        bufio_sync_pos(bf);
+         backup = bf->len - bf->off;
+         if (__atomic_load_ungetc(&f->unget) != 0) {
+             if (backup < bf->pos)
+@@ -101,6 +104,7 @@ __bufio_fill_locked(FILE *f)
+     ssize_t              len;
+ 
+     /* Reset read pointer, read some data */
++    bufio_sync_pos(bf);
+     bf->off = 0;
+     len = bufio_read(bf, bf->buf, bf->size);
+ 
+@@ -235,6 +239,8 @@ __bufio_seek(FILE *f, off_t offset, int whence)
+         goto exit;
+     }
+ 
++    bufio_sync_pos(bf);
++
+     if (bf->dir == __SWR) {
+ 
+         /* Short-circuit for ftell in write mode */
+diff --git a/libc/stdio/fdopen.c b/libc/stdio/fdopen.c
+index d103edcc43..26f395492f 100644
+--- a/libc/stdio/fdopen.c
++++ b/libc/stdio/fdopen.c
+@@ -58,7 +58,11 @@ fdopen(int fd, const char *mode)
+ 
+     buf = (char *)(bf + 1);
+ 
+-    *bf = (struct __file_bufio)FDEV_SETUP_POSIX(fd, buf, buf_size, stdio_flags, __BFALL);
++    /*
++     * The stream starts at the descriptor's offset, which is read
++     * when the position is first needed.
++     */
++    *bf = (struct __file_bufio)FDEV_SETUP_POSIX(fd, buf, buf_size, stdio_flags, __BFALL | __BSYNC);
+ 
+     if (open_flags & O_APPEND)
+         (void)fseeko(&(bf->xfile.cfile.file), 0, SEEK_END);
+diff --git a/libc/stdio/local-stdio.h b/libc/stdio/local-stdio.h
+index 26ff0d5ce6..217f611e9b 100644
+--- a/libc/stdio/local-stdio.h
++++ b/libc/stdio/local-stdio.h
+@@ -199,6 +199,26 @@ bufio_lseek(struct __file_bufio *bf, __off_t offset, int whence)
+     return _FDEV_ERR;
+ }
+ 
++/*
++ * Streams set up for descriptors which may already have been used
++ * (fdopen, the standard streams) start with __BSYNC set: read the
++ * descriptor's offset before the stream first reads, writes or seeks.
++ * Until then the descriptor is the only handle in use, so its offset
++ * is where the stream starts.
++ */
++static inline void
++bufio_sync_pos(struct __file_bufio *bf)
++{
++    if (bf->bflags & __BSYNC) {
++        int     save_errno = errno;
++        __off_t cur = bufio_lseek(bf, 0, SEEK_CUR);
++        if (cur >= 0)
++            bf->pos = cur;
++        errno = save_errno;
++        bf->bflags &= ~__BSYNC;
++    }
++}
++
+ static inline bool
+ bufio_seekable(struct __file_bufio *bf)
+ {
+diff --git a/libc/stdio/posixiob_stderr.c b/libc/stdio/posixiob_stderr.c
+index 49897e1faa..d14efe8f6f 100644
+--- a/libc/stdio/posixiob_stderr.c
++++ b/libc/stdio/posixiob_stderr.c
+@@ -42,7 +42,7 @@
+ static char                write_buf[__PICOLIBC_STDERR_BUFSIZ];
+ 
+ static struct __file_bufio __stderr
+-    = FDEV_SETUP_POSIX(2, write_buf, __PICOLIBC_STDERR_BUFSIZ, __SWR, __BLBF);
++    = FDEV_SETUP_POSIX(2, write_buf, __PICOLIBC_STDERR_BUFSIZ, __SWR, __BLBF | __BSYNC);
+ 
+ FILE * const __posix_stderr = &__stderr.xfile.cfile.file;
+ 
+diff --git a/libc/stdio/posixiob_stdin.c b/libc/stdio/posixiob_stdin.c
+index a8428cae61..e25789d8c9 100644
+--- a/libc/stdio/posixiob_stdin.c
++++ b/libc/stdio/posixiob_stdin.c
+@@ -37,7 +37,7 @@
+ 
+ static char                read_buf[BUFSIZ];
+ 
+-static struct __file_bufio __stdin = FDEV_SETUP_POSIX(0, read_buf, BUFSIZ, __SRD, 0);
++static struct __file_bufio __stdin = FDEV_SETUP_POSIX(0, read_buf, BUFSIZ, __SRD, __BSYNC);
+ 
+ FILE * const               __posix_stdin = &__stdin.xfile.cfile.file;
+ 
+diff --git a/libc/stdio/posixiob_stdout.c b/libc/stdio/posixiob_stdout.c
+index d5de7485da..840abdaea9 100644
+--- a/libc/stdio/posixiob_stdout.c
++++ b/libc/stdio/posixiob_stdout.c
+@@ -37,9 +37,10 @@
+ 
+ static char                write_buf[BUFSIZ];
+ 
+-static struct __file_bufio __stdout = FDEV_SETUP_POSIX(1, write_buf, BUFSIZ, __SWR, __BLBF);
++static struct __file_bufio __stdout
++    = FDEV_SETUP_POSIX(1, write_buf, BUFSIZ, __SWR, __BLBF | __BSYNC);
+ 
+-FILE * const               __posix_stdout = &__stdout.xfile.cfile.file;
++FILE * const __posix_stdout = &__stdout.xfile.cfile.file;
+ 
+ __weak_reference(__posix_stdout, stdout);
+ 
+-- 
+2.47.3
+

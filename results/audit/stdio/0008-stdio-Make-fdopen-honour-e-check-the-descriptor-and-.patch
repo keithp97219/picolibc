@@ -1,0 +1,72 @@
+From e5cfe4e8aa623e75ba97279c2086ea6caec00188 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:17 +0000
+Subject: [PATCH 08/39] stdio: Make fdopen honour 'e', check the descriptor and
+ leave the offset alone
+
+POSIX.1-2024 fdopen: the FD_CLOEXEC flag shall be set if 'e' is present
+(it was ignored), and the new stream's position is the descriptor's
+offset, so fdopen with 'a' mustn't seek to the end; fopen does that
+now. An invalid descriptor gives EBADF (a may-fail) instead of a stream
+that fails later.
+---
+ libc/stdio/fdopen.c | 21 ++++++++++++++-------
+ libc/stdio/fopen.c  |  2 ++
+ 2 files changed, 16 insertions(+), 7 deletions(-)
+
+diff --git a/libc/stdio/fdopen.c b/libc/stdio/fdopen.c
+index 26f395492f..d07768f7b4 100644
+--- a/libc/stdio/fdopen.c
++++ b/libc/stdio/fdopen.c
+@@ -48,6 +48,18 @@ fdopen(int fd, const char *mode)
+     if (stdio_flags == 0)
+         return NULL;
+ 
++#ifdef __PICOLIBC_POSIX_FD_MGMT
++    /* Fail with EBADF for an invalid descriptor */
++    int fd_flags = fcntl(fd, F_GETFD);
++    if (fd_flags < 0)
++        return NULL;
++
++    /* 'e' sets FD_CLOEXEC; without it, the flag is left alone */
++    if ((open_flags & O_CLOEXEC) && !(fd_flags & FD_CLOEXEC))
++        if (fcntl(fd, F_SETFD, fd_flags | FD_CLOEXEC) < 0)
++            return NULL;
++#endif
++
+     buf_size = bufio_get_buf_size(fd);
+ 
+     /* Allocate file structure and necessary buffers */
+@@ -58,14 +70,9 @@ fdopen(int fd, const char *mode)
+ 
+     buf = (char *)(bf + 1);
+ 
+-    /*
+-     * The stream starts at the descriptor's offset, which is read
+-     * when the position is first needed.
+-     */
++    /* The stream starts at the descriptor's offset */
+     *bf = (struct __file_bufio)FDEV_SETUP_POSIX(fd, buf, buf_size, stdio_flags, __BFALL | __BSYNC);
+-
+-    if (open_flags & O_APPEND)
+-        (void)fseeko(&(bf->xfile.cfile.file), 0, SEEK_END);
++    bufio_sync_pos(bf);
+ 
+     bufio_add_file(&(bf->xfile.cfile.file));
+ 
+diff --git a/libc/stdio/fopen.c b/libc/stdio/fopen.c
+index f9a91e171f..b3c2c99ec5 100644
+--- a/libc/stdio/fopen.c
++++ b/libc/stdio/fopen.c
+@@ -54,6 +54,8 @@ fopen(const char *pathname, const char *mode)
+     ret = fdopen(fd, mode);
+     if (ret == NULL)
+         close(fd);
++    else if (open_flags & O_APPEND)
++        (void)fseeko(ret, 0, SEEK_END);
+ 
+     return ret;
+ }
+-- 
+2.47.3
+

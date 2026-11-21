@@ -1,0 +1,192 @@
+From fdf5c340a91acdd1acbc334a6f3e44bd5c83fd72 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:42:50 +0000
+Subject: [PATCH 36/39] test-posix: Check dprintf and vdprintf output, errors
+ and memory use
+
+---
+ test/test-posix/test-stdio/CMakeLists.txt |   1 +
+ test/test-posix/test-stdio/meson.build    |   1 +
+ test/test-posix/test-stdio/test-dprintf.c | 146 ++++++++++++++++++++++
+ 3 files changed, 148 insertions(+)
+ create mode 100644 test/test-posix/test-stdio/test-dprintf.c
+
+diff --git a/test/test-posix/test-stdio/CMakeLists.txt b/test/test-posix/test-stdio/CMakeLists.txt
+index 5cc01d0e92..76c2705f1b 100644
+--- a/test/test-posix/test-stdio/CMakeLists.txt
++++ b/test/test-posix/test-stdio/CMakeLists.txt
+@@ -35,6 +35,7 @@
+ 
+ set(tests
+   test-ctermid
++  test-dprintf
+   test-fdopen
+   test-fflush
+   test-fgetc
+diff --git a/test/test-posix/test-stdio/meson.build b/test/test-posix/test-stdio/meson.build
+index 3eabf1b8e8..4711e76f2f 100644
+--- a/test/test-posix/test-stdio/meson.build
++++ b/test/test-posix/test-stdio/meson.build
+@@ -35,6 +35,7 @@
+ 
+ dir_tests = [
+   'test-ctermid',
++  'test-dprintf',
+   'test-fdopen',
+   'test-fflush',
+   'test-fgetc',
+diff --git a/test/test-posix/test-stdio/test-dprintf.c b/test/test-posix/test-stdio/test-dprintf.c
+new file mode 100644
+index 0000000000..9c58c0ed84
+--- /dev/null
++++ b/test/test-posix/test-stdio/test-dprintf.c
+@@ -0,0 +1,146 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_PIPE) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
++
++#include <errno.h>
++#include <fcntl.h>
++#include <stdarg.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/stat.h>
++#ifdef __PICOLIBC__
++#include <malloc.h>
++#endif
++
++/* dprintf and vdprintf: output on the descriptor, the count, errors, timestamps */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static int
++call_vdprintf(int fd, const char *fmt, ...)
++{
++    va_list ap;
++    int     ret;
++
++    va_start(ap, fmt);
++    ret = vdprintf(fd, fmt, ap);
++    va_end(ap);
++    return ret;
++}
++
++int
++main(void)
++{
++    char            buf[256];
++    char            expect[256];
++    int             p[2];
++    int             fd;
++    int             i;
++    struct stat     st;
++    struct timespec old[2] = {
++        { 1000, 0 },
++        { 1000, 0 }
++    };
++    char name[] = "dprintf-XXXXXX";
++
++    check(pipe(p) == 0, "pipe");
++    check(dprintf(p[1], "%d-%s", 42, "x") == 4, "dprintf count");
++    check(read(p[0], buf, sizeof(buf)) == 4 && memcmp(buf, "42-x", 4) == 0, "dprintf output");
++    check(call_vdprintf(p[1], "%3$s%1$s%2$s", "b", "c", "a") == 3, "vdprintf count");
++    check(read(p[0], buf, sizeof(buf)) == 3 && memcmp(buf, "abc", 3) == 0, "vdprintf output");
++
++    /* Longer than any internal buffer */
++    for (i = 0; i < 200; i++)
++        expect[i] = 'a' + i % 26;
++    expect[200] = '\0';
++    check(dprintf(p[1], "%s", expect) == 200, "long dprintf");
++    check(read(p[0], buf, sizeof(buf)) == 200 && memcmp(buf, expect, 200) == 0, "long output");
++
++    /* EBADF (may fail) */
++    errno = 0;
++    check(dprintf(-1, "x") < 0 && errno == EBADF, "dprintf EBADF");
++
++    /* dprintf marks st_mtime */
++    fd = mkstemp(name);
++    check(fd >= 0 && futimens(fd, old) == 0, "file");
++    check(dprintf(fd, "data") == 4 && fstat(fd, &st) == 0, "dprintf to a file");
++    check(st.st_size == 4 && st.st_mtime != 1000, "st_mtime marked");
++    check(close(fd) == 0 && unlink(name) == 0, "cleanup");
++
++#ifdef __PICOLIBC__
++    /* Repeated calls don't keep memory */
++    {
++        struct mallinfo before = mallinfo(), after;
++
++        for (i = 0; i < 1000; i++) {
++            check(dprintf(p[1], "x") == 1, "dprintf");
++            check(read(p[0], buf, 1) == 1, "read");
++        }
++        after = mallinfo();
++        if (after.uordblks > before.uordblks)
++            printf("%zu bytes kept\n", (size_t)(after.uordblks - before.uordblks));
++        check(after.uordblks <= before.uordblks, "dprintf doesn't leak");
++    }
++#endif
++
++    check(close(p[0]) == 0 && close(p[1]) == 0, "close");
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

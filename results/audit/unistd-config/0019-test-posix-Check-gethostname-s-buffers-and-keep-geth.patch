@@ -1,0 +1,181 @@
+From 2e34e550c1b7cda31c467eb1e42238e1da47e352 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:29:09 +0000
+Subject: [PATCH 19/20] test-posix: Check gethostname's buffers and keep
+ gethostid away from DNS
+
+gethostname's name fits HOST_NAME_MAX and an exact buffer, and short
+buffers are truncated without writing past them. gethostid is checked
+for 32 bits, against /etc/hostid and in another process; without
+/etc/hostid glibc looks the host name up, which may reach DNS, so the
+native build skips then. Neither value is printed.
+---
+ test/test-posix/test-unistd/test-gethostid.c  | 49 ++++++++++++++-
+ .../test-posix/test-unistd/test-gethostname.c | 59 +++++++++++++++----
+ 2 files changed, 95 insertions(+), 13 deletions(-)
+
+diff --git a/test/test-posix/test-unistd/test-gethostid.c b/test/test-posix/test-unistd/test-gethostid.c
+index 047d9121b9..00c5158cdd 100644
+--- a/test/test-posix/test-unistd/test-gethostid.c
++++ b/test/test-posix/test-unistd/test-gethostid.c
+@@ -41,10 +41,18 @@
+ /* Without the system support this test needs, it is skipped */
+ #if defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
+ 
++#include <fcntl.h>
++#include <limits.h>
++#include <stdint.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <sys/wait.h>
+ 
+-/* gethostid returns the same identifier each time */
++/*
++ * gethostid returns the same 32-bit identifier each time, in every
++ * process, and the one in /etc/hostid when that file has one. The
++ * identifier itself is never printed.
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -57,7 +65,44 @@
+ int
+ main(void)
+ {
+-    check(gethostid() == gethostid(), "stable");
++    int32_t file_id = 0;
++    int     have_file = 0, fd, status;
++    long    id;
++    pid_t   pid;
++
++    fd = open("/etc/hostid", O_RDONLY);
++    if (fd >= 0) {
++        have_file = read(fd, &file_id, sizeof(file_id)) == (ssize_t)sizeof(file_id);
++        close(fd);
++    }
++#ifdef __GLIBC__
++    /* Without /etc/hostid, glibc looks the host name up, perhaps in DNS */
++    if (!have_file) {
++        printf("no /etc/hostid, skipping for glibc\n");
++        return 77;
++    }
++#endif
++
++    id = gethostid();
++    check(gethostid() == id, "stable");
++#if LONG_MAX > INT32_MAX
++    check(id >= INT32_MIN && id <= (long)UINT32_MAX, "32 bits");
++#endif
++    if (have_file)
++        check((int32_t)id == file_id, "the identifier in /etc/hostid");
++
++    /* The same host, the same identifier */
++#ifdef __PICOLIBC_POSIX_MULTI_PROCESS
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        _exit(gethostid() == id ? 0 : 1);
++    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
++          "the same in another process");
++#else
++    (void)pid;
++    (void)status;
++#endif
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-unistd/test-gethostname.c b/test/test-posix/test-unistd/test-gethostname.c
+index 0d79a61cbb..fdc3d213af 100644
+--- a/test/test-posix/test-unistd/test-gethostname.c
++++ b/test/test-posix/test-unistd/test-gethostname.c
+@@ -39,12 +39,18 @@
+ /* Without the system support this test needs, it is skipped */
+ #if defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
+ 
++#include <limits.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <sys/utsname.h>
+ 
+-/* gethostname returns the node name uname reports */
++/*
++ * gethostname returns the node name uname reports, null-terminated,
++ * no longer than {HOST_NAME_MAX}; a short buffer gets a truncated
++ * name and nothing is written past it. The name itself is never
++ * printed.
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -54,26 +60,57 @@
+         }                                              \
+     } while (0)
+ 
++#define GUARD 16
++
+ int
+ main(void)
+ {
+     struct utsname u;
+-    char           name[256], small[4];
+-    char           guard[16];
++    char           name[256 + GUARD];
++    size_t         len, size, i;
++    long           max;
+ 
+     check(uname(&u) == 0, "uname");
+-    check(gethostname(name, sizeof(name)) == 0, "gethostname");
++    memset(name, 'g', sizeof(name));
++    check(gethostname(name, 256) == 0, "gethostname");
++    check(memchr(name, '\0', 256) != NULL, "null-terminated");
+     check(strcmp(name, u.nodename) == 0, "nodename");
++    len = strlen(name);
++
++    /* Host names are limited to {HOST_NAME_MAX} bytes */
++    max = sysconf(_SC_HOST_NAME_MAX);
++    /* glibc reports Linux's 64, below the POSIX minimum */
++#ifndef __GLIBC__
++    check(max == -1 || max >= _POSIX_HOST_NAME_MAX, "_SC_HOST_NAME_MAX");
++#endif
++    check(max == -1 || len <= (size_t)max, "within _SC_HOST_NAME_MAX");
++#ifdef HOST_NAME_MAX
++    check(len <= HOST_NAME_MAX, "within HOST_NAME_MAX");
++#endif
++
++    /* Exactly enough room */
++    memset(name, 'g', sizeof(name));
++    check(gethostname(name, len + 1) == 0, "exact buffer");
++    check(strcmp(name, u.nodename) == 0, "exact buffer holds the name");
++    for (i = len + 1; i < len + 1 + GUARD; i++)
++        check(name[i] == 'g', "nothing past an exact buffer");
++
++    /*
++     * Too little room: the name is truncated, perhaps without its null,
++     * and nothing past the buffer changes. glibc fails with
++     * ENAMETOOLONG instead
++     */
++    for (size = 1; size <= len; size++) {
++        memset(name, 'g', sizeof(name));
+ #ifndef __GLIBC__
+-    /* POSIX truncates the name for a short buffer; glibc fails with ENAMETOOLONG */
+-    memset(guard, 'g', sizeof(guard));
+-    check(gethostname(small, sizeof(small)) == 0, "short buffer");
+-    check(strncmp(small, u.nodename, sizeof(small) - 1) == 0, "truncated");
+-    check(guard[0] == 'g' && guard[sizeof(guard) - 1] == 'g', "no overrun");
++        check(gethostname(name, size) == 0, "short buffer");
++        check(strncmp(name, u.nodename, size - 1) == 0, "truncated");
+ #else
+-    (void)small;
+-    (void)guard;
++        (void)gethostname(name, size);
+ #endif
++        for (i = size; i < size + GUARD; i++)
++            check(name[i] == 'g', "nothing past a short buffer");
++    }
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

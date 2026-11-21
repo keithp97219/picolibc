@@ -1,0 +1,116 @@
+From 96e520eb3e6c937e6df97b014a2381d6450e70ff Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:01 +0000
+Subject: [PATCH 03/39] stdio: Make ftrylockfile fail when another thread holds
+ the lock
+
+POSIX.1-2024 ftrylockfile is the non-blocking flockfile and returns
+non-zero when the lock can't be acquired; it blocked instead. Lock
+implementations may now provide __retarget_lock_try_acquire_recursive;
+without it ftrylockfile still blocks.
+---
+ libc/include/sys/lock.h   |  2 ++
+ libc/misc/lock.c          |  7 +++++++
+ libc/stdio/ftrylockfile.c | 33 +++++++++++++++++++++++++--------
+ libos/linux/lock.c        |  6 ++++++
+ 4 files changed, 40 insertions(+), 8 deletions(-)
+
+diff --git a/libc/include/sys/lock.h b/libc/include/sys/lock.h
+index cda5f055b5..328e7a9210 100644
+--- a/libc/include/sys/lock.h
++++ b/libc/include/sys/lock.h
+@@ -39,6 +39,8 @@ void                   __retarget_lock_acquire(_LOCK_T lock) __acquire_capabilit
+ void                   __retarget_lock_acquire_recursive(_LOCK_T lock) __acquire_capability(lock);
+ void                   __retarget_lock_release(_LOCK_T lock) __release_capability(lock);
+ void                   __retarget_lock_release_recursive(_LOCK_T lock) __release_capability(lock);
++/* Returns 0 when the lock was acquired. Optional: callers check that it is defined. */
++int __retarget_lock_try_acquire_recursive(_LOCK_T lock) __try_acquire_capability(0, lock);
+ 
+ #define __lock_init(lock)              __retarget_lock_init(&lock)
+ #define __lock_init_recursive(lock)    __retarget_lock_init_recursive(&lock)
+diff --git a/libc/misc/lock.c b/libc/misc/lock.c
+index 2e963d4bec..a2e4cbebc1 100644
+--- a/libc/misc/lock.c
++++ b/libc/misc/lock.c
+@@ -122,6 +122,13 @@ __retarget_lock_acquire_recursive(_LOCK_T lock)
+     (void)lock;
+ }
+ 
++int __no_thread_safety_analysis
++__retarget_lock_try_acquire_recursive(_LOCK_T lock)
++{
++    (void)lock;
++    return 0;
++}
++
+ void __no_thread_safety_analysis
+ __retarget_lock_release(_LOCK_T lock)
+ {
+diff --git a/libc/stdio/ftrylockfile.c b/libc/stdio/ftrylockfile.c
+index 33d847de57..4a773f3b36 100644
+--- a/libc/stdio/ftrylockfile.c
++++ b/libc/stdio/ftrylockfile.c
+@@ -35,18 +35,35 @@
+ 
+ #include "local-stdio.h"
+ 
+-/*
+- * We don't have any try-lock ability in the picolibc lock API, so
+- * we're stuck just blocking.
+- */
++#ifndef __SINGLE_THREAD
++/* Lock implementations need not provide this; without it, ftrylockfile blocks */
++extern int __retarget_lock_try_acquire_recursive(_LOCK_T lock) __weak;
++
++static int __no_thread_safety_analysis
++try_lock(_LOCK_T lock)
++{
++    if (__retarget_lock_try_acquire_recursive)
++        return __retarget_lock_try_acquire_recursive(lock);
++    __lock_acquire_recursive(lock);
++    return 0;
++}
++#endif
++
++/* Returns zero when the lock was acquired, non-zero when another thread holds it */
+ int
+ ftrylockfile(FILE *f) __stdio_try_acquire_file(0, f) __no_thread_safety_analysis
+ {
+-#ifdef __STDIO_LOCKING
+-    __flockfile(f);
++#ifdef __SINGLE_THREAD
++    (void)f;
++    return 0;
++#elif defined(__STDIO_LOCKING)
++    if (!f->lock)
++        __flockfile_init(f);
++    if (f->lock == __LOCK_NONE)
++        return 0;
++    return try_lock(f->lock);
+ #else
+     (void)f;
+-    __LIBC_LOCK();
++    return try_lock(&__lock___libc_recursive_mutex);
+ #endif
+-    return 0;
+ }
+diff --git a/libos/linux/lock.c b/libos/linux/lock.c
+index c6339608fa..8643972941 100644
+--- a/libos/linux/lock.c
++++ b/libos/linux/lock.c
+@@ -111,6 +111,12 @@ __retarget_lock_acquire_recursive(_LOCK_T lock)
+     (void)pthread_mutex_lock(&lock->mutex);
+ }
+ 
++int __no_thread_safety_analysis
++__retarget_lock_try_acquire_recursive(_LOCK_T lock)
++{
++    return pthread_mutex_trylock(&lock->mutex) != 0;
++}
++
+ void __no_thread_safety_analysis
+ __retarget_lock_release(_LOCK_T lock)
+ {
+-- 
+2.47.3
+

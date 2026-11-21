@@ -1,0 +1,38 @@
+From 518ee2384faa5d9210f5c7701bc887bd54d29803 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:34:14 +0000
+Subject: [PATCH 23/39] stdio: Make remove remove directories
+
+POSIX.1-2024 remove: if path names a directory, remove(path) is
+equivalent to rmdir(path). It only called unlink, which fails for
+directories.
+---
+ libc/stdio/remove.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdio/remove.c b/libc/stdio/remove.c
+index 2a6552ca92..027a8a7a88 100644
+--- a/libc/stdio/remove.c
++++ b/libc/stdio/remove.c
+@@ -38,5 +38,17 @@
+ int
+ remove(const char *pathname)
+ {
+-    return unlink(pathname);
++    int ret = unlink(pathname);
++
++#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
++    /* For a directory, remove is rmdir */
++    if (ret < 0 && (errno == EPERM || errno == EISDIR)) {
++        int unlink_errno = errno;
++
++        ret = rmdir(pathname);
++        if (ret < 0 && errno == ENOTDIR)
++            errno = unlink_errno;
++    }
++#endif
++    return ret;
+ }
+-- 
+2.47.3
+

@@ -1,0 +1,31 @@
+From 2a963bc541cb61dc90bfb51370e31c656270ac11 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:10:52 +0000
+Subject: [PATCH 08/12] strerror: Give EDQUOT and ESTALE messages
+
+Both are in <errno.h>, and Linux returns them, but strerror reported
+"Unknown error" for each.
+---
+ libc/string/strerror.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/libc/string/strerror.c b/libc/string/strerror.c
+index 0ddcf4553d..69e70c2121 100644
+--- a/libc/string/strerror.c
++++ b/libc/string/strerror.c
+@@ -329,6 +329,12 @@ static const char * const errnames[] = {
+ #ifdef ETIMEDOUT
+     [ETIMEDOUT] = "Connection timed out",
+ #endif
++#ifdef EDQUOT
++    [EDQUOT] = "Disk quota exceeded",
++#endif
++#ifdef ESTALE
++    [ESTALE] = "Stale file handle",
++#endif
+ };
+ 
+ #define NERRNAMES (sizeof(errnames) / sizeof(errnames[0]))
+-- 
+2.47.3
+

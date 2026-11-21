@@ -1,0 +1,50 @@
+From 39c7e006bd17910f5609ace2652ebb327e9d3ccd Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:49 +0000
+Subject: [PATCH 16/39] stdio: Check getdelim's pointers and return -1 after a
+ read error
+
+POSIX.1-2024 getdelim shall fail with EINVAL when lineptr or n is a null
+pointer (it crashed), and if an error occurs it returns -1 (it returned
+the bytes read before the error).
+---
+ libc/stdio/getdelim.c | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/libc/stdio/getdelim.c b/libc/stdio/getdelim.c
+index 8ef9c877f7..04e016e187 100644
+--- a/libc/stdio/getdelim.c
++++ b/libc/stdio/getdelim.c
+@@ -40,17 +40,25 @@
+ ssize_t
+ getdelim(char ** restrict lineptr, size_t * restrict nptr, int delim, FILE * restrict stream)
+ {
+-    char   *line = *lineptr;
+-    size_t  n = line ? *nptr : 0;
++    char   *line;
++    size_t  n;
+     ssize_t count = 0;
+ 
++    if (!lineptr || !nptr) {
++        errno = EINVAL;
++        return -1;
++    }
++
++    line = *lineptr;
++    n = line ? *nptr : 0;
++
+     __flockfile(stream);
+     for (;;) {
+         int c = getc_unlocked(stream);
+         int is_eof = (c == EOF);
+ 
+-        /* EOF at the start: return -1 */
+-        if (is_eof && count == 0) {
++        /* EOF at the start, or an error anywhere: return -1 */
++        if (is_eof && (count == 0 || !__feof_unlocked(stream))) {
+             count = -1;
+             goto bail;
+         }
+-- 
+2.47.3
+

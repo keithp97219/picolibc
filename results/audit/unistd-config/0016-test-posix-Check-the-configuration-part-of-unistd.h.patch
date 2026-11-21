@@ -1,0 +1,913 @@
+From 167c49a3bd3c55b5a2326da4ae2745f27a2b744f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:29:09 +0000
+Subject: [PATCH 16/20] test-posix: Check the configuration part of <unistd.h>
+
+The version and option macros take values POSIX allows, every _SC_,
+_PC_ and _CS_ name is defined with a distinct value, sysconf and
+confstr accept them all, the getopt variables and remaining functions
+have POSIX's types, and in strict mode crypt, encrypt, gethostid, swab,
+getpagesize, getpass and optreset stay hidden.
+---
+ test/test-posix/test-unistd/CMakeLists.txt    |   1 +
+ test/test-posix/test-unistd/meson.build       |   1 +
+ .../test-unistd/test-unistd_h-config.c        | 808 ++++++++++++++++++
+ .../test-unistd/test-unistd_h-names.c         |  14 +
+ 4 files changed, 824 insertions(+)
+ create mode 100644 test/test-posix/test-unistd/test-unistd_h-config.c
+
+diff --git a/test/test-posix/test-unistd/CMakeLists.txt b/test/test-posix/test-unistd/CMakeLists.txt
+index 6765d1b9c8..5afdf97bf6 100644
+--- a/test/test-posix/test-unistd/CMakeLists.txt
++++ b/test/test-posix/test-unistd/CMakeLists.txt
+@@ -108,6 +108,7 @@ set(tests
+   test-tcsetpgrp
+   test-truncate
+   test-ttyname_r
++  test-unistd_h-config
+   test-unistd_h-files
+   test-unistd_h-names
+   test-unistd_h-process
+diff --git a/test/test-posix/test-unistd/meson.build b/test/test-posix/test-unistd/meson.build
+index 11ae900cfb..ff69e02c5c 100644
+--- a/test/test-posix/test-unistd/meson.build
++++ b/test/test-posix/test-unistd/meson.build
+@@ -105,6 +105,7 @@ dir_tests = [
+   'test-tcsetpgrp',
+   'test-truncate',
+   'test-ttyname_r',
++  'test-unistd_h-config',
+   'test-unistd_h-files',
+   'test-unistd_h-names',
+   'test-unistd_h-process',
+diff --git a/test/test-posix/test-unistd/test-unistd_h-config.c b/test/test-posix/test-unistd/test-unistd_h-config.c
+new file mode 100644
+index 0000000000..d07e631c87
+--- /dev/null
++++ b/test/test-posix/test-unistd/test-unistd_h-config.c
+@@ -0,0 +1,808 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* gethostid, crypt, encrypt and swab are XSI, as is _XOPEN_VERSION */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++#include <stdio.h>
++#include <stdlib.h>
++
++/*
++ * <unistd.h>'s configuration part: the version and option macros take
++ * the values POSIX allows, every _SC_, _PC_ and _CS_ name POSIX lists
++ * is defined and distinct (only _SC_PAGESIZE and _SC_PAGE_SIZE may
++ * match, so _SC_PAGE_SIZE is left out), and sysconf and confstr accept them all. The getopt
++ * variables and the remaining functions have the types POSIX gives.
++ */
++
++/* Version test macros */
++#if defined(_POSIX_VERSION) && _POSIX_VERSION != 202405L && _POSIX_VERSION != 200809L \
++    && _POSIX_VERSION != 200112L
++#error "_POSIX_VERSION"
++#endif
++#if defined(_POSIX2_VERSION) && _POSIX2_VERSION != 202405L && _POSIX2_VERSION != 200809L \
++    && _POSIX2_VERSION != 200112L && _POSIX2_VERSION != -1
++#error "_POSIX2_VERSION"
++#endif
++/* An XSI implementation conforming to POSIX.1-2024 is version 800; glibc is 700 */
++#if defined(_XOPEN_VERSION) && _XOPEN_VERSION != 800 && !defined(__GLIBC__)
++#error "_XOPEN_VERSION"
++#endif
++
++/* Options that, when defined, are -1, 0 or 202405L */
++/* glibc defines these to its POSIX.1-2008 values */
++#ifndef __GLIBC__
++#if defined(_POSIX_ADVISORY_INFO) && _POSIX_ADVISORY_INFO != -1 && _POSIX_ADVISORY_INFO != 0 \
++    && _POSIX_ADVISORY_INFO != 202405L
++#error "_POSIX_ADVISORY_INFO"
++#endif
++#if defined(_POSIX_CPUTIME) && _POSIX_CPUTIME != -1 && _POSIX_CPUTIME != 0 \
++    && _POSIX_CPUTIME != 202405L
++#error "_POSIX_CPUTIME"
++#endif
++#if defined(_POSIX_DEVICE_CONTROL) && _POSIX_DEVICE_CONTROL != -1 && _POSIX_DEVICE_CONTROL != 0 \
++    && _POSIX_DEVICE_CONTROL != 202405L
++#error "_POSIX_DEVICE_CONTROL"
++#endif
++#if defined(_POSIX_FSYNC) && _POSIX_FSYNC != -1 && _POSIX_FSYNC != 0 && _POSIX_FSYNC != 202405L
++#error "_POSIX_FSYNC"
++#endif
++#if defined(_POSIX_IPV6) && _POSIX_IPV6 != -1 && _POSIX_IPV6 != 0 && _POSIX_IPV6 != 202405L
++#error "_POSIX_IPV6"
++#endif
++#if defined(_POSIX_MEMLOCK) && _POSIX_MEMLOCK != -1 && _POSIX_MEMLOCK != 0 \
++    && _POSIX_MEMLOCK != 202405L
++#error "_POSIX_MEMLOCK"
++#endif
++#if defined(_POSIX_MEMLOCK_RANGE) && _POSIX_MEMLOCK_RANGE != -1 && _POSIX_MEMLOCK_RANGE != 0 \
++    && _POSIX_MEMLOCK_RANGE != 202405L
++#error "_POSIX_MEMLOCK_RANGE"
++#endif
++#if defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING != -1 && _POSIX_MESSAGE_PASSING != 0 \
++    && _POSIX_MESSAGE_PASSING != 202405L
++#error "_POSIX_MESSAGE_PASSING"
++#endif
++#if defined(_POSIX_PRIORITIZED_IO) && _POSIX_PRIORITIZED_IO != -1 && _POSIX_PRIORITIZED_IO != 0 \
++    && _POSIX_PRIORITIZED_IO != 202405L
++#error "_POSIX_PRIORITIZED_IO"
++#endif
++#if defined(_POSIX_PRIORITY_SCHEDULING) && _POSIX_PRIORITY_SCHEDULING != -1     \
++    && _POSIX_PRIORITY_SCHEDULING != 0 && _POSIX_PRIORITY_SCHEDULING != 202405L
++#error "_POSIX_PRIORITY_SCHEDULING"
++#endif
++#if defined(_POSIX_RAW_SOCKETS) && _POSIX_RAW_SOCKETS != -1 && _POSIX_RAW_SOCKETS != 0 \
++    && _POSIX_RAW_SOCKETS != 202405L
++#error "_POSIX_RAW_SOCKETS"
++#endif
++#if defined(_POSIX_SHARED_MEMORY_OBJECTS) && _POSIX_SHARED_MEMORY_OBJECTS != -1     \
++    && _POSIX_SHARED_MEMORY_OBJECTS != 0 && _POSIX_SHARED_MEMORY_OBJECTS != 202405L
++#error "_POSIX_SHARED_MEMORY_OBJECTS"
++#endif
++#if defined(_POSIX_SPAWN) && _POSIX_SPAWN != -1 && _POSIX_SPAWN != 0 && _POSIX_SPAWN != 202405L
++#error "_POSIX_SPAWN"
++#endif
++#if defined(_POSIX_SPORADIC_SERVER) && _POSIX_SPORADIC_SERVER != -1 && _POSIX_SPORADIC_SERVER != 0 \
++    && _POSIX_SPORADIC_SERVER != 202405L
++#error "_POSIX_SPORADIC_SERVER"
++#endif
++#if defined(_POSIX_SYNCHRONIZED_IO) && _POSIX_SYNCHRONIZED_IO != -1 && _POSIX_SYNCHRONIZED_IO != 0 \
++    && _POSIX_SYNCHRONIZED_IO != 202405L
++#error "_POSIX_SYNCHRONIZED_IO"
++#endif
++#if defined(_POSIX_THREAD_ATTR_STACKADDR) && _POSIX_THREAD_ATTR_STACKADDR != -1     \
++    && _POSIX_THREAD_ATTR_STACKADDR != 0 && _POSIX_THREAD_ATTR_STACKADDR != 202405L
++#error "_POSIX_THREAD_ATTR_STACKADDR"
++#endif
++#if defined(_POSIX_THREAD_ATTR_STACKSIZE) && _POSIX_THREAD_ATTR_STACKSIZE != -1     \
++    && _POSIX_THREAD_ATTR_STACKSIZE != 0 && _POSIX_THREAD_ATTR_STACKSIZE != 202405L
++#error "_POSIX_THREAD_ATTR_STACKSIZE"
++#endif
++#if defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME != -1 && _POSIX_THREAD_CPUTIME != 0 \
++    && _POSIX_THREAD_CPUTIME != 202405L
++#error "_POSIX_THREAD_CPUTIME"
++#endif
++#if defined(_POSIX_THREAD_PRIO_INHERIT) && _POSIX_THREAD_PRIO_INHERIT != -1     \
++    && _POSIX_THREAD_PRIO_INHERIT != 0 && _POSIX_THREAD_PRIO_INHERIT != 202405L
++#error "_POSIX_THREAD_PRIO_INHERIT"
++#endif
++#if defined(_POSIX_THREAD_PRIO_PROTECT) && _POSIX_THREAD_PRIO_PROTECT != -1     \
++    && _POSIX_THREAD_PRIO_PROTECT != 0 && _POSIX_THREAD_PRIO_PROTECT != 202405L
++#error "_POSIX_THREAD_PRIO_PROTECT"
++#endif
++#if defined(_POSIX_THREAD_PRIORITY_SCHEDULING) && _POSIX_THREAD_PRIORITY_SCHEDULING != -1     \
++    && _POSIX_THREAD_PRIORITY_SCHEDULING != 0 && _POSIX_THREAD_PRIORITY_SCHEDULING != 202405L
++#error "_POSIX_THREAD_PRIORITY_SCHEDULING"
++#endif
++#if defined(_POSIX_THREAD_PROCESS_SHARED) && _POSIX_THREAD_PROCESS_SHARED != -1     \
++    && _POSIX_THREAD_PROCESS_SHARED != 0 && _POSIX_THREAD_PROCESS_SHARED != 202405L
++#error "_POSIX_THREAD_PROCESS_SHARED"
++#endif
++#if defined(_POSIX_THREAD_ROBUST_PRIO_INHERIT) && _POSIX_THREAD_ROBUST_PRIO_INHERIT != -1     \
++    && _POSIX_THREAD_ROBUST_PRIO_INHERIT != 0 && _POSIX_THREAD_ROBUST_PRIO_INHERIT != 202405L
++#error "_POSIX_THREAD_ROBUST_PRIO_INHERIT"
++#endif
++#if defined(_POSIX_THREAD_ROBUST_PRIO_PROTECT) && _POSIX_THREAD_ROBUST_PRIO_PROTECT != -1     \
++    && _POSIX_THREAD_ROBUST_PRIO_PROTECT != 0 && _POSIX_THREAD_ROBUST_PRIO_PROTECT != 202405L
++#error "_POSIX_THREAD_ROBUST_PRIO_PROTECT"
++#endif
++#if defined(_POSIX_THREAD_SPORADIC_SERVER) && _POSIX_THREAD_SPORADIC_SERVER != -1     \
++    && _POSIX_THREAD_SPORADIC_SERVER != 0 && _POSIX_THREAD_SPORADIC_SERVER != 202405L
++#error "_POSIX_THREAD_SPORADIC_SERVER"
++#endif
++#if defined(_POSIX_TYPED_MEMORY_OBJECTS) && _POSIX_TYPED_MEMORY_OBJECTS != -1     \
++    && _POSIX_TYPED_MEMORY_OBJECTS != 0 && _POSIX_TYPED_MEMORY_OBJECTS != 202405L
++#error "_POSIX_TYPED_MEMORY_OBJECTS"
++#endif
++#if defined(_POSIX2_C_DEV) && _POSIX2_C_DEV != -1 && _POSIX2_C_DEV != 0 && _POSIX2_C_DEV != 202405L
++#error "_POSIX2_C_DEV"
++#endif
++#if defined(_POSIX2_FORT_RUN) && _POSIX2_FORT_RUN != -1 && _POSIX2_FORT_RUN != 0 \
++    && _POSIX2_FORT_RUN != 202405L
++#error "_POSIX2_FORT_RUN"
++#endif
++#if defined(_POSIX2_LOCALEDEF) && _POSIX2_LOCALEDEF != -1 && _POSIX2_LOCALEDEF != 0 \
++    && _POSIX2_LOCALEDEF != 202405L
++#error "_POSIX2_LOCALEDEF"
++#endif
++#if defined(_POSIX2_SW_DEV) && _POSIX2_SW_DEV != -1 && _POSIX2_SW_DEV != 0 \
++    && _POSIX2_SW_DEV != 202405L
++#error "_POSIX2_SW_DEV"
++#endif
++#if defined(_POSIX2_UPE) && _POSIX2_UPE != -1 && _POSIX2_UPE != 0 && _POSIX2_UPE != 202405L
++#error "_POSIX2_UPE"
++#endif
++#if defined(_XOPEN_UUCP) && _XOPEN_UUCP != -1 && _XOPEN_UUCP != 0 && _XOPEN_UUCP != 202405L
++#error "_XOPEN_UUCP"
++#endif
++
++/* Options that, when defined, are always 202405L */
++#if defined(_POSIX_ASYNCHRONOUS_IO) && _POSIX_ASYNCHRONOUS_IO != 202405L
++#error "_POSIX_ASYNCHRONOUS_IO"
++#endif
++#if defined(_POSIX_BARRIERS) && _POSIX_BARRIERS != 202405L
++#error "_POSIX_BARRIERS"
++#endif
++#if defined(_POSIX_CLOCK_SELECTION) && _POSIX_CLOCK_SELECTION != 202405L
++#error "_POSIX_CLOCK_SELECTION"
++#endif
++#if defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES != 202405L
++#error "_POSIX_MAPPED_FILES"
++#endif
++#if defined(_POSIX_MEMORY_PROTECTION) && _POSIX_MEMORY_PROTECTION != 202405L
++#error "_POSIX_MEMORY_PROTECTION"
++#endif
++#if defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK != 202405L
++#error "_POSIX_MONOTONIC_CLOCK"
++#endif
++#if defined(_POSIX_READER_WRITER_LOCKS) && _POSIX_READER_WRITER_LOCKS != 202405L
++#error "_POSIX_READER_WRITER_LOCKS"
++#endif
++#if defined(_POSIX_REALTIME_SIGNALS) && _POSIX_REALTIME_SIGNALS != 202405L
++#error "_POSIX_REALTIME_SIGNALS"
++#endif
++#if defined(_POSIX_SEMAPHORES) && _POSIX_SEMAPHORES != 202405L
++#error "_POSIX_SEMAPHORES"
++#endif
++#if defined(_POSIX_SPIN_LOCKS) && _POSIX_SPIN_LOCKS != 202405L
++#error "_POSIX_SPIN_LOCKS"
++#endif
++#if defined(_POSIX_THREAD_SAFE_FUNCTIONS) && _POSIX_THREAD_SAFE_FUNCTIONS != 202405L
++#error "_POSIX_THREAD_SAFE_FUNCTIONS"
++#endif
++#if defined(_POSIX_THREADS) && _POSIX_THREADS != 202405L
++#error "_POSIX_THREADS"
++#endif
++#if defined(_POSIX_TIMEOUTS) && _POSIX_TIMEOUTS != 202405L
++#error "_POSIX_TIMEOUTS"
++#endif
++#if defined(_POSIX_TIMERS) && _POSIX_TIMERS != 202405L
++#error "_POSIX_TIMERS"
++#endif
++#if defined(_POSIX2_C_BIND) && _POSIX2_C_BIND != 202405L
++#error "_POSIX2_C_BIND"
++#endif
++#endif /* __GLIBC__ */
++
++/* Options that are always greater than zero */
++#if defined(_POSIX_JOB_CONTROL) && _POSIX_JOB_CONTROL <= 0
++#error "_POSIX_JOB_CONTROL"
++#endif
++#if defined(_POSIX_REGEXP) && _POSIX_REGEXP <= 0
++#error "_POSIX_REGEXP"
++#endif
++#if defined(_POSIX_SAVED_IDS) && _POSIX_SAVED_IDS <= 0
++#error "_POSIX_SAVED_IDS"
++#endif
++#if defined(_POSIX_SHELL) && _POSIX_SHELL <= 0
++#error "_POSIX_SHELL"
++#endif
++
++/*
++ * Constants that are always defined, as other than -1, where the
++ * system has file systems and terminals at all
++ */
++#if defined(_POSIX_CHOWN_RESTRICTED) && _POSIX_CHOWN_RESTRICTED == -1
++#error "_POSIX_CHOWN_RESTRICTED"
++#endif
++#if defined(_POSIX_NO_TRUNC) && _POSIX_NO_TRUNC == -1
++#error "_POSIX_NO_TRUNC"
++#endif
++#if defined(_POSIX_VDISABLE) && _POSIX_VDISABLE == -1
++#error "_POSIX_VDISABLE"
++#endif
++#ifdef __PICOLIBC__
++#include "../posix-groups.h"
++#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)                               \
++    && (!defined(_POSIX_CHOWN_RESTRICTED) || !defined(_POSIX_NO_TRUNC))
++#error "_POSIX_CHOWN_RESTRICTED and _POSIX_NO_TRUNC"
++#endif
++#if defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && !defined(_POSIX_VDISABLE)
++#error "_POSIX_VDISABLE"
++#endif
++#endif
++#if defined(_XOPEN_ENH_I18N) && _XOPEN_ENH_I18N == -1
++#error "_XOPEN_ENH_I18N"
++#endif
++#if defined(_XOPEN_SHM) && _XOPEN_SHM == -1
++#error "_XOPEN_SHM"
++#endif
++
++/* A programming environment the system supports matches the type sizes */
++#if defined(_POSIX_V8_ILP32_OFF32) && _POSIX_V8_ILP32_OFF32 > 0
++_Static_assert(sizeof(int) == 4 && sizeof(long) == 4 && sizeof(void *) == 4 && sizeof(off_t) == 4,
++               "ILP32_OFF32");
++#endif
++#if defined(_POSIX_V8_ILP32_OFFBIG) && _POSIX_V8_ILP32_OFFBIG > 0
++_Static_assert(sizeof(int) == 4 && sizeof(long) == 4 && sizeof(void *) == 4 && sizeof(off_t) >= 8,
++               "ILP32_OFFBIG");
++#endif
++#if defined(_POSIX_V8_LP64_OFF64) && _POSIX_V8_LP64_OFF64 > 0
++_Static_assert(sizeof(int) == 4 && sizeof(long) == 8 && sizeof(void *) == 8 && sizeof(off_t) == 8,
++               "LP64_OFF64");
++#endif
++#if defined(_POSIX_V8_LPBIG_OFFBIG) && _POSIX_V8_LPBIG_OFFBIG > 0
++_Static_assert(sizeof(int) >= 4 && sizeof(long) >= 8 && sizeof(void *) >= 8 && sizeof(off_t) >= 8,
++               "LPBIG_OFFBIG");
++#endif
++
++/*
++ * glibc 2.43 lacks some of the names; give those distinct stand-ins
++ * so the rest are still checked
++ */
++#ifdef __GLIBC__
++#ifndef _SC_DEVICE_CONTROL
++#define _SC_DEVICE_CONTROL (-1000 - 0)
++#endif
++#ifndef _SC_NSIG
++#define _SC_NSIG (-1000 - 1)
++#endif
++#ifndef _SC_V8_ILP32_OFF32
++#define _SC_V8_ILP32_OFF32 (-1000 - 2)
++#endif
++#ifndef _SC_V8_ILP32_OFFBIG
++#define _SC_V8_ILP32_OFFBIG (-1000 - 3)
++#endif
++#ifndef _SC_V8_LP64_OFF64
++#define _SC_V8_LP64_OFF64 (-1000 - 4)
++#endif
++#ifndef _SC_V8_LPBIG_OFFBIG
++#define _SC_V8_LPBIG_OFFBIG (-1000 - 5)
++#endif
++#ifndef _SC_XOPEN_UUCP
++#define _SC_XOPEN_UUCP (-1000 - 6)
++#endif
++#ifndef _PC_FALLOC
++#define _PC_FALLOC (-1000 - 7)
++#endif
++#ifndef _PC_TEXTDOMAIN_MAX
++#define _PC_TEXTDOMAIN_MAX (-1000 - 8)
++#endif
++#ifndef _PC_TIMESTAMP_RESOLUTION
++#define _PC_TIMESTAMP_RESOLUTION (-1000 - 9)
++#endif
++#ifndef _CS_POSIX_V7_THREADS_CFLAGS
++#define _CS_POSIX_V7_THREADS_CFLAGS (-1000 - 10)
++#endif
++#ifndef _CS_POSIX_V7_THREADS_LDFLAGS
++#define _CS_POSIX_V7_THREADS_LDFLAGS (-1000 - 11)
++#endif
++#ifndef _CS_POSIX_V8_ILP32_OFF32_CFLAGS
++#define _CS_POSIX_V8_ILP32_OFF32_CFLAGS (-1000 - 12)
++#endif
++#ifndef _CS_POSIX_V8_ILP32_OFF32_LDFLAGS
++#define _CS_POSIX_V8_ILP32_OFF32_LDFLAGS (-1000 - 13)
++#endif
++#ifndef _CS_POSIX_V8_ILP32_OFF32_LIBS
++#define _CS_POSIX_V8_ILP32_OFF32_LIBS (-1000 - 14)
++#endif
++#ifndef _CS_POSIX_V8_ILP32_OFFBIG_CFLAGS
++#define _CS_POSIX_V8_ILP32_OFFBIG_CFLAGS (-1000 - 15)
++#endif
++#ifndef _CS_POSIX_V8_ILP32_OFFBIG_LDFLAGS
++#define _CS_POSIX_V8_ILP32_OFFBIG_LDFLAGS (-1000 - 16)
++#endif
++#ifndef _CS_POSIX_V8_ILP32_OFFBIG_LIBS
++#define _CS_POSIX_V8_ILP32_OFFBIG_LIBS (-1000 - 17)
++#endif
++#ifndef _CS_POSIX_V8_LP64_OFF64_CFLAGS
++#define _CS_POSIX_V8_LP64_OFF64_CFLAGS (-1000 - 18)
++#endif
++#ifndef _CS_POSIX_V8_LP64_OFF64_LDFLAGS
++#define _CS_POSIX_V8_LP64_OFF64_LDFLAGS (-1000 - 19)
++#endif
++#ifndef _CS_POSIX_V8_LP64_OFF64_LIBS
++#define _CS_POSIX_V8_LP64_OFF64_LIBS (-1000 - 20)
++#endif
++#ifndef _CS_POSIX_V8_LPBIG_OFFBIG_CFLAGS
++#define _CS_POSIX_V8_LPBIG_OFFBIG_CFLAGS (-1000 - 21)
++#endif
++#ifndef _CS_POSIX_V8_LPBIG_OFFBIG_LDFLAGS
++#define _CS_POSIX_V8_LPBIG_OFFBIG_LDFLAGS (-1000 - 22)
++#endif
++#ifndef _CS_POSIX_V8_LPBIG_OFFBIG_LIBS
++#define _CS_POSIX_V8_LPBIG_OFFBIG_LIBS (-1000 - 23)
++#endif
++#ifndef _CS_POSIX_V8_THREADS_CFLAGS
++#define _CS_POSIX_V8_THREADS_CFLAGS (-1000 - 24)
++#endif
++#ifndef _CS_POSIX_V8_THREADS_LDFLAGS
++#define _CS_POSIX_V8_THREADS_LDFLAGS (-1000 - 25)
++#endif
++#ifndef _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS
++#define _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS (-1000 - 26)
++#endif
++#ifndef _CS_V8_ENV
++#define _CS_V8_ENV (-1000 - 27)
++#endif
++#endif
++
++/* Every name is defined, and a duplicate value is a duplicate case */
++static int __attribute__((unused))
++sc_distinct(int name)
++{
++    switch (name) {
++    case _SC_2_CHAR_TERM:
++    case _SC_2_C_BIND:
++    case _SC_2_C_DEV:
++    case _SC_2_FORT_RUN:
++    case _SC_2_LOCALEDEF:
++    case _SC_2_SW_DEV:
++    case _SC_2_UPE:
++    case _SC_2_VERSION:
++    case _SC_ADVISORY_INFO:
++    case _SC_AIO_LISTIO_MAX:
++    case _SC_AIO_MAX:
++    case _SC_AIO_PRIO_DELTA_MAX:
++    case _SC_ARG_MAX:
++    case _SC_ASYNCHRONOUS_IO:
++    case _SC_ATEXIT_MAX:
++    case _SC_BARRIERS:
++    case _SC_BC_BASE_MAX:
++    case _SC_BC_DIM_MAX:
++    case _SC_BC_SCALE_MAX:
++    case _SC_BC_STRING_MAX:
++    case _SC_CHILD_MAX:
++    case _SC_CLK_TCK:
++    case _SC_CLOCK_SELECTION:
++    case _SC_COLL_WEIGHTS_MAX:
++    case _SC_CPUTIME:
++    case _SC_DELAYTIMER_MAX:
++    case _SC_DEVICE_CONTROL:
++    case _SC_EXPR_NEST_MAX:
++    case _SC_FSYNC:
++    case _SC_GETGR_R_SIZE_MAX:
++    case _SC_GETPW_R_SIZE_MAX:
++    case _SC_HOST_NAME_MAX:
++    case _SC_IOV_MAX:
++    case _SC_IPV6:
++    case _SC_JOB_CONTROL:
++    case _SC_LINE_MAX:
++    case _SC_LOGIN_NAME_MAX:
++    case _SC_MAPPED_FILES:
++    case _SC_MEMLOCK:
++    case _SC_MEMLOCK_RANGE:
++    case _SC_MEMORY_PROTECTION:
++    case _SC_MESSAGE_PASSING:
++    case _SC_MONOTONIC_CLOCK:
++    case _SC_MQ_OPEN_MAX:
++    case _SC_MQ_PRIO_MAX:
++    case _SC_NGROUPS_MAX:
++    case _SC_NPROCESSORS_CONF:
++    case _SC_NPROCESSORS_ONLN:
++    case _SC_NSIG:
++    case _SC_OPEN_MAX:
++    case _SC_PAGESIZE:
++    case _SC_PRIORITIZED_IO:
++    case _SC_PRIORITY_SCHEDULING:
++    case _SC_RAW_SOCKETS:
++    case _SC_READER_WRITER_LOCKS:
++    case _SC_REALTIME_SIGNALS:
++    case _SC_REGEXP:
++    case _SC_RE_DUP_MAX:
++    case _SC_RTSIG_MAX:
++    case _SC_SAVED_IDS:
++    case _SC_SEMAPHORES:
++    case _SC_SEM_NSEMS_MAX:
++    case _SC_SEM_VALUE_MAX:
++    case _SC_SHARED_MEMORY_OBJECTS:
++    case _SC_SHELL:
++    case _SC_SIGQUEUE_MAX:
++    case _SC_SPAWN:
++    case _SC_SPIN_LOCKS:
++    case _SC_SPORADIC_SERVER:
++    case _SC_SS_REPL_MAX:
++    case _SC_STREAM_MAX:
++    case _SC_SYMLOOP_MAX:
++    case _SC_SYNCHRONIZED_IO:
++    case _SC_THREADS:
++    case _SC_THREAD_ATTR_STACKADDR:
++    case _SC_THREAD_ATTR_STACKSIZE:
++    case _SC_THREAD_CPUTIME:
++    case _SC_THREAD_DESTRUCTOR_ITERATIONS:
++    case _SC_THREAD_KEYS_MAX:
++    case _SC_THREAD_PRIORITY_SCHEDULING:
++    case _SC_THREAD_PRIO_INHERIT:
++    case _SC_THREAD_PRIO_PROTECT:
++    case _SC_THREAD_PROCESS_SHARED:
++    case _SC_THREAD_ROBUST_PRIO_INHERIT:
++    case _SC_THREAD_ROBUST_PRIO_PROTECT:
++    case _SC_THREAD_SAFE_FUNCTIONS:
++    case _SC_THREAD_SPORADIC_SERVER:
++    case _SC_THREAD_STACK_MIN:
++    case _SC_THREAD_THREADS_MAX:
++    case _SC_TIMEOUTS:
++    case _SC_TIMERS:
++    case _SC_TIMER_MAX:
++    case _SC_TTY_NAME_MAX:
++    case _SC_TYPED_MEMORY_OBJECTS:
++    case _SC_TZNAME_MAX:
++    case _SC_V7_ILP32_OFF32:
++    case _SC_V7_ILP32_OFFBIG:
++    case _SC_V7_LP64_OFF64:
++    case _SC_V7_LPBIG_OFFBIG:
++    case _SC_V8_ILP32_OFF32:
++    case _SC_V8_ILP32_OFFBIG:
++    case _SC_V8_LP64_OFF64:
++    case _SC_V8_LPBIG_OFFBIG:
++    case _SC_VERSION:
++    case _SC_XOPEN_CRYPT:
++    case _SC_XOPEN_ENH_I18N:
++    case _SC_XOPEN_REALTIME:
++    case _SC_XOPEN_REALTIME_THREADS:
++    case _SC_XOPEN_SHM:
++    case _SC_XOPEN_UNIX:
++    case _SC_XOPEN_UUCP:
++    case _SC_XOPEN_VERSION:
++        return 1;
++    }
++    return 0;
++}
++
++static int __attribute__((unused))
++pc_distinct(int name)
++{
++    switch (name) {
++    case _PC_2_SYMLINKS:
++    case _PC_ALLOC_SIZE_MIN:
++    case _PC_ASYNC_IO:
++    case _PC_CHOWN_RESTRICTED:
++    case _PC_FALLOC:
++    case _PC_FILESIZEBITS:
++    case _PC_LINK_MAX:
++    case _PC_MAX_CANON:
++    case _PC_MAX_INPUT:
++    case _PC_NAME_MAX:
++    case _PC_NO_TRUNC:
++    case _PC_PATH_MAX:
++    case _PC_PIPE_BUF:
++    case _PC_PRIO_IO:
++    case _PC_REC_INCR_XFER_SIZE:
++    case _PC_REC_MAX_XFER_SIZE:
++    case _PC_REC_MIN_XFER_SIZE:
++    case _PC_REC_XFER_ALIGN:
++    case _PC_SYMLINK_MAX:
++    case _PC_SYNC_IO:
++    case _PC_TEXTDOMAIN_MAX:
++    case _PC_TIMESTAMP_RESOLUTION:
++    case _PC_VDISABLE:
++        return 1;
++    }
++    return 0;
++}
++
++static int __attribute__((unused))
++cs_distinct(int name)
++{
++    switch (name) {
++    case _CS_PATH:
++    case _CS_POSIX_V7_ILP32_OFF32_CFLAGS:
++    case _CS_POSIX_V7_ILP32_OFF32_LDFLAGS:
++    case _CS_POSIX_V7_ILP32_OFF32_LIBS:
++    case _CS_POSIX_V7_ILP32_OFFBIG_CFLAGS:
++    case _CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS:
++    case _CS_POSIX_V7_ILP32_OFFBIG_LIBS:
++    case _CS_POSIX_V7_LP64_OFF64_CFLAGS:
++    case _CS_POSIX_V7_LP64_OFF64_LDFLAGS:
++    case _CS_POSIX_V7_LP64_OFF64_LIBS:
++    case _CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS:
++    case _CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS:
++    case _CS_POSIX_V7_LPBIG_OFFBIG_LIBS:
++    case _CS_POSIX_V7_THREADS_CFLAGS:
++    case _CS_POSIX_V7_THREADS_LDFLAGS:
++    case _CS_POSIX_V7_WIDTH_RESTRICTED_ENVS:
++    case _CS_POSIX_V8_ILP32_OFF32_CFLAGS:
++    case _CS_POSIX_V8_ILP32_OFF32_LDFLAGS:
++    case _CS_POSIX_V8_ILP32_OFF32_LIBS:
++    case _CS_POSIX_V8_ILP32_OFFBIG_CFLAGS:
++    case _CS_POSIX_V8_ILP32_OFFBIG_LDFLAGS:
++    case _CS_POSIX_V8_ILP32_OFFBIG_LIBS:
++    case _CS_POSIX_V8_LP64_OFF64_CFLAGS:
++    case _CS_POSIX_V8_LP64_OFF64_LDFLAGS:
++    case _CS_POSIX_V8_LP64_OFF64_LIBS:
++    case _CS_POSIX_V8_LPBIG_OFFBIG_CFLAGS:
++    case _CS_POSIX_V8_LPBIG_OFFBIG_LDFLAGS:
++    case _CS_POSIX_V8_LPBIG_OFFBIG_LIBS:
++    case _CS_POSIX_V8_THREADS_CFLAGS:
++    case _CS_POSIX_V8_THREADS_LDFLAGS:
++    case _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS:
++    case _CS_V7_ENV:
++    case _CS_V8_ENV:
++        return 1;
++    }
++    return 0;
++}
++
++static const struct {
++    const char *name;
++    int         value;
++} sc_names[] = {
++    { "_SC_2_CHAR_TERM",                  _SC_2_CHAR_TERM                  },
++    { "_SC_2_C_BIND",                     _SC_2_C_BIND                     },
++    { "_SC_2_C_DEV",                      _SC_2_C_DEV                      },
++    { "_SC_2_FORT_RUN",                   _SC_2_FORT_RUN                   },
++    { "_SC_2_LOCALEDEF",                  _SC_2_LOCALEDEF                  },
++    { "_SC_2_SW_DEV",                     _SC_2_SW_DEV                     },
++    { "_SC_2_UPE",                        _SC_2_UPE                        },
++    { "_SC_2_VERSION",                    _SC_2_VERSION                    },
++    { "_SC_ADVISORY_INFO",                _SC_ADVISORY_INFO                },
++    { "_SC_AIO_LISTIO_MAX",               _SC_AIO_LISTIO_MAX               },
++    { "_SC_AIO_MAX",                      _SC_AIO_MAX                      },
++    { "_SC_AIO_PRIO_DELTA_MAX",           _SC_AIO_PRIO_DELTA_MAX           },
++    { "_SC_ARG_MAX",                      _SC_ARG_MAX                      },
++    { "_SC_ASYNCHRONOUS_IO",              _SC_ASYNCHRONOUS_IO              },
++    { "_SC_ATEXIT_MAX",                   _SC_ATEXIT_MAX                   },
++    { "_SC_BARRIERS",                     _SC_BARRIERS                     },
++    { "_SC_BC_BASE_MAX",                  _SC_BC_BASE_MAX                  },
++    { "_SC_BC_DIM_MAX",                   _SC_BC_DIM_MAX                   },
++    { "_SC_BC_SCALE_MAX",                 _SC_BC_SCALE_MAX                 },
++    { "_SC_BC_STRING_MAX",                _SC_BC_STRING_MAX                },
++    { "_SC_CHILD_MAX",                    _SC_CHILD_MAX                    },
++    { "_SC_CLK_TCK",                      _SC_CLK_TCK                      },
++    { "_SC_CLOCK_SELECTION",              _SC_CLOCK_SELECTION              },
++    { "_SC_COLL_WEIGHTS_MAX",             _SC_COLL_WEIGHTS_MAX             },
++    { "_SC_CPUTIME",                      _SC_CPUTIME                      },
++    { "_SC_DELAYTIMER_MAX",               _SC_DELAYTIMER_MAX               },
++    { "_SC_DEVICE_CONTROL",               _SC_DEVICE_CONTROL               },
++    { "_SC_EXPR_NEST_MAX",                _SC_EXPR_NEST_MAX                },
++    { "_SC_FSYNC",                        _SC_FSYNC                        },
++    { "_SC_GETGR_R_SIZE_MAX",             _SC_GETGR_R_SIZE_MAX             },
++    { "_SC_GETPW_R_SIZE_MAX",             _SC_GETPW_R_SIZE_MAX             },
++    { "_SC_HOST_NAME_MAX",                _SC_HOST_NAME_MAX                },
++    { "_SC_IOV_MAX",                      _SC_IOV_MAX                      },
++    { "_SC_IPV6",                         _SC_IPV6                         },
++    { "_SC_JOB_CONTROL",                  _SC_JOB_CONTROL                  },
++    { "_SC_LINE_MAX",                     _SC_LINE_MAX                     },
++    { "_SC_LOGIN_NAME_MAX",               _SC_LOGIN_NAME_MAX               },
++    { "_SC_MAPPED_FILES",                 _SC_MAPPED_FILES                 },
++    { "_SC_MEMLOCK",                      _SC_MEMLOCK                      },
++    { "_SC_MEMLOCK_RANGE",                _SC_MEMLOCK_RANGE                },
++    { "_SC_MEMORY_PROTECTION",            _SC_MEMORY_PROTECTION            },
++    { "_SC_MESSAGE_PASSING",              _SC_MESSAGE_PASSING              },
++    { "_SC_MONOTONIC_CLOCK",              _SC_MONOTONIC_CLOCK              },
++    { "_SC_MQ_OPEN_MAX",                  _SC_MQ_OPEN_MAX                  },
++    { "_SC_MQ_PRIO_MAX",                  _SC_MQ_PRIO_MAX                  },
++    { "_SC_NGROUPS_MAX",                  _SC_NGROUPS_MAX                  },
++    { "_SC_NPROCESSORS_CONF",             _SC_NPROCESSORS_CONF             },
++    { "_SC_NPROCESSORS_ONLN",             _SC_NPROCESSORS_ONLN             },
++    { "_SC_NSIG",                         _SC_NSIG                         },
++    { "_SC_OPEN_MAX",                     _SC_OPEN_MAX                     },
++    { "_SC_PAGESIZE",                     _SC_PAGESIZE                     },
++    { "_SC_PAGE_SIZE",                    _SC_PAGE_SIZE                    },
++    { "_SC_PRIORITIZED_IO",               _SC_PRIORITIZED_IO               },
++    { "_SC_PRIORITY_SCHEDULING",          _SC_PRIORITY_SCHEDULING          },
++    { "_SC_RAW_SOCKETS",                  _SC_RAW_SOCKETS                  },
++    { "_SC_READER_WRITER_LOCKS",          _SC_READER_WRITER_LOCKS          },
++    { "_SC_REALTIME_SIGNALS",             _SC_REALTIME_SIGNALS             },
++    { "_SC_REGEXP",                       _SC_REGEXP                       },
++    { "_SC_RE_DUP_MAX",                   _SC_RE_DUP_MAX                   },
++    { "_SC_RTSIG_MAX",                    _SC_RTSIG_MAX                    },
++    { "_SC_SAVED_IDS",                    _SC_SAVED_IDS                    },
++    { "_SC_SEMAPHORES",                   _SC_SEMAPHORES                   },
++    { "_SC_SEM_NSEMS_MAX",                _SC_SEM_NSEMS_MAX                },
++    { "_SC_SEM_VALUE_MAX",                _SC_SEM_VALUE_MAX                },
++    { "_SC_SHARED_MEMORY_OBJECTS",        _SC_SHARED_MEMORY_OBJECTS        },
++    { "_SC_SHELL",                        _SC_SHELL                        },
++    { "_SC_SIGQUEUE_MAX",                 _SC_SIGQUEUE_MAX                 },
++    { "_SC_SPAWN",                        _SC_SPAWN                        },
++    { "_SC_SPIN_LOCKS",                   _SC_SPIN_LOCKS                   },
++    { "_SC_SPORADIC_SERVER",              _SC_SPORADIC_SERVER              },
++    { "_SC_SS_REPL_MAX",                  _SC_SS_REPL_MAX                  },
++    { "_SC_STREAM_MAX",                   _SC_STREAM_MAX                   },
++    { "_SC_SYMLOOP_MAX",                  _SC_SYMLOOP_MAX                  },
++    { "_SC_SYNCHRONIZED_IO",              _SC_SYNCHRONIZED_IO              },
++    { "_SC_THREADS",                      _SC_THREADS                      },
++    { "_SC_THREAD_ATTR_STACKADDR",        _SC_THREAD_ATTR_STACKADDR        },
++    { "_SC_THREAD_ATTR_STACKSIZE",        _SC_THREAD_ATTR_STACKSIZE        },
++    { "_SC_THREAD_CPUTIME",               _SC_THREAD_CPUTIME               },
++    { "_SC_THREAD_DESTRUCTOR_ITERATIONS", _SC_THREAD_DESTRUCTOR_ITERATIONS },
++    { "_SC_THREAD_KEYS_MAX",              _SC_THREAD_KEYS_MAX              },
++    { "_SC_THREAD_PRIORITY_SCHEDULING",   _SC_THREAD_PRIORITY_SCHEDULING   },
++    { "_SC_THREAD_PRIO_INHERIT",          _SC_THREAD_PRIO_INHERIT          },
++    { "_SC_THREAD_PRIO_PROTECT",          _SC_THREAD_PRIO_PROTECT          },
++    { "_SC_THREAD_PROCESS_SHARED",        _SC_THREAD_PROCESS_SHARED        },
++    { "_SC_THREAD_ROBUST_PRIO_INHERIT",   _SC_THREAD_ROBUST_PRIO_INHERIT   },
++    { "_SC_THREAD_ROBUST_PRIO_PROTECT",   _SC_THREAD_ROBUST_PRIO_PROTECT   },
++    { "_SC_THREAD_SAFE_FUNCTIONS",        _SC_THREAD_SAFE_FUNCTIONS        },
++    { "_SC_THREAD_SPORADIC_SERVER",       _SC_THREAD_SPORADIC_SERVER       },
++    { "_SC_THREAD_STACK_MIN",             _SC_THREAD_STACK_MIN             },
++    { "_SC_THREAD_THREADS_MAX",           _SC_THREAD_THREADS_MAX           },
++    { "_SC_TIMEOUTS",                     _SC_TIMEOUTS                     },
++    { "_SC_TIMERS",                       _SC_TIMERS                       },
++    { "_SC_TIMER_MAX",                    _SC_TIMER_MAX                    },
++    { "_SC_TTY_NAME_MAX",                 _SC_TTY_NAME_MAX                 },
++    { "_SC_TYPED_MEMORY_OBJECTS",         _SC_TYPED_MEMORY_OBJECTS         },
++    { "_SC_TZNAME_MAX",                   _SC_TZNAME_MAX                   },
++    { "_SC_V7_ILP32_OFF32",               _SC_V7_ILP32_OFF32               },
++    { "_SC_V7_ILP32_OFFBIG",              _SC_V7_ILP32_OFFBIG              },
++    { "_SC_V7_LP64_OFF64",                _SC_V7_LP64_OFF64                },
++    { "_SC_V7_LPBIG_OFFBIG",              _SC_V7_LPBIG_OFFBIG              },
++    { "_SC_V8_ILP32_OFF32",               _SC_V8_ILP32_OFF32               },
++    { "_SC_V8_ILP32_OFFBIG",              _SC_V8_ILP32_OFFBIG              },
++    { "_SC_V8_LP64_OFF64",                _SC_V8_LP64_OFF64                },
++    { "_SC_V8_LPBIG_OFFBIG",              _SC_V8_LPBIG_OFFBIG              },
++    { "_SC_VERSION",                      _SC_VERSION                      },
++    { "_SC_XOPEN_CRYPT",                  _SC_XOPEN_CRYPT                  },
++    { "_SC_XOPEN_ENH_I18N",               _SC_XOPEN_ENH_I18N               },
++    { "_SC_XOPEN_REALTIME",               _SC_XOPEN_REALTIME               },
++    { "_SC_XOPEN_REALTIME_THREADS",       _SC_XOPEN_REALTIME_THREADS       },
++    { "_SC_XOPEN_SHM",                    _SC_XOPEN_SHM                    },
++    { "_SC_XOPEN_UNIX",                   _SC_XOPEN_UNIX                   },
++    { "_SC_XOPEN_UUCP",                   _SC_XOPEN_UUCP                   },
++    { "_SC_XOPEN_VERSION",                _SC_XOPEN_VERSION                },
++};
++
++static const struct {
++    const char *name;
++    int         value;
++} cs_names[] = {
++    { "_CS_PATH",                           _CS_PATH                           },
++    { "_CS_POSIX_V7_ILP32_OFF32_CFLAGS",    _CS_POSIX_V7_ILP32_OFF32_CFLAGS    },
++    { "_CS_POSIX_V7_ILP32_OFF32_LDFLAGS",   _CS_POSIX_V7_ILP32_OFF32_LDFLAGS   },
++    { "_CS_POSIX_V7_ILP32_OFF32_LIBS",      _CS_POSIX_V7_ILP32_OFF32_LIBS      },
++    { "_CS_POSIX_V7_ILP32_OFFBIG_CFLAGS",   _CS_POSIX_V7_ILP32_OFFBIG_CFLAGS   },
++    { "_CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS",  _CS_POSIX_V7_ILP32_OFFBIG_LDFLAGS  },
++    { "_CS_POSIX_V7_ILP32_OFFBIG_LIBS",     _CS_POSIX_V7_ILP32_OFFBIG_LIBS     },
++    { "_CS_POSIX_V7_LP64_OFF64_CFLAGS",     _CS_POSIX_V7_LP64_OFF64_CFLAGS     },
++    { "_CS_POSIX_V7_LP64_OFF64_LDFLAGS",    _CS_POSIX_V7_LP64_OFF64_LDFLAGS    },
++    { "_CS_POSIX_V7_LP64_OFF64_LIBS",       _CS_POSIX_V7_LP64_OFF64_LIBS       },
++    { "_CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS",   _CS_POSIX_V7_LPBIG_OFFBIG_CFLAGS   },
++    { "_CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS",  _CS_POSIX_V7_LPBIG_OFFBIG_LDFLAGS  },
++    { "_CS_POSIX_V7_LPBIG_OFFBIG_LIBS",     _CS_POSIX_V7_LPBIG_OFFBIG_LIBS     },
++    { "_CS_POSIX_V7_THREADS_CFLAGS",        _CS_POSIX_V7_THREADS_CFLAGS        },
++    { "_CS_POSIX_V7_THREADS_LDFLAGS",       _CS_POSIX_V7_THREADS_LDFLAGS       },
++    { "_CS_POSIX_V7_WIDTH_RESTRICTED_ENVS", _CS_POSIX_V7_WIDTH_RESTRICTED_ENVS },
++    { "_CS_POSIX_V8_ILP32_OFF32_CFLAGS",    _CS_POSIX_V8_ILP32_OFF32_CFLAGS    },
++    { "_CS_POSIX_V8_ILP32_OFF32_LDFLAGS",   _CS_POSIX_V8_ILP32_OFF32_LDFLAGS   },
++    { "_CS_POSIX_V8_ILP32_OFF32_LIBS",      _CS_POSIX_V8_ILP32_OFF32_LIBS      },
++    { "_CS_POSIX_V8_ILP32_OFFBIG_CFLAGS",   _CS_POSIX_V8_ILP32_OFFBIG_CFLAGS   },
++    { "_CS_POSIX_V8_ILP32_OFFBIG_LDFLAGS",  _CS_POSIX_V8_ILP32_OFFBIG_LDFLAGS  },
++    { "_CS_POSIX_V8_ILP32_OFFBIG_LIBS",     _CS_POSIX_V8_ILP32_OFFBIG_LIBS     },
++    { "_CS_POSIX_V8_LP64_OFF64_CFLAGS",     _CS_POSIX_V8_LP64_OFF64_CFLAGS     },
++    { "_CS_POSIX_V8_LP64_OFF64_LDFLAGS",    _CS_POSIX_V8_LP64_OFF64_LDFLAGS    },
++    { "_CS_POSIX_V8_LP64_OFF64_LIBS",       _CS_POSIX_V8_LP64_OFF64_LIBS       },
++    { "_CS_POSIX_V8_LPBIG_OFFBIG_CFLAGS",   _CS_POSIX_V8_LPBIG_OFFBIG_CFLAGS   },
++    { "_CS_POSIX_V8_LPBIG_OFFBIG_LDFLAGS",  _CS_POSIX_V8_LPBIG_OFFBIG_LDFLAGS  },
++    { "_CS_POSIX_V8_LPBIG_OFFBIG_LIBS",     _CS_POSIX_V8_LPBIG_OFFBIG_LIBS     },
++    { "_CS_POSIX_V8_THREADS_CFLAGS",        _CS_POSIX_V8_THREADS_CFLAGS        },
++    { "_CS_POSIX_V8_THREADS_LDFLAGS",       _CS_POSIX_V8_THREADS_LDFLAGS       },
++    { "_CS_POSIX_V8_WIDTH_RESTRICTED_ENVS", _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS },
++    { "_CS_V7_ENV",                         _CS_V7_ENV                         },
++    { "_CS_V8_ENV",                         _CS_V8_ENV                         },
++};
++
++/* The getopt variables and the functions this part of <unistd.h> declares */
++#define check_type(f, type)                                                    \
++    _Static_assert(_Generic(&(f), type: 1, default: 0), #f " has type " #type)
++
++check_type(optarg, char **);
++check_type(opterr, int *);
++check_type(optind, int *);
++check_type(optopt, int *);
++check_type(getopt, int (*)(int, char * const[], const char *));
++check_type(sysconf, long (*)(int));
++check_type(pathconf, long (*)(const char *, int));
++check_type(fpathconf, long (*)(int, int));
++check_type(confstr, size_t (*)(int, char *, size_t));
++check_type(gethostname, int (*)(char *, size_t));
++check_type(gethostid, long (*)(void));
++/* glibc declares crypt in <crypt.h> and has dropped encrypt */
++#ifndef __GLIBC__
++check_type(crypt, char *(*)(const char *, const char *));
++check_type(encrypt, void (*)(char[64], int));
++#endif
++check_type(swab, void (*)(const void * restrict, void * restrict, ssize_t));
++
++#include <errno.h>
++
++int
++main(void)
++{
++    size_t i;
++    int    fails = 0;
++
++    /* sysconf and confstr know every name, and leave errno alone for them */
++    for (i = 0; i < sizeof(sc_names) / sizeof(sc_names[0]); i++) {
++        if (sc_names[i].value <= -1000)
++            continue;
++        /* glibc fails these with EINVAL */
++#ifdef __GLIBC__
++        if (sc_names[i].value == _SC_SS_REPL_MAX
++            || sc_names[i].value == _SC_THREAD_ROBUST_PRIO_INHERIT
++            || sc_names[i].value == _SC_THREAD_ROBUST_PRIO_PROTECT)
++            continue;
++#endif
++        errno = 0;
++        (void)sysconf(sc_names[i].value);
++        if (errno != 0) {
++            printf("sysconf(%s): errno %d\n", sc_names[i].name, errno);
++            fails++;
++        }
++    }
++    for (i = 0; i < sizeof(cs_names) / sizeof(cs_names[0]); i++) {
++        if (cs_names[i].value <= -1000)
++            continue;
++        errno = 0;
++        if (confstr(cs_names[i].value, NULL, 0) == 0 && errno != 0) {
++            printf("confstr(%s): errno %d\n", cs_names[i].name, errno);
++            fails++;
++        }
++    }
++    if (fails)
++        return 1;
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-unistd/test-unistd_h-names.c b/test/test-posix/test-unistd/test-unistd_h-names.c
+index 2004a7f269..6d020de0c5 100644
+--- a/test/test-posix/test-unistd/test-unistd_h-names.c
++++ b/test/test-posix/test-unistd/test-unistd_h-names.c
+@@ -63,12 +63,18 @@ static int getresgid;
+ static int getresuid;
+ static int setresgid;
+ static int setresuid;
++static int crypt;
++static int encrypt;
++static int gethostid;
++static int swab;
+ 
+ /* Removed interfaces */
+ static int setpgrp;
+ static int ualarm;
+ static int usleep;
+ static int vfork;
++static int getpagesize;
++static int getpass;
+ 
+ /* Extensions */
+ static int execvpe;
+@@ -76,6 +82,7 @@ static int execlpe;
+ static int setgroups;
+ static int issetugid;
+ static int daemon;
++static int optreset;
+ 
+ #if defined(F_LOCK) || defined(F_TEST) || defined(F_TLOCK) || defined(F_ULOCK)
+ #error lockf constants without XSI
+@@ -93,15 +100,22 @@ main(void)
+     (void)getresuid;
+     (void)setresgid;
+     (void)setresuid;
++    (void)crypt;
++    (void)encrypt;
++    (void)gethostid;
++    (void)swab;
+     (void)setpgrp;
+     (void)ualarm;
+     (void)usleep;
+     (void)vfork;
++    (void)getpagesize;
++    (void)getpass;
+     (void)execvpe;
+     (void)execlpe;
+     (void)setgroups;
+     (void)issetugid;
+     (void)daemon;
++    (void)optreset;
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

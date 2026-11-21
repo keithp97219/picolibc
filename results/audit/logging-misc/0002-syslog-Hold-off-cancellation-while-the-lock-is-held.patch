@@ -1,0 +1,130 @@
+From d63d79f04f4dfbc0b8d9cc83663038dc9594f0c0 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:03:22 +0000
+Subject: [PATCH 02/12] syslog: Hold off cancellation while the lock is held
+
+openlog, closelog and syslog call cancellation points (connect, close,
+send, write, open) with the C library lock held. A thread cancelled
+there exited with the lock taken, hanging every other thread.
+---
+ libc/posix/syslog/closelog.c     |  3 +++
+ libc/posix/syslog/local-syslog.h | 30 ++++++++++++++++++++++++++++++
+ libc/posix/syslog/openlog.c      |  3 +++
+ libc/posix/syslog/vsyslog.c      |  4 +++-
+ 4 files changed, 39 insertions(+), 1 deletion(-)
+
+diff --git a/libc/posix/syslog/closelog.c b/libc/posix/syslog/closelog.c
+index b39ac48004..ff1ed1ea50 100644
+--- a/libc/posix/syslog/closelog.c
++++ b/libc/posix/syslog/closelog.c
+@@ -39,6 +39,8 @@
+ void
+ closelog(void)
+ {
++    int cancel = __syslog_cancel_disable();
++
+     __LIBC_LOCK();
+     if (__syslog_fd >= 0) {
+         close(__syslog_fd);
+@@ -46,4 +48,5 @@ closelog(void)
+     }
+     __syslog_ident = NULL;
+     __LIBC_UNLOCK();
++    __syslog_cancel_restore(cancel);
+ }
+diff --git a/libc/posix/syslog/local-syslog.h b/libc/posix/syslog/local-syslog.h
+index 8eae62f515..fca9a461ce 100644
+--- a/libc/posix/syslog/local-syslog.h
++++ b/libc/posix/syslog/local-syslog.h
+@@ -39,6 +39,10 @@
+ #define _DEFAULT_SOURCE
+ #include <syslog.h>
+ #include <sys/lock.h>
++#include <picolibc.h>
++#ifdef __PICOLIBC_PTHREADS
++#include <pthread.h>
++#endif
+ 
+ /* The openlog settings, guarded by the C library lock */
+ extern const char *__syslog_ident;
+@@ -50,4 +54,30 @@ extern int         __syslog_fd;
+ /* Connects to the system logger, returning a descriptor or -1 */
+ int                __syslog_connect(void);
+ 
++/*
++ * The logging functions call cancellation points with the lock held,
++ * so they hold cancellation off; acting on a request there would leave
++ * the lock taken and hang every other thread's libc use.
++ */
++static inline int
++__syslog_cancel_disable(void)
++{
++    int cancel = 0;
++
++#ifdef __PICOLIBC_PTHREADS
++    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cancel);
++#endif
++    return cancel;
++}
++
++static inline void
++__syslog_cancel_restore(int cancel)
++{
++#ifdef __PICOLIBC_PTHREADS
++    pthread_setcancelstate(cancel, NULL);
++#else
++    (void)cancel;
++#endif
++}
++
+ #endif /* _LOCAL_SYSLOG_H_ */
+diff --git a/libc/posix/syslog/openlog.c b/libc/posix/syslog/openlog.c
+index 9338bfba04..4ce1b5087e 100644
+--- a/libc/posix/syslog/openlog.c
++++ b/libc/posix/syslog/openlog.c
+@@ -38,6 +38,8 @@
+ void
+ openlog(const char *ident, int option, int facility)
+ {
++    int cancel = __syslog_cancel_disable();
++
+     __LIBC_LOCK();
+     __syslog_ident = ident;
+     __syslog_option = option;
+@@ -46,4 +48,5 @@ openlog(const char *ident, int option, int facility)
+     if ((option & LOG_NDELAY) && __syslog_fd < 0)
+         __syslog_fd = __syslog_connect();
+     __LIBC_UNLOCK();
++    __syslog_cancel_restore(cancel);
+ }
+diff --git a/libc/posix/syslog/vsyslog.c b/libc/posix/syslog/vsyslog.c
+index 6aed803f31..b3fc8d0003 100644
+--- a/libc/posix/syslog/vsyslog.c
++++ b/libc/posix/syslog/vsyslog.c
+@@ -113,7 +113,7 @@ void
+ vsyslog(int priority, const char *fmt, va_list ap)
+ {
+     char      format[512], buf[1024], stamp[32];
+-    int       error = errno, len, head, sent = 0;
++    int       error = errno, len, head, sent = 0, cancel;
+     time_t    now;
+     struct tm tm;
+ 
+@@ -127,6 +127,7 @@ vsyslog(int priority, const char *fmt, va_list ap)
+     strftime(stamp, sizeof(stamp), "%b %e %H:%M:%S", &tm);
+     __syslog_expand(format, sizeof(format), fmt, error);
+ 
++    cancel = __syslog_cancel_disable();
+     __LIBC_LOCK();
+     head = __syslog_append(sizeof(buf), 0, snprintf(buf, sizeof(buf), "<%d>%s ", priority, stamp));
+     len = head;
+@@ -172,5 +173,6 @@ vsyslog(int priority, const char *fmt, va_list ap)
+         (void)!write(2, "\n", 1);
+     }
+     __LIBC_UNLOCK();
++    __syslog_cancel_restore(cancel);
+     errno = error;
+ }
+-- 
+2.47.3
+

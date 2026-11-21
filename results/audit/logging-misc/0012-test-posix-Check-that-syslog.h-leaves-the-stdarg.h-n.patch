@@ -1,0 +1,30 @@
+From 8352bc9abedf340c65e5289e87e93f5f09039adf Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:12:48 +0000
+Subject: [PATCH 12/12] test-posix: Check that <syslog.h> leaves the <stdarg.h>
+ names alone
+
+---
+ test/test-posix/test-syslog/test-syslog_h.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/test/test-posix/test-syslog/test-syslog_h.c b/test/test-posix/test-syslog/test-syslog_h.c
+index f3a712674b..b5ae7ebbc9 100644
+--- a/test/test-posix/test-syslog/test-syslog_h.c
++++ b/test/test-posix/test-syslog/test-syslog_h.c
+@@ -127,6 +127,12 @@ main(void)
+ 
+     (void)check_distinct(0);
+ 
++    /* <stdarg.h> names aren't reserved for <syslog.h> */
++#if defined(va_start) || defined(va_arg) || defined(va_end) || defined(va_copy)
++    printf("<syslog.h> defines the <stdarg.h> macros\n");
++    ret = 1;
++#endif
++
+     /*
+      * LOG_UPTO(pri) holds the mask of every severity from LOG_EMERG
+      * through pri in the order listed, and no other
+-- 
+2.47.3
+

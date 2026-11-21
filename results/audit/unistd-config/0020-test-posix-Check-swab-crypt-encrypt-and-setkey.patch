@@ -1,0 +1,281 @@
+From 12f81588a97e96e45d0c4c807ad4e98854c7cb23 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:29:09 +0000
+Subject: [PATCH 20/20] test-posix: Check swab, crypt, encrypt and setkey
+
+---
+ test/test-posix/test-unistd/CMakeLists.txt |   2 +
+ test/test-posix/test-unistd/meson.build    |   4 +
+ test/test-posix/test-unistd/test-crypt.c   | 107 +++++++++++++++++++++
+ test/test-posix/test-unistd/test-swab.c    |  99 +++++++++++++++++++
+ 4 files changed, 212 insertions(+)
+ create mode 100644 test/test-posix/test-unistd/test-crypt.c
+ create mode 100644 test/test-posix/test-unistd/test-swab.c
+
+diff --git a/test/test-posix/test-unistd/CMakeLists.txt b/test/test-posix/test-unistd/CMakeLists.txt
+index 5afdf97bf6..be9fa6acb5 100644
+--- a/test/test-posix/test-unistd/CMakeLists.txt
++++ b/test/test-posix/test-unistd/CMakeLists.txt
+@@ -40,6 +40,7 @@ set(tests
+   test-alarm
+   test-chown
+   test-confstr
++  test-crypt
+   test-dup2
+   test-dup3
+   test-execl
+@@ -101,6 +102,7 @@ set(tests
+   test-setuid-thread
+   test-symlink
+   test-symlinkat
++  test-swab
+   test-sync
+   test-sysconf
+   test-sysconf-arg_max
+diff --git a/test/test-posix/test-unistd/meson.build b/test/test-posix/test-unistd/meson.build
+index ff69e02c5c..056ceb9efb 100644
+--- a/test/test-posix/test-unistd/meson.build
++++ b/test/test-posix/test-unistd/meson.build
+@@ -40,6 +40,7 @@ dir_tests = [
+   'test-alarm',
+   'test-chown',
+   'test-confstr',
++  'test-crypt',
+   'test-dup2',
+   'test-dup3',
+   'test-execl',
+@@ -98,6 +99,7 @@ dir_tests = [
+   'test-sleep',
+   'test-symlink',
+   'test-symlinkat',
++  'test-swab',
+   'test-sync',
+   'test-sysconf',
+   'test-sysconf-arg_max',
+@@ -123,3 +125,5 @@ dir_thread_tests = [
+ 
+ # glibc's sysconf disagrees with its <unistd.h> about robust mutexes
+ test_skip_native += ['test-sysconf']
++# glibc keeps crypt in libcrypt and no longer links encrypt or setkey
++test_skip_native += ['test-crypt']
+diff --git a/test/test-posix/test-unistd/test-crypt.c b/test/test-posix/test-unistd/test-crypt.c
+new file mode 100644
+index 0000000000..f312e4a026
+--- /dev/null
++++ b/test/test-posix/test-unistd/test-crypt.c
+@@ -0,0 +1,107 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* crypt, encrypt and setkey are XSI interfaces */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++#include <errno.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * crypt returns a hash starting with the salt, or a null pointer with
++ * errno set (ENOSYS when unsupported); encrypt and setkey leave errno
++ * alone on success and set ENOSYS when unsupported, and encrypt only
++ * ever produces 0 and 1 bytes. _XOPEN_CRYPT says whether the encryption
++ * group is there.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++int
++main(void)
++{
++    char  key[64], block[64], orig[64];
++    char *hash;
++    int   i;
++
++    errno = 0;
++    hash = crypt("password", "ab");
++    if (hash == NULL) {
++        check(errno != 0, "crypt sets errno");
++#if defined(_XOPEN_CRYPT) && _XOPEN_CRYPT > 0
++        check(errno != ENOSYS, "crypt is supported");
++#endif
++    } else {
++        check(strncmp(hash, "ab", 2) == 0, "the hash starts with the salt");
++    }
++
++    for (i = 0; i < 64; i++) {
++        key[i] = (char)(i & 1);
++        block[i] = orig[i] = (char)((i >> 1) & 1);
++    }
++    errno = 0;
++    setkey(key);
++    check(errno == 0 || errno == ENOSYS, "setkey errno");
++    if (errno == 0) {
++        encrypt(block, 0);
++        check(errno == 0 || errno == ENOSYS, "encrypt errno");
++        for (i = 0; i < 64; i++)
++            check(block[i] == 0 || block[i] == 1, "encrypt gives bits");
++        /* Decoding may be unsupported, with ENOSYS */
++        encrypt(block, 1);
++        if (errno == 0)
++            check(memcmp(block, orig, 64) == 0, "decoding restores the block");
++    } else {
++        errno = 0;
++        encrypt(block, 0);
++        check(errno == ENOSYS, "encrypt without setkey support");
++        check(memcmp(block, orig, 64) == 0 || errno != 0, "block");
++    }
++#if defined(_XOPEN_CRYPT) && _XOPEN_CRYPT > 0
++    check(errno != ENOSYS, "the encryption group is supported");
++#endif
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-unistd/test-swab.c b/test/test-posix/test-unistd/test-swab.c
+new file mode 100644
+index 0000000000..6ed3941fa3
+--- /dev/null
++++ b/test/test-posix/test-unistd/test-swab.c
+@@ -0,0 +1,99 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* swab is an XSI interface */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * swab copies nbytes bytes exchanging adjacent ones; for an odd count
++ * it exchanges nbytes - 1 of them (the last byte is unspecified), and
++ * for a negative count it does nothing. Nothing past nbytes changes,
++ * and the source is left alone.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define SIZE 32
++
++int
++main(void)
++{
++    char    src[SIZE], copy[SIZE], dst[SIZE];
++    ssize_t n, i;
++
++    for (i = 0; i < SIZE; i++)
++        src[i] = (char)('a' + i);
++    memcpy(copy, src, SIZE);
++
++    for (n = 0; n <= SIZE; n++) {
++        memset(dst, '#', SIZE);
++        swab(src, dst, n);
++        check(memcmp(src, copy, SIZE) == 0, "source unchanged");
++        for (i = 0; i + 1 < n; i += 2) {
++            check(dst[i] == src[i + 1], "even byte from the odd one");
++            check(dst[i + 1] == src[i], "odd byte from the even one");
++        }
++        /* An odd count's last byte is unspecified; nothing after it changes */
++        for (i = n; i < SIZE; i++)
++            check(dst[i] == '#', "nothing past nbytes");
++    }
++
++    /*
++     * A negative count does nothing; volatile, as glibc's declaration
++     * makes gcc reject negative constants
++     */
++    volatile ssize_t neg[] = { -1, -2, -SIZE };
++
++    memset(dst, '#', SIZE);
++    for (i = 0; i < 3; i++)
++        swab(src, dst, neg[i]);
++    for (i = 0; i < SIZE; i++)
++        check(dst[i] == '#', "negative nbytes does nothing");
++
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

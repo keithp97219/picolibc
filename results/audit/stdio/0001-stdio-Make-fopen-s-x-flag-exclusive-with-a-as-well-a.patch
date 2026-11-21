@@ -1,0 +1,30 @@
+From 702759873539e5e9ce0b0d7dbe445559fbaaccb9 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:58:53 +0000
+Subject: [PATCH 01/39] stdio: Make fopen's 'x' flag exclusive with 'a' as well
+ as 'w'
+
+POSIX.1-2024 fopen: if the first character of mode is 'w' or 'a', 'x'
+ORs O_EXCL into the open flags. Only 'w' did.
+---
+ libc/stdio/sflags.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libc/stdio/sflags.c b/libc/stdio/sflags.c
+index b2ee94601d..7339345eb9 100644
+--- a/libc/stdio/sflags.c
++++ b/libc/stdio/sflags.c
+@@ -60,8 +60,8 @@ __stdio_flags(const char *mode, int *optr)
+         case 'e': /* close on exec */
+             o |= O_CLOEXEC;
+             break;
+-        case 'x': /* fail if the file exists */
+-            if (o & O_TRUNC)
++        case 'x': /* with 'w' or 'a', fail if the file exists */
++            if (o & O_CREAT)
+                 o |= O_EXCL;
+             break;
+         default:
+-- 
+2.47.3
+

@@ -1,0 +1,252 @@
+From a89d78f127e9c02df595948dfbea80f67c8dc26c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:12:39 +0000
+Subject: [PATCH 11/20] posix: Define crypt, encrypt and setkey, failing with
+ ENOSYS
+
+<unistd.h> and <stdlib.h> declared them for XSI but nothing defined
+them, so programs using them failed to link. POSIX lets each fail with
+ENOSYS when the encryption functionality isn't supported, which
+_XOPEN_CRYPT being undefined already says. encrypt's prototype now has
+the char [64] parameter POSIX gives it.
+---
+ libc/include/sys/unistd.h        |  2 +-
+ libc/posix/stdlib/CMakeLists.txt |  1 +
+ libc/posix/stdlib/meson.build    |  1 +
+ libc/posix/stdlib/setkey.c       | 47 +++++++++++++++++++++++++++++
+ libc/posix/unistd/CMakeLists.txt |  2 ++
+ libc/posix/unistd/crypt.c        | 52 ++++++++++++++++++++++++++++++++
+ libc/posix/unistd/encrypt.c      | 48 +++++++++++++++++++++++++++++
+ libc/posix/unistd/meson.build    |  2 ++
+ 8 files changed, 154 insertions(+), 1 deletion(-)
+ create mode 100644 libc/posix/stdlib/setkey.c
+ create mode 100644 libc/posix/unistd/crypt.c
+ create mode 100644 libc/posix/unistd/encrypt.c
+
+diff --git a/libc/include/sys/unistd.h b/libc/include/sys/unistd.h
+index 5487607765..a301569c8a 100644
+--- a/libc/include/sys/unistd.h
++++ b/libc/include/sys/unistd.h
+@@ -113,7 +113,7 @@ int dup3(int __fildes, int __fildes2, int __flag) __picolibc_export;
+ int eaccess(const char *__path, int __mode) __picolibc_export;
+ #endif
+ #if __XSI_VISIBLE
+-void encrypt(char *, int) __picolibc_export;
++void encrypt(char __block[64], int __edflag) __picolibc_export;
+ #endif
+ #if __BSD_VISIBLE || (__XSI_VISIBLE && __XSI_VISIBLE < 500)
+ void endusershell(void) __picolibc_export;
+diff --git a/libc/posix/stdlib/CMakeLists.txt b/libc/posix/stdlib/CMakeLists.txt
+index d989b91c58..020855058f 100644
+--- a/libc/posix/stdlib/CMakeLists.txt
++++ b/libc/posix/stdlib/CMakeLists.txt
+@@ -34,4 +34,5 @@
+ #
+ picolibc_sources(
+   realpath.c
++  setkey.c
+   )
+diff --git a/libc/posix/stdlib/meson.build b/libc/posix/stdlib/meson.build
+index 2519b2a404..f644f72f1a 100644
+--- a/libc/posix/stdlib/meson.build
++++ b/libc/posix/stdlib/meson.build
+@@ -36,4 +36,5 @@
+ 
+ dir_srcs = [
+   'realpath.c',
++  'setkey.c',
+ ]
+diff --git a/libc/posix/stdlib/setkey.c b/libc/posix/stdlib/setkey.c
+new file mode 100644
+index 0000000000..591c4c47c1
+--- /dev/null
++++ b/libc/posix/stdlib/setkey.c
+@@ -0,0 +1,47 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#define _XOPEN_SOURCE   800
++#include <errno.h>
++#include <stdlib.h>
++
++/* No encoding algorithm is provided, so there is no key to set */
++void
++setkey(const char *key)
++{
++    (void)key;
++    errno = ENOSYS;
++}
+diff --git a/libc/posix/unistd/CMakeLists.txt b/libc/posix/unistd/CMakeLists.txt
+index f712aa912b..b580589778 100644
+--- a/libc/posix/unistd/CMakeLists.txt
++++ b/libc/posix/unistd/CMakeLists.txt
+@@ -34,6 +34,8 @@
+ #
+ picolibc_sources(
+   confstr.c
++  crypt.c
++  encrypt.c
+   execl.c
+   execle.c
+   execlp.c
+diff --git a/libc/posix/unistd/crypt.c b/libc/posix/unistd/crypt.c
+new file mode 100644
+index 0000000000..c15362b226
+--- /dev/null
++++ b/libc/posix/unistd/crypt.c
+@@ -0,0 +1,52 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#define _XOPEN_SOURCE   800
++#include <errno.h>
++#include <unistd.h>
++
++/*
++ * picolibc provides no password hashing algorithm, so crypt fails
++ * with ENOSYS, as POSIX allows; _XOPEN_CRYPT is left undefined.
++ */
++char *
++crypt(const char *key, const char *salt)
++{
++    (void)key;
++    (void)salt;
++    errno = ENOSYS;
++    return NULL;
++}
+diff --git a/libc/posix/unistd/encrypt.c b/libc/posix/unistd/encrypt.c
+new file mode 100644
+index 0000000000..8276309eca
+--- /dev/null
++++ b/libc/posix/unistd/encrypt.c
+@@ -0,0 +1,48 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#define _XOPEN_SOURCE   800
++#include <errno.h>
++#include <unistd.h>
++
++/* No encoding algorithm is provided; the block is left alone */
++void
++encrypt(char block[64], int edflag)
++{
++    (void)block;
++    (void)edflag;
++    errno = ENOSYS;
++}
+diff --git a/libc/posix/unistd/meson.build b/libc/posix/unistd/meson.build
+index 1a538ee700..49e6ef978c 100644
+--- a/libc/posix/unistd/meson.build
++++ b/libc/posix/unistd/meson.build
+@@ -36,6 +36,8 @@
+ 
+ dir_srcs = [
+   'confstr.c',
++  'crypt.c',
++  'encrypt.c',
+   'execl.c',
+   'execle.c',
+   'execlp.c',
+-- 
+2.47.3
+

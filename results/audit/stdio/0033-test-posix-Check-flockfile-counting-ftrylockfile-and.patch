@@ -1,0 +1,289 @@
+From 4ee172db7a88cd2571b409f0268dbfd9808f322e Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:42:50 +0000
+Subject: [PATCH 33/39] test-posix: Check flockfile counting, ftrylockfile and
+ stream locking
+
+---
+ test/test-posix/test-stdio/CMakeLists.txt   |   1 +
+ test/test-posix/test-stdio/meson.build      |   5 +
+ test/test-posix/test-stdio/test-flockfile.c | 242 ++++++++++++++++++++
+ 3 files changed, 248 insertions(+)
+ create mode 100644 test/test-posix/test-stdio/test-flockfile.c
+
+diff --git a/test/test-posix/test-stdio/CMakeLists.txt b/test/test-posix/test-stdio/CMakeLists.txt
+index 7e5b367071..bb4e68ad25 100644
+--- a/test/test-posix/test-stdio/CMakeLists.txt
++++ b/test/test-posix/test-stdio/CMakeLists.txt
+@@ -38,6 +38,7 @@ set(tests
+   test-fdopen
+   test-fgetc
+   test-fileno
++  test-flockfile
+   test-fmemopen
+   test-fopen
+   test-fseek
+diff --git a/test/test-posix/test-stdio/meson.build b/test/test-posix/test-stdio/meson.build
+index 6691e6d237..7d03b933de 100644
+--- a/test/test-posix/test-stdio/meson.build
++++ b/test/test-posix/test-stdio/meson.build
+@@ -51,3 +51,8 @@ dir_tests = [
+   'test-stdio_h-names',
+   'test-stdio_h-xsi',
+ ]
++
++# These need threads; they use the library's own locks
++dir_thread_tests = [
++  'test-flockfile',
++]
+diff --git a/test/test-posix/test-stdio/test-flockfile.c b/test/test-posix/test-stdio/test-flockfile.c
+new file mode 100644
+index 0000000000..b44253b6f8
+--- /dev/null
++++ b/test/test-posix/test-stdio/test-flockfile.c
+@@ -0,0 +1,242 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE)
++
++#include <errno.h>
++#include <pthread.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++#include <time.h>
++
++/*
++ * flockfile, ftrylockfile, funlockfile and the _unlocked functions: each
++ * stream has its own counted lock, ftrylockfile doesn't block, and the
++ * other stdio functions take the lock (XSH 2.5)
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static FILE *f, *g;
++static int   to_thread[2], to_main[2];
++
++static void
++send(int fd)
++{
++    check(write(fd, "x", 1) == 1, "send");
++}
++
++static void
++receive(int fd)
++{
++    char c;
++
++    check(read(fd, &c, 1) == 1, "receive");
++}
++
++/* Answers each request with the result of ftrylockfile on the named stream */
++static void *
++try_thread(void *arg)
++{
++    char c;
++
++    (void)arg;
++    while (read(to_thread[0], &c, 1) == 1 && c != 'q') {
++        FILE *s = c == 'f' ? f : g;
++        char  r = ftrylockfile(s) == 0 ? 'y' : 'n';
++
++        if (r == 'y')
++            funlockfile(s);
++        check(write(to_main[1], &r, 1) == 1, "reply");
++    }
++    return NULL;
++}
++
++static int
++other_thread_gets(char which)
++{
++    char r;
++
++    check(write(to_thread[1], &which, 1) == 1, "ask");
++    check(read(to_main[0], &r, 1) == 1, "answer");
++    return r == 'y';
++}
++
++/* Holds the lock on f from another thread until told to let go */
++static void *
++hold_thread(void *arg)
++{
++    (void)arg;
++    flockfile(f);
++    send(to_main[1]);
++    receive(to_thread[0]);
++    funlockfile(f);
++    return NULL;
++}
++
++static int data[2];
++
++/* Reads from a stream on an empty pipe, blocking with the stream locked */
++static void *
++read_thread(void *arg)
++{
++    FILE *in = arg;
++
++    send(to_main[1]);
++    return (void *)(intptr_t)fgetc(in);
++}
++
++static double
++now(void)
++{
++    struct timespec ts;
++
++    clock_gettime(CLOCK_MONOTONIC, &ts);
++    return ts.tv_sec + ts.tv_nsec / 1e9;
++}
++
++int
++main(void)
++{
++    pthread_t thread;
++    void     *ret;
++    FILE     *in;
++    double    deadline;
++    int       out[2];
++    pid_t     child;
++    int       status;
++    char      buf[8];
++
++    check(pipe(to_thread) == 0 && pipe(to_main) == 0, "pipes");
++    f = tmpfile();
++    g = tmpfile();
++    check(f != NULL && g != NULL, "tmpfile");
++
++    /* The lock count: one thread may nest; another can't get the lock */
++    check(pthread_create(&thread, NULL, try_thread, NULL) == 0, "pthread_create");
++    check(other_thread_gets('f'), "unlocked stream");
++    flockfile(f);
++    check(ftrylockfile(f) == 0, "the owner may lock again");
++    check(!other_thread_gets('f'), "ftrylockfile fails while another thread holds the lock");
++    funlockfile(f);
++    check(!other_thread_gets('f'), "still held after one funlockfile");
++    /* Each stream has its own lock */
++    check(other_thread_gets('g'), "another stream's lock is free");
++    funlockfile(f);
++    check(other_thread_gets('f'), "free after the last funlockfile");
++    check(write(to_thread[1], "q", 1) == 1 && pthread_join(thread, NULL) == 0, "join");
++
++    /* flockfile waits for the owner */
++    check(pthread_create(&thread, NULL, hold_thread, NULL) == 0, "pthread_create");
++    receive(to_main[0]);
++    check(ftrylockfile(f) != 0, "held by the other thread");
++    send(to_thread[1]);
++    flockfile(f);
++    funlockfile(f);
++    check(pthread_join(thread, NULL) == 0, "join");
++
++    /* fgetc locks the stream while it reads */
++    check(pipe(data) == 0, "pipe");
++    in = fdopen(data[0], "r");
++    check(in != NULL, "fdopen");
++    check(pthread_create(&thread, NULL, read_thread, in) == 0, "pthread_create");
++    receive(to_main[0]);
++    deadline = now() + 10;
++    while (ftrylockfile(in) == 0) {
++        struct timespec ms = { 0, 1000000 };
++
++        funlockfile(in);
++        check(now() < deadline, "fgetc holds the stream lock while it waits");
++        nanosleep(&ms, NULL);
++    }
++    check(write(data[1], "z", 1) == 1, "feed the reader");
++    check(pthread_join(thread, &ret) == 0 && (intptr_t)ret == 'z', "reader got the byte");
++    check(fclose(in) == 0 && close(data[1]) == 0, "close");
++
++    /* The _unlocked functions, with output through a pipe */
++    check(pipe(out) == 0 && pipe(data) == 0, "pipes");
++    check(write(data[1], "xy", 2) == 2 && close(data[1]) == 0, "input");
++    child = fork();
++    check(child >= 0, "fork");
++    if (child == 0) {
++        int a, b;
++
++        if (dup2(out[1], 1) != 1 || dup2(data[0], 0) != 0)
++            _exit(2);
++        flockfile(stdin);
++        a = getchar_unlocked();
++        b = getc_unlocked(stdin);
++        funlockfile(stdin);
++        flockfile(stdout);
++        if (putchar_unlocked(a) != 'x' || putc_unlocked(b, stdout) != 'y')
++            _exit(3);
++        funlockfile(stdout);
++        _exit(fflush(stdout) == 0 ? 0 : 4);
++    }
++    check(close(out[1]) == 0, "close");
++    check(read(out[0], buf, sizeof(buf)) == 2 && memcmp(buf, "xy", 2) == 0, "unlocked I/O");
++    check(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
++          "child status");
++
++    check(fclose(f) == 0 && fclose(g) == 0, "fclose");
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

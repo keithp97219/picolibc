@@ -1,0 +1,186 @@
+From be2b871fe12de8bb56eb13f6d3c244c1d6609627 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:16:01 +0000
+Subject: [PATCH 17/39] stdio: Bring popen and pclose in line with POSIX.1-2024
+
+- Close the streams of earlier popen calls in the new child, as
+  required. A child kept the write end of an earlier "w" stream open,
+  so that stream's command never saw end-of-file.
+- Honour 'e' (FD_CLOEXEC on the returned stream), and leave FD_CLOEXEC
+  clear without it. The pipe is made with O_CLOEXEC so children started
+  by other threads don't inherit it.
+- Run the shell as execl("/bin/sh", "sh", "-c", "--", command), so
+  a command starting with '-' isn't taken as an option.
+- Exit with 127 when the shell can't be run.
+- pclose waits again after EINTR, as it shall not return before the
+  child has terminated.
+---
+ libc/stdio/local-stdio.h |  1 +
+ libc/stdio/popen.c       | 83 +++++++++++++++++++++++++++++++++-------
+ 2 files changed, 70 insertions(+), 14 deletions(-)
+
+diff --git a/libc/stdio/local-stdio.h b/libc/stdio/local-stdio.h
+index 08932a81c4..ec7808d796 100644
+--- a/libc/stdio/local-stdio.h
++++ b/libc/stdio/local-stdio.h
+@@ -139,6 +139,7 @@ struct __file_pipe {
+     struct __file_bufio bfile;
+     pid_t               child;
+     int                *wstatus;
++    struct __file_pipe *next_pipe;
+ };
+ 
+ #define IO_VARIANT_IS_FLOAT(v) ((v) == __IO_VARIANT_FLOAT || (v) == __IO_VARIANT_DOUBLE)
+diff --git a/libc/stdio/popen.c b/libc/stdio/popen.c
+index c6dba190d4..3c1ea9bf19 100644
+--- a/libc/stdio/popen.c
++++ b/libc/stdio/popen.c
+@@ -38,6 +38,24 @@
+ #include <stdbool.h>
+ #include <sys/wait.h>
+ 
++/* Open popen streams, closed in each new child. Protected by __LIBC_LOCK */
++static struct __file_pipe *__popen_list;
++
++static void
++__popen_remove(struct __file_pipe *pf)
++{
++    struct __file_pipe **prev;
++
++    __LIBC_LOCK();
++    for (prev = &__popen_list; *prev; prev = &(*prev)->next_pipe) {
++        if (*prev == pf) {
++            *prev = pf->next_pipe;
++            break;
++        }
++    }
++    __LIBC_UNLOCK();
++}
++
+ static int
+ __pipe_close(FILE *file)
+ {
+@@ -46,9 +64,15 @@ __pipe_close(FILE *file)
+     pid_t               child = pf->child;
+     int                 ret;
+ 
++    __popen_remove(pf);
++
+     ret = __bufio_close(file);
+-    if (waitpid(child, wstatus, 0) < 0)
+-        return _FDEV_ERR;
++
++    /* Don't return before the child has terminated */
++    while (waitpid(child, wstatus, 0) < 0) {
++        if (errno != EINTR)
++            return _FDEV_ERR;
++    }
+     return ret;
+ }
+ 
+@@ -63,27 +87,40 @@ extern char **environ;
+ FILE *
+ popen(const char *command, const char *type)
+ {
+-    char               *argv[4];
++    char               *argv[5];
+     char               *shell;
+     int                 pipe_fd[2];
+     int                 my_fd;
+     int                 stdio_flags;
++    bool                cloexec = false;
+     struct __file_pipe *pf;
++    struct __file_pipe *other;
+     char               *buf;
+     size_t              buf_size;
+ 
+-    if (strchr(type, 'r')) {
++    switch (type[0]) {
++    case 'r':
+         my_fd = 0;
+         stdio_flags = __SRD;
+-    } else if (strchr(type, 'w')) {
++        break;
++    case 'w':
+         my_fd = 1;
+         stdio_flags = __SWR;
+-    } else {
++        break;
++    default:
+         errno = EINVAL;
+         return NULL;
+     }
+ 
+-    if (pipe(pipe_fd) < 0)
++    /* 'e' leaves FD_CLOEXEC set on the stream's descriptor */
++    if (strchr(type, 'e'))
++        cloexec = true;
++
++    /*
++     * Both ends start with FD_CLOEXEC so that children started by
++     * other threads don't keep them open.
++     */
++    if (pipe2(pipe_fd, O_CLOEXEC) < 0)
+         return NULL;
+ 
+     buf_size = BUFSIZ;
+@@ -101,31 +138,49 @@ popen(const char *command, const char *type)
+     pf->bfile.xfile.cfile.close = __pipe_close;
+     pf->wstatus = NULL;
+ 
++    /*
++     * List the stream before forking. fork holds __LIBC_LOCK while it
++     * runs, so the child sees a consistent list.
++     */
++    __LIBC_LOCK();
++    pf->next_pipe = __popen_list;
++    __popen_list = pf;
++    __LIBC_UNLOCK();
++
+     switch (pf->child = fork()) {
+     case -1:
++        __popen_remove(pf);
+         goto bail;
+     case 0:
+-        /* Close parent end */
+-        close(pipe_fd[my_fd]);
++        /* Close the streams from popen calls, including this one's end */
++        for (other = __popen_list; other; other = other->next_pipe)
++            close(_FDEV_BUFIO_FD(&other->bfile));
+ 
+-        /* Move child end to correct fd */
++        /* Move child end to correct fd, without FD_CLOEXEC */
+         my_fd = 1 - my_fd;
+         if (pipe_fd[my_fd] != my_fd) {
+             dup2(pipe_fd[my_fd], my_fd);
+             close(pipe_fd[my_fd]);
++        } else {
++            fcntl(my_fd, F_SETFD, 0);
+         }
+ 
+         /* Set up argv */
+         shell = "/bin/sh";
+-        argv[0] = shell + 4;
++        argv[0] = shell + 5;
+         argv[1] = "-c";
+-        argv[2] = (char *)command;
+-        argv[3] = NULL;
++        argv[2] = "--";
++        argv[3] = (char *)command;
++        argv[4] = NULL;
+ 
+         /* And we're off */
+         execve(shell, argv, environ);
+-        _exit(1);
++
++        /* As if the shell had exited with 127 */
++        _exit(127);
+     default:
++        if (!cloexec)
++            fcntl(pipe_fd[my_fd], F_SETFD, 0);
+         close(pipe_fd[1 - my_fd]);
+         bufio_add_file(&pf->bfile.xfile.cfile.file);
+         return &pf->bfile.xfile.cfile.file;
+-- 
+2.47.3
+

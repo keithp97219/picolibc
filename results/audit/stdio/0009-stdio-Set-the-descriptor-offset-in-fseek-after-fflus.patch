@@ -1,0 +1,112 @@
+From 08cc756633ee798d96e891f0d0784f44213efb16 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:32 +0000
+Subject: [PATCH 09/39] stdio: Set the descriptor offset in fseek after fflush,
+ and never seek in ftell
+
+POSIX.1-2024 fseek: if the most recent operation, other than ftell, on
+the stream is fflush, the file offset of the open file description
+shall be adjusted to the location fseek gives. With an empty buffer,
+bufio took the in-buffer shortcut and called no lseek, so a position
+another handle had changed stayed changed. ftell reported the position
+through the same SEEK_SET path, so it could call lseek; it now only
+computes the position, and fseek turns SEEK_CUR into SEEK_SET itself,
+with EOVERFLOW when the sum doesn't fit in off_t.
+---
+ libc/stdio/bufio.c | 25 +++++++++++++++++--------
+ libc/stdio/fseek.c | 26 +++++++++++++++++++++++---
+ 2 files changed, 40 insertions(+), 11 deletions(-)
+
+diff --git a/libc/stdio/bufio.c b/libc/stdio/bufio.c
+index 6423a5c078..8fac09103f 100644
+--- a/libc/stdio/bufio.c
++++ b/libc/stdio/bufio.c
+@@ -241,14 +241,19 @@ __bufio_seek(FILE *f, off_t offset, int whence)
+ 
+     bufio_sync_pos(bf);
+ 
+-    if (bf->dir == __SWR) {
+-
+-        /* Short-circuit for ftell in write mode */
+-        if (whence == SEEK_CUR && offset == 0) {
+-            ret = bf->pos + bf->len;
++    /* ftell: report the position without changing anything */
++    if (whence == SEEK_CUR && offset == 0) {
++        /* Fail on pipes and other descriptors that can't seek */
++        if (bufio_lseek(bf, 0, SEEK_CUR) < 0)
+             goto exit;
+-        }
++        if (bf->dir == __SWR)
++            ret = bf->pos + bf->len;
++        else
++            ret = bf->pos - bf->len + bf->off;
++        goto exit;
++    }
+ 
++    if (bf->dir == __SWR) {
+         /*
+          * With any pending writes, we need to flush before we change
+          * position. Switching to read mode means we can share the
+@@ -269,8 +274,12 @@ __bufio_seek(FILE *f, off_t offset, int whence)
+         offset += buf_pos + bf->off;
+         __fallthrough;
+     case SEEK_SET:
+-        /* Optimize for seeks within buffer or just past buffer */
+-        if (buf_pos <= offset && offset <= buf_pos + bf->len) {
++        /*
++         * Optimize for seeks within buffer or just past buffer. With
++         * nothing buffered (after fflush, say), the descriptor offset
++         * must still be set, as another handle may have moved it.
++         */
++        if (bf->len > 0 && buf_pos <= offset && offset <= buf_pos + bf->len) {
+             bf->off = offset - buf_pos;
+             ret = offset;
+             break;
+diff --git a/libc/stdio/fseek.c b/libc/stdio/fseek.c
+index 1bd56c840d..f540e45acf 100644
+--- a/libc/stdio/fseek.c
++++ b/libc/stdio/fseek.c
+@@ -40,17 +40,37 @@
+ #define FSEEK_TYPE long
+ #endif
+ 
++#define OFF_MAX_VALUE ((__off_t)(~(__uint64_t)0 >> 1))
++
+ int
+ FSEEK(FILE *stream, FSEEK_TYPE offset, int whence)
+ {
+     struct __file_ext *xf = (struct __file_ext *)stream;
++    __off_t            pos = (__off_t)offset;
++    __off_t            ret;
+ 
+     __flockfile(stream);
+     if ((stream->flags & __SEXT) && xf->seek) {
+-        if (whence == SEEK_CUR && __atomic_load_ungetc(&stream->unget) != 0)
+-            offset--;
++        /*
++         * Turn SEEK_CUR into SEEK_SET. A seek function called with
++         * SEEK_CUR and zero just reports the position.
++         */
++        if (whence == SEEK_CUR) {
++            __off_t cur = (xf->seek)(stream, 0, SEEK_CUR);
++            if (cur < 0)
++                __funlock_return(stream, -1);
++            if (__atomic_load_ungetc(&stream->unget) != 0 && cur > 0)
++                cur--;
++            if (pos > 0 && cur > OFF_MAX_VALUE - pos) {
++                errno = EOVERFLOW;
++                __funlock_return(stream, -1);
++            }
++            pos += cur;
++            whence = SEEK_SET;
++        }
+ 
+-        if ((xf->seek)(stream, (__off_t)offset, whence) >= 0) {
++        ret = (xf->seek)(stream, pos, whence);
++        if (ret >= 0) {
+             stream->flags &= ~__SEOF;
+             __atomic_store_ungetc(&stream->unget, 0);
+             __funlock_return(stream, 0);
+-- 
+2.47.3
+

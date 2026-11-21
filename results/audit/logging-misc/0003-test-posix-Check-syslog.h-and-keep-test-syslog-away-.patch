@@ -1,0 +1,627 @@
+From 5b36d4ddbe9bafbbcdba6a9085d353482a831d23 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:03:22 +0000
+Subject: [PATCH 03/12] test-posix: Check <syslog.h>, and keep test-syslog away
+ from the system logger
+
+test-syslog sent each message to /dev/log, the host's system log, as
+well as standard error. It now runs in a child with no descriptor to
+spare, so syslog can open neither its socket nor the console, and
+checks %m with %n$, %%, the default mask, LOG_UPTO, facilities in the
+mask test and later openlog calls. test-syslog_h checks the header in
+strict XSI mode, and test-syslog-thread that a thread cancelled in
+syslog leaves logging usable.
+---
+ test/test-posix/test-syslog/CMakeLists.txt    |   2 +
+ test/test-posix/test-syslog/meson.build       |   5 +
+ .../test-syslog/test-syslog-thread.c          | 205 ++++++++++++++++++
+ test/test-posix/test-syslog/test-syslog.c     | 137 ++++++++++--
+ test/test-posix/test-syslog/test-syslog_h.c   | 153 +++++++++++++
+ 5 files changed, 483 insertions(+), 19 deletions(-)
+ create mode 100644 test/test-posix/test-syslog/test-syslog-thread.c
+ create mode 100644 test/test-posix/test-syslog/test-syslog_h.c
+
+diff --git a/test/test-posix/test-syslog/CMakeLists.txt b/test/test-posix/test-syslog/CMakeLists.txt
+index 0d4c11ec30..e09e5614e8 100644
+--- a/test/test-posix/test-syslog/CMakeLists.txt
++++ b/test/test-posix/test-syslog/CMakeLists.txt
+@@ -35,6 +35,8 @@
+ 
+ set(tests
+   test-syslog
++  test-syslog_h
++  test-syslog-thread
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-syslog/meson.build b/test/test-posix/test-syslog/meson.build
+index 0de4b3579d..2123b55489 100644
+--- a/test/test-posix/test-syslog/meson.build
++++ b/test/test-posix/test-syslog/meson.build
+@@ -35,4 +35,9 @@
+ 
+ dir_tests = [
+   'test-syslog',
++  'test-syslog_h',
++]
++
++dir_thread_tests = [
++  'test-syslog-thread',
+ ]
+diff --git a/test/test-posix/test-syslog/test-syslog-thread.c b/test/test-posix/test-syslog/test-syslog-thread.c
+new file mode 100644
+index 0000000000..2ef751410a
+--- /dev/null
++++ b/test/test-posix/test-syslog/test-syslog-thread.c
+@@ -0,0 +1,205 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* syslog is an XSI interface */
++#define _XOPEN_SOURCE 800
++/*
++ * LOG_PERROR is an extension, and the only way to see a message
++ * without reaching the system logger
++ */
++#define _DEFAULT_SOURCE
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_XSI_SYSTEM_LOGGING) && defined(__PICOLIBC_POSIX_PIPE)                    \
++    && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(_POSIX_THREADS) && _POSIX_THREADS > 0
++
++#include <errno.h>
++#include <fcntl.h>
++#include <pthread.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <syslog.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
++
++/*
++ * A thread cancelled inside syslog, whether or not syslog is a
++ * cancellation point, leaves logging usable by the other threads.
++ *
++ * As in test-syslog, the child has no descriptor to spare, so nothing
++ * reaches the system log; LOG_PERROR writes to a pipe.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static void
++capture(char *buf, size_t size)
++{
++    ssize_t n;
++
++    n = read(0, buf, size - 1);
++    buf[n > 0 ? n : 0] = '\0';
++}
++
++static void
++isolate(void)
++{
++    struct rlimit rl;
++    int           fds[2];
++
++    check(pipe(fds) == 0, "pipe");
++    check(dup2(fds[0], 0) == 0 && dup2(fds[1], 2) == 2, "redirect");
++    if (fds[0] > 2)
++        close(fds[0]);
++    if (fds[1] > 2)
++        close(fds[1]);
++    check(fcntl(0, F_SETFL, O_NONBLOCK) == 0, "non-blocking");
++    check(getrlimit(RLIMIT_NOFILE, &rl) == 0, "getrlimit");
++    rl.rlim_cur = 3;
++    check(setrlimit(RLIMIT_NOFILE, &rl) == 0, "setrlimit");
++    errno = 0;
++    check(open("/dev/null", O_RDONLY) == -1 && errno == EMFILE, "no descriptors left");
++}
++
++/* Logs with a cancellation request already pending */
++static void *
++cancelled(void *arg)
++{
++    (void)arg;
++    check(pthread_cancel(pthread_self()) == 0, "pthread_cancel");
++    syslog(LOG_ERR, "while cancelled");
++    pthread_testcancel();
++    return NULL;
++}
++
++/* Waits to be cancelled */
++static void *
++waiter(void *arg)
++{
++    (void)arg;
++    for (;;)
++        pause();
++    return NULL;
++}
++
++static void
++child(void)
++{
++    char      buf[512];
++    pthread_t thread;
++    void     *result;
++
++#if defined(__GLIBC__) && defined(__arm__)
++    /*
++     * glibc 2.43 on 32-bit ARM leaves syslog's lock held when a thread
++     * is cancelled in syslog, so the next call hangs
++     */
++    printf("glibc on 32-bit ARM hangs after a cancel in syslog, skipping\n");
++    exit(77);
++#endif
++
++    /* A hang shows up as SIGALRM */
++    alarm(30);
++
++    /*
++     * Cancel a thread before the descriptors run out: glibc loads its
++     * unwinder on the first cancellation
++     */
++    check(pthread_create(&thread, NULL, waiter, NULL) == 0, "pthread_create");
++    check(pthread_cancel(thread) == 0 && pthread_join(thread, &result) == 0, "warm up");
++
++    isolate();
++    openlog("picolibc-test", LOG_PERROR, LOG_USER);
++
++    check(pthread_create(&thread, NULL, cancelled, NULL) == 0, "pthread_create");
++    check(pthread_join(thread, &result) == 0, "pthread_join");
++    check(result == PTHREAD_CANCELED, "the thread was cancelled");
++    while (read(0, buf, sizeof(buf)) > 0)
++        ;
++
++    syslog(LOG_ERR, "after the cancel");
++    capture(buf, sizeof(buf));
++    check(strstr(buf, "picolibc-test: after the cancel") != NULL, "syslog still works");
++    closelog();
++    openlog("again", LOG_PERROR, LOG_USER);
++    syslog(LOG_ERR, "reopened");
++    capture(buf, sizeof(buf));
++    check(strstr(buf, "again: reopened") != NULL, "openlog still works");
++    exit(0);
++}
++
++int
++main(void)
++{
++    pid_t pid;
++    int   status;
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        child();
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    if (WIFEXITED(status) && WEXITSTATUS(status) == 77)
++        return 77;
++    if (WIFSIGNALED(status))
++        printf("child killed by signal %d\n", WTERMSIG(status));
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "child");
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-syslog/test-syslog.c b/test/test-posix/test-syslog/test-syslog.c
+index 6362abd4f8..1834a11b3b 100644
+--- a/test/test-posix/test-syslog/test-syslog.c
++++ b/test/test-posix/test-syslog/test-syslog.c
+@@ -34,12 +34,18 @@
+  */
+ 
+ #define _POSIX_C_SOURCE 202405L
+-/* syslog is an XSI interface; LOG_PERROR is an extension */
++/* syslog is an XSI interface */
++#define _XOPEN_SOURCE 800
++/*
++ * LOG_PERROR is an extension, and the only way to see a message
++ * without reaching the system logger
++ */
+ #define _DEFAULT_SOURCE
+ #include "../posix-groups.h"
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if defined(__PICOLIBC_POSIX_FD_MGMT) && defined(__PICOLIBC_POSIX_PIPE)
++#if defined(__PICOLIBC_XSI_SYSTEM_LOGGING) && defined(__PICOLIBC_POSIX_PIPE) \
++    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+ 
+ #include <errno.h>
+ #include <fcntl.h>
+@@ -47,8 +53,18 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <syslog.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
+ 
+-/* syslog formats messages, honouring the mask, and closelog ends logging */
++/*
++ * syslog formats messages, honouring the mask, and openlog sets the
++ * identity and options.
++ *
++ * The test must never write to the system log, so it runs in a child
++ * whose descriptor limit leaves no room for another descriptor: syslog
++ * can't open its socket or the console, and LOG_PERROR copies each
++ * message to standard error, which is a pipe the child reads back.
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -58,30 +74,59 @@
+         }                                              \
+     } while (0)
+ 
+-static int  fds[2], saved;
+ static char long_ident[4096];
+ 
+-/* Collects what syslog wrote to standard error */
++/* Collects what syslog wrote to standard error (descriptor 0 reads it) */
+ static void
+ capture(char *buf, size_t size)
+ {
+     ssize_t n;
+ 
+-    n = read(fds[0], buf, size - 1);
++    n = read(0, buf, size - 1);
+     buf[n > 0 ? n : 0] = '\0';
+ }
+ 
+-int
+-main(void)
++/* Makes standard error a pipe read through standard input, then uses up every descriptor */
++static void
++isolate(void)
+ {
+-    char buf[512], want[64];
++    struct rlimit rl;
++    int           fds[2];
+ 
+     check(pipe(fds) == 0, "pipe");
+-    check(fcntl(fds[0], F_SETFL, O_NONBLOCK) == 0, "non-blocking");
+-    saved = dup(2);
+-    check(saved >= 0 && dup2(fds[1], 2) == 2, "redirect stderr");
++    check(dup2(fds[0], 0) == 0 && dup2(fds[1], 2) == 2, "redirect");
++    if (fds[0] > 2)
++        close(fds[0]);
++    if (fds[1] > 2)
++        close(fds[1]);
++    check(fcntl(0, F_SETFL, O_NONBLOCK) == 0, "non-blocking");
++    check(getrlimit(RLIMIT_NOFILE, &rl) == 0, "getrlimit");
++    rl.rlim_cur = 3;
++    check(setrlimit(RLIMIT_NOFILE, &rl) == 0, "setrlimit");
++    /* Stop here unless syslog is sure to find no descriptor */
++    errno = 0;
++    check(open("/dev/null", O_RDONLY) == -1 && errno == EMFILE, "no descriptors left");
++}
++
++static void
++child(void)
++{
++    char buf[512], want[64];
++    int  mask;
++
++    isolate();
++
++    /* The default mask allows every priority */
++    mask = setlogmask(0);
++    check((mask & LOG_UPTO(LOG_DEBUG)) == LOG_UPTO(LOG_DEBUG), "default mask");
++
++    /* openlog isn't needed first; nothing reaches standard error yet */
++    syslog(LOG_INFO, "before openlog");
++    capture(buf, sizeof(buf));
++    check(strstr(buf, "before openlog") == NULL, "no LOG_PERROR yet");
+ 
+-    openlog("picolibc-test", LOG_PID | LOG_PERROR, LOG_USER);
++    /* LOG_NDELAY and LOG_CONS find no descriptor, and syslog goes on */
++    openlog("picolibc-test", LOG_PID | LOG_PERROR | LOG_NDELAY | LOG_CONS, LOG_USER);
+     errno = ENOENT;
+     syslog(LOG_ERR, "value %d: %m", 42);
+     capture(buf, sizeof(buf));
+@@ -89,15 +134,49 @@ main(void)
+     check(strstr(buf, want) != NULL, "ident, pid and message");
+     check(strstr(buf, strerror(ENOENT)) != NULL, "%m");
+ 
+-    check(setlogmask(LOG_MASK(LOG_ERR)) == 0xff, "setlogmask");
++    /* %m uses errno on entry, and mixes with %n$ conversions */
++    errno = EACCES;
++    syslog(LOG_ERR, "%2$s %m %1$d", 7, "pos");
++    capture(buf, sizeof(buf));
++    snprintf(want, sizeof(want), "pos %s 7", strerror(EACCES));
++    check(strstr(buf, want) != NULL, "%m with %n$");
++
++    /* %% is still a percent sign, even before m */
++    errno = EPERM;
++    syslog(LOG_ERR, "100%% %%m");
++    capture(buf, sizeof(buf));
++    check(strstr(buf, "100% %m") != NULL, "%%");
++
++    /* A severity outside the mask is rejected, whatever the facility */
++    check(setlogmask(LOG_MASK(LOG_ERR)) == mask, "setlogmask returns the old mask");
+     syslog(LOG_INFO, "hidden");
++    syslog(LOG_INFO | LOG_LOCAL3, "hidden");
+     capture(buf, sizeof(buf));
+     check(strstr(buf, "hidden") == NULL, "masked");
+-    syslog(LOG_ERR, "shown");
++    syslog(LOG_ERR | LOG_LOCAL3, "shown");
+     capture(buf, sizeof(buf));
+     check(strstr(buf, "shown") != NULL, "not masked");
+     check(setlogmask(0) == LOG_MASK(LOG_ERR), "zero leaves the mask");
+-    setlogmask(0xff);
++
++    /* LOG_UPTO */
++    check(setlogmask(LOG_UPTO(LOG_WARNING)) == LOG_MASK(LOG_ERR), "setlogmask");
++    syslog(LOG_EMERG, "emerg");
++    syslog(LOG_WARNING, "warning");
++    syslog(LOG_NOTICE, "notice");
++    capture(buf, sizeof(buf));
++    check(strstr(buf, "emerg") != NULL && strstr(buf, "warning") != NULL, "up to LOG_WARNING");
++    check(strstr(buf, "notice") == NULL, "not LOG_NOTICE");
++    setlogmask(LOG_UPTO(LOG_DEBUG));
++    syslog(LOG_DEBUG, "debug");
++    capture(buf, sizeof(buf));
++    check(strstr(buf, "debug") != NULL, "LOG_DEBUG");
++
++    /* A later openlog replaces the identity and the options */
++    openlog("second", LOG_PERROR, 0);
++    syslog(LOG_ERR, "again");
++    capture(buf, sizeof(buf));
++    check(strstr(buf, "second: again") != NULL, "new identity");
++    check(strchr(buf, '[') == NULL, "no pid without LOG_PID");
+ 
+     /* An identity longer than any message is cut short, not overrun */
+     memset(long_ident, 'i', sizeof(long_ident) - 1);
+@@ -105,12 +184,32 @@ main(void)
+     syslog(LOG_ERR, "long");
+     capture(buf, sizeof(buf));
+     check(strncmp(buf, "iiii", 4) == 0, "long identity");
+-    while (read(fds[0], buf, sizeof(buf)) > 0)
++    while (read(0, buf, sizeof(buf)) > 0)
+         ;
+ 
++    /* closelog, then logging starts again */
++    closelog();
++    openlog("third", LOG_PERROR, LOG_USER);
++    syslog(LOG_ERR, "after closelog");
++    capture(buf, sizeof(buf));
++    check(strstr(buf, "third: after closelog") != NULL, "after closelog");
+     closelog();
+-    check(dup2(saved, 2) == 2 && close(saved) == 0, "restore stderr");
+-    check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
++    exit(0);
++}
++
++int
++main(void)
++{
++    pid_t pid;
++    int   status;
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        child();
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "child");
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-syslog/test-syslog_h.c b/test/test-posix/test-syslog/test-syslog_h.c
+new file mode 100644
+index 0000000000..f3a712674b
+--- /dev/null
++++ b/test/test-posix/test-syslog/test-syslog_h.c
+@@ -0,0 +1,153 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* <syslog.h> is an XSI header */
++#define _XOPEN_SOURCE 800
++#include <syslog.h>
++#include <stdio.h>
++
++/* What <syslog.h> defines in strict XSI mode */
++
++/* vsyslog isn't POSIX, so this mustn't clash with a declaration */
++static int
++vsyslog(void)
++{
++    return 0;
++}
++
++/* The openlog options, facilities and severities are distinct */
++static int
++check_distinct(int value)
++{
++    switch (value) {
++    case LOG_PID:
++    case LOG_CONS:
++    case LOG_NDELAY:
++    case LOG_ODELAY:
++    case LOG_NOWAIT:
++        break;
++    }
++    switch (value) {
++    case LOG_KERN:
++    case LOG_USER:
++    case LOG_MAIL:
++    case LOG_NEWS:
++    case LOG_UUCP:
++    case LOG_DAEMON:
++    case LOG_AUTH:
++    case LOG_CRON:
++    case LOG_LPR:
++    case LOG_LOCAL0:
++    case LOG_LOCAL1:
++    case LOG_LOCAL2:
++    case LOG_LOCAL3:
++    case LOG_LOCAL4:
++    case LOG_LOCAL5:
++    case LOG_LOCAL6:
++    case LOG_LOCAL7:
++        break;
++    }
++    switch (value) {
++    case LOG_EMERG:
++    case LOG_ALERT:
++    case LOG_CRIT:
++    case LOG_ERR:
++    case LOG_WARNING:
++    case LOG_NOTICE:
++    case LOG_INFO:
++    case LOG_DEBUG:
++        break;
++    }
++    return value;
++}
++
++/* LOG_MASK and LOG_UPTO give int for an int argument */
++_Static_assert(_Generic(LOG_MASK(LOG_ERR), int: 1, default: 0), "LOG_MASK is int");
++_Static_assert(_Generic(LOG_UPTO(LOG_ERR), int: 1, default: 0), "LOG_UPTO is int");
++
++/* The example from setlogmask's page: both masks are the same */
++_Static_assert((LOG_UPTO(LOG_WARNING) | LOG_MASK(LOG_DEBUG))
++                   == (LOG_UPTO(LOG_DEBUG) & ~((LOG_MASK(LOG_NOTICE) | LOG_MASK(LOG_INFO)))),
++               "mask example");
++
++/* Prototypes */
++_Static_assert(_Generic(&closelog, void (*)(void): 1, default: 0), "closelog");
++_Static_assert(_Generic(&openlog, void (*)(const char *, int, int): 1, default: 0), "openlog");
++_Static_assert(_Generic(&setlogmask, int (*)(int): 1, default: 0), "setlogmask");
++_Static_assert(_Generic(&syslog, void (*)(int, const char *, ...): 1, default: 0), "syslog");
++
++#define check(condition)                        \
++    do {                                        \
++        if (!(condition)) {                     \
++            printf("failed: %s\n", #condition); \
++            ret = 1;                            \
++        }                                       \
++    } while (0)
++
++int
++main(void)
++{
++    static const int sev[]
++        = { LOG_EMERG, LOG_ALERT, LOG_CRIT, LOG_ERR, LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG };
++    unsigned i, j;
++    int      ret = vsyslog();
++
++    (void)check_distinct(0);
++
++    /*
++     * LOG_UPTO(pri) holds the mask of every severity from LOG_EMERG
++     * through pri in the order listed, and no other
++     */
++    for (i = 0; i < sizeof(sev) / sizeof(sev[0]); i++) {
++        int all = 0;
++
++        check(LOG_MASK(sev[i]) != 0);
++        for (j = 0; j < sizeof(sev) / sizeof(sev[0]); j++) {
++            if (j <= i)
++                check((LOG_UPTO(sev[i]) & LOG_MASK(sev[j])) == LOG_MASK(sev[j]));
++            else
++                check((LOG_UPTO(sev[i]) & LOG_MASK(sev[j])) == 0);
++            if (j != i)
++                check((LOG_MASK(sev[i]) & LOG_MASK(sev[j])) == 0);
++            if (j <= i)
++                all |= LOG_MASK(sev[j]);
++        }
++        check(LOG_UPTO(sev[i]) == all);
++    }
++    if (ret == 0)
++        printf("success\n");
++    return ret;
++}
+-- 
+2.47.3
+

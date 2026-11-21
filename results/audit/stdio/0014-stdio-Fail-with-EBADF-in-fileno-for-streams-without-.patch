@@ -1,0 +1,33 @@
+From 193e4be00b57dd295132f343ef68507b4fde9e2a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:49 +0000
+Subject: [PATCH 14/39] stdio: Fail with EBADF in fileno for streams without a
+ descriptor
+
+POSIX.1-2024 fileno shall fail with EBADF when the stream is not
+associated with a file. It returned -1 without setting errno for memory
+streams, and the cookie pointer as a number for funopen and fopencookie
+streams.
+---
+ libc/stdio/fileno.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdio/fileno.c b/libc/stdio/fileno.c
+index c4df99870e..316de2a202 100644
+--- a/libc/stdio/fileno.c
++++ b/libc/stdio/fileno.c
+@@ -41,7 +41,10 @@ fileno(FILE *stream)
+     __flockfile(stream);
+     if (stream->flags & __SBUF) {
+         struct __file_bufio *pf = (struct __file_bufio *)stream;
+-        __funlock_return(stream, (int)(intptr_t)(pf->ptr));
++        /* Streams with __BFPTR hold a cookie, not a descriptor */
++        if (!(pf->bflags & __BFPTR) && _FDEV_BUFIO_FD(pf) >= 0)
++            __funlock_return(stream, _FDEV_BUFIO_FD(pf));
+     }
++    errno = EBADF;
+     __funlock_return(stream, -1);
+ }
+-- 
+2.47.3
+

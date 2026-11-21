@@ -1,0 +1,30 @@
+From 67089b793265e1e8462bc4bbae44b3268faf564c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:49 +0000
+Subject: [PATCH 15/39] stdio: Set errno when fmemopen streams can't seek
+
+POSIX.1-2024 fseek: EINVAL when the position would be negative or, for
+fmemopen, beyond the buffer. errno was left alone.
+---
+ libc/stdio/fmemopen.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdio/fmemopen.c b/libc/stdio/fmemopen.c
+index 26c22d3b38..0e7ed9f36b 100644
+--- a/libc/stdio/fmemopen.c
++++ b/libc/stdio/fmemopen.c
+@@ -122,8 +122,10 @@ __fmem_seek(FILE *f, off_t pos, int whence)
+         return EOF;
+     }
+     _Static_assert(sizeof(off_t) >= sizeof(size_t), "must avoid truncation");
+-    if (pos < 0 || (off_t)mf->bufsize < pos)
++    if (pos < 0 || (off_t)mf->bufsize < pos) {
++        errno = EINVAL;
+         return EOF;
++    }
+     mf->pos = pos;
+     return pos;
+ }
+-- 
+2.47.3
+

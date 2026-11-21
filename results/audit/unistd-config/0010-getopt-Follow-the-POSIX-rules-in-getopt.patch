@@ -1,0 +1,213 @@
+From 47dc139dbacb866bb55e8a057729efc2399559a2 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:10:51 +0000
+Subject: [PATCH 10/20] getopt: Follow the POSIX rules in getopt
+
+- optind starts at 1, not 0.
+- A lone "-" is an operand: getopt returns -1 and leaves optind alone,
+  where it returned the option character '\0' (found at the end of
+  optstring) and went on.
+- ':' is never an option character, even though optstring contains it.
+- optopt is the offending character for an unknown option, not '?'.
+- A leading ':' in optstring suppresses the diagnostics.
+- getopt stops at the first operand (Utility Syntax Guideline 9) rather
+  than permuting argv; getopt_long and getopt_long_only still permute.
+- A missing option-argument moves optind by 2, past argc.
+
+Setting optind back to 1 restarts the scan within an element too.
+---
+ libc/stdlib/getopt.c | 60 ++++++++++++++++++++++++++++++--------------
+ 1 file changed, 41 insertions(+), 19 deletions(-)
+
+diff --git a/libc/stdlib/getopt.c b/libc/stdlib/getopt.c
+index c3f1fab53d..7c5b529553 100644
+--- a/libc/stdlib/getopt.c
++++ b/libc/stdlib/getopt.c
+@@ -107,12 +107,14 @@ typedef enum GETOPT_ORDERING_T { PERMUTE, RETURN_IN_ORDER, REQUIRE_ORDER } GETOP
+ 
+ /* globally-defined variables */
+ char      *optarg = 0;
+-int        optind = 0;
++int        optind = 1;
+ int        opterr = 1;
+ int        optopt = '?';
+ 
+ /* static variables */
+ static int optwhere = 1;
++/* optind as getopt left it; anything else means the caller reset it */
++static int optind_last = 1;
+ static int permute_from = 0;
+ static int num_nonopts = 0;
+ 
+@@ -141,11 +143,15 @@ permute(char * const argv[], int len1, int len2)
+     reverse_argv_elements((char **)argv, len2);
+ }
+ 
+-/* is_option: is this argv-element an option or the end of the option list? */
++/*
++ * is_option: is this argv-element an option or the end of the option
++ * list? A lone "-" is an operand
++ */
+ static int
+ is_option(char *argv_element, int only)
+ {
+-    return ((argv_element == 0) || (argv_element[0] == '-') || (only && argv_element[0] == '+'));
++    return ((argv_element == 0) || (argv_element[0] == '-' && argv_element[1] != '\0')
++            || (only && argv_element[0] == '+'));
+ }
+ 
+ /* read_globals: read the values from the globals into a getopt_data
+@@ -153,6 +159,8 @@ is_option(char *argv_element, int only)
+ static void
+ read_globals(struct getopt_data *data)
+ {
++    if (optind != optind_last)
++        optwhere = 1;
+     data->optarg = optarg;
+     data->optind = optind;
+     data->opterr = opterr;
+@@ -171,6 +179,7 @@ write_globals(struct getopt_data *data)
+     optind = data->optind;
+     opterr = data->opterr;
+     optopt = data->optopt;
++    optind_last = optind;
+     optwhere = data->optwhere;
+     permute_from = data->permute_from;
+     num_nonopts = data->num_nonopts;
+@@ -178,10 +187,13 @@ write_globals(struct getopt_data *data)
+ 
+ /* getopt_internal:  the function that does all the dirty work
+    NOTE: to reduce the code and RAM footprint this function uses
+-   fputs()/fputc() to do output to stderr instead of fprintf(). */
++   fputs()/fputc() to do output to stderr instead of fprintf().
++   With 'posix' set, as for getopt itself, options end at the first
++   operand and a missing option-argument leaves optind past argc, as
++   POSIX requires; the GNU extensions permute instead. */
+ static int
+ getopt_internal(int argc, char * const argv[], const char *shortopts, const struct option *longopts,
+-                int *longind, int only, struct getopt_data *data)
++                int *longind, int only, int posix, struct getopt_data *data)
+ {
+     GETOPT_ORDERING_T ordering = PERMUTE;
+     int               optindex = 0;
+@@ -215,7 +227,9 @@ getopt_internal(int argc, char * const argv[], const char *shortopts, const stru
+     if (shortopts != 0 && (*shortopts == '-' || *shortopts == '+')) {
+         ordering = (*shortopts == '-') ? RETURN_IN_ORDER : REQUIRE_ORDER;
+         shortopts++;
+-    } else
++    } else if (posix)
++        ordering = REQUIRE_ORDER;
++    else
+         ordering = (getenv("POSIXLY_CORRECT") != 0) ? REQUIRE_ORDER : PERMUTE;
+ 
+     /* check for initial colon in shortopts */
+@@ -326,10 +340,13 @@ getopt_internal(int argc, char * const argv[], const char *shortopts, const stru
+ 
+     /* if we didn't find a long option, is it a short option? */
+     if (longopt_match < 0 && shortopts != 0) {
+-        cp = strchr(shortopts, argv[data->optind][data->optwhere]);
++        char c = argv[data->optind][data->optwhere];
++
++        /* ':' is never an option character, nor is the end of the string */
++        cp = (c == ':' || c == '\0') ? 0 : strchr(shortopts, c);
+         if (cp == 0) {
+             /* couldn't find option in shortopts */
+-            if (data->opterr) {
++            if (data->opterr && !initial_colon) {
+                 fputs(argv[0], stderr);
+                 fputs(": invalid option -- `-", stderr);
+                 fputc(argv[data->optind][data->optwhere], stderr);
+@@ -340,7 +357,8 @@ getopt_internal(int argc, char * const argv[], const char *shortopts, const stru
+                 data->optind++;
+                 data->optwhere = 1;
+             }
+-            return (data->optopt = '?');
++            data->optopt = (unsigned char)c;
++            return '?';
+         }
+         has_arg = ((cp[1] == ':') ? ((cp[2] == ':') ? OPTIONAL_ARG : REQUIRED_ARG) : NO_ARG);
+         possible_arg = argv[data->optind] + data->optwhere + 1;
+@@ -363,20 +381,24 @@ getopt_internal(int argc, char * const argv[], const char *shortopts, const stru
+             data->optarg = possible_arg;
+             data->optwhere = 1;
+         } else if (data->optind + 1 >= argc) {
+-            if (data->opterr) {
++            if (longopt_match >= 0)
++                data->optopt = initial_colon ? ':' : '\?';
++            else
++                data->optopt = *cp;
++            if (data->opterr && !initial_colon) {
+                 fputs(argv[0], stderr);
+                 fputs(": argument required for option `-", stderr);
+                 if (longopt_match >= 0) {
+                     fputc('-', stderr);
+                     fputs(longopts[longopt_match].name, stderr);
+-                    data->optopt = initial_colon ? ':' : '\?';
+                 } else {
+                     fputc(*cp, stderr);
+-                    data->optopt = *cp;
+                 }
+                 fputs("'\n", stderr);
+             }
+-            data->optind++;
++            /* POSIX moves past the option and the argument that isn't there */
++            data->optind += posix ? 2 : 1;
++            data->optwhere = 1;
+             return initial_colon ? ':' : '\?';
+         } else {
+             data->optarg = argv[data->optind + 1];
+@@ -423,7 +445,7 @@ getopt(int argc, char * const argv[], const char *optstring)
+     int                r;
+ 
+     read_globals(&data);
+-    r = getopt_internal(argc, argv, optstring, 0, 0, 0, &data);
++    r = getopt_internal(argc, argv, optstring, 0, 0, 0, 1, &data);
+     write_globals(&data);
+     return r;
+ }
+@@ -436,7 +458,7 @@ getopt_long(int argc, char * const argv[], const char *shortopts, const struct o
+     int                r;
+ 
+     read_globals(&data);
+-    r = getopt_internal(argc, argv, shortopts, longopts, longind, 0, &data);
++    r = getopt_internal(argc, argv, shortopts, longopts, longind, 0, 0, &data);
+     write_globals(&data);
+     return r;
+ }
+@@ -449,7 +471,7 @@ getopt_long_only(int argc, char * const argv[], const char *shortopts,
+     int                r;
+ 
+     read_globals(&data);
+-    r = getopt_internal(argc, argv, shortopts, longopts, longind, 1, &data);
++    r = getopt_internal(argc, argv, shortopts, longopts, longind, 1, 0, &data);
+     write_globals(&data);
+     return r;
+ }
+@@ -457,21 +479,21 @@ getopt_long_only(int argc, char * const argv[], const char *shortopts,
+ int
+ __getopt_r(int argc, char * const argv[], const char *optstring, struct getopt_data *data)
+ {
+-    return getopt_internal(argc, argv, optstring, 0, 0, 0, data);
++    return getopt_internal(argc, argv, optstring, 0, 0, 0, 1, data);
+ }
+ 
+ int
+ __getopt_long_r(int argc, char * const argv[], const char *shortopts, const struct option *longopts,
+                 int *longind, struct getopt_data *data)
+ {
+-    return getopt_internal(argc, argv, shortopts, longopts, longind, 0, data);
++    return getopt_internal(argc, argv, shortopts, longopts, longind, 0, 0, data);
+ }
+ 
+ int
+ __getopt_long_only_r(int argc, char * const argv[], const char *shortopts,
+                      const struct option *longopts, int *longind, struct getopt_data *data)
+ {
+-    return getopt_internal(argc, argv, shortopts, longopts, longind, 1, data);
++    return getopt_internal(argc, argv, shortopts, longopts, longind, 1, 0, data);
+ }
+ 
+ #endif /* !HAVE_GETOPT */
+-- 
+2.47.3
+

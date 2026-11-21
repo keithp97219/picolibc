@@ -1,0 +1,54 @@
+From 79bb70bebe17e7b0c0282ff5d53a0df9b52f88a0 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:16:01 +0000
+Subject: [PATCH 19/39] stdio.h: Hide asnprintf, vasnprintf and P_tmpdir in
+ strict POSIX modes
+
+asprintf and vasprintf are POSIX.1-2024 additions, but asnprintf and
+vasnprintf aren't POSIX, and P_tmpdir was removed from XSI in Issue 8.
+asprintf and vasprintf get restrict and reserved parameter names.
+---
+ libc/include/stdio.h | 18 ++++++++++++------
+ 1 file changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/libc/include/stdio.h b/libc/include/stdio.h
+index ed906127fd..b19d4ee1fb 100644
+--- a/libc/include/stdio.h
++++ b/libc/include/stdio.h
+@@ -289,13 +289,18 @@ int vsprintf(char *__s, const char *__fmt, __gnuc_va_list ap) __PRINTF_ATTRIBUTE
+     __picolibc_export;
+ int vsnprintf(char *__s, size_t __n, const char *__fmt, __gnuc_va_list ap)
+     __PRINTF_ATTRIBUTE__(3, 0) __picolibc_export;
+-int   asprintf(char **strp, const char *fmt, ...) __PRINTF_ATTRIBUTE__(2, 3) __picolibc_export;
+-char *asnprintf(char *str, size_t *lenp, const char *fmt, ...) __PRINTF_ATTRIBUTE__(3, 4)
+-    __picolibc_export;
+-int vasprintf(char **strp, const char *fmt, __gnuc_va_list ap) __PRINTF_ATTRIBUTE__(2, 0)
++#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
++int asprintf(char ** __restrict __strp, const char * __restrict __fmt, ...)
++    __PRINTF_ATTRIBUTE__(2, 3) __picolibc_export;
++int vasprintf(char ** __restrict __strp, const char * __restrict __fmt, __gnuc_va_list __ap)
++    __PRINTF_ATTRIBUTE__(2, 0) __picolibc_export;
++#endif
++#if __MISC_VISIBLE
++char *asnprintf(char *__str, size_t *__lenp, const char *__fmt, ...) __PRINTF_ATTRIBUTE__(3, 4)
+     __picolibc_export;
+-char *vasnprintf(char *str, size_t *lenp, const char *fmt, __gnuc_va_list ap)
++char *vasnprintf(char *__str, size_t *__lenp, const char *__fmt, __gnuc_va_list __ap)
+     __PRINTF_ATTRIBUTE__(3, 0) __picolibc_export;
++#endif
+ 
+ int    fputs(const char *__str, FILE *__stream) __nonnull((2)) __picolibc_export;
+ int    puts(const char *__str) __picolibc_export;
+@@ -619,7 +624,8 @@ int vfprintf_s(FILE * __restrict stream, const char * __restrict fmt, va_list ap
+ #define L_ctermid 9 /* "/dev/tty" */
+ #endif
+ 
+-#if __MISC_VISIBLE || __XSI_VISIBLE
++/* P_tmpdir was removed from XSI in Issue 8 */
++#if __MISC_VISIBLE || (__XSI_VISIBLE && __XSI_VISIBLE < 800)
+ #ifdef __P_tmpdir
+ #define P_tmpdir __P_tmpdir
+ #else
+-- 
+2.47.3
+

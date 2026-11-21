@@ -1,0 +1,60 @@
+From b6759b85dbbb1cee78f7fd7823de491788950735 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:02:50 +0000
+Subject: [PATCH 01/20] limits: Use POSIX.1-2024's minimum values
+
+_POSIX_CHILD_MAX is 25, _POSIX_NGROUPS_MAX 8, _POSIX_OPEN_MAX 20,
+_POSIX_PATH_MAX 256 and _POSIX_TZNAME_MAX 6; the old values came from
+earlier editions. COLL_WEIGHTS_MAX was 0, below its minimum
+{_POSIX2_COLL_WEIGHTS_MAX} of 2, which sysconf already reported.
+---
+ libc/include/sys/syslimits.h | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/libc/include/sys/syslimits.h b/libc/include/sys/syslimits.h
+index a449da3f73..5d84c61c05 100644
+--- a/libc/include/sys/syslimits.h
++++ b/libc/include/sys/syslimits.h
+@@ -55,7 +55,7 @@
+ #define PIPE_BUF  512        /* max bytes for atomic pipe writes */
+ 
+ /* Runtime increasable values */
+-#define COLL_WEIGHTS_MAX                    0    /* max weights for order keyword */
++#define COLL_WEIGHTS_MAX                    2    /* max weights for order keyword */
+ #define EXPR_NEST_MAX                       32   /* max expressions nested in expr(1) */
+ #define LINE_MAX                            2048 /* max bytes in an input line */
+ #define RE_DUP_MAX                          255  /* max RE's in interval notation */
+@@ -66,7 +66,7 @@
+ #define _POSIX_AIO_LISTIO_MAX               2
+ #define _POSIX_AIO_MAX                      1
+ #define _POSIX_ARG_MAX                      4096
+-#define _POSIX_CHILD_MAX                    6
++#define _POSIX_CHILD_MAX                    25
+ #define _POSIX_DELAYTIMER_MAX               32
+ #define _POSIX_HOST_NAME_MAX                255
+ #define _POSIX_LINK_MAX                     8
+@@ -76,9 +76,9 @@
+ #define _POSIX_MQ_OPEN_MAX                  8
+ #define _POSIX_MQ_PRIO_MAX                  32
+ #define _POSIX_NAME_MAX                     14
+-#define _POSIX_NGROUPS_MAX                  0
+-#define _POSIX_OPEN_MAX                     16
+-#define _POSIX_PATH_MAX                     255
++#define _POSIX_NGROUPS_MAX                  8
++#define _POSIX_OPEN_MAX                     20
++#define _POSIX_PATH_MAX                     256
+ #define _POSIX_PIPE_BUF                     512
+ #define _POSIX_RE_DUP_MAX                   255
+ #define _POSIX_RTSIG_MAX                    8
+@@ -99,7 +99,7 @@
+ #define _POSIX_TRACE_SYS_MAX                8
+ #define _POSIX_TRACE_USER_EVENT_MAX         32
+ #define _POSIX_TTY_NAME_MAX                 9
+-#define _POSIX_TZNAME_MAX                   3
++#define _POSIX_TZNAME_MAX                   6
+ #define _POSIX2_BC_BASE_MAX                 99
+ #define _POSIX2_BC_DIM_MAX                  2048
+ #define _POSIX2_BC_SCALE_MAX                99
+-- 
+2.47.3
+

@@ -595,3 +595,139 @@ Until those are fixed, the arm64 units check their own new or changed files with
 - `test-mktemp` (picolibc build, "contents: (char)c == *s") fails with gcc as well, as seen on 8b8b1780b2, so it is an aarch64 native-configuration problem rather than a clang one.
 
 Until those are fixed, units on this host use the full clang native build and treat these two failures as known.
+
+## From unistd-config (arm64 host)
+
+- **`<limits.h>` constants that Linux doesn't fix.** POSIX says a runtime
+  invariant value is omitted from `<limits.h>` when it is indeterminate, and a
+  pathname variable value is omitted when it varies by file; sysconf and pathconf
+  then report the real value. picolibc's `sys/syslimits.h` is shared by every
+  target and fixes all of them. Left for a decision (ABI: compiled programs size
+  buffers and loops by them):
+  - `ARG_MAX` 65536: Linux allows a quarter of RLIMIT_STACK, at most 6MiB and at
+    least 128KiB (fs/exec.c). sysconf now reports that.
+  - `CHILD_MAX` 40: Linux uses RLIMIT_NPROC. sysconf now reports it, which can be
+    below 40.
+  - `OPEN_MAX` 64: RLIMIT_NOFILE (known).
+  - `LINK_MAX` 32767: ext4 allows 65000, btrfs 65535, tmpfs has no limit.
+    pathconf reports 32767 everywhere.
+  - `PATH_MAX` 1024 and `PIPE_BUF` 512 (known): Linux uses 4096 for both.
+    pathconf reports the header values.
+  - `NAME_MAX` 255: right for every common Linux file system, but pathconf
+    reports `f_namemax`, which can differ.
+  - `NGROUPS_MAX` is new and set to its minimum, 8. Linux allows 65536, and
+    sysconf says so. A program that sizes `getgroups()` arrays with NGROUPS_MAX
+    gets EINVAL once a user has more than 8 groups. glibc defines 65536.
+
+  Recommendation: add an OS hook header, as `<sys/_posix.h>` and
+  `<sys/_signal.h>` already are, included by `sys/syslimits.h` with
+  `__has_include`. libos/linux would use it to omit ARG_MAX, CHILD_MAX, OPEN_MAX
+  and LINK_MAX and to set PATH_MAX, PIPE_BUF and NGROUPS_MAX to the kernel's
+  values. test-sysconf-limits checks only that sysconf is never more restrictive
+  for ARG_MAX, CHILD_MAX and OPEN_MAX.
+- **sysconf values that follow setrlimit.** On Linux, `_SC_ARG_MAX` follows
+  RLIMIT_STACK, `_SC_CHILD_MAX` RLIMIT_NPROC, and `_SC_SIGQUEUE_MAX` and
+  `_SC_TIMER_MAX` RLIMIT_SIGPENDING. POSIX says only `_SC_OPEN_MAX` may change
+  during the life of a process. The kernel applies the current limit at each
+  exec or fork, so a value cached at startup would be wrong instead. glibc does
+  the same as picolibc. Noted, not fixed.
+- **`_POSIX_VERSION` is undefined on Linux**, because POSIX_DYNAMIC_LINKING and
+  close-on-fork are missing. So `sysconf(_SC_VERSION)` and
+  `sysconf(_SC_2_VERSION)` are -1. No `_XOPEN_*` macro is defined either (XSI
+  isn't claimed). POSIX says `_XOPEN_ENH_I18N` and `_XOPEN_SHM` "shall always be
+  set to a value other than -1". This is a deliberate design; it is recorded so
+  that nobody reads -1 from `_SC_VERSION` as a bug.
+- **getopt no longer permutes argv.** getopt() now follows POSIX: it stops at the
+  first operand, as glibc's getopt does under `_POSIX_C_SOURCE` (its
+  `__posix_getopt`). getopt_long and getopt_long_only still permute. Programs
+  that relied on picolibc's GNU-style getopt() permuting will see operands
+  earlier. optind now starts at 1 (it was 0). A missing option-argument leaves
+  optind at argc + 1, as POSIX says ("incremented by 2"), where glibc leaves
+  argc.
+- **The semihost sysconf** failed every name except `_SC_CLK_TCK` with EINVAL.
+  It now asks `__fallback_sysconf`. Built only for bare metal, so it wasn't run
+  here. The x86_64 host should see test-sysconf and test-sysconf-limits pass on
+  bare-metal arm.
+- **test-gethostid could reach DNS with glibc.** Without `/etc/hostid`, glibc's
+  gethostid resolves the host name through NSS (`hosts: files dns`). The native
+  build now skips when `/etc/hostid` is missing. Any other test that calls
+  gethostid, gethostbyname or getaddrinfo on the real host name under glibc has
+  the same exposure.
+- **glibc 2.43 gaps met here** (the tests guard them with `__GLIBC__`):
+  - Names it doesn't define: `_SC_NSIG`, `_SC_DEVICE_CONTROL`, `_SC_V8_*`,
+    `_SC_XOPEN_UUCP`, `_PC_FALLOC`, `_PC_TEXTDOMAIN_MAX`,
+    `_PC_TIMESTAMP_RESOLUTION`, `_CS_POSIX_V8_*`, `_CS_V8_ENV` and
+    `_CS_POSIX_V7_THREADS_CFLAGS`/`LDFLAGS`.
+  - sysconf fails with EINVAL for `_SC_SS_REPL_MAX`,
+    `_SC_THREAD_ROBUST_PRIO_INHERIT` and `_SC_THREAD_ROBUST_PRIO_PROTECT`.
+  - `_SC_HOST_NAME_MAX` is 64, below `_POSIX_HOST_NAME_MAX` (255).
+  - `_SC_RTSIG_MAX` is 32, but SIGRTMIN..SIGRTMAX holds 31 signals.
+  - `_SC_ARG_MAX` lacks the kernel's 6MiB cap.
+  - getopt leaves optind at argc for a missing option-argument.
+  - gethostname fails with ENAMETOOLONG for a short buffer.
+  - No `_XOPEN_NAME_MAX` or `_XOPEN_PATH_MAX`, and `_XOPEN_IOV_MAX` needs
+    `_POSIX_UIO_MAXIOV`, which strict mode doesn't define.
+  - crypt is only in libcrypt (`<crypt.h>`), and encrypt and setkey can't be
+    linked, so test-crypt doesn't build natively.
+  - `suseconds_t` isn't in `<sys/types.h>` in strict mode.
+  - swab's declaration makes gcc reject a negative constant count.
+- **`PTHREAD_STACK_MIN` is 16384** (`sys/_pthreadtypes.h`), and sysconf now
+  reports it instead of failing. glibc uses 131072 on aarch64. I didn't check
+  whether a 16KiB thread stack survives signal delivery with large SVE/SME
+  frames. For the pthread units.
+
+## From logging-misc (arm64 host)
+
+- **The chroot's `/dev/log` is the host's system logger, and the old test-syslog wrote to it.**
+  `/dev/log` in the Debian chroot is a world-writable socket (`srw-rw-rw-`), so every run of the
+  old test-syslog sent its messages to the host's log as well as to standard error. The new tests
+  keep away from it by running the library call in a child whose RLIMIT_NOFILE soft limit is 3,
+  with descriptors 0, 1 and 2 already in use: socket() and open() then fail with EMFILE, so
+  nothing can reach `/dev/log` or `/dev/console`, and the child checks that `open("/dev/null")`
+  fails before calling the library. Any future test of code that may talk to a system service
+  (syslog, fmtmsg's MM_CONSOLE, getlogin's utmp...) can use the same trick.
+- **glibc's fmtmsg sends MM_CONSOLE messages through syslog(),** so a `-native` fmtmsg test with
+  MM_CONSOLE writes to the host's log unless the descriptors are starved as above. It also means
+  glibc never reports MM_NOCON (it can't see the failure).
+- **glibc loads its unwinder (libgcc_s) on the first pthread_cancel.** With no descriptor to spare,
+  that dlopen fails and glibc aborts ("libgcc_s.so.1 must be installed"). Tests that cancel a
+  thread after starving descriptors should cancel one thread first.
+- **`-native` tests can't check strict ISO C.** The native build passes `-pthread`, which defines
+  `_REENTRANT`, and glibc treats that as `_POSIX_C_SOURCE 199506L`. A test of what a header hides
+  from ISO C (test-setjmp_h-iso) has to be skipped for `-native`.
+- **Library functions holding `__LIBC_LOCK` across cancellation points.** openlog, closelog and
+  syslog called connect, close, send, write and open with the libc lock held, so a cancelled
+  thread exited holding it and every other thread's libc use hung. Fixed here with
+  pthread_setcancelstate around the locked part, as wordexp and the DNS code do. The same shape
+  may be elsewhere; not surveyed (stdio's locking belongs to the stdio unit).
+- **strerror gave "Unknown error" for EDQUOT and ESTALE** (both POSIX, both returned by Linux).
+  Fixed here; the strings unit may want to check strerror_r and the other E* names that Linux
+  can return.
+- **`MALLOC_ALIGNMENT` leaks from every header** (already recorded); also seen here for
+  `<errno.h>`, `<setjmp.h>`, `<assert.h>`, `<syslog.h>` and `<fmtmsg.h>`.
+- **glibc 2.43 on 32-bit ARM hangs after a thread is cancelled in syslog** (the next syslog call
+  in another thread never returns; on aarch64 glibc it works). test-syslog-thread skips its
+  `-native` build for `__GLIBC__ && __arm__`.
+- **clang's -Wthread-safety rejects lock helpers.** Wrapping `__LIBC_LOCK()`/`__LIBC_UNLOCK()` in
+  static inline functions fails the clang native build ("mutex is still held at the end of
+  function"). Keep the lock calls in the function that holds the lock; only the cancellation
+  state can go in a helper.
+- **In the clang native build, errno isn't 0 when main starts** in the `-native` (glibc) tests:
+  the ubsan runtime that `-fsanitize=bounds` links runs before main and leaves errno at 2
+  (ENOENT). Shown with a two-line program: `clang -fsanitize=bounds` prints 2, plain clang
+  prints 0. test-errno skips its "zero at startup" check when
+  `__has_feature(undefined_behavior_sanitizer)` (or address_sanitizer) is true. Any test that
+  looks at errno before setting it will see the same thing.
+
+## From stdio (arm64 host)
+
+- **os-linux now forces stdio-locking and stdio-exit-flush** (meson.build). The "exit doesn't flush fopen/fdopen streams" item from unistd-process is fixed, not just recorded. FILE grows a lock on Linux; every stdio call takes the per-stream recursive lock, and flockfile no longer takes the global libc lock. CMake has no os-linux, so nothing changed there.
+- **New optional lock hook `__retarget_lock_try_acquire_recursive`** (sys/lock.h; defined in libc/misc/lock.c and libos/linux/lock.c). ftrylockfile refers to it weakly, so other lock implementations (Zephyr) still link; without it ftrylockfile blocks as before.
+- **`__BSYNC` bufio flag**: bufio streams on descriptors that may have been used (fdopen, freopen(NULL), the standard streams) read the descriptor offset before first use. Code that builds `FDEV_SETUP_BUFIO` streams by hand is unaffected.
+- **A bufio seek with SEEK_CUR and 0 is now "tell"**: it reports the position without moving anything (it calls lseek(fd, 0, SEEK_CUR) only to detect pipes). fseek turns SEEK_CUR into SEEK_SET before calling the seek function. Custom seek callbacks (funopen, fopencookie, FDEV_SETUP_EXT) see one extra SEEK_CUR 0 call per relative fseek.
+- **remove now falls back to rmdir** after unlink's EPERM/EISDIR (unlink of a directory gives EPERM since unistd-files).
+- **Left for the maintainer:** FILE's member names (`flags`, `put`, `get`, `flush`, `unget`, `lock`, `close`, `file`, `cfile`, `seek`, `setvbuf`; about 270 uses), and fdevopen/FDEV_*/printf_float visible in strict mode.
+- **For the wide unit:** fwide(f, 0) never returns 0 (no unoriented state), and fwide changes an existing orientation.
+- **For the stdlib unit:** mkstemp/mktemp/tmpnam draw names from random(), so they change the sequence an application seeded with srandom (POSIX doesn't forbid it for random, but it is surprising).
+- **glibc 2.43 stdio gaps** (tests guard them with `__GLIBC__`): fdopen ignores 'e' and seeks to the end for 'a'; fmemopen "w" doesn't write the initial null and writes one past max_size; fseek after fflush doesn't call lseek when the position looks unchanged; getline/getdelim don't check every null pointer and return the partial count after a read error; 32-bit fseek past LONG_MAX succeeds; popen returns NULL when the shell can't be executed; asprintf needs `_GNU_SOURCE`; P_tmpdir is still defined for XSI.
+- **Test-writing notes:** tests that take the address of every `<stdio.h>` function pull popen (fork, pipe2, execve) into bare-metal links; use `_Generic` on the function designator instead. On bare-metal semihosting stdin, stdout and stderr may be the same FILE. The CMake bare-metal runs are slow under qemu-system, and is_qemu() doesn't detect them.

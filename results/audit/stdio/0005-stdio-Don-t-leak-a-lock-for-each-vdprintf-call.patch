@@ -1,0 +1,41 @@
+From 9e441fb1c311a2c3bf7b51844b816c2482d4493c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:15:01 +0000
+Subject: [PATCH 05/39] stdio: Don't leak a lock for each vdprintf call
+
+The FILE on vdprintf's stack had its lock allocated on first use and
+never freed.
+---
+ libc/stdio/vdprintf.c | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/libc/stdio/vdprintf.c b/libc/stdio/vdprintf.c
+index 3aa523850f..2fa8d189df 100644
+--- a/libc/stdio/vdprintf.c
++++ b/libc/stdio/vdprintf.c
+@@ -44,8 +44,20 @@ vdprintf(int fd, const char *fmt, va_list ap)
+     struct __file_bufio bf
+         = FDEV_SETUP_BUFIO(fd, buf, sizeof(buf), NULL, write, NULL, NULL, __SWR, 0);
+ 
+-    int printf_ret = vfprintf(&bf.xfile.cfile.file, fmt, ap);
+-    int flush_ret = __bufio_flush(&bf.xfile.cfile.file);
++    FILE *f = &bf.xfile.cfile.file;
++
++#ifdef __STDIO_LOCKING
++    /* No other thread can see this FILE, so it needs no lock */
++    f->lock = __LOCK_NONE;
++#endif
++
++    int printf_ret = vfprintf(f, fmt, ap);
++    int flush_ret = __bufio_flush(f);
++
++    /* Free any lock the bufio code allocated */
++    __bufio_lock(f);
++    __bufio_lock_close(f);
++
+     if (flush_ret != 0)
+         return flush_ret;
+     return printf_ret;
+-- 
+2.47.3
+

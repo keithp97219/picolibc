@@ -1,0 +1,167 @@
+From 9442be42df02d236294474aaf2b127f3f21b830a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 05:05:32 +0000
+Subject: [PATCH 04/12] fmtmsg: Honour MSGVERB, and don't limit the message
+ length
+
+MSGVERB was ignored, so standard error always got every component,
+and messages were cut at 1023 bytes although the text and action
+"are not limited to a specific size". The console still gets every
+component.
+---
+ libc/posix/fmtmsg/fmtmsg.c | 99 ++++++++++++++++++++++++++++++++------
+ 1 file changed, 84 insertions(+), 15 deletions(-)
+
+diff --git a/libc/posix/fmtmsg/fmtmsg.c b/libc/posix/fmtmsg/fmtmsg.c
+index d221b582ee..13d7866f3b 100644
+--- a/libc/posix/fmtmsg/fmtmsg.c
++++ b/libc/posix/fmtmsg/fmtmsg.c
+@@ -37,32 +37,82 @@
+ #include <fmtmsg.h>
+ #include <fcntl.h>
+ #include <stdio.h>
++#include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
+ 
++#define MM_VERB_LABEL    0x01
++#define MM_VERB_SEVERITY 0x02
++#define MM_VERB_TEXT     0x04
++#define MM_VERB_ACTION   0x08
++#define MM_VERB_TAG      0x10
++#define MM_VERB_ALL      0x1f
++
++/*
++ * The components MSGVERB selects for standard error: all of them
++ * unless it is a colon-separated list of valid keywords
++ */
++static int
++__fmtmsg_verb(void)
++{
++    static const char * const keywords[] = { "label", "severity", "text", "action", "tag" };
++    const char               *verb = getenv("MSGVERB");
++    int                       mask = 0;
++
++    if (!verb || !*verb)
++        return MM_VERB_ALL;
++    for (;;) {
++        const char *end = strchr(verb, ':');
++        size_t      len = end ? (size_t)(end - verb) : strlen(verb);
++        size_t      k;
++
++        for (k = 0; k < sizeof(keywords) / sizeof(keywords[0]); k++)
++            if (strlen(keywords[k]) == len && memcmp(keywords[k], verb, len) == 0)
++                break;
++        if (k == sizeof(keywords) / sizeof(keywords[0]))
++            return MM_VERB_ALL;
++        mask |= 1 << k;
++        if (!end)
++            return mask;
++        verb = end + 1;
++    }
++}
++
+ /*
+  * label: severity: text
+  * TO FIX: action tag
++ *
++ * Returns the length of the whole message, which may exceed size
+  */
+-static int
+-__fmtmsg_format(char *buf, size_t size, const char *label, int severity, const char *text,
++static size_t
++__fmtmsg_format(char *buf, size_t size, int verb, const char *label, int severity, const char *text,
+                 const char *action, const char *tag)
+ {
+     static const char * const sevs[] = { "", "HALT", "ERROR", "WARNING", "INFO" };
+     const char               *sev = severity > 0 && severity < 5 ? sevs[severity] : NULL;
+     char                      sevbuf[16];
+-    int                       n = 0;
++    size_t                    n = 0;
+ 
+     if (severity >= 5) {
+         snprintf(sevbuf, sizeof(sevbuf), "SEV=%d", severity);
+         sev = sevbuf;
+     }
++    if (!(verb & MM_VERB_LABEL))
++        label = NULL;
++    if (!(verb & MM_VERB_SEVERITY))
++        sev = NULL;
++    if (!(verb & MM_VERB_TEXT))
++        text = NULL;
++    if (!(verb & MM_VERB_ACTION))
++        action = NULL;
++    if (!(verb & MM_VERB_TAG))
++        tag = NULL;
+     buf[0] = '\0';
+-#define ADD(...)                                                                          \
+-    do {                                                                                  \
+-        int _r = snprintf(buf + n, size > (size_t)n ? size - (size_t)n : 0, __VA_ARGS__); \
+-        if (_r > 0)                                                                       \
+-            n += _r;                                                                      \
++#define ADD(...)                                                                              \
++    do {                                                                                      \
++        int _r = snprintf(buf + (n < size ? n : size), n < size ? size - n : 0, __VA_ARGS__); \
++        if (_r > 0)                                                                           \
++            n += (size_t)_r;                                                                  \
+     } while (0)
+     if (label)
+         ADD("%s", label);
+@@ -83,28 +133,47 @@ __fmtmsg_format(char *buf, size_t size, const char *label, int severity, const c
+     return n;
+ }
+ 
++/* Writes the message; text and action may be any length */
++static int
++__fmtmsg_write(int fd, int verb, const char *label, int severity, const char *text,
++               const char *action, const char *tag)
++{
++    char    local[1024], *buf = local;
++    size_t  len;
++    ssize_t ret;
++
++    len = __fmtmsg_format(buf, sizeof(local), verb, label, severity, text, action, tag);
++    if (len >= sizeof(local)) {
++        buf = malloc(len + 1);
++        if (!buf)
++            return -1;
++        __fmtmsg_format(buf, len + 1, verb, label, severity, text, action, tag);
++    }
++    ret = write(fd, buf, len);
++    if (buf != local)
++        free(buf);
++    return ret == (ssize_t)len ? 0 : -1;
++}
++
+ int
+ fmtmsg(long classification, const char *label, int severity, const char *text, const char *action,
+        const char *tag)
+ {
+-    char buf[1024];
+-    int  len, ret = MM_OK, failed = 0, tried = 0;
++    int ret = MM_OK, failed = 0, tried = 0;
+ 
+-    len = __fmtmsg_format(buf, sizeof(buf), label, severity, text, action, tag);
+-    if (len >= (int)sizeof(buf))
+-        len = sizeof(buf) - 1;
+     if (classification & MM_PRINT) {
+         tried++;
+-        if (write(2, buf, (size_t)len) != len) {
++        if (__fmtmsg_write(2, __fmtmsg_verb(), label, severity, text, action, tag) < 0) {
+             failed++;
+             ret = MM_NOMSG;
+         }
+     }
+     if (classification & MM_CONSOLE) {
++        /* The console gets every component */
+         int fd = open("/dev/console", O_WRONLY | O_NOCTTY | O_CLOEXEC);
+ 
+         tried++;
+-        if (fd < 0 || write(fd, buf, (size_t)len) != len) {
++        if (fd < 0 || __fmtmsg_write(fd, MM_VERB_ALL, label, severity, text, action, tag) < 0) {
+             failed++;
+             ret = ret == MM_NOMSG ? MM_NOTOK : MM_NOCON;
+         }
+-- 
+2.47.3
+
