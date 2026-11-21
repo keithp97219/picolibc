@@ -42,6 +42,12 @@ dir_tests = [
   'test-ptsname_r',
   'test-realpath',
   'test-secure_getenv',
+  'test-stdlib_h',
+  'test-stdlib_h-iso',
+  'test-stdlib_h-names',
   'test-system',
   'test-unlockpt',
 ]
+
+# glibc's -native build sees _REENTRANT from -pthread, so isn't strict ISO C
+test_skip_native += ['test-stdlib_h-iso']
