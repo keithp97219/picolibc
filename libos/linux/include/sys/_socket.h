@@ -118,15 +118,24 @@ struct cmsghdr {
     ((size_t)(mhdr)->msg_controllen >= sizeof(struct cmsghdr) \
          ? (struct cmsghdr *)(mhdr)->msg_control              \
          : (struct cmsghdr *)0)
-/* A null cmsg gives the first header */
-#define CMSG_NXTHDR(mhdr, cmsg)                                                            \
-    (!(cmsg) ? CMSG_FIRSTHDR(mhdr)                                                         \
-         : (cmsg)->cmsg_len < sizeof(struct cmsghdr)                                       \
-             || __CMSG_ALIGN((cmsg)->cmsg_len) + sizeof(struct cmsghdr)                    \
-                 >= (size_t)((unsigned char *)(mhdr)->msg_control + (mhdr)->msg_controllen \
-                             - (unsigned char *)(cmsg))                                    \
-         ? (struct cmsghdr *)0                                                             \
-         : (struct cmsghdr *)((unsigned char *)(cmsg) + __CMSG_ALIGN((cmsg)->cmsg_len)))
+/*
+ * A null cmsg gives the first header. A function rather than a macro
+ * body, so that a null constant isn't seen in pointer arithmetic
+ */
+static __inline struct cmsghdr *
+__cmsg_nxthdr(struct msghdr *__mhdr, struct cmsghdr *__cmsg)
+{
+    unsigned char *__end = (unsigned char *)__mhdr->msg_control + __mhdr->msg_controllen;
+
+    if (!__cmsg)
+        return CMSG_FIRSTHDR(__mhdr);
+    if (__cmsg->cmsg_len < sizeof(struct cmsghdr)
+        || __CMSG_ALIGN(__cmsg->cmsg_len) + sizeof(struct cmsghdr)
+            >= (size_t)(__end - (unsigned char *)__cmsg))
+        return (struct cmsghdr *)0;
+    return (struct cmsghdr *)((unsigned char *)__cmsg + __CMSG_ALIGN(__cmsg->cmsg_len));
+}
+#define CMSG_NXTHDR(mhdr, cmsg) __cmsg_nxthdr((mhdr), (cmsg))
 
 struct linger {
     int l_onoff;
