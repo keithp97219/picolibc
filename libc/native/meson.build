@@ -37,6 +37,7 @@ srcs_os_native_host = [
   'fstat_host.c',
   'fstatvfs_host.c',
   'lstat_host.c',
+  'open_host.c',
   'stat_host.c',
   'statvfs_host.c',
   ]
@@ -45,6 +46,7 @@ srcs_os_native = [
   'fstat.c',
   'fstatvfs.c',
   'lstat.c',
+  'open.c',
   'stat.c',
   'statvfs.c',
   ]
