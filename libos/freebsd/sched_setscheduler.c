@@ -32,6 +32,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include "local-sched.h"
 
 /* Returns the former policy, as POSIX requires */
@@ -42,13 +43,33 @@ sched_setscheduler(pid_t pid, int policy, const struct sched_param *param)
     int                          kpolicy = _sched_policy_to_freebsd(policy);
     int                          former;
 
-    if (kpolicy < 0) {
+    if (kpolicy < 0 || param->sched_priority < sched_get_priority_min(policy)
+        || param->sched_priority > sched_get_priority_max(policy)) {
         errno = EINVAL;
         return -1;
     }
     former = sched_getscheduler(pid);
     if (former < 0)
         return -1;
+    /*
+     * FreeBSD requires privilege for sched_setscheduler even when the
+     * policy stays the same; sched_setparam does that part without
+     */
+    if (former == policy) {
+        if (sched_setparam(pid, param) < 0)
+            return -1;
+        return former;
+    }
+    /* Time sharing has the one priority 0; run at the kernel's highest */
+    if (policy == SCHED_OTHER) {
+        long max = _sched_other_kernel_max();
+
+        if (max < 0) {
+            errno = EINVAL;
+            return -1;
+        }
+        kparam.sched_priority = (int)max;
+    }
     if (_syscall(FREEBSD_SYS_sched_setscheduler, pid, kpolicy, &kparam) < 0)
         return -1;
     return former;

@@ -55,6 +55,7 @@
 #define __PICOLIBC_OS_ADVISORY_INFO                202405L
 #define __PICOLIBC_OS_FSYNC                        202405L
 #define __PICOLIBC_OS_MONOTONIC_CLOCK              202405L
+#define __PICOLIBC_OS_PRIORITY_SCHEDULING          202405L
 #define __PICOLIBC_OS_REALTIME_SIGNALS             202405L
 #define __PICOLIBC_OS_TIMERS                       202405L
 /* SYNCHRONIZED_IO waits for msync, with the memory mapping functions */

@@ -73,4 +73,15 @@ _sched_policy_from_freebsd(int policy)
     }
 }
 
+/*
+ * As on Linux, time sharing (SCHED_OTHER) has the one priority 0 here;
+ * nice values order those threads. The kernel numbers time sharing
+ * priorities for sched_setparam from 0 to this, highest last.
+ */
+static inline long
+_sched_other_kernel_max(void)
+{
+    return _syscall_raw(FREEBSD_SYS_sched_get_priority_max, FREEBSD_SCHED_OTHER);
+}
+
 #endif /* _LOCAL_SCHED_H_ */
