@@ -76,6 +76,9 @@ _pathconf_statvfs(const struct statvfs *buf, int name)
         return LINK_MAX;
     case _PC_2_SYMLINKS:
         return 1;
+    case _PC_SYMLINK_MAX:
+        /* Linux takes link contents up to its PATH_MAX, 4096 with the null */
+        return 4095;
     case _PC_VDISABLE:
         return LINUX_POSIX_VDISABLE;
     case _PC_TIMESTAMP_RESOLUTION:
