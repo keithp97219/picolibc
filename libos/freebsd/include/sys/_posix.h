@@ -58,7 +58,7 @@
 #define __PICOLIBC_OS_PRIORITY_SCHEDULING          202405L
 #define __PICOLIBC_OS_REALTIME_SIGNALS             202405L
 #define __PICOLIBC_OS_TIMERS                       202405L
-/* SYNCHRONIZED_IO waits for msync, with the memory mapping functions */
+#define __PICOLIBC_OS_SYNCHRONIZED_IO              202405L
 
 /* Option groups */
 #define __PICOLIBC_OS_CLOFORK            202405L
