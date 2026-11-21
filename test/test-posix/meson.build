@@ -50,6 +50,7 @@ posix_test_dirs = [
   'test-glob',
   'test-grp',
   'test-integration',
+  'test-inttypes',
   'test-libgen',
   'test-libintl',
   'test-monetary',
