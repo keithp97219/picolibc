@@ -68,6 +68,7 @@ main(void)
     struct dirent *ent;
     DIR           *d;
     int            dfd, fd, found = 0;
+    off_t          end;
 
     check(mkdtemp(dir) != NULL, "mkdtemp");
     dfd = open(dir, O_RDONLY | O_DIRECTORY);
@@ -111,17 +112,27 @@ main(void)
     check(fcntl(dfd, F_GETFD) & FD_CLOEXEC, "FD_CLOEXEC not cleared");
     check(closedir(d) == 0, "closedir");
 
-    /* The descriptor's offset picks the entries; where the end can be sought, none are left */
+    /*
+     * The descriptor's offset picks the entries. Where the end lies
+     * depends on the file system (SEEK_END needn't reach it), so find
+     * it by reading a directory stream to the end.
+     */
     dfd = open(dir, O_RDONLY | O_DIRECTORY);
     check(dfd >= 0, "open dir");
-    if (lseek(dfd, 0, SEEK_END) > 0) {
+    d = fdopendir(dfd);
+    check(d != NULL, "fdopendir");
+    while (readdir(d) != NULL)
+        ;
+    end = lseek(dfd, 0, SEEK_CUR);
+    check(closedir(d) == 0, "closedir");
+    if (end > 0) {
+        dfd = open(dir, O_RDONLY | O_DIRECTORY);
+        check(dfd >= 0 && lseek(dfd, end, SEEK_SET) == end, "open dir at its end");
         d = fdopendir(dfd);
         check(d != NULL, "fdopendir");
         errno = 0;
         check(readdir(d) == NULL && errno == 0, "the offset decides the entries");
         check(closedir(d) == 0, "closedir");
-    } else {
-        check(close(dfd) == 0, "close");
     }
 
     check(unlink("file") == -1, "relative to cwd");
