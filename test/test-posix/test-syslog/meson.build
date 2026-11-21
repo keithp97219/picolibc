@@ -35,4 +35,9 @@
 
 dir_tests = [
   'test-syslog',
+  'test-syslog_h',
+]
+
+dir_thread_tests = [
+  'test-syslog-thread',
 ]

@@ -35,6 +35,8 @@
 
 set(tests
   test-syslog
+  test-syslog_h
+  test-syslog-thread
   )
 
 foreach(test IN LISTS tests)
