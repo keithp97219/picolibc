@@ -37,6 +37,11 @@
 #define _SYS_UN_H_
 
 /* The types come from the system's network stack */
+#if defined(__has_include)
+#if !__has_include(<sys/_un.h>)
+#error "<sys/un.h> needs networking, which this system doesn't provide"
+#endif
+#endif
 #include <sys/_un.h>
 
 #endif /* _SYS_UN_H_ */

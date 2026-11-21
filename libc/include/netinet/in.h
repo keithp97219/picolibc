@@ -39,6 +39,11 @@
 #include <sys/cdefs.h>
 #include <sys/_types.h>
 /* The types and values come from the system's network stack */
+#if defined(__has_include)
+#if !__has_include(<netinet/_in.h>)
+#error "<netinet/in.h> needs networking, which this system doesn't provide"
+#endif
+#endif
 #include <netinet/_in.h>
 
 _BEGIN_STD_C

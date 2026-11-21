@@ -39,6 +39,11 @@
 #include <sys/cdefs.h>
 #include <sys/uio.h>
 /* The types and values come from the system's network stack */
+#if defined(__has_include)
+#if !__has_include(<sys/_socket.h>)
+#error "<sys/socket.h> needs networking, which this system doesn't provide"
+#endif
+#endif
 #include <sys/_socket.h>
 
 _BEGIN_STD_C

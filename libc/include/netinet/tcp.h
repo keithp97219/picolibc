@@ -38,6 +38,11 @@
 
 #include <sys/cdefs.h>
 /* The values come from the system's network stack */
+#if defined(__has_include)
+#if !__has_include(<netinet/_tcp.h>)
+#error "<netinet/tcp.h> needs networking, which this system doesn't provide"
+#endif
+#endif
 #include <netinet/_tcp.h>
 
 #endif /* _NETINET_TCP_H_ */

@@ -38,6 +38,11 @@
 
 #include <sys/cdefs.h>
 /* The values come from the system's network stack */
+#if defined(__has_include)
+#if !__has_include(<net/_if.h>)
+#error "<net/if.h> needs networking, which this system doesn't provide"
+#endif
+#endif
 #include <net/_if.h>
 
 _BEGIN_STD_C
