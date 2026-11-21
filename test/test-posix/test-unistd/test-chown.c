@@ -149,6 +149,8 @@ main(void)
     theirs = foreign_group(n);
 
     check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
+    /* A set-group-ID parent passes its bit on; new files take the effective group */
+    check(chmod(".", 0700) == 0, "clear set-group-ID");
     fd = open("file", O_RDWR | O_CREAT | O_EXCL, 0700);
     check(fd >= 0, "create");
     check(symlink("file", "link") == 0, "symlink");
