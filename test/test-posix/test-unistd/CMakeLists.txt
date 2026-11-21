@@ -71,6 +71,7 @@ set(tests
   test-link
   test-linkat
   test-lockf
+  test-lseek
   test-nice
   test-nice-thread
   test-pathconf

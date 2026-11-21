@@ -70,6 +70,7 @@ dir_tests = [
   'test-link',
   'test-linkat',
   'test-lockf',
+  'test-lseek',
   'test-nice',
   'test-pathconf',
   'test-pause',
