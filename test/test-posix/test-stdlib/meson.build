@@ -70,3 +70,7 @@ dir_thread_tests = [
 
 # glibc's -native build sees _REENTRANT from -pthread, so isn't strict ISO C
 test_skip_native += ['test-stdlib_h-iso']
+
+# clang assumes the allocation functions never set errno, and reuses the
+# value stored before the call; POSIX has them set ENOMEM
+test_extra_c_args += {'test-realloc': ['-fno-builtin']}
