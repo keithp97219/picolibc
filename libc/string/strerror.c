@@ -329,6 +329,12 @@ static const char * const errnames[] = {
 #ifdef ETIMEDOUT
     [ETIMEDOUT] = "Connection timed out",
 #endif
+#ifdef EDQUOT
+    [EDQUOT] = "Disk quota exceeded",
+#endif
+#ifdef ESTALE
+    [ESTALE] = "Stale file handle",
+#endif
 };
 
 #define NERRNAMES (sizeof(errnames) / sizeof(errnames[0]))
