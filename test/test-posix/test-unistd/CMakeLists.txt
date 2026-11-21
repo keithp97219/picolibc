@@ -76,6 +76,7 @@ set(tests
   test-lseek
   test-nice
   test-nice-thread
+  test-optind
   test-pathconf
   test-pause
   test-pipe

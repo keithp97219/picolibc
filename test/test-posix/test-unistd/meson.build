@@ -74,6 +74,7 @@ dir_tests = [
   'test-lockf',
   'test-lseek',
   'test-nice',
+  'test-optind',
   'test-pathconf',
   'test-pause',
   'test-pipe',
