@@ -34,14 +34,11 @@
  */
 
 #include "local-linux.h"
+#include <fcntl.h>
 #include <unistd.h>
 
 ssize_t
 readlink(const char *path, char *buf, size_t bufsize)
 {
-#ifdef LINUX_SYS_readlink
-    return _syscall(LINUX_SYS_readlink, path, buf, bufsize);
-#else
-    return _syscall(LINUX_SYS_readlinkat, LINUX_AT_FDCWD, path, buf, bufsize);
-#endif
+    return readlinkat(AT_FDCWD, path, buf, bufsize);
 }

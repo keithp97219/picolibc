@@ -39,5 +39,16 @@
 ssize_t
 readlinkat(int dirfd, const char * __restrict path, char * __restrict buf, size_t bufsize)
 {
+    char    dummy;
+    ssize_t ret;
+
+    /*
+     * Linux rejects an empty buffer, where POSIX places the first
+     * bufsize (zero) bytes. Read into one byte and report none.
+     */
+    if (bufsize == 0) {
+        ret = _syscall(LINUX_SYS_readlinkat, _at_fd_to_linux(dirfd), path, &dummy, 1);
+        return ret < 0 ? ret : 0;
+    }
     return _syscall(LINUX_SYS_readlinkat, _at_fd_to_linux(dirfd), path, buf, bufsize);
 }
