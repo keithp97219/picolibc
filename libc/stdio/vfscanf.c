@@ -616,6 +616,12 @@ vfscanf(FILE *stream, const CHAR *fmt, va_list ap_orig)
 
     __flockfile(stream);
 
+#ifdef WIDE_CHARS
+    __stdio_orient_wide(stream);
+#else
+    __stdio_orient_byte(stream);
+#endif
+
     nconvs = 0;
 
     /* Initialization of stream_flags at each pass simplifies the register

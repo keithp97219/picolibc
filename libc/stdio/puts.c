@@ -41,6 +41,7 @@ puts(const char *str)
 
     __flockfile(out);
 
+    __stdio_orient_byte(out);
     if ((out->flags & __SWR) == 0)
         goto exit;
 

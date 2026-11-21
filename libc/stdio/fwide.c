@@ -38,8 +38,18 @@
 int
 fwide(FILE *stream, int mode)
 {
+    int ret;
+
     __flockfile(stream);
-    if (mode != 0)
-        stream->flags = (stream->flags & ~__SWIDE) | ((mode > 0) ? __SWIDE : 0);
-    __funlock_return(stream, (stream->flags & __SWIDE) ? 1 : -1);
+    if (mode > 0)
+        __stdio_orient_wide(stream);
+    else if (mode < 0)
+        __stdio_orient_byte(stream);
+    if (stream->flags & __SWIDE)
+        ret = 1;
+    else if (stream->flags & __SBYTE)
+        ret = -1;
+    else
+        ret = 0;
+    __funlock_return(stream, ret);
 }

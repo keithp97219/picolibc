@@ -37,6 +37,7 @@
 int
 __STDIO_UNLOCKED(putc)(int c, FILE *stream)
 {
+    __stdio_orient_byte(stream);
     if ((stream->flags & __SWR) == 0)
         return EOF;
 

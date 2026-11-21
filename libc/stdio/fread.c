@@ -46,6 +46,7 @@ fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
     int      c;
 
     __flockfile(stream);
+    __stdio_orient_byte(stream);
     if ((stream->flags & __SRD) == 0 || size == 0)
         __funlock_return(stream, 0);
 

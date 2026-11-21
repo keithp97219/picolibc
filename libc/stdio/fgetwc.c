@@ -44,7 +44,7 @@ __STDIO_UNLOCKED(getwc)(FILE *stream)
     __ungetc_t unget;
     mbstate_t  ps;
 
-    stream->flags |= __SWIDE;
+    __stdio_orient_wide(stream);
 
     if ((stream->flags & __SRD) == 0)
         return WEOF;

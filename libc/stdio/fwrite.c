@@ -42,6 +42,7 @@ fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
     const uint8_t *cp = (const uint8_t *)ptr;
 
     __flockfile(stream);
+    __stdio_orient_byte(stream);
     if ((stream->flags & __SWR) == 0 || size == 0)
         __funlock_return(stream, 0);
 

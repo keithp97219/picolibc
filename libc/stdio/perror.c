@@ -38,8 +38,13 @@
 void
 perror(const char *msg)
 {
-    int err = errno;
+    int  err = errno;
+
+    /* perror leaves a stream without orientation unoriented */
+    bool unoriented = (stderr->flags & (__SWIDE | __SBYTE)) == 0;
     if (msg && *msg)
         fprintf(stderr, "%s: ", msg);
     fprintf(stderr, "%s\n", strerror(err));
+    if (unoriented)
+        stderr->flags &= (__uint16_t) ~(__SWIDE | __SBYTE);
 }

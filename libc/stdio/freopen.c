@@ -68,7 +68,8 @@ freopen(const char *pathname, const char *mode, FILE *stream)
     if (pathname != NULL)
         close((int)(intptr_t)(pf->ptr));
 
-    stream->flags = (stream->flags & ~(__SRD | __SWR | __SERR | __SEOF)) | stdio_flags;
+    stream->flags
+        = (stream->flags & ~(__SRD | __SWR | __SERR | __SEOF | __SWIDE | __SBYTE)) | stdio_flags;
     pf->pos = 0;
     pf->ptr = (void *)(intptr_t)(fd);
 
