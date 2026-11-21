@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-aio_h',
 ]
 
 # These use threads, so lock-valid.c doesn't apply

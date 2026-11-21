@@ -35,6 +35,7 @@
 
 set(tests
   test-aio_cancel
+  test-aio_h
   test-aio_error
   test-aio_fsync
   test-aio_read
