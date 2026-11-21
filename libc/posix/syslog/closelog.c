@@ -39,6 +39,8 @@
 void
 closelog(void)
 {
+    int cancel = __syslog_cancel_disable();
+
     __LIBC_LOCK();
     if (__syslog_fd >= 0) {
         close(__syslog_fd);
@@ -46,4 +48,5 @@ closelog(void)
     }
     __syslog_ident = NULL;
     __LIBC_UNLOCK();
+    __syslog_cancel_restore(cancel);
 }

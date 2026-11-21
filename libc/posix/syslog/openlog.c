@@ -38,6 +38,8 @@
 void
 openlog(const char *ident, int option, int facility)
 {
+    int cancel = __syslog_cancel_disable();
+
     __LIBC_LOCK();
     __syslog_ident = ident;
     __syslog_option = option;
@@ -46,4 +48,5 @@ openlog(const char *ident, int option, int facility)
     if ((option & LOG_NDELAY) && __syslog_fd < 0)
         __syslog_fd = __syslog_connect();
     __LIBC_UNLOCK();
+    __syslog_cancel_restore(cancel);
 }

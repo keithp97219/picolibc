@@ -113,7 +113,7 @@ void
 vsyslog(int priority, const char *fmt, va_list ap)
 {
     char      format[512], buf[1024], stamp[32];
-    int       error = errno, len, head, sent = 0;
+    int       error = errno, len, head, sent = 0, cancel;
     time_t    now;
     struct tm tm;
 
@@ -127,6 +127,7 @@ vsyslog(int priority, const char *fmt, va_list ap)
     strftime(stamp, sizeof(stamp), "%b %e %H:%M:%S", &tm);
     __syslog_expand(format, sizeof(format), fmt, error);
 
+    cancel = __syslog_cancel_disable();
     __LIBC_LOCK();
     head = __syslog_append(sizeof(buf), 0, snprintf(buf, sizeof(buf), "<%d>%s ", priority, stamp));
     len = head;
@@ -172,5 +173,6 @@ vsyslog(int priority, const char *fmt, va_list ap)
         (void)!write(2, "\n", 1);
     }
     __LIBC_UNLOCK();
+    __syslog_cancel_restore(cancel);
     errno = error;
 }

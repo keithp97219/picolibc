@@ -39,6 +39,10 @@
 #define _DEFAULT_SOURCE
 #include <syslog.h>
 #include <sys/lock.h>
+#include <picolibc.h>
+#ifdef __PICOLIBC_PTHREADS
+#include <pthread.h>
+#endif
 
 /* The openlog settings, guarded by the C library lock */
 extern const char *__syslog_ident;
@@ -49,5 +53,31 @@ extern int         __syslog_fd;
 
 /* Connects to the system logger, returning a descriptor or -1 */
 int                __syslog_connect(void);
+
+/*
+ * The logging functions call cancellation points with the lock held,
+ * so they hold cancellation off; acting on a request there would leave
+ * the lock taken and hang every other thread's libc use.
+ */
+static inline int
+__syslog_cancel_disable(void)
+{
+    int cancel = 0;
+
+#ifdef __PICOLIBC_PTHREADS
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cancel);
+#endif
+    return cancel;
+}
+
+static inline void
+__syslog_cancel_restore(int cancel)
+{
+#ifdef __PICOLIBC_PTHREADS
+    pthread_setcancelstate(cancel, NULL);
+#else
+    (void)cancel;
+#endif
+}
 
 #endif /* _LOCAL_SYSLOG_H_ */
