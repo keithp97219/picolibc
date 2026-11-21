@@ -34,9 +34,11 @@
 #
 
 dir_tests = [
+  'test-fgetgrent',
   'test-getgrent',
   'test-getgrgid_r',
   'test-getgrnam',
   'test-getgrnam_r',
   'test-grp_h',
+  'test-setgrent',
 ]
