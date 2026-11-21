@@ -97,6 +97,7 @@ posix_test_dirs = [
   'test-termios',
   'test-threads',
   'test-time',
+  'test-uchar',
   'test-unistd',
   'test-utmpx',
   'test-wchar',
