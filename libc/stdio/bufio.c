@@ -186,6 +186,10 @@ __bufio_get(FILE *f)
     int                  ret;
     bool                 flushed = false;
 
+    /* Once the end-of-file indicator is set, reads return EOF */
+    if (f->flags & __SEOF)
+        return _FDEV_EOF;
+
 again:
     __bufio_lock(f);
     if (__bufio_setdir_locked(f, __SRD) < 0) {
