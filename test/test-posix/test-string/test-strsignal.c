@@ -185,6 +185,31 @@ main(void)
         if (strcmp(out, want) != 0)
             fail("psignal(%s) wrote \"%s\", not \"%s\"", signals[i].name, out, want);
     }
+    /*
+     * No function calls strsignal: psignal leaves the
+     * string it returned alone, even one built from a number
+     */
+    {
+        /* SIGRTMIN and SIGRTMAX needn't be constants */
+        const int pairs[][2] = {
+            { SIGRTMIN, SIGRTMAX },
+            { SIGRTMAX, SIGRTMIN },
+            { 1000,     999      },
+            { -5,       -6       }
+        };
+
+        for (i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
+            int  first = pairs[i][0], second = pairs[i][1];
+            char copy[MSG_MAX], out[MSG_MAX + 16];
+
+            p = strsignal(first);
+            snprintf(copy, sizeof(copy), "%s", p);
+            psignal_output(second, "other", out, sizeof(out));
+            if (strcmp(p, copy) != 0)
+                fail("psignal(%d) changed strsignal(%d)'s string from \"%s\" to \"%s\"", second,
+                     first, copy, p);
+        }
+    }
     /* glibc 2.43's psignal calls real-time signals "Unknown signal", unlike its strsignal */
 #ifndef __GLIBC__
     for (sig = SIGRTMIN; sig <= SIGRTMAX; sig++) {
