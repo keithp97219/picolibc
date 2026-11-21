@@ -63,6 +63,8 @@ aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *
     struct timespec     end;
     int                 ret = 0;
 
+    /* A cancellation point acts on a pending request even if it doesn't wait */
+    pthread_testcancel();
     if (nent < 0) {
         errno = EINVAL;
         return -1;
