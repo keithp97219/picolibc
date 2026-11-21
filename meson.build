@@ -497,6 +497,11 @@ endif
 if tests_enable_posix_io
   test_flags += ['-DTESTS_ENABLE_POSIX_IO']
 endif
+# picolibc has its own sanitizer handlers (libc/ubsan); don't let the
+# compiler link its runtime, which expects the host's C library
+if c_sanitize_flags != []
+  test_flags += cc.get_supported_link_arguments('-fno-sanitize-link-runtime')
+endif
 test_c_args += test_flags
 if have_cplusplus
   test_cpp_args += test_flags
