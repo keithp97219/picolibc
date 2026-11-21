@@ -197,8 +197,21 @@ orphaned(int subsidiary, pid_t fg)
         if (pid < 0)
             _exit(1);
         if (pid == 0) {
-            while (getppid() == leader)
+            int tries;
+
+            /*
+             * Wait for the leader to be reaped, not just for this
+             * process to be adopted: until its last thread has gone
+             * (QEMU's user-mode emulation runs more than one), the
+             * leader still counts as a member with a parent in the
+             * session, so the group isn't orphaned and tcsetpgrp would
+             * stop this process with SIGTTOU. Give up after ten seconds.
+             */
+            for (tries = 0; getppid() == leader || kill(leader, 0) == 0; tries++) {
+                if (tries == 10000)
+                    _exit(0);
                 nanosleep(&nap, NULL);
+            }
             errno = 0;
             result = tcsetpgrp(subsidiary, getpgrp()) == -1 ? (char)errno : 0;
             (void)write(fds[1], &result, 1);
@@ -210,11 +223,12 @@ orphaned(int subsidiary, pid_t fg)
         return 42;
     pfd.fd = fds[0];
     pfd.events = POLLIN;
-    if (poll(&pfd, 1, 10000) != 1 || read(fds[0], &result, 1) != 1) {
+    if (poll(&pfd, 1, 20000) != 1 || read(fds[0], &result, 1) != 1) {
+        /* A member that is still there, perhaps stopped, would hold the test's output open */
+        (void)kill(-pid, SIGKILL);
         /*
-         * Under QEMU's user-mode emulation the orphaned member can die
-         * in tcsetpgrp instead of returning, depending on the session
-         * of the process that adopts it
+         * Under QEMU's user-mode emulation the orphaned member has
+         * been seen to die or stop in tcsetpgrp instead of returning
          */
         if (is_qemu()) {
             printf("QEMU lost the orphaned member, not checking it\n");
