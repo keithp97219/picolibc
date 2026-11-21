@@ -34,13 +34,46 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+#define _XOPEN_SOURCE   800
 #include <errno.h>
+#include <poll.h>
+#include <stddef.h>
 #include <string.h>
+#include <sys/types.h>
+#include <termios.h>
 #include <unistd.h>
+#include <wchar.h>
 
 /*
- * Only _CS_PATH has a value; the compilation environment names are
- * valid but undefined, as picolibc doesn't describe its compiler.
+ * The types _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS must fit in a long for
+ * the environment to be listed
+ */
+#define FITS(t) (sizeof(t) <= sizeof(long))
+#define WIDTH_RESTRICTED                                                                       \
+    (FITS(blksize_t) && FITS(cc_t) && FITS(mode_t) && FITS(nfds_t) && FITS(pid_t)              \
+     && FITS(ptrdiff_t) && FITS(size_t) && FITS(speed_t) && FITS(ssize_t) && FITS(suseconds_t) \
+     && FITS(tcflag_t) && FITS(wchar_t) && FITS(wint_t))
+
+/* The programming environments picolibc was built for */
+static const char envs[] = ""
+#ifdef _POSIX_V8_ILP32_OFF32
+                           "POSIX_V8_ILP32_OFF32\n"
+#endif
+#ifdef _POSIX_V8_ILP32_OFFBIG
+                           "POSIX_V8_ILP32_OFFBIG\n"
+#endif
+#ifdef _POSIX_V8_LP64_OFF64
+                           "POSIX_V8_LP64_OFF64\n"
+#endif
+#ifdef _POSIX_V8_LPBIG_OFFBIG
+                           "POSIX_V8_LPBIG_OFFBIG\n"
+#endif
+    ;
+
+/*
+ * _CS_PATH and the width-restricted environments have values. The
+ * compilation environment names are valid, with empty values, as
+ * picolibc doesn't describe its compiler.
  */
 size_t
 confstr(int name, char *buf, size_t len)
@@ -51,6 +84,12 @@ confstr(int name, char *buf, size_t len)
     switch (name) {
     case _CS_PATH:
         value = "/bin:/usr/bin";
+        size = strlen(value) + 1;
+        break;
+    case _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS:
+        /* Newline-separated, without a newline at the end */
+        value = envs;
+        size = WIDTH_RESTRICTED && sizeof(envs) > 1 ? sizeof(envs) - 1 : 1;
         break;
     default:
         if (name < 0 || name > _CS_LFS_LINTFLAGS) {
@@ -58,9 +97,9 @@ confstr(int name, char *buf, size_t len)
             return 0;
         }
         value = "";
+        size = 1;
         break;
     }
-    size = strlen(value) + 1;
     if (buf && len) {
         size_t n = size < len ? size : len;
         memcpy(buf, value, n - 1);
