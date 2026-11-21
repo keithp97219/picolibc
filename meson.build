@@ -1863,6 +1863,15 @@ native_c_args += ['-Wl,--no-fatal-warnings']
 test_env = environment()
 test_env.prepend('PATH', meson.current_source_dir() / 'scripts')
 
+# The compiler's sanitizer runtime, linked into the -native tests,
+# installs its own handlers for fatal signals unless told not to; leave
+# them to the tests, which check the defaults
+if c_sanitize_flags != []
+  test_env.set('UBSAN_OPTIONS',
+               'halt_on_error=1:abort_on_error=1:print_summary=1:print_stacktrace=1:'
+               + 'handle_segv=0:handle_sigbus=0:handle_sigfpe=0:handle_sigill=0')
+endif
+
 #
 # Compute crt0, oslib and linker script for tests
 #
