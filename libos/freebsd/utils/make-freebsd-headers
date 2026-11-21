@@ -1,0 +1,405 @@
+#!/usr/bin/env python3
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Copyright © 2026 Keith Packard
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above
+#    copyright notice, this list of conditions and the following
+#    disclaimer in the documentation and/or other materials provided
+#    with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+
+"""
+Generate libos/freebsd's kernel interface headers from a FreeBSD source
+tree.
+
+Nothing built for FreeBSD runs here, so values are read at compile
+time: each constant, size or offset becomes the operand of an inline
+'.ascii' directive in a C file that includes the kernel headers, the
+file is compiled to assembly for the FreeBSD target, and the values are
+read back from the assembly. Structures are emitted as the members
+picolibc uses at the kernel's offsets with byte padding between, so no
+FreeBSD header text is copied.
+
+usage: make-freebsd-headers --sys <freebsd>/sys --out libos/freebsd [--arch x86_64]
+"""
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+COPYRIGHT = """/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+"""
+
+TRIPLES = {
+    "x86_64": "x86_64-unknown-freebsd15.1",
+}
+
+MACHINE_DIRS = {
+    "x86_64": ("amd64", "x86"),
+}
+
+# Kernel headers every probe includes
+PROBE_HEADERS = [
+    "sys/types.h",
+    "sys/errno.h",
+    "sys/fcntl.h",
+    "sys/signal.h",
+    "sys/mman.h",
+    "sys/stat.h",
+    "sys/time.h",
+    "sys/resource.h",
+    "sys/wait.h",
+    "sys/dirent.h",
+    "sys/ttycom.h",
+    "sys/_termios.h",
+    "sys/thr.h",
+    "sys/umtx.h",
+    "sys/poll.h",
+    "sys/socket.h",
+    "sys/ioctl.h",
+    "sys/ucontext.h",
+    "sys/utsname.h",
+    "sys/sysctl.h",
+    "sys/elf_common.h",
+    "sys/mount.h",
+    "sys/random.h",
+    "machine/sysarch.h",
+]
+
+# Constant groups: output name, the header whose '#define NAME' lines
+# name the candidates, the pattern those names match, and whether
+# values are flags (printed in hex)
+CONSTANTS = [
+    ("fcntl", ["sys/fcntl.h"], r"(O|F|FD|AT)_[A-Z0-9_]+", True),
+    ("mman", ["sys/mman.h"], r"(PROT|MAP|MS|MADV|MCL|POSIX_MADV)_[A-Z0-9_]+", True),
+    ("signal", ["sys/signal.h"], r"(SIG[A-Z0-9]+|SA_[A-Z0-9_]+|SIG_(BLOCK|UNBLOCK|SETMASK)|SS_[A-Z]+|MINSIGSTKSZ|SIGSTKSZ|SI_[A-Z]+|SIGEV_[A-Z]+|(ILL|FPE|SEGV|BUS|TRAP|CLD)_[A-Z]+)", False),
+    ("time", ["sys/time.h", "sys/_clock_id.h"], r"(CLOCK_[A-Z0-9_]+|TIMER_ABSTIME|ITIMER_[A-Z]+)", False),
+    ("wait", ["sys/wait.h"], r"(W[A-Z]+|P_[A-Z]+)", True),
+    ("poll", ["sys/poll.h"], r"POLL[A-Z0-9]+", True),
+    ("ioctl", ["sys/ttycom.h", "sys/filio.h"], r"(TIOC[A-Z0-9_]+|FIO[A-Z0-9_]+)", True),
+    ("termios", ["sys/_termios.h"], r"(V[A-Z0-9]+|NCCS|[IOCL][A-Z0-9]+|B[0-9]+|EXTA|EXTB|TCSA[A-Z]+|TC[IO]?[A-Z]+)", True),
+    ("resource", ["sys/resource.h"], r"(RLIMIT_[A-Z0-9_]+|RLIM_INFINITY|RLIM_NLIMITS|PRIO_[A-Z]+|RUSAGE_[A-Z]+)", False),
+    ("thr", ["sys/thr.h", "sys/umtx.h", "sys/_umtx.h"], r"(THR_[A-Z_]+|UMTX_[A-Z0-9_]+)", False),
+    ("sysarch", ["x86/sysarch.h"], r"(AMD64|I386)_[A-Z_]+", False),
+    ("dirent", ["sys/dirent.h"], r"DT_[A-Z]+", False),
+    ("mount", ["sys/mount.h"], r"MNT_(RDONLY|NOSUID|WAIT|NOWAIT)", True),
+    ("sysctl", ["sys/sysctl.h"], r"(CTL_(KERN|HW)|KERN_(OSTYPE|OSRELEASE|VERSION|HOSTNAME|ARND)|HW_(MACHINE|PAGESIZE|NCPU))", False),
+]
+
+# Values the headers above define only for userland or through other names
+EXTRA_CONSTANTS = {
+    "signal": {"MINSIGSTKSZ": "__MINSIGSTKSZ"},
+}
+
+# Structures: output name, C type, and for each member picolibc uses its
+# name, picolibc type and, when it differs, the kernel's member expression
+STRUCTS = [
+    ("timespec", "struct timespec", [("tv_sec", "__int64_t"), ("tv_nsec", "long")]),
+    ("timeval", "struct timeval", [("tv_sec", "__int64_t"), ("tv_usec", "long")]),
+    ("stat", "struct stat", [
+        ("st_dev", "__uint64_t"), ("st_ino", "__uint64_t"), ("st_nlink", "__uint64_t"),
+        ("st_mode", "__uint16_t"), ("st_uid", "__uint32_t"), ("st_gid", "__uint32_t"),
+        ("st_rdev", "__uint64_t"),
+        ("st_atim", "struct __freebsd_timespec"), ("st_mtim", "struct __freebsd_timespec"),
+        ("st_ctim", "struct __freebsd_timespec"), ("st_birthtim", "struct __freebsd_timespec"),
+        ("st_size", "__int64_t"), ("st_blocks", "__int64_t"), ("st_blksize", "__int32_t"),
+        ("st_flags", "__uint32_t"), ("st_gen", "__uint64_t"),
+    ]),
+    ("dirent", "struct dirent", [
+        ("d_fileno", "__uint64_t"), ("d_off", "__int64_t"), ("d_reclen", "__uint16_t"),
+        ("d_type", "__uint8_t"), ("d_namlen", "__uint16_t"), ("d_name", "char[256]"),
+    ]),
+    ("sigset", "sigset_t", [("__bits", "__uint32_t[4]")]),
+    ("sigaction", "struct sigaction", [
+        ("__sa_handler", "void *", "__sigaction_u.__sa_handler"), ("sa_flags", "int"),
+        ("sa_mask", "struct __freebsd_sigset"),
+    ]),
+    ("siginfo", "siginfo_t", [
+        ("si_signo", "int"), ("si_errno", "int"), ("si_code", "int"), ("si_pid", "int"),
+        ("si_uid", "__uint32_t"), ("si_status", "int"), ("si_addr", "void *"),
+        ("si_value", "__uint64_t"), ("si_band", "long"),
+    ]),
+    ("statfs", "struct statfs", [
+        ("f_flags", "__uint64_t"), ("f_bsize", "__uint64_t"), ("f_iosize", "__uint64_t"),
+        ("f_blocks", "__uint64_t"), ("f_bfree", "__uint64_t"), ("f_bavail", "__int64_t"),
+        ("f_files", "__uint64_t"), ("f_ffree", "__int64_t"), ("f_namemax", "__uint32_t"),
+        ("f_fsid", "__int32_t[2]"),
+    ]),
+    ("rlimit", "struct rlimit", [("rlim_cur", "__int64_t"), ("rlim_max", "__int64_t")]),
+    ("rusage", "struct rusage", [
+        ("ru_utime", "struct __freebsd_timeval"), ("ru_stime", "struct __freebsd_timeval"),
+        ("ru_maxrss", "long"), ("ru_minflt", "long"), ("ru_majflt", "long"),
+        ("ru_nvcsw", "long"), ("ru_nivcsw", "long"),
+    ]),
+    ("termios", "struct termios", [
+        ("c_iflag", "__uint32_t"), ("c_oflag", "__uint32_t"), ("c_cflag", "__uint32_t"),
+        ("c_lflag", "__uint32_t"), ("c_cc", "__uint8_t[20]"),
+        ("c_ispeed", "__uint32_t"), ("c_ospeed", "__uint32_t"),
+    ]),
+    ("winsize", "struct winsize", [
+        ("ws_row", "__uint16_t"), ("ws_col", "__uint16_t"),
+        ("ws_xpixel", "__uint16_t"), ("ws_ypixel", "__uint16_t"),
+    ]),
+    ("thr_param", "struct thr_param", [
+        ("start_func", "void *"), ("arg", "void *"), ("stack_base", "char *"),
+        ("stack_size", "__size_t"), ("tls_base", "char *"), ("tls_size", "__size_t"),
+        ("child_tid", "long *"), ("parent_tid", "long *"), ("flags", "int"),
+        ("rtp", "void *"),
+    ]),
+    ("umtx_time", "struct _umtx_time", [
+        ("_timeout", "struct __freebsd_timespec"), ("_flags", "__uint32_t"),
+        ("_clockid", "__uint32_t"),
+    ]),
+]
+
+
+class Probe:
+    def __init__(self, sysdir, arch, workdir):
+        self.sysdir = sysdir
+        self.arch = arch
+        self.workdir = workdir
+        inc = os.path.join(workdir, "inc")
+        os.makedirs(inc, exist_ok=True)
+        machine, x86 = MACHINE_DIRS[arch]
+        for name, sub in (("machine", machine), ("x86", x86)):
+            link = os.path.join(inc, name)
+            if not os.path.exists(link):
+                os.symlink(os.path.join(sysdir, sub, "include"), link)
+        # The kernel headers include a few userland headers; empty ones do
+        stub = os.path.join(workdir, "stub")
+        os.makedirs(stub, exist_ok=True)
+        for h in ("time.h", "stddef.h", "signal.h", "stdbool.h", "stdint.h"):
+            open(os.path.join(stub, h), "w").close()
+        self.args = ["clang", "--target=" + TRIPLES[arch], "-nostdinc",
+                     "-I", sysdir, "-I", inc, "-I", stub, "-w", "-S", "-o", "-"]
+
+    def values(self, exprs):
+        """Evaluate integer constant expressions, dropping those that fail"""
+        exprs = dict(exprs)
+        while exprs:
+            names = list(exprs)
+            lines = ["#include <%s>" % h for h in PROBE_HEADERS]
+            lines.append("void __probe(void) {")
+            first = len(lines) + 1
+            for n in names:
+                lines.append('__asm__ volatile(".ascii \\"@@VAL %s %%c0\\"" :: "i"((long)(%s)));'
+                             % (n, exprs[n]))
+            lines.append("}")
+            src = os.path.join(self.workdir, "probe.c")
+            with open(src, "w") as f:
+                f.write("\n".join(lines) + "\n")
+            r = subprocess.run(self.args + [src], capture_output=True, text=True)
+            if r.returncode == 0:
+                out = {}
+                for m in re.finditer(r'@@VAL (\S+) (-?\d+)', r.stdout):
+                    out[m.group(1)] = int(m.group(2))
+                return out
+            bad = set()
+            for m in re.finditer(r'probe\.c:(\d+):\d+: error', r.stderr):
+                i = int(m.group(1)) - first
+                if 0 <= i < len(names):
+                    bad.add(names[i])
+            if not bad:
+                sys.stderr.write(r.stderr)
+                raise SystemExit("probe failed outside the markers")
+            for n in bad:
+                del exprs[n]
+        return {}
+
+    def macro_names(self, headers, pattern):
+        """Object-like macros defined in these headers matching pattern"""
+        names = []
+        rx = re.compile(r'^#\s*define\s+(' + pattern + r')\b(?!\()', re.M)
+        for h in headers:
+            for base in (self.sysdir, os.path.join(self.workdir, "inc")):
+                path = os.path.join(base, h)
+                if os.path.exists(path):
+                    with open(path) as f:
+                        for m in rx.finditer(f.read()):
+                            if m.group(1) not in names:
+                                names.append(m.group(1))
+                    break
+        return names
+
+
+def guard(name):
+    return "_FREEBSD_%s_H_" % name.upper().replace("-", "_")
+
+
+def write_header(path, name, body):
+    with open(path, "w") as f:
+        f.write(COPYRIGHT)
+        f.write("\n#ifndef %s\n#define %s\n\n" % (guard(name), guard(name)))
+        f.write(body)
+        f.write("\n#endif /* %s */\n" % guard(name))
+    subprocess.run(["clang-format", "-i", path], check=False)
+
+
+def fmt(v, flags):
+    # Values beyond int need a long suffix; the most negative long has no literal
+    suffix = "" if -2**31 <= v < 2**31 else "L"
+    if v == -2**63:
+        return "(-0x7fffffffffffffffL - 1)"
+    if flags and v >= 0:
+        return "0x%08x%s" % (v, suffix)
+    return "%d%s" % (v, suffix)
+
+
+def gen_syscall(sysdir, outdir):
+    rx = re.compile(r'^#define\s+SYS_(\w+)\s+(\d+)', re.M)
+    with open(os.path.join(sysdir, "sys", "syscall.h")) as f:
+        calls = [(m.group(1), int(m.group(2))) for m in rx.finditer(f.read())]
+    body = "".join("#define FREEBSD_SYS_%s %d\n" % c for c in sorted(calls, key=lambda c: c[1]))
+    write_header(os.path.join(outdir, "freebsd-syscall.h"), "syscall", body)
+
+
+def gen_errno(probe, outdir):
+    names = probe.macro_names(["sys/errno.h"], r"E[A-Z0-9]+")
+    names = [n for n in names if n not in ("ELAST", "ERESTART", "EJUSTRETURN",
+                                           "ENOIOCTL", "EDIRIOCTL", "ERELOOKUP")]
+    vals = probe.values({n: n for n in names})
+    order = sorted(vals, key=lambda n: (vals[n], n))
+    body = "".join("#define FREEBSD_%s %d\n" % (n, vals[n]) for n in order)
+    maxe = max(vals.values())
+    body += "\n#define FREEBSD_ERRNO_MAX %d\n\n" % maxe
+    body += ("/* Kernel errno to picolibc errno; 0 marks one picolibc lacks */\n"
+             "static const unsigned char __freebsd_errno_map[FREEBSD_ERRNO_MAX + 1] = {\n")
+    seen = set()
+    for n in order:
+        if vals[n] in seen:
+            continue
+        seen.add(vals[n])
+        body += "#ifdef %s\n    [FREEBSD_%s] = %s,\n#endif\n" % (n, n, n)
+    body += "};\n"
+    write_header(os.path.join(outdir, "freebsd-errno.h"), "errno", body)
+
+
+def gen_constants(probe, outdir):
+    for name, headers, pattern, flags in CONSTANTS:
+        names = probe.macro_names(headers, pattern)
+        exprs = {n: n for n in names}
+        exprs.update(EXTRA_CONSTANTS.get(name, {}))
+        vals = probe.values(exprs)
+        order = sorted(vals, key=lambda n: n)
+        body = "".join("#define FREEBSD_%s %s\n" % (n, fmt(vals[n], flags)) for n in order)
+        write_header(os.path.join(outdir, "freebsd-%s.h" % name), name, body)
+
+
+def gen_structs(probe, outdir):
+    for name, ctype, members in STRUCTS:
+        exprs = {"SIZE": "sizeof(%s)" % ctype}
+        members = [(mt[0], mt[1], mt[2] if len(mt) > 2 else mt[0]) for mt in members]
+        for m, _, k in members:
+            exprs["OFF_" + m] = "__builtin_offsetof(%s, %s)" % (ctype, k)
+            exprs["SZ_" + m] = "sizeof(((%s *)0)->%s)" % (ctype, k)
+        vals = probe.values(exprs)
+        missing = [m for m, _, _ in members if "OFF_" + m not in vals]
+        if missing or "SIZE" not in vals:
+            raise SystemExit("%s: no member %s" % (ctype, ", ".join(missing)))
+        lines = ["struct __freebsd_%s {" % name]
+        pos = 0
+        for m, t, _ in sorted(members, key=lambda mt: vals["OFF_" + mt[0]]):
+            off = vals["OFF_" + m]
+            if off > pos:
+                lines.append("    __uint8_t __adjust_%d[%d];" % (pos, off - pos))
+            if off < pos:
+                raise SystemExit("%s: %s overlaps" % (ctype, m))
+            arr = re.match(r'(.*)\[(\d+)\]$', t)
+            if arr:
+                lines.append("    %s %s[%s];" % (arr.group(1), m, arr.group(2)))
+            else:
+                lines.append("    %s %s;" % (t, m))
+            pos = off + vals["SZ_" + m]
+        if vals["SIZE"] > pos:
+            lines.append("    __uint8_t __adjust_%d[%d];" % (pos, vals["SIZE"] - pos))
+        lines.append("};\n")
+        lines.append("_Static_assert(sizeof(struct __freebsd_%s) == %d, \"%s size\");"
+                     % (name, vals["SIZE"], ctype))
+        for m, _, _ in members:
+            lines.append("_Static_assert(__builtin_offsetof(struct __freebsd_%s, %s) == %d, \"%s.%s\");"
+                         % (name, m, vals["OFF_" + m], ctype, m))
+        body = "\n".join(lines) + "\n"
+        write_header(os.path.join(outdir, "freebsd-%s-struct.h" % name), name + "-struct", body)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.strip().split("\n")[0])
+    ap.add_argument("--sys", required=True, help="FreeBSD source tree's sys directory")
+    ap.add_argument("--out", required=True, help="libos/freebsd directory")
+    ap.add_argument("--arch", default="x86_64", choices=sorted(TRIPLES))
+    args = ap.parse_args()
+
+    outdir = os.path.join(args.out, "machine", args.arch, "freebsd")
+    os.makedirs(outdir, exist_ok=True)
+    with tempfile.TemporaryDirectory() as work:
+        probe = Probe(os.path.abspath(args.sys), args.arch, work)
+        gen_syscall(args.sys, outdir)
+        gen_errno(probe, outdir)
+        gen_constants(probe, outdir)
+        gen_structs(probe, outdir)
+
+
+if __name__ == "__main__":
+    main()
