@@ -39,5 +39,11 @@
 int
 mknodat(int dirfd, const char *path, mode_t mode, dev_t dev)
 {
-    return _syscall(LINUX_SYS_mknodat, _at_fd_to_linux(dirfd), path, mode, dev);
+    /*
+     * The kernel takes an unsigned int, and _syscall reads longs; a
+     * 64-bit dev_t passed whole would land in the wrong argument slots on
+     * 32-bit targets
+     */
+    return _syscall(LINUX_SYS_mknodat, _at_fd_to_linux(dirfd), path, mode,
+                    (unsigned long)(unsigned int)dev);
 }
