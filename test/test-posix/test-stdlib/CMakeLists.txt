@@ -41,6 +41,7 @@ set(tests
   test-posix_openpt
   test-ptsname
   test-ptsname_r
+  test-realloc
   test-realpath
   test-secure_getenv
   test-setenv
