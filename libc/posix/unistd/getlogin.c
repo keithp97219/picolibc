@@ -33,16 +33,25 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
+#define _POSIX_C_SOURCE 202405L
+#include <errno.h>
 #include <unistd.h>
-#include <stdlib.h>
-#include <pwd.h>
+
+/*
+ * The name lives here, not in the user database's static data, so only
+ * another getlogin call overwrites it. 256 is Linux's
+ * sysconf(_SC_LOGIN_NAME_MAX).
+ */
+static char login_name[256];
 
 char *
 getlogin(void)
 {
-    struct passwd *pwd = getpwuid(getuid());
-    if (!pwd)
+    int ret = getlogin_r(login_name, sizeof(login_name));
+
+    if (ret) {
+        errno = ret;
         return NULL;
-    return pwd->pw_name;
+    }
+    return login_name;
 }
