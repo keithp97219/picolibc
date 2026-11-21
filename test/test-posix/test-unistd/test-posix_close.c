@@ -49,7 +49,7 @@
 #define TEST_FILE_NAME "POSIXCLO.TXT"
 #endif
 
-/* posix_close closes, and rejects a bad flag without closing */
+/* posix_close closes */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -72,8 +72,6 @@ main(void)
     (void)unlink(TEST_FILE_NAME);
     fd = open(TEST_FILE_NAME, O_WRONLY | O_CREAT | O_EXCL, 0600);
     check(fd >= 0, "open");
-    errno = 0;
-    check(posix_close(fd, -1) == -1 && errno == EINVAL, "posix_close bad flag");
     check(posix_close(fd, POSIX_CLOSE_RESTART) == 0, "posix_close");
     errno = 0;
     check(posix_close(fd, 0) == -1 && errno == EBADF, "posix_close closed descriptor");

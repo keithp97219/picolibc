@@ -42,10 +42,6 @@ posix_close(int fildes, int flag)
 {
     int ret;
 
-    if (flag != 0 && flag != POSIX_CLOSE_RESTART) {
-        errno = EINVAL;
-        return -1;
-    }
     /*
      * close never restarts here, so both flags behave the same. If it
      * was interrupted the descriptor is closed anyway, which POSIX
@@ -54,5 +50,10 @@ posix_close(int fildes, int flag)
     ret = close(fildes);
     if (ret < 0 && errno == EINTR)
         errno = EINPROGRESS;
+    /* An invalid flag is reported, but the descriptor is closed as for 0 */
+    if (ret == 0 && flag != 0 && flag != POSIX_CLOSE_RESTART) {
+        errno = EINVAL;
+        ret = -1;
+    }
     return ret;
 }
