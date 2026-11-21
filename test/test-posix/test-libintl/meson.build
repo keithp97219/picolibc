@@ -37,5 +37,6 @@ dir_tests = [
   'test-bind_textdomain_codeset',
   'test-bindtextdomain',
   'test-gettext',
+  'test-gettext_l',
   'test-textdomain',
 ]

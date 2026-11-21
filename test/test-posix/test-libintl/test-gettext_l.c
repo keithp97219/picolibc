@@ -1,0 +1,225 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+#include "../posix-groups.h"
+
+#include <errno.h>
+#include <fcntl.h>
+#include <libintl.h>
+#include <locale.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#include <sys/stat.h>
+#endif
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#include <sys/wait.h>
+#endif
+
+/*
+ * The gettext family in the POSIX locale returns msgid, or msgid or
+ * msgid_plural by n, never touching errno, whatever LANGUAGE,
+ * NLSPATH and the bindings say; the text domain and bindings survive
+ * setlocale and uselocale; bindtextdomain returns a copy
+ */
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+#define DOMAIN "picolibc-gettext-test"
+
+static const char msgid[] = "hello";
+static const char plural[] = "hellos";
+
+/* Every gettext function gives back the untranslated strings */
+static void
+check_untranslated(const char *where)
+{
+    printf("%s\n", where);
+    errno = 1234;
+    check(gettext(msgid) == msgid, "gettext");
+    check(dgettext(DOMAIN, msgid) == msgid, "dgettext");
+    check(dgettext(NULL, msgid) == msgid, "dgettext with the current domain");
+    check(dcgettext(DOMAIN, msgid, LC_MESSAGES) == msgid, "dcgettext");
+    check(dcgettext(DOMAIN, msgid, LC_CTYPE) == msgid, "dcgettext LC_CTYPE");
+    check(ngettext(msgid, plural, 1) == msgid, "ngettext 1");
+    check(ngettext(msgid, plural, 0) == plural, "ngettext 0");
+    check(ngettext(msgid, plural, 2) == plural, "ngettext 2");
+    check(ngettext(msgid, plural, (unsigned long)-1) == plural, "ngettext ULONG_MAX");
+    check(dngettext(DOMAIN, msgid, plural, 1) == msgid, "dngettext 1");
+    check(dngettext(NULL, msgid, plural, 5) == plural, "dngettext 5");
+    check(dcngettext(DOMAIN, msgid, plural, 1, LC_MESSAGES) == msgid, "dcngettext 1");
+    check(dcngettext(DOMAIN, msgid, plural, 7, LC_TIME) == plural, "dcngettext 7");
+
+#ifndef __GLIBC__
+    /* glibc 2.43 has none of the _l functions */
+    {
+        locale_t l = newlocale(LC_ALL_MASK, "C", (locale_t)0);
+        int      err;
+
+        check(l != (locale_t)0, "newlocale");
+        check(gettext_l(msgid, l) == msgid, "gettext_l");
+        check(dgettext_l(DOMAIN, msgid, l) == msgid, "dgettext_l");
+        check(dcgettext_l(DOMAIN, msgid, LC_MESSAGES, l) == msgid, "dcgettext_l");
+        check(ngettext_l(msgid, plural, 1, l) == msgid, "ngettext_l 1");
+        check(ngettext_l(msgid, plural, 2, l) == plural, "ngettext_l 2");
+        check(dngettext_l(DOMAIN, msgid, plural, 1, l) == msgid, "dngettext_l 1");
+        check(dngettext_l(DOMAIN, msgid, plural, 0, l) == plural, "dngettext_l 0");
+        check(dcngettext_l(DOMAIN, msgid, plural, 1, LC_MESSAGES, l) == msgid, "dcngettext_l 1");
+        check(dcngettext_l(DOMAIN, msgid, plural, 3, LC_MESSAGES, l) == plural, "dcngettext_l 3");
+        err = errno;
+        freelocale(l);
+        errno = err;
+    }
+#endif
+    check(errno == 1234, "errno unchanged");
+}
+
+int
+main(void)
+{
+    char        dirname[] = "/some/directory";
+    char       *bound;
+    locale_t    l;
+    const char *dir;
+
+    /* Prototypes from <libintl.h> */
+    char       *(*p_bindtextdomain)(const char *, const char *) = bindtextdomain;
+    char       *(*p_bind_textdomain_codeset)(const char *, const char *) = bind_textdomain_codeset;
+    char       *(*p_textdomain)(const char *) = textdomain;
+    char       *(*p_dcngettext)(const char *, const char *, const char *, unsigned long int, int)
+        = dcngettext;
+
+    check(p_bindtextdomain && p_bind_textdomain_codeset && p_textdomain && p_dcngettext,
+          "prototypes");
+#ifndef __GLIBC__
+    {
+        char *(*p_dcngettext_l)(const char *, const char *, const char *, unsigned long int, int,
+                                locale_t)
+            = dcngettext_l;
+        check(p_dcngettext_l != NULL, "dcngettext_l prototype");
+    }
+#endif
+
+    check_untranslated("startup");
+
+    /* bindtextdomain returns a copy of dirname, still valid after a query */
+    bound = bindtextdomain(DOMAIN, dirname);
+    check(bound != NULL && bound != dirname && strcmp(bound, dirname) == 0, "a copy");
+    dirname[1] = 'X';
+    check(strcmp(bindtextdomain(DOMAIN, NULL), "/some/directory") == 0, "the copy is kept");
+    check(strcmp(bound, "/some/directory") == 0, "a query leaves it valid");
+
+    /* The text domain and bindings survive setlocale and uselocale */
+    check(strcmp(textdomain(DOMAIN), DOMAIN) == 0, "textdomain");
+    check(setlocale(LC_ALL, "C") != NULL, "setlocale");
+    check(strcmp(textdomain(NULL), DOMAIN) == 0, "domain after setlocale");
+    l = newlocale(LC_ALL_MASK, "POSIX", (locale_t)0);
+    check(l != (locale_t)0, "newlocale");
+    check(uselocale(l) == LC_GLOBAL_LOCALE, "uselocale");
+    check(strcmp(textdomain(NULL), DOMAIN) == 0, "domain after uselocale");
+    check(strcmp(bindtextdomain(DOMAIN, NULL), "/some/directory") == 0, "binding kept");
+    check_untranslated("thread locale");
+    check(uselocale(LC_GLOBAL_LOCALE) == l, "uselocale");
+    freelocale(l);
+    dir = bindtextdomain("picolibc-unbound-domain", NULL);
+    check(dir != NULL && *dir != '\0', "default directory");
+
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+    {
+        /*
+         * In the POSIX locale no messages object is used, even with
+         * LANGUAGE, NLSPATH and a binding all pointing at a file
+         */
+        char  tmp[] = "tmp-gettext-XXXXXX";
+        char  path[128], nlspath[128];
+        pid_t pid;
+        int   status, fd;
+
+        check(mkdtemp(tmp) != NULL, "mkdtemp");
+        snprintf(path, sizeof(path), "%s/fr", tmp);
+        check(mkdir(path, 0700) == 0, "mkdir");
+        snprintf(path, sizeof(path), "%s/fr/LC_MESSAGES", tmp);
+        check(mkdir(path, 0700) == 0, "mkdir");
+        snprintf(path, sizeof(path), "%s/fr/LC_MESSAGES/%s.mo", tmp, DOMAIN);
+        fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0600);
+        check(fd >= 0, "create the messages object");
+        check(write(fd, "not a messages object\n", 22) == 22, "write");
+        check(close(fd) == 0, "close");
+        snprintf(nlspath, sizeof(nlspath), "%s/fr/LC_MESSAGES/%%N.mo", tmp);
+
+        fflush(stdout);
+        pid = fork();
+        check(pid >= 0, "fork");
+        if (pid == 0) {
+            static const char * const unset[]
+                = { "LC_ALL",      "LC_COLLATE", "LC_CTYPE", "LC_MESSAGES",
+                    "LC_MONETARY", "LC_NUMERIC", "LC_TIME" };
+            size_t i;
+
+            for (i = 0; i < sizeof(unset) / sizeof(unset[0]); i++)
+                check(unsetenv(unset[i]) == 0, "unsetenv");
+            check(setenv("LANGUAGE", "fr:de", 1) == 0, "setenv");
+            check(setenv("NLSPATH", nlspath, 1) == 0, "setenv");
+            check(setenv("LANG", "C", 1) == 0, "setenv");
+            check(setlocale(LC_ALL, "") != NULL, "setlocale");
+            check(bindtextdomain(DOMAIN, tmp) != NULL, "bindtextdomain");
+            check(textdomain(DOMAIN) != NULL, "textdomain");
+            check_untranslated("LANGUAGE and NLSPATH");
+            _exit(0);
+        }
+        check(waitpid(pid, &status, 0) == pid, "waitpid");
+        check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "child");
+
+        check(unlink(path) == 0, "unlink");
+        snprintf(path, sizeof(path), "%s/fr/LC_MESSAGES", tmp);
+        check(rmdir(path) == 0, "rmdir");
+        snprintf(path, sizeof(path), "%s/fr", tmp);
+        check(rmdir(path) == 0, "rmdir");
+        check(rmdir(tmp) == 0, "rmdir");
+    }
+#endif
+
+    printf("success\n");
+    return 0;
+}
