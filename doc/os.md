@@ -338,19 +338,124 @@ provides along with `opendir` and `closedir`:
 struct dirent *readdir(DIR *dirp);
 ```
 
-## Describing POSIX support
+## Operating system headers
 
-An operating system says which POSIX options and option groups it
-provides in `<sys/_posix.h>`, which `<unistd.h>` includes when it
-exists; `<unistd.h>` then works out `_POSIX_VERSION` from them. See the
-comments in `sys/unistd.h` and `libos/linux/include/sys/_posix.h`.
+picolibc's public headers declare the POSIX interfaces; the parts that
+depend on the operating system come from a few private headers the OS
+supplies on the include path. picolibc's own OS layers (`libos/linux`)
+provide them, and another OS, such as Zephyr, provides its own along with
+the code that implements them. They are interfaces between picolibc and
+the OS: their names and meanings stay stable.
 
 picolibc's ABI doesn't depend on `<sys/_posix.h>`. No type, structure
 layout or library code changes with what it defines, so a picolibc
 built without the OS's header, or with a different version of it, is
 the same library. Only applications see its claims. The one exception
 is a weak fallback, such as `sysconf` in `libos/fallback`, which the
-operating system replaces with its own.
+operating system replaces with its own. The other headers below do
+carry the OS's ABI, so picolibc's own code that uses them is built
+only with the OS layer that provides them.
+
+### `<sys/_posix.h>`: POSIX options and option groups
+
+`<unistd.h>` includes this header when it exists. It defines only what
+the OS provides; anything left undefined is not provided.
+
+ * **Option macros** (`_POSIX_TIMERS`, `_POSIX_THREADS`,
+   `_POSIX_SEMAPHORES` and the other `_POSIX_` options) with the
+   version of the standard the OS meets, such as `200809L` or
+   `202405L`. picolibc adds the options it implements itself
+   (`_POSIX_REGEXP`, `_POSIX2_C_BIND`) and, when picolibc was built
+   with threads, those it builds on them.
+
+ * **Option group macros** `__PICOLIBC_POSIX_<GROUP>` for the OS-level
+   parts of the POSIX.1-2024 option groups that no option macro covers,
+   with the version met: `C_LIB_EXT`, `DEVICE_IO`, `DEVICE_SPECIFIC`,
+   `DEVICE_SPECIFIC_R`, `DYNAMIC_LINKING`, `FD_MGMT`, `FIFO`,
+   `FIFO_FD`, `FILE_ATTRIBUTES`, `FILE_ATTRIBUTES_FD`, `FILE_SYSTEM`,
+   `FILE_SYSTEM_EXT`, `FILE_SYSTEM_FD`, `MULTI_PROCESS`,
+   `MULTI_PROCESS_FD`, `NETWORKING`, `PIPE`, `SIGNALS`,
+   `SINGLE_PROCESS`, `SYMBOLIC_LINKS`, `SYMBOLIC_LINKS_FD`,
+   `USER_GROUPS`, and `CLOFORK` for the POSIX.1-2024 close-on-fork
+   flags.
+
+ * **Realtime profiles** (IEEE 1003.13): `_POSIX_AEP_REALTIME_MINIMAL`,
+   `_CONTROLLER`, `_DEDICATED` or `_MULTI`. A profile claim implies the
+   smaller profiles and supplies, with the profile's value, each option
+   and group the profile requires that the header left undefined.
+
+ * **Constants** POSIX requires: `_POSIX_CHOWN_RESTRICTED`,
+   `_POSIX_NO_TRUNC` and `_POSIX_VDISABLE`, and `_POSIX_JOB_CONTROL`,
+   `_POSIX_SAVED_IDS` and `_POSIX_SHELL` where provided.
+
+`<unistd.h>` then sets `_POSIX_VERSION` to the newest edition whose
+required options and groups are all present, or, with a profile and no
+full edition, `_POSIX_SUBPROFILE`. A `_POSIX_VERSION` the header defines
+itself is kept. The header may be included in any compilation unit, so
+it uses only macros visible there (Zephyr's, for instance, tests its
+Kconfig `CONFIG_` symbols).
+
+### `<sys/_pthread.h>`: threads
+
+`<pthread.h>`, `<semaphore.h>` and `<threads.h>` require this header and
+stop with an error without it; `<sys/types.h>`, `<signal.h>` and
+`<limits.h>` use it when it exists. It defines:
+
+ * **Types:** `pthread_t`, `pthread_attr_t`, `pthread_mutex_t`,
+   `pthread_mutexattr_t`, `pthread_cond_t`, `pthread_condattr_t`,
+   `pthread_rwlock_t`, `pthread_rwlockattr_t`, `pthread_barrier_t`,
+   `pthread_barrierattr_t`, `pthread_spinlock_t`, `pthread_once_t`,
+   `pthread_key_t` and `sem_t`.
+
+ * **Static initializers:** `PTHREAD_MUTEX_INITIALIZER`,
+   `PTHREAD_COND_INITIALIZER`, `PTHREAD_RWLOCK_INITIALIZER` and
+   `PTHREAD_ONCE_INIT`. They may use `<pthread.h>`'s constants and
+   `CLOCK_REALTIME`, which are defined wherever they're expanded.
+
+ * **Limits**, which `<limits.h>` and `<threads.h>` publish:
+   `__PTHREAD_DESTRUCTOR_ITERATIONS`, `__PTHREAD_KEYS_MAX`,
+   `__PTHREAD_STACK_MIN` and `__SEM_VALUE_MAX`.
+
+`<pthread.h>` supplies everything else: the prototypes, the constants
+(`PTHREAD_CREATE_*`, `PTHREAD_MUTEX_*`, `PTHREAD_PRIO_*`,
+`PTHREAD_PROCESS_*`, `PTHREAD_CANCEL_*`, ...) and
+`pthread_cleanup_push` and `pthread_cleanup_pop`, which the OS
+implements as `__pthread_cleanup_push` and `__pthread_cleanup_pop`
+over `<pthread.h>`'s `struct __pthread_cleanup`.
+
+### `<sys/_signal.h>`: signal stacks
+
+`<signal.h>` includes this header when it exists. It may define
+`MINSIGSTKSZ` and `SIGSTKSZ`; otherwise `<signal.h>` uses 2048 and
+8192. picolibc numbers the signals itself, including the real-time
+signals `SIGRTMIN` (32) to `SIGRTMAX` (62), and the OS layer maps them
+to its own. An OS that delivers fewer real-time signals reports how
+many through `RTSIG_MAX` and `sysconf(_SC_RTSIG_MAX)`.
+
+### Networking
+
+The network headers require their OS headers and stop with an error
+without them:
+
+ * `<sys/_socket.h>`, for `<sys/socket.h>`: `sa_family_t`,
+   `socklen_t`, `struct sockaddr`, `struct sockaddr_storage`,
+   `struct msghdr`, `struct cmsghdr` with `CMSG_DATA`, `CMSG_LEN`,
+   `CMSG_SPACE`, `CMSG_FIRSTHDR` and `CMSG_NXTHDR`, `struct linger`,
+   `SCM_RIGHTS`, the `SOCK_`, `SOL_SOCKET`, `SO_`, `MSG_`, `AF_`, `PF_`
+   and `SHUT_` values, and `SOMAXCONN`.
+
+ * `<netinet/_in.h>`, for `<netinet/in.h>`: `in_port_t`, `in_addr_t`,
+   `struct in_addr`, `struct sockaddr_in`, `struct in6_addr`,
+   `struct sockaddr_in6`, `struct ipv6_mreq`, and the `IPPROTO_` and
+   `IPV6_` values.
+
+ * `<netinet/_tcp.h>`, for `<netinet/tcp.h>`: `TCP_NODELAY`.
+
+ * `<sys/_un.h>`, for `<sys/un.h>`: `struct sockaddr_un`.
+
+ * `<net/_if.h>`, for `<net/if.h>`: `IF_NAMESIZE`.
+
+picolibc's resolver (`getaddrinfo` and friends) is built on these.
 
 ## Linking with System Library
 
