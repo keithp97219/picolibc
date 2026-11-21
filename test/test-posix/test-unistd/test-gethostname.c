@@ -39,12 +39,18 @@
 /* Without the system support this test needs, it is skipped */
 #if defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/utsname.h>
 
-/* gethostname returns the node name uname reports */
+/*
+ * gethostname returns the node name uname reports, null-terminated,
+ * no longer than {HOST_NAME_MAX}; a short buffer gets a truncated
+ * name and nothing is written past it. The name itself is never
+ * printed.
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -54,26 +60,57 @@
         }                                              \
     } while (0)
 
+#define GUARD 16
+
 int
 main(void)
 {
     struct utsname u;
-    char           name[256], small[4];
-    char           guard[16];
+    char           name[256 + GUARD];
+    size_t         len, size, i;
+    long           max;
 
     check(uname(&u) == 0, "uname");
-    check(gethostname(name, sizeof(name)) == 0, "gethostname");
+    memset(name, 'g', sizeof(name));
+    check(gethostname(name, 256) == 0, "gethostname");
+    check(memchr(name, '\0', 256) != NULL, "null-terminated");
     check(strcmp(name, u.nodename) == 0, "nodename");
+    len = strlen(name);
+
+    /* Host names are limited to {HOST_NAME_MAX} bytes */
+    max = sysconf(_SC_HOST_NAME_MAX);
+    /* glibc reports Linux's 64, below the POSIX minimum */
 #ifndef __GLIBC__
-    /* POSIX truncates the name for a short buffer; glibc fails with ENAMETOOLONG */
-    memset(guard, 'g', sizeof(guard));
-    check(gethostname(small, sizeof(small)) == 0, "short buffer");
-    check(strncmp(small, u.nodename, sizeof(small) - 1) == 0, "truncated");
-    check(guard[0] == 'g' && guard[sizeof(guard) - 1] == 'g', "no overrun");
-#else
-    (void)small;
-    (void)guard;
+    check(max == -1 || max >= _POSIX_HOST_NAME_MAX, "_SC_HOST_NAME_MAX");
 #endif
+    check(max == -1 || len <= (size_t)max, "within _SC_HOST_NAME_MAX");
+#ifdef HOST_NAME_MAX
+    check(len <= HOST_NAME_MAX, "within HOST_NAME_MAX");
+#endif
+
+    /* Exactly enough room */
+    memset(name, 'g', sizeof(name));
+    check(gethostname(name, len + 1) == 0, "exact buffer");
+    check(strcmp(name, u.nodename) == 0, "exact buffer holds the name");
+    for (i = len + 1; i < len + 1 + GUARD; i++)
+        check(name[i] == 'g', "nothing past an exact buffer");
+
+    /*
+     * Too little room: the name is truncated, perhaps without its null,
+     * and nothing past the buffer changes. glibc fails with
+     * ENAMETOOLONG instead
+     */
+    for (size = 1; size <= len; size++) {
+        memset(name, 'g', sizeof(name));
+#ifndef __GLIBC__
+        check(gethostname(name, size) == 0, "short buffer");
+        check(strncmp(name, u.nodename, size - 1) == 0, "truncated");
+#else
+        (void)gethostname(name, size);
+#endif
+        for (i = size; i < size + GUARD; i++)
+            check(name[i] == 'g', "nothing past a short buffer");
+    }
     printf("success\n");
     return 0;
 }

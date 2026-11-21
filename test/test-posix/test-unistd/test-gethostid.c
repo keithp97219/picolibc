@@ -41,10 +41,18 @@
 /* Without the system support this test needs, it is skipped */
 #if defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
 
+#include <fcntl.h>
+#include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 
-/* gethostid returns the same identifier each time */
+/*
+ * gethostid returns the same 32-bit identifier each time, in every
+ * process, and the one in /etc/hostid when that file has one. The
+ * identifier itself is never printed.
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -57,7 +65,44 @@
 int
 main(void)
 {
-    check(gethostid() == gethostid(), "stable");
+    int32_t file_id = 0;
+    int     have_file = 0, fd, status;
+    long    id;
+    pid_t   pid;
+
+    fd = open("/etc/hostid", O_RDONLY);
+    if (fd >= 0) {
+        have_file = read(fd, &file_id, sizeof(file_id)) == (ssize_t)sizeof(file_id);
+        close(fd);
+    }
+#ifdef __GLIBC__
+    /* Without /etc/hostid, glibc looks the host name up, perhaps in DNS */
+    if (!have_file) {
+        printf("no /etc/hostid, skipping for glibc\n");
+        return 77;
+    }
+#endif
+
+    id = gethostid();
+    check(gethostid() == id, "stable");
+#if LONG_MAX > INT32_MAX
+    check(id >= INT32_MIN && id <= (long)UINT32_MAX, "32 bits");
+#endif
+    if (have_file)
+        check((int32_t)id == file_id, "the identifier in /etc/hostid");
+
+    /* The same host, the same identifier */
+#ifdef __PICOLIBC_POSIX_MULTI_PROCESS
+    pid = fork();
+    check(pid >= 0, "fork");
+    if (pid == 0)
+        _exit(gethostid() == id ? 0 : 1);
+    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+          "the same in another process");
+#else
+    (void)pid;
+    (void)status;
+#endif
     printf("success\n");
     return 0;
 }
