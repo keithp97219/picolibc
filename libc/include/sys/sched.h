@@ -53,10 +53,13 @@ _BEGIN_STD_C
 /* Open Group Specifications Issue 6 */
 
 #ifndef __machine_sched_param_defined
+/*
+ * The sporadic server members are always present, so the layout
+ * doesn't change with the options the OS claims
+ */
 struct sched_param {
-    int sched_priority; /* Process execution scheduling priority */
+    int             sched_priority; /* Process execution scheduling priority */
 
-#if defined(_POSIX_SPORADIC_SERVER) || defined(_POSIX_THREAD_SPORADIC_SERVER)
     int             sched_ss_low_priority; /* Low scheduling priority for sporadic */
                                            /*   server */
     struct timespec sched_ss_repl_period;
@@ -65,7 +68,6 @@ struct sched_param {
     /* Initial budget for sporadic server */
     int             sched_ss_max_repl; /* Maximum pending replenishments for */
                                        /* sporadic server */
-#endif
 };
 #endif /* !__machine_sched_param_defined */
 
