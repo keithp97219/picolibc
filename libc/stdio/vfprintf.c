@@ -701,8 +701,10 @@ vfprintf(FILE *stream, const CHAR *fmt, va_list ap_orig)
 
     __flockfile(stream);
 
-    if ((stream->flags & __SWR) == 0)
+    if ((stream->flags & __SWR) == 0) {
+        __stdio_bad_dir(stream);
         __funlock_return(stream, EOF);
+    }
 
 #ifdef _NEED_IO_POS_ARGS
     va_copy(ap, ap_orig);

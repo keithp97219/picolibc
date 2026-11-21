@@ -42,8 +42,13 @@ fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
     const uint8_t *cp = (const uint8_t *)ptr;
 
     __flockfile(stream);
-    if ((stream->flags & __SWR) == 0 || size == 0)
+    if (size == 0 || nmemb == 0)
         __funlock_return(stream, 0);
+
+    if ((stream->flags & __SWR) == 0) {
+        __stdio_bad_dir(stream);
+        __funlock_return(stream, 0);
+    }
 
 #ifdef __FAST_BUFIO
     size_t               bytes;

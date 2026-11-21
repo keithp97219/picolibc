@@ -45,8 +45,10 @@ __STDIO_UNLOCKED(getwc)(FILE *stream)
 
     stream->flags |= __SWIDE;
 
-    if ((stream->flags & __SRD) == 0)
+    if ((stream->flags & __SRD) == 0) {
+        __stdio_bad_dir(stream);
         return WEOF;
+    }
 
     if ((unget = __atomic_exchange_ungetc(&stream->unget, 0)) != 0)
         return (wint_t)(unget - 1);

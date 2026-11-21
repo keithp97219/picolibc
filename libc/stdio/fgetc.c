@@ -41,7 +41,7 @@ __STDIO_UNLOCKED(getc)(FILE *stream)
     __ungetc_t unget;
 
     if ((stream->flags & __SRD) == 0) {
-        stream->flags |= __SERR;
+        __stdio_bad_dir(stream);
         return EOF;
     }
 

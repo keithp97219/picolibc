@@ -43,8 +43,10 @@ __STDIO_UNLOCKED(putwc)(wchar_t c, FILE *stream)
 
     stream->flags |= __SWIDE;
 
-    if ((stream->flags & __SWR) == 0)
+    if ((stream->flags & __SWR) == 0) {
+        __stdio_bad_dir(stream);
         return WEOF;
+    }
 
     u.wc = c;
     for (i = 0; i < sizeof(wchar_t); i++)
