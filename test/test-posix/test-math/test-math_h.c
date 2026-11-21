@@ -1,0 +1,411 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+/* The M_ constants, signgam and the Bessel functions are XSI */
+#define _XOPEN_SOURCE 800
+#include <math.h>
+
+#include <fenv.h>
+#include <float.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* <math.h>'s types, macros, constants and prototypes */
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+/* float_t and double_t follow FLT_EVAL_METHOD */
+#if FLT_EVAL_METHOD == 0
+_Static_assert(_Generic((float_t)0, float: 1, default: 0), "float_t is float");
+_Static_assert(_Generic((double_t)0, double: 1, default: 0), "double_t is double");
+#elif FLT_EVAL_METHOD == 1
+_Static_assert(_Generic((float_t)0, double: 1, default: 0), "float_t is double");
+_Static_assert(_Generic((double_t)0, double: 1, default: 0), "double_t is double");
+#elif FLT_EVAL_METHOD == 2
+_Static_assert(_Generic((float_t)0, long double: 1, default: 0), "float_t is long double");
+_Static_assert(_Generic((double_t)0, long double: 1, default: 0), "double_t is long double");
+#endif
+_Static_assert(sizeof(float_t) >= sizeof(float), "float_t at least as wide as float");
+_Static_assert(sizeof(double_t) >= sizeof(double), "double_t at least as wide as double");
+
+/* The classification and comparison macros are macros */
+#if !defined(fpclassify) || !defined(isfinite) || !defined(isinf) || !defined(isnan)              \
+    || !defined(isnormal) || !defined(signbit) || !defined(isgreater) || !defined(isgreaterequal) \
+    || !defined(isless) || !defined(islessequal) || !defined(islessgreater)                       \
+    || !defined(isunordered)
+#error "a classification or comparison macro is missing"
+#endif
+
+#if !defined(HUGE_VAL) || !defined(HUGE_VALF) || !defined(HUGE_VALL) || !defined(INFINITY) \
+    || !defined(NAN)
+#error "HUGE_VAL, HUGE_VALF, HUGE_VALL, INFINITY or NAN is missing"
+#endif
+_Static_assert(_Generic(HUGE_VAL, double: 1, default: 0), "HUGE_VAL is double");
+_Static_assert(_Generic(HUGE_VALF, float: 1, default: 0), "HUGE_VALF is float");
+_Static_assert(_Generic(HUGE_VALL, long double: 1, default: 0), "HUGE_VALL is long double");
+_Static_assert(_Generic(INFINITY, float: 1, default: 0), "INFINITY is float");
+_Static_assert(_Generic(NAN, float: 1, default: 0), "NAN is float");
+
+/* The FP_ classifications are distinct integer constant expressions */
+#if !defined(FP_INFINITE) || !defined(FP_NAN) || !defined(FP_NORMAL) || !defined(FP_SUBNORMAL) \
+    || !defined(FP_ZERO)
+#error "an FP_ classification is missing"
+#endif
+static int
+fp_class_index(int c)
+{
+    switch (c) {
+    case FP_INFINITE:
+        return 0;
+    case FP_NAN:
+        return 1;
+    case FP_NORMAL:
+        return 2;
+    case FP_SUBNORMAL:
+        return 3;
+    case FP_ZERO:
+        return 4;
+    }
+    return -1;
+}
+
+/* FP_FAST_FMA, FP_FAST_FMAF and FP_FAST_FMAL expand to 1 when defined */
+#ifdef FP_FAST_FMA
+_Static_assert(FP_FAST_FMA + 0 == 1, "FP_FAST_FMA is 1");
+#endif
+#ifdef FP_FAST_FMAF
+_Static_assert(FP_FAST_FMAF + 0 == 1, "FP_FAST_FMAF is 1");
+#endif
+#ifdef FP_FAST_FMAL
+_Static_assert(FP_FAST_FMAL + 0 == 1, "FP_FAST_FMAL is 1");
+#endif
+
+/* FP_ILOGB0 is INT_MIN or -INT_MAX, FP_ILOGBNAN INT_MAX or INT_MIN */
+#if !defined(FP_ILOGB0) || !defined(FP_ILOGBNAN)
+#error "FP_ILOGB0 or FP_ILOGBNAN is missing"
+#endif
+_Static_assert(FP_ILOGB0 == INT_MIN || FP_ILOGB0 == -INT_MAX, "FP_ILOGB0");
+_Static_assert(FP_ILOGBNAN == INT_MAX || FP_ILOGBNAN == INT_MIN, "FP_ILOGBNAN");
+
+/* MATH_ERRNO and MATH_ERREXCEPT are 1 and 2, usable in #if */
+#if !defined(MATH_ERRNO) || !defined(MATH_ERREXCEPT) || MATH_ERRNO != 1 || MATH_ERREXCEPT != 2
+#error "MATH_ERRNO or MATH_ERREXCEPT"
+#endif
+_Static_assert(_Generic(math_errhandling, int: 1, default: 0), "math_errhandling is int");
+
+/* With exceptions, <fenv.h> defines FE_DIVBYZERO, FE_INVALID and FE_OVERFLOW */
+#if !defined(FE_DIVBYZERO) || !defined(FE_INVALID) || !defined(FE_OVERFLOW)
+#define HAVE_FE_REQUIRED 0
+#else
+#define HAVE_FE_REQUIRED 1
+#endif
+
+/* The XSI constants, double and long double, accurate to their type */
+#define REF_E        2.7182818284590452353602874713526624977572
+#define REF_EGAMMA   0.5772156649015328606065120900824024310422
+#define REF_LOG2E    1.4426950408889634073599246810018921374266
+#define REF_LOG10E   0.4342944819032518276511289189166050822944
+#define REF_LN2      0.6931471805599453094172321214581765680755
+#define REF_LN10     2.3025850929940456840179914546843642076011
+#define REF_PHI      1.6180339887498948482045868343656381177203
+#define REF_PI       3.1415926535897932384626433832795028841972
+#define REF_PI_2     1.5707963267948966192313216916397514420986
+#define REF_PI_4     0.7853981633974483096156608458198757210493
+#define REF_1_PI     0.3183098861837906715377675267450287240689
+#define REF_1_SQRTPI 0.5641895835477562869480794515607725858441
+#define REF_2_PI     0.6366197723675813430755350534900574481378
+#define REF_2_SQRTPI 1.1283791670955125738961589031215451716881
+#define REF_SQRT2    1.4142135623730950488016887242096980785697
+#define REF_SQRT3    1.7320508075688772935274463415058723669428
+#define REF_SQRT1_2  0.7071067811865475244008443621048490392848
+#define REF_SQRT1_3  0.5773502691896257645091487805019574556476
+
+#define LD_(x)       x##L
+#define LD(x)        LD_(x)
+
+#define CONSTANT_D(name)                                                                \
+    _Static_assert(_Generic(M_##name, double: 1, default: 0), "M_" #name " is double"); \
+    static int check_##name(void)                                                       \
+    {                                                                                   \
+        if (M_##name != REF_##name) {                                                   \
+            printf("M_" #name " is %a, not %a\n", M_##name, REF_##name);                \
+            return 0;                                                                   \
+        }                                                                               \
+        return 1;                                                                       \
+    }
+
+#define CONSTANT_L(name)                                                                        \
+    _Static_assert(_Generic(M_##name##l, long double: 1, default: 0),                           \
+                   "M_" #name "l is long double");                                              \
+    static int check_##name##l(void)                                                            \
+    {                                                                                           \
+        if (M_##name##l != LD(REF_##name)) {                                                    \
+            printf("M_" #name "l is %La, not %La\n", (long double)M_##name##l, LD(REF_##name)); \
+            return 0;                                                                           \
+        }                                                                                       \
+        return 1;                                                                               \
+    }
+
+/* The constants from earlier versions */
+#define OLD_CONSTANTS(C) \
+    C(E)                 \
+    C(LOG2E)             \
+    C(LOG10E)            \
+    C(LN2)               \
+    C(LN10)              \
+    C(PI)                \
+    C(PI_2)              \
+    C(PI_4)              \
+    C(1_PI)              \
+    C(2_PI)              \
+    C(2_SQRTPI)          \
+    C(SQRT2)             \
+    C(SQRT1_2)
+
+/* The constants new in Issue 8 */
+#define NEW_CONSTANTS(C) \
+    C(EGAMMA)            \
+    C(PHI)               \
+    C(1_SQRTPI)          \
+    C(SQRT3)             \
+    C(SQRT1_3)
+
+#define CALL_D(name) ok &= check_##name();
+#define CALL_L(name) ok &= check_##name##l();
+
+OLD_CONSTANTS(CONSTANT_D)
+#ifdef __GLIBC__
+/* glibc 2.43 lacks the Issue 8 constants and has the long double ones only for _GNU_SOURCE */
+#define CHECK_CONSTANTS() OLD_CONSTANTS(CALL_D)
+#else
+NEW_CONSTANTS(CONSTANT_D)
+OLD_CONSTANTS(CONSTANT_L)
+NEW_CONSTANTS(CONSTANT_L)
+#define CHECK_CONSTANTS() \
+    OLD_CONSTANTS(CALL_D) \
+    NEW_CONSTANTS(CALL_D) \
+    OLD_CONSTANTS(CALL_L) \
+    NEW_CONSTANTS(CALL_L)
+#endif
+
+/* MAXFLOAT was removed in Issue 8 */
+#ifndef __GLIBC__
+/* glibc defines MAXFLOAT for any X/Open version */
+#ifdef MAXFLOAT
+#error "MAXFLOAT is defined"
+#endif
+#endif
+
+/* XSI has only the double Bessel functions */
+static int j0f __attribute__((unused));
+static int j1f __attribute__((unused));
+static int jnf __attribute__((unused));
+static int y0f __attribute__((unused));
+static int y1f __attribute__((unused));
+static int ynf __attribute__((unused));
+
+/* signgam is an int */
+_Static_assert(_Generic(&signgam, int *: 1, default: 0), "signgam is int");
+
+/* Every function has its prototype */
+#define PROTO(f, t) _Static_assert(_Generic(&f, t: 1, default: 0), #f " prototype")
+#define D1(fn)                                 \
+    PROTO(fn, double (*)(double));             \
+    PROTO(fn##f, float (*)(float));            \
+    PROTO(fn##l, long double (*)(long double))
+#define D2(fn)                                              \
+    PROTO(fn, double (*)(double, double));                  \
+    PROTO(fn##f, float (*)(float, float));                  \
+    PROTO(fn##l, long double (*)(long double, long double))
+
+D1(acos);
+D1(acosh);
+D1(asin);
+D1(asinh);
+D1(atan);
+D2(atan2);
+D1(atanh);
+D1(cbrt);
+D1(ceil);
+D2(copysign);
+D1(cos);
+D1(cosh);
+D1(erf);
+D1(erfc);
+D1(exp);
+D1(exp2);
+D1(expm1);
+D1(fabs);
+D2(fdim);
+D1(floor);
+PROTO(fma, double (*)(double, double, double));
+PROTO(fmaf, float (*)(float, float, float));
+PROTO(fmal, long double (*)(long double, long double, long double));
+D2(fmax);
+D2(fmin);
+D2(fmod);
+PROTO(frexp, double (*)(double, int *));
+PROTO(frexpf, float (*)(float, int *));
+PROTO(frexpl, long double (*)(long double, int *));
+D2(hypot);
+PROTO(ilogb, int (*)(double));
+PROTO(ilogbf, int (*)(float));
+PROTO(ilogbl, int (*)(long double));
+PROTO(j0, double (*)(double));
+PROTO(j1, double (*)(double));
+PROTO(jn, double (*)(int, double));
+PROTO(ldexp, double (*)(double, int));
+PROTO(ldexpf, float (*)(float, int));
+PROTO(ldexpl, long double (*)(long double, int));
+D1(lgamma);
+PROTO(llrint, long long (*)(double));
+PROTO(llrintf, long long (*)(float));
+PROTO(llrintl, long long (*)(long double));
+PROTO(llround, long long (*)(double));
+PROTO(llroundf, long long (*)(float));
+PROTO(llroundl, long long (*)(long double));
+D1(log);
+D1(log10);
+D1(log1p);
+D1(log2);
+D1(logb);
+PROTO(lrint, long (*)(double));
+PROTO(lrintf, long (*)(float));
+PROTO(lrintl, long (*)(long double));
+PROTO(lround, long (*)(double));
+PROTO(lroundf, long (*)(float));
+PROTO(lroundl, long (*)(long double));
+PROTO(modf, double (*)(double, double *));
+PROTO(modff, float (*)(float, float *));
+PROTO(modfl, long double (*)(long double, long double *));
+PROTO(nan, double (*)(const char *));
+PROTO(nanf, float (*)(const char *));
+PROTO(nanl, long double (*)(const char *));
+D1(nearbyint);
+D2(nextafter);
+PROTO(nexttoward, double (*)(double, long double));
+PROTO(nexttowardf, float (*)(float, long double));
+PROTO(nexttowardl, long double (*)(long double, long double));
+D2(pow);
+D2(remainder);
+PROTO(remquo, double (*)(double, double, int *));
+PROTO(remquof, float (*)(float, float, int *));
+PROTO(remquol, long double (*)(long double, long double, int *));
+D1(rint);
+D1(round);
+PROTO(scalbln, double (*)(double, long));
+PROTO(scalblnf, float (*)(float, long));
+PROTO(scalblnl, long double (*)(long double, long));
+PROTO(scalbn, double (*)(double, int));
+PROTO(scalbnf, float (*)(float, int));
+PROTO(scalbnl, long double (*)(long double, int));
+D1(sin);
+D1(sinh);
+D1(sqrt);
+D1(tan);
+D1(tanh);
+D1(tgamma);
+D1(trunc);
+PROTO(y0, double (*)(double));
+PROTO(y1, double (*)(double));
+PROTO(yn, double (*)(int, double));
+
+static volatile double zero = 0.0;
+
+int
+main(void)
+{
+    volatile double      inf = HUGE_VAL;
+    volatile float       inff = HUGE_VALF;
+    volatile long double infl = HUGE_VALL;
+    volatile float       nanv = NAN;
+    int                  ok = 1;
+
+    /* HUGE_VAL, HUGE_VALF and HUGE_VALL are +infinity with IEEE 754 */
+    check(isinf(inf) && inf > 0, "HUGE_VAL");
+    check(isinf(inff) && inff > 0, "HUGE_VALF");
+    check(isinf(infl) && infl > 0, "HUGE_VALL");
+    check(isinf((float)INFINITY) && INFINITY > 0, "INFINITY");
+    check(isnan(nanv), "NAN");
+
+    /* The classifications are distinct and returned by fpclassify */
+    check(fp_class_index(FP_INFINITE) == 0 && fp_class_index(FP_NAN) == 1
+              && fp_class_index(FP_NORMAL) == 2 && fp_class_index(FP_SUBNORMAL) == 3
+              && fp_class_index(FP_ZERO) == 4,
+          "distinct classifications");
+    check(fpclassify(inf) == FP_INFINITE, "fpclassify inf");
+    check(fpclassify(nanv) == FP_NAN, "fpclassify nan");
+    check(fpclassify(1.0) == FP_NORMAL, "fpclassify normal");
+    check(fpclassify(DBL_MIN / 2 + zero) == FP_SUBNORMAL, "fpclassify subnormal");
+    check(fpclassify(zero) == FP_ZERO, "fpclassify zero");
+    check(_Generic(fpclassify(1.0f), int: 1, default: 0), "fpclassify is int");
+    check(_Generic(isnan(1.0L), int: 1, default: 0), "isnan is int");
+    check(_Generic(isless(1.0, 2.0), int: 1, default: 0), "isless is int");
+
+    /* ilogb returns them */
+    check(ilogb(zero) == FP_ILOGB0, "ilogb(0)");
+    check(ilogb((double)nanv) == FP_ILOGBNAN, "ilogb(NaN)");
+
+    /* math_errhandling is constant and names one or both methods */
+#ifdef __PICOLIBC__
+    /*
+     * picolibc configured without errno for the math functions, on a
+     * target without exceptions, has neither method and says 0
+     */
+    if (math_errhandling == 0)
+        printf("math_errhandling is 0: no errno and no exceptions\n");
+    else
+#endif
+        check(math_errhandling >= 1 && math_errhandling <= 3, "math_errhandling value");
+    if (math_errhandling & MATH_ERREXCEPT)
+        check(HAVE_FE_REQUIRED, "FE_DIVBYZERO, FE_INVALID and FE_OVERFLOW defined");
+
+    CHECK_CONSTANTS()
+    check(ok, "M_ constants");
+
+    /* (double)M_PI == M_PI for any FLT_EVAL_METHOD */
+    check((double)M_PI == M_PI, "M_PI cast");
+
+    printf("success\n");
+    return 0;
+}

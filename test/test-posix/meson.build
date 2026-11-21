@@ -57,6 +57,7 @@ posix_test_dirs = [
   'test-libgen',
   'test-libintl',
   'test-locale',
+  'test-math',
   'test-monetary',
   'test-mqueue',
   'test-ndbm',
