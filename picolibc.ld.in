@@ -57,6 +57,7 @@ PHDRS
 @DATA_INIT_PHDR_DECL@	ram_init PT_LOAD;
 	ram PT_LOAD;
 	@TLS_PHDRS@
+@FREEBSD_NOTE@	note PT_NOTE;
 }
 
 SECTIONS
@@ -106,6 +107,15 @@ SECTIONS
 @RISCV@		KEEP(*(.riscv.jvt));
 
 	} >@TEXT_MEM@ AT>@TEXT_MEM@ :@TEXT_PHDR@
+
+@FREEBSD_NOTE@	/*
+@FREEBSD_NOTE@	 * FreeBSD finds the release a binary was built for in its
+@FREEBSD_NOTE@	 * ABI tag note, through PT_NOTE; without it, the kernel treats
+@FREEBSD_NOTE@	 * the binary as ancient (SIGBUS for protection faults, ...)
+@FREEBSD_NOTE@	 */
+@FREEBSD_NOTE@	.note.tag : {
+@FREEBSD_NOTE@		KEEP (*(.note.tag))
+@FREEBSD_NOTE@	} >@TEXT_MEM@ AT>@TEXT_MEM@ :@TEXT_PHDR@ :note
 
 @CPP@	/* additional sections when compiling with C++ exception support */
 @CPP@	.except_ordered : {

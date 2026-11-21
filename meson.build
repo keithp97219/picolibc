@@ -1065,6 +1065,8 @@ foreach params : [default_target] + targets
     picolibc_ld_data.set('INITTLS', ld_comment)
     picolibc_ld_data.set('DATATLS', '')
     picolibc_ld_data.set('LINUX', '')
+    # Only the FreeBSD linker scripts keep its ABI tag note
+    picolibc_ld_data.set('FREEBSD_NOTE', ld_comment)
 
     # non-exec mode for ram PHDR
     picolibc_ld_data.set('RAM_MODE', 'w!rx')
@@ -1449,6 +1451,9 @@ foreach params : [default_target] + targets
     picolibc_linux_ld_data.set('INITTLS', '')
     picolibc_linux_ld_data.set('DATATLS', ld_comment)
     picolibc_linux_ld_data.set('LINUX', ld_comment)
+    if os_freebsd
+      picolibc_linux_ld_data.set('FREEBSD_NOTE', '')
+    endif
     # Don't discard frame information as that
     # is necessary for debugging
     picolibc_linux_ld_data.set('C', ld_comment)
