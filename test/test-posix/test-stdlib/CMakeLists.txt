@@ -41,6 +41,9 @@ set(tests
   test-posix_openpt
   test-ptsname
   test-ptsname_r
+  test-rand48
+  test-random
+  test-random-thread
   test-realloc
   test-realpath
   test-secure_getenv

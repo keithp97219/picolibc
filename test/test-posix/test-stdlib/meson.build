@@ -41,6 +41,8 @@ dir_tests = [
   'test-posix_openpt',
   'test-ptsname',
   'test-ptsname_r',
+  'test-rand48',
+  'test-random',
   'test-realloc',
   'test-realpath',
   'test-secure_getenv',
@@ -51,6 +53,11 @@ dir_tests = [
   'test-strtol',
   'test-system',
   'test-unlockpt',
+]
+
+# random is shared by all threads, and atexit runs on the last thread's exit
+dir_thread_tests = [
+  'test-random-thread',
 ]
 
 # glibc's -native build sees _REENTRANT from -pthread, so isn't strict ISO C
