@@ -36,6 +36,7 @@
 set(tests
   test-ctermid
   test-fdopen
+  test-fflush
   test-fgetc
   test-fileno
   test-flockfile

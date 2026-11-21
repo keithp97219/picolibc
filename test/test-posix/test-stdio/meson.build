@@ -36,6 +36,7 @@
 dir_tests = [
   'test-ctermid',
   'test-fdopen',
+  'test-fflush',
   'test-fgetc',
   'test-fileno',
   'test-fmemopen',
