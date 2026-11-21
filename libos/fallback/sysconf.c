@@ -39,6 +39,8 @@
 #include <stdint.h>
 #include <limits.h>
 #include <errno.h>
+#include <signal.h>
+#include <stdio.h>
 
 #ifndef __weak_reference
 #define __fallback_sysconf sysconf
@@ -55,12 +57,16 @@ __fallback_sysconf(int name)
         return -1;
     case _SC_AIO_PRIO_DELTA_MAX:
         return AIO_PRIO_DELTA_MAX;
+    /*
+     * Limits <limits.h> defines are reported with that value, which
+     * sysconf mustn't contradict; the others are the POSIX minimums
+     */
     case _SC_ARG_MAX:
-        return _POSIX_ARG_MAX;
+        return ARG_MAX;
     case _SC_ATEXIT_MAX:
-        return 32;
+        return ATEXIT_MAX;
     case _SC_CHILD_MAX:
-        return _POSIX_CHILD_MAX;
+        return CHILD_MAX;
     case _SC_DELAYTIMER_MAX:
         return _POSIX_DELAYTIMER_MAX;
     /*
@@ -73,39 +79,62 @@ __fallback_sysconf(int name)
     case _SC_HOST_NAME_MAX:
         return _POSIX_HOST_NAME_MAX;
     case _SC_IOV_MAX:
-        return _XOPEN_IOV_MAX;
+        return IOV_MAX;
     case _SC_LOGIN_NAME_MAX:
         return _POSIX_LOGIN_NAME_MAX;
     case _SC_MQ_OPEN_MAX:
         return _POSIX_MQ_OPEN_MAX;
     case _SC_MQ_PRIO_MAX:
         return _POSIX_MQ_PRIO_MAX;
+    case _SC_NPROCESSORS_CONF:
+    case _SC_NPROCESSORS_ONLN:
+        return 1;
+    case _SC_NSIG:
+        /* Signal numbers run up to _NSIG - 1 */
+        return _NSIG;
     case _SC_OPEN_MAX:
-        return _POSIX_OPEN_MAX;
+        return OPEN_MAX;
     case _SC_PAGE_SIZE:
         return 4096;
-#if 0
-    case _SC_PTHREAD_DESTRUCTOR_ITERATIONS:
-        return _POSIX_THREAD_DESTRUCTOR_ITERATIONS;
-    case _SC_PTHREAD_KEYS_MAX:
-        return _POSIX_THREAD_KEYS_MAX;
-    case _SC_PTHREAD_STACK_MIN:
-        return 0;
-    case _SC_PTHREAD_THREADS_MAX:
-        return _POSIX_THREAD_THREADS_MAX;
+    /* Without threads, these depend on an option that isn't there */
+    case _SC_THREAD_DESTRUCTOR_ITERATIONS:
+#ifdef PTHREAD_DESTRUCTOR_ITERATIONS
+        return PTHREAD_DESTRUCTOR_ITERATIONS;
+#else
+        return -1;
 #endif
+    case _SC_THREAD_KEYS_MAX:
+#ifdef PTHREAD_KEYS_MAX
+        return PTHREAD_KEYS_MAX;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_STACK_MIN:
+#ifdef PTHREAD_STACK_MIN
+        return PTHREAD_STACK_MIN;
+#else
+        return -1;
+#endif
+    case _SC_THREAD_THREADS_MAX:
+        /* Threads are limited only by memory */
+        return -1;
     case _SC_RTSIG_MAX:
-        return _POSIX_RTSIG_MAX;
+        return RTSIG_MAX;
     case _SC_SEM_NSEMS_MAX:
         return _POSIX_SEM_NSEMS_MAX;
     case _SC_SEM_VALUE_MAX:
+#ifdef SEM_VALUE_MAX
+        return SEM_VALUE_MAX;
+#else
         return _POSIX_SEM_VALUE_MAX;
+#endif
     case _SC_SIGQUEUE_MAX:
         return _POSIX_SIGQUEUE_MAX;
     case _SC_SS_REPL_MAX:
         return _POSIX_SS_REPL_MAX;
     case _SC_STREAM_MAX:
-        return _POSIX_STREAM_MAX;
+        /* stdio has no limit of its own beyond the C minimum */
+        return FOPEN_MAX;
     case _SC_SYMLOOP_MAX:
         return _POSIX_SYMLOOP_MAX;
     case _SC_TIMER_MAX:
@@ -121,7 +150,8 @@ __fallback_sysconf(int name)
     case _SC_TTY_NAME_MAX:
         return _POSIX_TTY_NAME_MAX;
     case _SC_TZNAME_MAX:
-        return _POSIX_TZNAME_MAX;
+        /* What tzset accepts */
+        return TZNAME_MAX;
 #if 0
         /* pathconf bits */
     case _PC_FILESIZEBITS:
@@ -152,25 +182,25 @@ __fallback_sysconf(int name)
         return _POSIX_SYMLINK_MAX;
 #endif
     case _SC_BC_BASE_MAX:
-        return _POSIX2_BC_BASE_MAX;
+        return BC_BASE_MAX;
     case _SC_BC_DIM_MAX:
-        return _POSIX2_BC_DIM_MAX;
+        return BC_DIM_MAX;
     case _SC_BC_SCALE_MAX:
-        return _POSIX2_BC_SCALE_MAX;
+        return BC_SCALE_MAX;
     case _SC_BC_STRING_MAX:
-        return _POSIX2_BC_STRING_MAX;
+        return BC_STRING_MAX;
     case _SC_CHARCLASS_NAME_MAX:
-        return _POSIX2_CHARCLASS_NAME_MAX;
+        return CHARCLASS_NAME_MAX;
     case _SC_COLL_WEIGHTS_MAX:
-        return _POSIX2_COLL_WEIGHTS_MAX;
+        return COLL_WEIGHTS_MAX;
     case _SC_EXPR_NEST_MAX:
-        return _POSIX2_EXPR_NEST_MAX;
+        return EXPR_NEST_MAX;
     case _SC_LINE_MAX:
-        return _POSIX2_LINE_MAX;
+        return LINE_MAX;
     case _SC_NGROUPS_MAX:
-        return _POSIX_NGROUPS_MAX;
+        return NGROUPS_MAX;
     case _SC_RE_DUP_MAX:
-        return _POSIX_RE_DUP_MAX;
+        return RE_DUP_MAX;
     /* Options report their <unistd.h> value, or -1 when not supported */
     case _SC_JOB_CONTROL:
 #ifdef _POSIX_JOB_CONTROL
@@ -631,6 +661,12 @@ __fallback_sysconf(int name)
     case _SC_XOPEN_UUCP:
 #ifdef _XOPEN_UUCP
         return _XOPEN_UUCP;
+#else
+        return -1;
+#endif
+    case _SC_DEVICE_CONTROL:
+#ifdef _POSIX_DEVICE_CONTROL
+        return _POSIX_DEVICE_CONTROL;
 #else
         return -1;
 #endif
