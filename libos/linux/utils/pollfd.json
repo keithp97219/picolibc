@@ -1,0 +1,17 @@
+{
+    "name": "pollfd",
+    "headers": [
+        "asm/poll.h"
+    ],
+    "members": [
+        {
+            "name": "fd"
+        },
+        {
+            "name": "events"
+        },
+        {
+            "name": "revents"
+        }
+    ]
+}

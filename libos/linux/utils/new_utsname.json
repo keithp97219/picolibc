@@ -1,0 +1,38 @@
+{
+    "name": "new_utsname",
+    "headers": [
+        "linux/utsname.h"
+    ],
+    "members": [
+        {
+            "name": "sysname",
+            "array": "true",
+            "char": "true"
+        },
+        {
+            "name": "nodename",
+            "array": "true",
+            "char": "true"
+        },
+        {
+            "name": "release",
+            "array": "true",
+            "char": "true"
+        },
+        {
+            "name": "version",
+            "array": "true",
+            "char": "true"
+        },
+        {
+            "name": "machine",
+            "array": "true",
+            "char": "true"
+        },
+        {
+            "name": "domainname",
+            "array": "true",
+            "char": "true"
+        }
+    ]
+}

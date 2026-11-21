@@ -1,0 +1,15 @@
+{
+    "name": "timespec64",
+    "type": "struct timespec",
+    "headers": [
+        "linux/time_types.h"
+    ],
+    "members": [
+        {
+            "name": "tv_sec"
+        },
+        {
+            "name": "tv_nsec"
+        }
+    ]
+}

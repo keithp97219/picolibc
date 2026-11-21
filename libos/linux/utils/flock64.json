@@ -1,0 +1,23 @@
+{
+    "name": "flock64",
+    "headers": [
+        "linux/fcntl.h"
+    ],
+    "members": [
+        {
+            "name": "l_type"
+        },
+        {
+            "name": "l_whence"
+        },
+        {
+            "name": "l_start"
+        },
+        {
+            "name": "l_len"
+        },
+        {
+            "name": "l_pid"
+        }
+    ]
+}

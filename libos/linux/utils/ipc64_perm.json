@@ -1,0 +1,29 @@
+{
+    "name": "ipc64_perm",
+    "headers": [
+        "asm/ipcbuf.h"
+    ],
+    "members": [
+        {
+            "name": "key"
+        },
+        {
+            "name": "uid"
+        },
+        {
+            "name": "gid"
+        },
+        {
+            "name": "cuid"
+        },
+        {
+            "name": "cgid"
+        },
+        {
+            "name": "mode"
+        },
+        {
+            "name": "seq"
+        }
+    ]
+}

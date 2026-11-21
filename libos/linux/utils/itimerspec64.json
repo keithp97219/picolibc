@@ -1,0 +1,20 @@
+{
+    "name": "itimerspec64",
+    "type": "struct itimerspec",
+    "headers": [
+        "linux/time_types.h"
+    ],
+    "types": [
+        "struct timespec64"
+    ],
+    "members": [
+        {
+            "name": "it_interval",
+            "type": "struct timespec64"
+        },
+        {
+            "name": "it_value",
+            "type": "struct timespec64"
+        }
+    ]
+}

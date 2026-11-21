@@ -1,0 +1,13 @@
+{
+    "name": "fd_set",
+    "type": "fd_set",
+    "headers": [
+        "linux/posix_types.h"
+    ],
+    "members": [
+        {
+            "name": "fds_bits",
+            "array": "true"
+        }
+    ]
+}

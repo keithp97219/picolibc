@@ -1,0 +1,33 @@
+{
+    "name": "semid64_ds",
+    "headers": [
+        "asm/bitsperlong.h",
+        "asm/sembuf.h"
+    ],
+    "types": [
+        "struct ipc64_perm"
+    ],
+    "members": [
+        {
+            "name": "sem_perm",
+            "type": "struct ipc64_perm"
+        },
+        {
+            "name": "sem_otime"
+        },
+        {
+            "name": "sem_otime_high",
+            "if": "__BITS_PER_LONG == 32"
+        },
+        {
+            "name": "sem_ctime"
+        },
+        {
+            "name": "sem_ctime_high",
+            "if": "__BITS_PER_LONG == 32"
+        },
+        {
+            "name": "sem_nsems"
+        }
+    ]
+}

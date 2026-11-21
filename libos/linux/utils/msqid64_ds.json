@@ -1,0 +1,52 @@
+{
+    "name": "msqid64_ds",
+    "headers": [
+        "asm/bitsperlong.h",
+        "asm/msgbuf.h"
+    ],
+    "types": [
+        "struct ipc64_perm"
+    ],
+    "members": [
+        {
+            "name": "msg_perm",
+            "type": "struct ipc64_perm"
+        },
+        {
+            "name": "msg_stime"
+        },
+        {
+            "name": "msg_stime_high",
+            "if": "__BITS_PER_LONG == 32"
+        },
+        {
+            "name": "msg_rtime"
+        },
+        {
+            "name": "msg_rtime_high",
+            "if": "__BITS_PER_LONG == 32"
+        },
+        {
+            "name": "msg_ctime"
+        },
+        {
+            "name": "msg_ctime_high",
+            "if": "__BITS_PER_LONG == 32"
+        },
+        {
+            "name": "msg_cbytes"
+        },
+        {
+            "name": "msg_qnum"
+        },
+        {
+            "name": "msg_qbytes"
+        },
+        {
+            "name": "msg_lspid"
+        },
+        {
+            "name": "msg_lrpid"
+        }
+    ]
+}

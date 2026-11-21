@@ -1,0 +1,15 @@
+{
+    "name": "sock_timeval",
+    "type": "struct sock_timeval",
+    "headers": [
+        "linux/time_types.h"
+    ],
+    "members": [
+        {
+            "name": "tv_sec"
+        },
+        {
+            "name": "tv_usec"
+        }
+    ]
+}

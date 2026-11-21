@@ -1,0 +1,49 @@
+{
+    "name": "shmid64_ds",
+    "headers": [
+        "asm/bitsperlong.h",
+        "asm/shmbuf.h"
+    ],
+    "types": [
+        "struct ipc64_perm"
+    ],
+    "members": [
+        {
+            "name": "shm_perm",
+            "type": "struct ipc64_perm"
+        },
+        {
+            "name": "shm_segsz"
+        },
+        {
+            "name": "shm_atime"
+        },
+        {
+            "name": "shm_atime_high",
+            "if": "__BITS_PER_LONG == 32"
+        },
+        {
+            "name": "shm_dtime"
+        },
+        {
+            "name": "shm_dtime_high",
+            "if": "__BITS_PER_LONG == 32"
+        },
+        {
+            "name": "shm_ctime"
+        },
+        {
+            "name": "shm_ctime_high",
+            "if": "__BITS_PER_LONG == 32"
+        },
+        {
+            "name": "shm_cpid"
+        },
+        {
+            "name": "shm_lpid"
+        },
+        {
+            "name": "shm_nattch"
+        }
+    ]
+}

@@ -24,7 +24,7 @@ declare -a structs
 
 arch=(${ARCH:-arm aarch64 x86_64 i686 hexagon})
 headers=(dirent errno fcntl ioctl mman poll resource signal syscall sysconf termios time wait)
-structs=(fsid rlimit rlimit64 sigval siginfo winsize dirent64 itimerspec itimerval statfs statfs64 statx statx_timestamp termios timespec timeval timezone tms)
+structs=(fsid rlimit rlimit64 sigval siginfo winsize dirent64 itimerspec itimerval statfs statfs64 statx statx_timestamp termios timespec timeval timezone tms ipc64_perm msqid64_ds semid64_ds shmid64_ds timespec64 itimerspec64 sigevent ifreq flock64 f_owner_ex mq_attr pollfd new_utsname fd_set sock_timeval)
 
 #arch=(x86_64)
 #headers=()

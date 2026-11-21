@@ -1,0 +1,20 @@
+{
+    "name": "mq_attr",
+    "headers": [
+        "linux/mqueue.h"
+    ],
+    "members": [
+        {
+            "name": "mq_flags"
+        },
+        {
+            "name": "mq_maxmsg"
+        },
+        {
+            "name": "mq_msgsize"
+        },
+        {
+            "name": "mq_curmsgs"
+        }
+    ]
+}

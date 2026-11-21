@@ -1,0 +1,24 @@
+{
+    "name": "sigevent",
+    "headers": [
+        "asm/siginfo.h"
+    ],
+    "types": [
+        "union sigval"
+    ],
+    "members": [
+        {
+            "name": "sigev_value",
+            "type": "union sigval"
+        },
+        {
+            "name": "sigev_signo"
+        },
+        {
+            "name": "sigev_notify"
+        },
+        {
+            "name": "sigev_notify_thread_id"
+        }
+    ]
+}

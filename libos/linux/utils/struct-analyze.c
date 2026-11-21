@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include <ctype.h>
 
 #define IS_SIGNED  1
@@ -217,7 +218,8 @@ main(int argc, char **argv)
     printf("(_t, _f) do {\\\n");
     for (i = 0; i < NELT; i++) {
         e = &elts[i];
-        if (!e->typename) {
+        /* Structures and unions need their own maps; char is plain data */
+        if (!e->typename || strcmp(e->typename, "char") == 0) {
             if (e->nelt > 0) {
                 printf("        { unsigned __i; for(__i = 0; __i < %d; __i++) (_t)->%s[__i] = "
                        "(_f)->%s[__i]; } \\\n",

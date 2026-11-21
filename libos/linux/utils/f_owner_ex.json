@@ -1,0 +1,14 @@
+{
+    "name": "f_owner_ex",
+    "headers": [
+        "linux/fcntl.h"
+    ],
+    "members": [
+        {
+            "name": "type"
+        },
+        {
+            "name": "pid"
+        }
+    ]
+}

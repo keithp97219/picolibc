@@ -1,0 +1,17 @@
+{
+    "name": "ifreq",
+    "headers": [
+        "linux/socket.h",
+        "linux/if.h"
+    ],
+    "members": [
+        {
+            "name": "ifr_name",
+            "array": "true",
+            "char": "true"
+        },
+        {
+            "name": "ifr_ifindex"
+        }
+    ]
+}
