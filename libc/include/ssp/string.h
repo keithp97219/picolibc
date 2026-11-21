@@ -56,26 +56,26 @@ _END_STD_C
     (__ssp_bos_known(dst) ? __builtin___##fun##_chk(dst, src, __ssp_bos0(dst)) \
                           : __##fun##_ichk(dst, src))
 
-#define __ssp_bos_icheck3_restrict(fun, type1, type2)                                          \
-    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict, type2 __restrict, size_t); \
-    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict dst, type2 __restrict src,  \
-                                                  size_t len)                                  \
-    {                                                                                          \
-        return __builtin___##fun##_chk(dst, src, len, __ssp_bos0(dst));                        \
+#define __ssp_bos_icheck3_restrict(fun, type1, type2)                                             \
+    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict, type2 __restrict, size_t);    \
+    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict __dst, type2 __restrict __src, \
+                                                  size_t __len)                                   \
+    {                                                                                             \
+        return __builtin___##fun##_chk(__dst, __src, __len, __ssp_bos0(__dst));                   \
     }
 
-#define __ssp_bos_icheck3(fun, type1, type2)                                        \
-    __declare_extern_inline(type1) __##fun##_ichk(type1, type2, size_t);            \
-    __declare_extern_inline(type1) __##fun##_ichk(type1 dst, type2 src, size_t len) \
-    {                                                                               \
-        return __builtin___##fun##_chk(dst, src, len, __ssp_bos0(dst));             \
+#define __ssp_bos_icheck3(fun, type1, type2)                                              \
+    __declare_extern_inline(type1) __##fun##_ichk(type1, type2, size_t);                  \
+    __declare_extern_inline(type1) __##fun##_ichk(type1 __dst, type2 __src, size_t __len) \
+    {                                                                                     \
+        return __builtin___##fun##_chk(__dst, __src, __len, __ssp_bos0(__dst));           \
     }
 
-#define __ssp_bos_icheck2_restrict(fun, type1, type2)                                         \
-    __declare_extern_inline(type1) __##fun##_ichk(type1, type2);                              \
-    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict dst, type2 __restrict src) \
-    {                                                                                         \
-        return __builtin___##fun##_chk(dst, src, __ssp_bos0(dst));                            \
+#define __ssp_bos_icheck2_restrict(fun, type1, type2)                                             \
+    __declare_extern_inline(type1) __##fun##_ichk(type1, type2);                                  \
+    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict __dst, type2 __restrict __src) \
+    {                                                                                             \
+        return __builtin___##fun##_chk(__dst, __src, __ssp_bos0(__dst));                          \
     }
 
 _BEGIN_STD_C
