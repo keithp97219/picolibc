@@ -112,7 +112,19 @@ cpu_family_aliases = {
 		     }
 
 # Check for an alias, default to provided name
-host_cpu_family = cpu_family_aliases.get(host_machine.cpu_family(), host_machine.cpu_family())
+host_cpu_name = host_machine.cpu_family()
+
+# In a native build, meson describes the machine it runs on, but the
+# compiler may be for another one, as with CC=aarch64-linux-gnu-gcc on
+# x86_64 running tests through binfmt; believe the compiler when it
+# names an architecture picolibc supports
+if not meson.is_cross_build()
+  _cc_cpu = run_command(cc.cmd_array() + ['-dumpmachine'], check : false).stdout().strip().split('-')[0]
+  if _cc_cpu != '' and fs.is_file('libc/machine' / cpu_family_aliases.get(_cc_cpu, _cc_cpu) / 'meson.build')
+    host_cpu_name = _cc_cpu
+  endif
+endif
+host_cpu_family = cpu_family_aliases.get(host_cpu_name, host_cpu_name)
 
 # Make sure we have meson build support for the machine-specific files
 if not fs.is_file('libc/machine' / host_cpu_family / 'meson.build')
