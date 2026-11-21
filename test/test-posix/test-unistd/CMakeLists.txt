@@ -40,6 +40,7 @@ set(tests
   test-alarm
   test-chown
   test-confstr
+  test-dup2
   test-dup3
   test-execl
   test-execl-thread
