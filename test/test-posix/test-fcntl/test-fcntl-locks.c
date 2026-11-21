@@ -138,7 +138,9 @@ main(void)
               "F_OFD_GETLK");
         check(close(fd2) == 0, "close");
     } else {
-        check(errno == EINVAL, "no open file description locks");
+        /* Open file description locks came with POSIX.1-2024's FD_MGMT */
+        check(__PICOLIBC_POSIX_FD_MGMT < 202405L && errno == EINVAL,
+              "no open file description locks");
     }
 #endif
     check(close(fd) == 0 && unlink("file") == 0 && chdir("..") == 0 && rmdir(dir) == 0, "cleanup");

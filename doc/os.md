@@ -375,7 +375,8 @@ and stops with an error if the header defines one of those itself.
    with its own POSIX threads, unless the OS provides it;
    `_POSIX_THREAD_SAFE_FUNCTIONS` when picolibc was built with locking
    and the OS has threads; and `_POSIX_SPAWN` when the OS has
-   processes, unless the OS provides it.
+   processes, unless the OS provides it. These take the version of the
+   OS option or group they're built on.
 
  * **Constants:** `__PICOLIBC_OS_CHOWN_RESTRICTED`,
    `__PICOLIBC_OS_NO_TRUNC` and `__PICOLIBC_OS_VDISABLE`, which POSIX
@@ -431,8 +432,38 @@ and stops with an error if the header defines one of those itself.
    `SINGLE_PROCESS`, `SYSTEM_LOGGING`, `USER_GROUPS`), and
    `<unistd.h>` defines `__PICOLIBC_XSI_<GROUP>` from it.
 
+**Versions.** Each option and group claim carries the newest edition
+whose requirements for it the OS meets in full: `202405L` only when
+everything POSIX.1-2024 asks of it works, otherwise `200809L` (or
+`200112L`) when the earlier edition's does. `<unistd.h>` passes the
+values on, so applications and the edition computation see what each
+part really provides. What POSIX.1-2024 added to the OS's part, beyond
+the POSIX.1-2008 interfaces, is:
+
+| Option or group | Added in POSIX.1-2024 |
+|---|---|
+| `CLOFORK` | the whole group |
+| `DEVICE_IO` | `ppoll` |
+| `DEVICE_SPECIFIC` | `tcgetwinsize`, `tcsetwinsize` |
+| `DYNAMIC_LINKING` | `dladdr` |
+| `FD_MGMT` | `dup3`; open file description locks (`F_OFD_GETLK`, `F_OFD_SETLK`, `F_OFD_SETLKW`) in `fcntl` |
+| `FILE_SYSTEM` | `futimens`, `posix_getdents` |
+| `MULTI_PROCESS` | `_Fork`, `getrlimit`, `setrlimit` |
+| `NETWORKING` | `accept4` |
+| `PIPE` | `pipe2` |
+| `XSI_FILE_SYSTEM` | `utimes` |
+| `XSI_GENERAL_TERMINAL_R` | the whole group (`ptsname_r`) |
+| `XSI_USER_GROUPS` | `getresgid`, `getresuid`, `setresgid`, `setresuid` |
+| `THREADS` | `pthread_cond_clockwait`, `pthread_mutex_clocklock`, `sched_yield` |
+| `READER_WRITER_LOCKS` | `pthread_rwlock_clockrdlock`, `pthread_rwlock_clockwrlock` |
+| `SEMAPHORES` | `sem_clockwait` |
+
+The table follows the option group lists of the two editions'
+rationale (XRAT E.1) for membership; changes Issue 8 made to existing
+interfaces count too, as the `fcntl` locks show.
+
 `<unistd.h>` then sets `_POSIX_VERSION` to the newest edition whose
-required options and groups are all present.
+required options and groups are all present at that version.
 
 A system that claims the single process group (`sysconf`, `uname`,
 ...) without meeting a whole edition implements a subprofile

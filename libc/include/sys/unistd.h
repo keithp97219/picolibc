@@ -1096,22 +1096,30 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define __PICOLIBC_POSIX_FILE_LOCKING     202405L
 #define __PICOLIBC_POSIX_REGEXP           202405L
 
-/* Options picolibc provides, or builds on what the system provides */
+/*
+ * Options picolibc provides, or builds on what the system provides.
+ * picolibc's own code meets POSIX.1-2024, so one built on an OS option
+ * or group meets the edition the OS claims for that.
+ */
 #if defined(__PICOLIBC_OS_ASYNCHRONOUS_IO)
 #define _POSIX_ASYNCHRONOUS_IO __PICOLIBC_OS_ASYNCHRONOUS_IO
 #elif defined(__PICOLIBC_PTHREADS)
 /* picolibc's asynchronous I/O runs each request in one of its threads */
+#ifdef __PICOLIBC_OS_THREADS
+#define _POSIX_ASYNCHRONOUS_IO __PICOLIBC_OS_THREADS
+#else
 #define _POSIX_ASYNCHRONOUS_IO 202405L
+#endif
 #endif
 #if defined(__PICOLIBC_OS_SPAWN)
 #define _POSIX_SPAWN __PICOLIBC_OS_SPAWN
 #elif defined(__PICOLIBC_OS_MULTI_PROCESS)
 /* picolibc's posix_spawn uses fork and exec */
-#define _POSIX_SPAWN 202405L
+#define _POSIX_SPAWN __PICOLIBC_OS_MULTI_PROCESS
 #endif
 #if defined(_POSIX_THREADS) && _POSIX_THREADS > 0 && !defined(__SINGLE_THREAD)
 /* picolibc's functions are thread-safe when it was built with locking */
-#define _POSIX_THREAD_SAFE_FUNCTIONS 202405L
+#define _POSIX_THREAD_SAFE_FUNCTIONS _POSIX_THREADS
 #endif
 
 /* Option groups of picolibc's code over the OS groups it needs */
