@@ -35,6 +35,7 @@
 
 dir_tests = [
   'test-_Fork',
+  'test-_exit',
   'test-access',
   'test-alarm',
   'test-chown',
@@ -49,6 +50,7 @@ dir_tests = [
   'test-fchownat',
   'test-fdatasync',
   'test-fexecve',
+  'test-fork',
   'test-fsync',
   'test-ftruncate',
   'test-getcwd',
