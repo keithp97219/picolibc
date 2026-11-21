@@ -81,12 +81,10 @@ _wcsnrtombs_l(char *dst, const wchar_t **src, size_t nwc, size_t len, mbstate_t 
     size_t   n;
     int      i;
 
-#ifdef __MB_CAPABLE
     if (ps == NULL) {
-        static mbstate_t _wcsrtombs_state;
-        ps = &_wcsrtombs_state;
+        static mbstate_t _wcsnrtombs_state;
+        ps = &_wcsnrtombs_state;
     }
-#endif
 
     /* If no dst pointer, treat len as maximum possible value. */
     if (dst == NULL)

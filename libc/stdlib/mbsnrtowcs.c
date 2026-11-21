@@ -70,12 +70,10 @@ mbsnrtowcs(wchar_t *dst, const char **src, size_t nms, size_t len, mbstate_t *ps
     size_t      count = 0;
     int         bytes;
 
-#ifdef __MB_CAPABLE
     if (ps == NULL) {
-        static mbstate_t _mbsrtowcs_state;
-        ps = &_mbsrtowcs_state;
+        static mbstate_t _mbsnrtowcs_state;
+        ps = &_mbsnrtowcs_state;
     }
-#endif
 
     if (dst == NULL) {
         /* Ignore original len value and do not alter src pointer if the
