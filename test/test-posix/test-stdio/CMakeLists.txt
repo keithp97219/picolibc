@@ -38,6 +38,7 @@ set(tests
   test-fdopen
   test-fgetc
   test-fileno
+  test-fmemopen
   test-fopen
   test-fseek
   test-getdelim
