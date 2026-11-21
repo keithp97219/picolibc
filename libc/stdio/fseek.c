@@ -40,17 +40,37 @@
 #define FSEEK_TYPE long
 #endif
 
+#define OFF_MAX_VALUE ((__off_t)(~(__uint64_t)0 >> 1))
+
 int
 FSEEK(FILE *stream, FSEEK_TYPE offset, int whence)
 {
     struct __file_ext *xf = (struct __file_ext *)stream;
+    __off_t            pos = (__off_t)offset;
+    __off_t            ret;
 
     __flockfile(stream);
     if ((stream->flags & __SEXT) && xf->seek) {
-        if (whence == SEEK_CUR && __atomic_load_ungetc(&stream->unget) != 0)
-            offset--;
+        /*
+         * Turn SEEK_CUR into SEEK_SET. A seek function called with
+         * SEEK_CUR and zero just reports the position.
+         */
+        if (whence == SEEK_CUR) {
+            __off_t cur = (xf->seek)(stream, 0, SEEK_CUR);
+            if (cur < 0)
+                __funlock_return(stream, -1);
+            if (__atomic_load_ungetc(&stream->unget) != 0 && cur > 0)
+                cur--;
+            if (pos > 0 && cur > OFF_MAX_VALUE - pos) {
+                errno = EOVERFLOW;
+                __funlock_return(stream, -1);
+            }
+            pos += cur;
+            whence = SEEK_SET;
+        }
 
-        if ((xf->seek)(stream, (__off_t)offset, whence) >= 0) {
+        ret = (xf->seek)(stream, pos, whence);
+        if (ret >= 0) {
             stream->flags &= ~__SEOF;
             __atomic_store_ungetc(&stream->unget, 0);
             __funlock_return(stream, 0);

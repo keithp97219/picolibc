@@ -241,14 +241,19 @@ __bufio_seek(FILE *f, off_t offset, int whence)
 
     bufio_sync_pos(bf);
 
-    if (bf->dir == __SWR) {
-
-        /* Short-circuit for ftell in write mode */
-        if (whence == SEEK_CUR && offset == 0) {
-            ret = bf->pos + bf->len;
+    /* ftell: report the position without changing anything */
+    if (whence == SEEK_CUR && offset == 0) {
+        /* Fail on pipes and other descriptors that can't seek */
+        if (bufio_lseek(bf, 0, SEEK_CUR) < 0)
             goto exit;
-        }
+        if (bf->dir == __SWR)
+            ret = bf->pos + bf->len;
+        else
+            ret = bf->pos - bf->len + bf->off;
+        goto exit;
+    }
 
+    if (bf->dir == __SWR) {
         /*
          * With any pending writes, we need to flush before we change
          * position. Switching to read mode means we can share the
@@ -269,8 +274,12 @@ __bufio_seek(FILE *f, off_t offset, int whence)
         offset += buf_pos + bf->off;
         __fallthrough;
     case SEEK_SET:
-        /* Optimize for seeks within buffer or just past buffer */
-        if (buf_pos <= offset && offset <= buf_pos + bf->len) {
+        /*
+         * Optimize for seeks within buffer or just past buffer. With
+         * nothing buffered (after fflush, say), the descriptor offset
+         * must still be set, as another handle may have moved it.
+         */
+        if (bf->len > 0 && buf_pos <= offset && offset <= buf_pos + bf->len) {
             bf->off = offset - buf_pos;
             ret = offset;
             break;
