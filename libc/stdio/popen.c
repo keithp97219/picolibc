@@ -34,6 +34,8 @@
  */
 
 #include "local-stdio.h"
+#include <alloca.h>
+#include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <sys/wait.h>
@@ -169,9 +171,22 @@ popen(const char *command, const char *type)
         shell = "/bin/sh";
         argv[0] = shell + 5;
         argv[1] = "-c";
-        argv[2] = "--";
-        argv[3] = (char *)command;
-        argv[4] = NULL;
+        /*
+         * POSIX passes "--" so a command starting with '-' or '+' isn't
+         * taken as options, but FreeBSD's sh runs "--" itself as the
+         * command. A leading blank, which the shell skips, works with
+         * every shell.
+         */
+        if (command[0] == '-' || command[0] == '+') {
+            size_t len = strlen(command);
+            char  *blank = alloca(len + 2);
+
+            blank[0] = ' ';
+            memcpy(blank + 1, command, len + 1);
+            command = blank;
+        }
+        argv[2] = (char *)command;
+        argv[3] = NULL;
 
         /* And we're off */
         execve(shell, argv, environ);

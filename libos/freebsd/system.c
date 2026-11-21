@@ -34,9 +34,11 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+#include <alloca.h>
 #include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
 
@@ -73,9 +75,18 @@ system(const char *command)
 
     /*
      * FreeBSD's sh takes the argument after -c as the command, even
-     * "--" or one starting with '-', so this leaves out the "--" POSIX
-     * shows
+     * "--", so this leaves out the "--" POSIX shows. A command starting
+     * with '-' or '+' gets a leading blank, which the shell skips,
+     * instead, so it isn't taken as options.
      */
+    if (command[0] == '-' || command[0] == '+') {
+        size_t len = strlen(command);
+        char  *blank = alloca(len + 2);
+
+        blank[0] = ' ';
+        memcpy(blank + 1, command, len + 1);
+        command = blank;
+    }
     argv[0] = "sh";
     argv[1] = "-c";
     argv[2] = (char *)command;
