@@ -109,6 +109,24 @@ main(void)
     wait_for(&cb);
     check(aio_return(&cb) == 12, "byte count");
     check(memcmp(buf, "hello, world", 12) == 0, "contents");
+#ifdef __PICOLIBC__
+    /* The status can be retrieved once; picolibc then fails with EINVAL */
+    check(aio_return(&cb) == -1 && errno == EINVAL, "second aio_return");
+#endif
+
+    /* A failed request's return status is -1 */
+    cb.aio_offset = -1;
+    if (aio_read(&cb) == 0) {
+        wait_for(&cb);
+        check(aio_error(&cb) == EINVAL && aio_return(&cb) == -1, "failed request");
+    }
+    cb.aio_offset = 0;
+
+    /* An aiocb can be reused for another request */
+    cb.aio_nbytes = 5;
+    check(aio_read(&cb) == 0, "aio_read again");
+    wait_for(&cb);
+    check(aio_return(&cb) == 5, "reused aiocb");
     cleanup(fd);
     printf("success\n");
     return 0;

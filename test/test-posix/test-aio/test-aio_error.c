@@ -38,7 +38,7 @@
 
 /* Without the system support this test needs, it is skipped */
 #if _POSIX_ASYNCHRONOUS_IO > 0 && _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
-    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && defined(__PICOLIBC_POSIX_PIPE)
 
 #include <aio.h>
 #include <errno.h>
@@ -124,6 +124,20 @@ main(void)
     wait_for(&cb);
     check(aio_error(&cb) == 0 && aio_return(&cb) == 1, "done");
     check(close(wfd) == 0, "close");
+
+    /* A read from an empty pipe stays in progress until there is data */
+    {
+        int pipefd[2];
+
+        check(pipe(pipefd) == 0, "pipe");
+        cb.aio_fildes = pipefd[0];
+        check(aio_read(&cb) == 0, "aio_read from a pipe");
+        check(aio_error(&cb) == EINPROGRESS, "EINPROGRESS");
+        check(write(pipefd[1], "x", 1) == 1, "write to the pipe");
+        wait_for(&cb);
+        check(aio_error(&cb) == 0 && aio_return(&cb) == 1 && buf[0] == 'x', "done");
+        check(close(pipefd[0]) == 0 && close(pipefd[1]) == 0, "close the pipe");
+    }
     cleanup(fd);
     printf("success\n");
     return 0;

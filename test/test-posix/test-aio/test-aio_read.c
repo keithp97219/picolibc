@@ -38,7 +38,8 @@
 
 /* Without the system support this test needs, it is skipped */
 #if _POSIX_ASYNCHRONOUS_IO > 0 && _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
-    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && defined(__PICOLIBC_POSIX_PIPE)            \
+    && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <aio.h>
 #include <errno.h>
@@ -93,12 +94,31 @@ wait_for(struct aiocb *cb)
         check(aio_suspend(list, 1, NULL) == 0 || errno == EINTR, "aio_suspend");
 }
 
+static volatile sig_atomic_t got_signal, got_code;
+static void * volatile got_value;
+
+static void
+handler(int sig, siginfo_t *info, void *context)
+{
+    (void)context;
+    got_signal = sig == SIGUSR1 && info->si_signo == SIGUSR1;
+    got_code = info->si_code;
+    got_value = info->si_value.sival_ptr;
+}
+
 int
 main(void)
 {
-    struct aiocb cb;
-    char         buf[8];
-    int          fd = scratch("0123456789");
+    struct aiocb        cb;
+    const struct aiocb *list[1] = { &cb };
+    struct timespec     brief = { 0, 50000000 };
+    struct sigaction    sa;
+    sigset_t            block, old, pending;
+    char                buf[8];
+    int                 fd = scratch("0123456789"), pipefd[2];
+
+    /* A request that hangs ends the test */
+    alarm(60);
 
     memset(&cb, 0, sizeof(cb));
     cb.aio_fildes = fd;
@@ -117,10 +137,73 @@ main(void)
     wait_for(&cb);
     check(aio_return(&cb) == 0, "end of file");
 
+    /* An invalid offset fails, now or as the request's status */
+    cb.aio_offset = -1;
+    if (aio_read(&cb) == 0) {
+        wait_for(&cb);
+        check(aio_error(&cb) == EINVAL && aio_return(&cb) == -1, "EINVAL status");
+    } else {
+        check(errno == EINVAL, "EINVAL");
+    }
+    cb.aio_offset = 0;
+
     /* An invalid priority fails at once */
     cb.aio_reqprio = -1;
     check(aio_read(&cb) == -1 && errno == EINVAL, "bad aio_reqprio");
     cb.aio_reqprio = 0;
+
+    /* aio_lio_opcode is ignored */
+    cb.aio_lio_opcode = LIO_WRITE;
+    check(aio_read(&cb) == 0, "aio_read with LIO_WRITE");
+    wait_for(&cb);
+    check(aio_return(&cb) == 4 && memcmp(buf, "0123", 4) == 0, "read, not written");
+    cb.aio_lio_opcode = 0;
+
+    /*
+     * A pipe can't seek, so the offset doesn't apply; the request stays
+     * in progress until there is something to read
+     */
+    check(pipe(pipefd) == 0, "pipe");
+    cb.aio_fildes = pipefd[0];
+    cb.aio_offset = 1000;
+    check(aio_read(&cb) == 0, "aio_read from a pipe");
+    check(aio_error(&cb) == EINPROGRESS, "waiting for data");
+    check(aio_suspend(list, 1, &brief) == -1 && errno == EAGAIN, "still waiting");
+    check(write(pipefd[1], "xyz", 3) == 3, "write to the pipe");
+    wait_for(&cb);
+    check(aio_error(&cb) == 0 && aio_return(&cb) == 3 && memcmp(buf, "xyz", 3) == 0, "pipe read");
+
+    /* SIGEV_SIGNAL sends the signal, with SI_ASYNCIO and the value */
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = handler;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    check(sigaction(SIGUSR1, &sa, NULL) == 0, "sigaction");
+    sigemptyset(&block);
+    sigaddset(&block, SIGUSR1);
+    /* Blocked until sigsuspend, so the signal can't arrive before the wait */
+    check(sigprocmask(SIG_BLOCK, &block, &old) == 0, "sigprocmask");
+    cb.aio_sigevent.sigev_notify = SIGEV_SIGNAL;
+    cb.aio_sigevent.sigev_signo = SIGUSR1;
+    cb.aio_sigevent.sigev_value.sival_ptr = &cb;
+    check(aio_read(&cb) == 0, "aio_read with SIGEV_SIGNAL");
+    check(write(pipefd[1], "abc", 3) == 3, "write to the pipe");
+    while (!got_signal)
+        sigsuspend(&old);
+    check(aio_error(&cb) == 0 && aio_return(&cb) == 3, "signaled read");
+    check(got_value == &cb, "si_value");
+    check(got_code == SI_ASYNCIO, "si_code");
+
+    /* SIGEV_NONE sends nothing, whatever sigev_signo says */
+    got_signal = 0;
+    cb.aio_sigevent.sigev_notify = SIGEV_NONE;
+    check(aio_read(&cb) == 0, "aio_read with SIGEV_NONE");
+    check(write(pipefd[1], "d", 1) == 1, "write to the pipe");
+    wait_for(&cb);
+    check(aio_return(&cb) == 1, "quiet read");
+    check(sigpending(&pending) == 0 && !sigismember(&pending, SIGUSR1) && !got_signal, "no signal");
+    check(sigprocmask(SIG_SETMASK, &old, NULL) == 0, "sigprocmask");
+    check(close(pipefd[0]) == 0 && close(pipefd[1]) == 0, "close the pipe");
 
     /* A bad descriptor fails, now or as the request's status */
     cb.aio_fildes = -1;
