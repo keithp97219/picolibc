@@ -41,13 +41,8 @@
 /* Use the 64-bit time call where the kernel has one */
 #ifdef LINUX_SYS_rt_sigtimedwait_time64
 #define LINUX_SYS_rt_sigtimedwait_time_t LINUX_SYS_rt_sigtimedwait_time64
-struct __kernel_sigtimedwait_timespec {
-    __int64_t tv_sec;
-    __int64_t tv_nsec;
-};
 #else
 #define LINUX_SYS_rt_sigtimedwait_time_t LINUX_SYS_rt_sigtimedwait
-#define __kernel_sigtimedwait_timespec   __kernel_timespec
 #endif
 
 /*
@@ -57,12 +52,12 @@ struct __kernel_sigtimedwait_timespec {
 int
 _sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout, int *sig)
 {
-    __kernel_sigset_t                     kset;
-    struct __kernel_siginfo               kinfo;
-    struct __kernel_sigtimedwait_timespec kts, *pkts = NULL;
-    void                                 *cancel;
-    long                                  ret;
-    int                                   bad_timeout = 0;
+    __kernel_sigset_t          kset;
+    struct __kernel_siginfo    kinfo;
+    struct __kernel_timespec64 kts, *pkts = NULL;
+    void                      *cancel;
+    long                       ret;
+    int                        bad_timeout = 0;
 
     if (timeout) {
         /*

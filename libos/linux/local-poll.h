@@ -40,16 +40,7 @@
 #include <poll.h>
 
 #include <stddef.h>
-
-/*
- * Arrays of struct pollfd go to the kernel in place, with only the
- * event bits translated; make sure the layout matches the kernel's.
- */
-struct __kernel_pollfd {
-    int   fd;
-    short events;
-    short revents;
-};
+#include <linux/linux-pollfd-struct.h>
 
 _Static_assert(sizeof(struct pollfd) == sizeof(struct __kernel_pollfd), "struct pollfd size");
 _Static_assert(offsetof(struct pollfd, fd) == offsetof(struct __kernel_pollfd, fd),

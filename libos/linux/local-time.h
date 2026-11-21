@@ -41,6 +41,7 @@
 #include <linux/linux-timespec-struct.h>
 #include <linux/linux-itimerspec-struct.h>
 #include <linux/linux-itimerval-struct.h>
+#include <linux/linux-timespec64-struct.h>
 
 #include <time.h>
 
@@ -58,10 +59,10 @@
  * kernel offers it.
  *
  * The two syscalls do not share a layout: clock_gettime64 always
- * expects a 64-bit tv_sec/tv_nsec pair, whereas the generated struct
+ * expects a 64-bit tv_sec/tv_nsec pair, whereas struct
  * __kernel_timespec follows the arch's native time_t and is 32-bit on
- * those targets. Pair each syscall with a matching struct so the kernel
- * never writes past the end of the object.
+ * those targets. The *_time_t calls all take struct
+ * __kernel_timespec64.
  */
 #ifdef LINUX_SYS_clock_gettime64
 
@@ -70,11 +71,6 @@
 #define LINUX_SYS_clock_nanosleep_time_t LINUX_SYS_clock_nanosleep_time64
 #define LINUX_SYS_clock_settime_time_t   LINUX_SYS_clock_settime64
 
-struct __kernel_timespec_time_t {
-    __int64_t tv_sec;
-    __int64_t tv_nsec;
-};
-
 #else
 
 #define LINUX_SYS_clock_gettime_time_t   LINUX_SYS_clock_gettime
@@ -82,9 +78,10 @@ struct __kernel_timespec_time_t {
 #define LINUX_SYS_clock_nanosleep_time_t LINUX_SYS_clock_nanosleep
 #define LINUX_SYS_clock_settime_time_t   LINUX_SYS_clock_settime
 
-#define __kernel_timespec_time_t         __kernel_timespec
-
 #endif
+
+/* On 64-bit targets, the old timespec has this layout too */
+#define __kernel_timespec_time_t __kernel_timespec64
 
 /* Copy between kernel and library representations of itimerval */
 #define MAP_ITV(a, b)                                             \

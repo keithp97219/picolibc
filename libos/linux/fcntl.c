@@ -35,6 +35,8 @@
 
 #include "local-linux.h"
 #include "local-cancel.h"
+#include <linux/linux-flock64-struct.h>
+#include <linux/linux-f_owner_ex-struct.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -63,22 +65,9 @@
 #define LINUX_F_OWNER_PID     1
 #define LINUX_F_OWNER_PGRP    2
 
-struct __kernel_f_owner_ex {
-    int type;
-    int pid;
-};
-
-#define LINUX_F_RDLCK 0
-#define LINUX_F_WRLCK 1
-#define LINUX_F_UNLCK 2
-
-struct __kernel_flock64 {
-    short     l_type;
-    short     l_whence;
-    __int64_t l_start;
-    __int64_t l_len;
-    int       l_pid;
-};
+#define LINUX_F_RDLCK         0
+#define LINUX_F_WRLCK         1
+#define LINUX_F_UNLCK         2
 
 static int
 _fcntl_lock(int fd, int kop, struct flock *fl)

@@ -42,18 +42,13 @@
 /* Use the 64-bit time call where the kernel has one */
 #ifdef LINUX_SYS_ppoll_time64
 #define LINUX_SYS_ppoll_time_t LINUX_SYS_ppoll_time64
-struct __kernel_ppoll_timespec {
-    __int64_t tv_sec;
-    __int64_t tv_nsec;
-};
 #else
-#define LINUX_SYS_ppoll_time_t  LINUX_SYS_ppoll
-#define __kernel_ppoll_timespec __kernel_timespec
+#define LINUX_SYS_ppoll_time_t LINUX_SYS_ppoll
 #endif
 
 /* Convert a timeout, clamping it to the end of 32-bit time if needed */
 static int
-timeout_to_linux(struct __kernel_ppoll_timespec *kts, const struct timespec *ts)
+timeout_to_linux(struct __kernel_timespec64 *kts, const struct timespec *ts)
 {
     if (ts->tv_nsec < 0 || ts->tv_nsec >= 1000000000L) {
         errno = EINVAL;
@@ -70,10 +65,10 @@ timeout_to_linux(struct __kernel_ppoll_timespec *kts, const struct timespec *ts)
 int
 ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout, const sigset_t *sigmask)
 {
-    struct __kernel_ppoll_timespec kts, *pkts = NULL;
-    __kernel_sigset_t              kmask, *pkmask = NULL;
-    void                          *cancel;
-    int                            ret;
+    struct __kernel_timespec64 kts, *pkts = NULL;
+    __kernel_sigset_t          kmask, *pkmask = NULL;
+    void                      *cancel;
+    int                        ret;
 
     if (timeout) {
         if (timeout_to_linux(&kts, timeout) < 0)

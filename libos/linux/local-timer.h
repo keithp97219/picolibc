@@ -53,34 +53,20 @@
 #define LINUX_SYS_timer_settime_time_t LINUX_SYS_timer_settime64
 #define LINUX_SYS_timer_gettime_time_t LINUX_SYS_timer_gettime64
 
-struct __kernel_itimerspec_time_t {
-    struct __kernel_timespec_time_t it_interval;
-    struct __kernel_timespec_time_t it_value;
-};
 #else
 #define LINUX_SYS_timer_settime_time_t LINUX_SYS_timer_settime
 #define LINUX_SYS_timer_gettime_time_t LINUX_SYS_timer_gettime
-#define __kernel_itimerspec_time_t     __kernel_itimerspec
 #endif
+
+#include <linux/linux-itimerspec64-struct.h>
+#include <linux/linux-sigevent-struct.h>
+
+#define __kernel_itimerspec_time_t __kernel_itimerspec64
 
 /* Linux sigev_notify values */
 #define LINUX_SIGEV_SIGNAL    0
 #define LINUX_SIGEV_NONE      1
 #define LINUX_SIGEV_THREAD_ID 4
-
-/* The kernel's struct sigevent, which is always 64 bytes */
-#define LINUX_SIGEV_SIZE 64
-
-struct __kernel_sigevent {
-    union __kernel_sigval sigev_value;
-    __int32_t             sigev_signo;
-    __int32_t             sigev_notify;
-    union {
-        __int32_t __pad[(LINUX_SIGEV_SIZE - sizeof(union __kernel_sigval) - 2 * sizeof(__int32_t))
-                        / sizeof(__int32_t)];
-        __int32_t sigev_tid;
-    };
-};
 
 /* picolibc's timer_t holds the kernel's timer id */
 static inline int

@@ -49,9 +49,7 @@ typedef unsigned long __kernel_fd_mask;
 
 #define __KERNEL_NFDBITS ((int)sizeof(__kernel_fd_mask) * 8)
 
-struct __kernel_fd_set {
-    __kernel_fd_mask fds_bits[(FD_SETSIZE + __KERNEL_NFDBITS - 1) / __KERNEL_NFDBITS];
-};
+#include <linux/linux-fd_set-struct.h>
 
 static inline struct __kernel_fd_set *
 _fdset_to_linux(struct __kernel_fd_set *kset, const fd_set *set, int nfds)

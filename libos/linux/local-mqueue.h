@@ -42,15 +42,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <mqueue.h>
-
-/* The kernel's struct mq_attr */
-struct __kernel_mq_attr {
-    long mq_flags;
-    long mq_maxmsg;
-    long mq_msgsize;
-    long mq_curmsgs;
-    long __reserved[4];
-};
+#include <linux/linux-mq_attr-struct.h>
 
 /* The timed send and receive calls, 64-bit time where the kernel has them */
 #ifdef LINUX_SYS_mq_timedsend_time64

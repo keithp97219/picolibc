@@ -52,79 +52,13 @@
 #endif
 
 /*
- * The kernel's 64-bit IPC structures. 32-bit targets split each time
- * into low and high words; the mode is 16 bits on i386 and arm.
+ * The kernel's 64-bit IPC structures; 32-bit targets split each time
+ * into low and high words
  */
-#if defined(__i386__) || defined(__arm__)
-typedef unsigned short __kernel_ipc_mode_t;
-#else
-typedef unsigned int __kernel_ipc_mode_t;
-#endif
-
-struct __kernel_ipc64_perm {
-    __int32_t           key;
-    __uint32_t          uid;
-    __uint32_t          gid;
-    __uint32_t          cuid;
-    __uint32_t          cgid;
-    __kernel_ipc_mode_t mode;
-    unsigned char       __pad1[4 - sizeof(__kernel_ipc_mode_t)];
-    unsigned short      seq;
-    unsigned short      __pad2;
-    unsigned long       __unused1;
-    unsigned long       __unused2;
-};
-
-#if __SIZEOF_LONG__ == 8
-#define __KERNEL_IPC_TIME(name) long name
-#else
-#define __KERNEL_IPC_TIME(name) \
-    unsigned long name;         \
-    unsigned long name##_high
-#endif
-
-struct __kernel_msqid64_ds {
-    struct __kernel_ipc64_perm msg_perm;
-    __KERNEL_IPC_TIME(msg_stime);
-    __KERNEL_IPC_TIME(msg_rtime);
-    __KERNEL_IPC_TIME(msg_ctime);
-    unsigned long msg_cbytes;
-    unsigned long msg_qnum;
-    unsigned long msg_qbytes;
-    int           msg_lspid;
-    int           msg_lrpid;
-    unsigned long __unused4;
-    unsigned long __unused5;
-};
-
-struct __kernel_semid64_ds {
-    struct __kernel_ipc64_perm sem_perm;
-    /* x86_64 pads each time; other 64-bit targets don't */
-    __KERNEL_IPC_TIME(sem_otime);
-#ifdef __x86_64__
-    unsigned long __unused1;
-#endif
-    __KERNEL_IPC_TIME(sem_ctime);
-#ifdef __x86_64__
-    unsigned long __unused2;
-#endif
-    unsigned long sem_nsems;
-    unsigned long __unused3;
-    unsigned long __unused4;
-};
-
-struct __kernel_shmid64_ds {
-    struct __kernel_ipc64_perm shm_perm;
-    unsigned long              shm_segsz;
-    __KERNEL_IPC_TIME(shm_atime);
-    __KERNEL_IPC_TIME(shm_dtime);
-    __KERNEL_IPC_TIME(shm_ctime);
-    int           shm_cpid;
-    int           shm_lpid;
-    unsigned long shm_nattch;
-    unsigned long __unused4;
-    unsigned long __unused5;
-};
+#include <linux/linux-ipc64_perm-struct.h>
+#include <linux/linux-msqid64_ds-struct.h>
+#include <linux/linux-semid64_ds-struct.h>
+#include <linux/linux-shmid64_ds-struct.h>
 
 #if __SIZEOF_LONG__ == 8
 #define _ipc_time(k, name) ((time_t)(k)->name)
@@ -148,7 +82,7 @@ _ipc_perm_to_linux(struct __kernel_ipc64_perm *k, const struct ipc_perm *perm)
 {
     k->uid = perm->uid;
     k->gid = perm->gid;
-    k->mode = (__kernel_ipc_mode_t)perm->mode;
+    k->mode = (__typeof__(k->mode))perm->mode;
 }
 
 #endif /* _LOCAL_IPC_H_ */

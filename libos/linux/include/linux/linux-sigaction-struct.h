@@ -43,6 +43,11 @@ typedef struct __kernel_sigset {
     unsigned sa_mask[__KERNEL_NSIG / (sizeof(unsigned) * 8)];
 } __kernel_sigset_t;
 
+/*
+ * What rt_sigaction takes. Not generated: the uapi struct sigaction in
+ * asm/signal.h is the old sigaction layout on x86 and arm, with a
+ * one-word mask and the members in another order
+ */
 struct __kernel_sigaction {
     _sig_func_ptr sa_handler;
     unsigned long sa_flags;

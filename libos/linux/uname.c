@@ -36,18 +36,9 @@
 #include "local-linux.h"
 #include <string.h>
 #include <sys/utsname.h>
+#include <linux/linux-new_utsname-struct.h>
 
 /* The kernel's struct new_utsname */
-#define LINUX_UTSNAME_LENGTH 65
-
-struct __kernel_utsname {
-    char sysname[LINUX_UTSNAME_LENGTH];
-    char nodename[LINUX_UTSNAME_LENGTH];
-    char release[LINUX_UTSNAME_LENGTH];
-    char version[LINUX_UTSNAME_LENGTH];
-    char machine[LINUX_UTSNAME_LENGTH];
-    char domainname[LINUX_UTSNAME_LENGTH];
-};
 
 #define COPY_FIELD(to, from)               \
     do {                                   \
@@ -58,7 +49,7 @@ struct __kernel_utsname {
 int
 uname(struct utsname *name)
 {
-    struct __kernel_utsname kname;
+    struct __kernel_new_utsname kname;
 
     if (_syscall(LINUX_SYS_uname, &kname) < 0)
         return -1;

@@ -37,7 +37,7 @@
 #include "local-pthread.h"
 
 int
-_futex_timespec(struct __kernel_futex_timespec *kts, const struct timespec *abstime)
+_futex_timespec(struct __kernel_timespec64 *kts, const struct timespec *abstime)
 {
     if (abstime->tv_nsec < 0 || abstime->tv_nsec >= 1000000000L)
         return EINVAL;

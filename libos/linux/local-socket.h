@@ -39,6 +39,8 @@
 #include "local-linux.h"
 #include <sys/socket.h>
 #include <net/if.h>
+#include <linux/linux-sock_timeval-struct.h>
+#include <linux/linux-ifreq-struct.h>
 
 /* Kernel values the socket ABI headers don't publish */
 #define LINUX_SIOCATMARK   0x8905
@@ -60,20 +62,5 @@ _socket_einval(int type)
 
     return base <= 0 || base >= LINUX_SOCK_MAX ? EPROTOTYPE : EPROTONOSUPPORT;
 }
-
-/* The 64-bit timeout SO_RCVTIMEO and SO_SNDTIMEO use on 32-bit targets */
-struct __kernel_sock_timeval {
-    __int64_t tv_sec;
-    __int64_t tv_usec;
-};
-
-/* The parts of struct ifreq used here, at the kernel's size */
-struct __kernel_ifreq {
-    char ifr_name[IF_NAMESIZE];
-    union {
-        int  ifr_ifindex;
-        char __pad[sizeof(void *) == 8 ? 24 : 16];
-    };
-};
 
 #endif /* _LOCAL_SOCKET_H_ */

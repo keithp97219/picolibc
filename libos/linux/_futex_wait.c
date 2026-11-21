@@ -44,9 +44,9 @@ int
 _futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t clock,
             const struct timespec *abstime)
 {
-    struct __kernel_futex_timespec kts, *pkts = NULL;
-    int                            op;
-    int                            ret;
+    struct __kernel_timespec64 kts, *pkts = NULL;
+    int                        op;
+    int                        ret;
 
     op = pshared ? 0 : LINUX_FUTEX_PRIVATE_FLAG;
     if (abstime) {

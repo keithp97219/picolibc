@@ -121,7 +121,7 @@ _timer_create_thread(int kclock, const struct sigevent *evp, timer_t *timerid)
     memset(&kev, 0, sizeof(kev));
     kev.sigev_notify = LINUX_SIGEV_THREAD_ID;
     kev.sigev_signo = _TIMER_SIGNAL;
-    kev.sigev_tid = t->thread->tid;
+    kev.sigev_notify_thread_id = t->thread->tid;
     ret = (int)_syscall_raw(LINUX_SYS_timer_create, kclock, &kev, &t->kid);
     if (ret < 0) {
         ret = _syscall_errno(ret);

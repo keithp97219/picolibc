@@ -42,18 +42,13 @@
 /* Use the 64-bit time call where the kernel has one */
 #ifdef LINUX_SYS_pselect6_time64
 #define LINUX_SYS_pselect6_time_t LINUX_SYS_pselect6_time64
-struct __kernel_pselect6_timespec {
-    __int64_t tv_sec;
-    __int64_t tv_nsec;
-};
 #else
-#define LINUX_SYS_pselect6_time_t  LINUX_SYS_pselect6
-#define __kernel_pselect6_timespec __kernel_timespec
+#define LINUX_SYS_pselect6_time_t LINUX_SYS_pselect6
 #endif
 
 /* Convert a timeout, clamping it to the end of 32-bit time if needed */
 static int
-timeout_to_linux(struct __kernel_pselect6_timespec *kts, const struct timespec *ts)
+timeout_to_linux(struct __kernel_timespec64 *kts, const struct timespec *ts)
 {
     if (ts->tv_nsec < 0 || ts->tv_nsec >= 1000000000L) {
         errno = EINVAL;
@@ -71,8 +66,8 @@ int
 _pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
          const struct timespec *timeout, const sigset_t *sigmask)
 {
-    struct __kernel_pselect6_timespec kts, *pkts = NULL;
-    __kernel_sigset_t                 kmask;
+    struct __kernel_timespec64 kts, *pkts = NULL;
+    __kernel_sigset_t          kmask;
     struct {
         const __kernel_sigset_t *ss;
         __size_t                 ss_len;

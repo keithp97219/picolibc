@@ -66,13 +66,8 @@
  */
 #ifdef LINUX_SYS_futex_time64
 #define LINUX_SYS_futex_time_t LINUX_SYS_futex_time64
-struct __kernel_futex_timespec {
-    __int64_t tv_sec;
-    __int64_t tv_nsec;
-};
 #else
-#define LINUX_SYS_futex_time_t  LINUX_SYS_futex
-#define __kernel_futex_timespec __kernel_timespec
+#define LINUX_SYS_futex_time_t LINUX_SYS_futex
 #endif
 
 /* Linux real-time priorities */
@@ -182,7 +177,7 @@ int  _futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t c
 void _futex_wake(unsigned int *addr, int count, bool pshared);
 
 /* Convert an absolute timeout for the kernel: 0, EINVAL or ETIMEDOUT */
-int  _futex_timespec(struct __kernel_futex_timespec *kts, const struct timespec *abstime);
+int  _futex_timespec(struct __kernel_timespec64 *kts, const struct timespec *abstime);
 
 /* Priority inheritance futexes; the word holds the owner's thread id */
 int  _futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock,
