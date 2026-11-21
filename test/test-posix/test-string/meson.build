@@ -37,4 +37,5 @@ dir_tests = [
   'test-strerror_r',
   'test-string_h',
   'test-strnlen-pages',
+  'test-strsignal',
 ]

@@ -37,6 +37,7 @@ set(tests
   test-strerror_r
   test-string_h
   test-strnlen-pages
+  test-strsignal
   )
 
 foreach(test IN LISTS tests)
