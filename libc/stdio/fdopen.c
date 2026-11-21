@@ -48,6 +48,18 @@ fdopen(int fd, const char *mode)
     if (stdio_flags == 0)
         return NULL;
 
+#ifdef __PICOLIBC_POSIX_FD_MGMT
+    /* Fail with EBADF for an invalid descriptor */
+    int fd_flags = fcntl(fd, F_GETFD);
+    if (fd_flags < 0)
+        return NULL;
+
+    /* 'e' sets FD_CLOEXEC; without it, the flag is left alone */
+    if ((open_flags & O_CLOEXEC) && !(fd_flags & FD_CLOEXEC))
+        if (fcntl(fd, F_SETFD, fd_flags | FD_CLOEXEC) < 0)
+            return NULL;
+#endif
+
     buf_size = bufio_get_buf_size(fd);
 
     /* Allocate file structure and necessary buffers */
@@ -58,14 +70,9 @@ fdopen(int fd, const char *mode)
 
     buf = (char *)(bf + 1);
 
-    /*
-     * The stream starts at the descriptor's offset, which is read
-     * when the position is first needed.
-     */
+    /* The stream starts at the descriptor's offset */
     *bf = (struct __file_bufio)FDEV_SETUP_POSIX(fd, buf, buf_size, stdio_flags, __BFALL | __BSYNC);
-
-    if (open_flags & O_APPEND)
-        (void)fseeko(&(bf->xfile.cfile.file), 0, SEEK_END);
+    bufio_sync_pos(bf);
 
     bufio_add_file(&(bf->xfile.cfile.file));
 

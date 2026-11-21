@@ -54,6 +54,8 @@ fopen(const char *pathname, const char *mode)
     ret = fdopen(fd, mode);
     if (ret == NULL)
         close(fd);
+    else if (open_flags & O_APPEND)
+        (void)fseeko(ret, 0, SEEK_END);
 
     return ret;
 }
