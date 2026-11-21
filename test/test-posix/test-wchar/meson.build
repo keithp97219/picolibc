@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-fputwc',
   'test-fwide',
   'test-mbrtowc',
   'test-mbsrtowcs',

@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-fputwc
   test-fwide
   test-mbrtowc
   test-mbsrtowcs
