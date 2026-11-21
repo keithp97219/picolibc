@@ -40,6 +40,7 @@
 #include <aio.h>
 #include <errno.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <signal.h>
 #include <stdbool.h>
 
@@ -87,9 +88,26 @@ extern pthread_cond_t    __aio_done;
 /* The running requests, newest first */
 extern struct __aio_req *__aio_running;
 
+/*
+ * A thread in aio_suspend or lio_listio. Its semaphore is posted
+ * whenever a request completes; waiting on it, unlike on a condition
+ * variable, ends when a signal handler runs.
+ */
+struct __aio_waiter {
+    struct __aio_waiter *next;
+    sem_t                sem;
+};
+
+/* The waiting threads; the lock guards the list */
+extern struct __aio_waiter *__aio_waiters;
+
+/* Adds and removes waiters; these take the lock */
+void                        __aio_add_waiter(struct __aio_waiter *w);
+void                        __aio_remove_waiter(struct __aio_waiter *w);
+
 /* Take __aio_lock with signals blocked, so no handler runs while it's held */
-void                     __aio_lock_nosig(sigset_t *old);
-void                     __aio_unlock_nosig(const sigset_t *old);
+void                        __aio_lock_nosig(sigset_t *old);
+void                        __aio_unlock_nosig(const sigset_t *old);
 
 /* Records a request's final status */
 static inline void

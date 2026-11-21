@@ -40,9 +40,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-pthread_mutex_t   __aio_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t    __aio_done = PTHREAD_COND_INITIALIZER;
-struct __aio_req *__aio_running;
+pthread_mutex_t      __aio_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t       __aio_done = PTHREAD_COND_INITIALIZER;
+struct __aio_req    *__aio_running;
+struct __aio_waiter *__aio_waiters;
 
 /* Takes a request off the running list; the lock is held */
 static void
@@ -84,12 +85,13 @@ __aio_must_wait(const struct __aio_req *req)
 static void *
 __aio_run(void *arg)
 {
-    struct __aio_req  *req = arg;
-    struct aiocb      *cb = req->cb;
-    struct __aio_list *list = req->list;
-    bool               notify_list = false;
-    ssize_t            ret;
-    int                error = 0;
+    struct __aio_req    *req = arg;
+    struct aiocb        *cb = req->cb;
+    struct __aio_list   *list = req->list;
+    bool                 notify_list = false;
+    struct __aio_waiter *w;
+    ssize_t              ret;
+    int                  error = 0;
 
     pthread_mutex_lock(&__aio_lock);
     while (__aio_must_wait(req))
@@ -132,6 +134,8 @@ __aio_run(void *arg)
             notify_list = true;
     }
     pthread_cond_broadcast(&__aio_done);
+    for (w = __aio_waiters; w; w = w->next)
+        sem_post(&w->sem);
     pthread_mutex_unlock(&__aio_lock);
 
     /* The caller may reuse cb as soon as the status is visible */
@@ -159,6 +163,32 @@ __aio_unlock_nosig(const sigset_t *old)
 {
     pthread_mutex_unlock(&__aio_lock);
     pthread_sigmask(SIG_SETMASK, old, NULL);
+}
+
+void
+__aio_add_waiter(struct __aio_waiter *w)
+{
+    sigset_t old;
+
+    __aio_lock_nosig(&old);
+    w->next = __aio_waiters;
+    __aio_waiters = w;
+    __aio_unlock_nosig(&old);
+}
+
+void
+__aio_remove_waiter(struct __aio_waiter *w)
+{
+    struct __aio_waiter **prev;
+    sigset_t              old;
+
+    __aio_lock_nosig(&old);
+    for (prev = &__aio_waiters; *prev; prev = &(*prev)->next)
+        if (*prev == w) {
+            *prev = w->next;
+            break;
+        }
+    __aio_unlock_nosig(&old);
 }
 
 int

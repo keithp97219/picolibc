@@ -46,18 +46,22 @@ __aio_any_done(const struct aiocb * const list[], int nent)
     return false;
 }
 
+/* Cancellation removes the waiter */
 static void
-__aio_unlock(void *arg)
+__aio_suspend_cleanup(void *arg)
 {
-    (void)arg;
-    pthread_mutex_unlock(&__aio_lock);
+    struct __aio_waiter *w = arg;
+
+    __aio_remove_waiter(w);
+    sem_destroy(&w->sem);
 }
 
 int
 aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *timeout)
 {
-    struct timespec end;
-    int             ret = 0;
+    struct __aio_waiter w;
+    struct timespec     end;
+    int                 ret = 0;
 
     if (nent < 0) {
         errno = EINVAL;
@@ -76,21 +80,35 @@ aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *
             end.tv_nsec -= 1000000000L;
         }
     }
-    pthread_mutex_lock(&__aio_lock);
-    /* aio_suspend is a cancellation point; don't leave the lock held */
-    pthread_cleanup_push(__aio_unlock, NULL);
+    if (__aio_any_done(list, nent))
+        return 0;
+
+    /*
+     * Requests that complete after the waiter is added post its
+     * semaphore; the status of any that completed before is visible
+     * once it is added. Nothing is locked while waiting, so a signal
+     * handler can use aio functions, and sem_wait and sem_clockwait
+     * return EINTR after a handler runs.
+     */
+    sem_init(&w.sem, 0, 0);
+    __aio_add_waiter(&w);
+    pthread_cleanup_push(__aio_suspend_cleanup, &w);
     while (!__aio_any_done(list, nent)) {
+        int r;
+
         if (timeout)
-            ret = pthread_cond_clockwait(&__aio_done, &__aio_lock, CLOCK_MONOTONIC, &end);
+            r = sem_clockwait(&w.sem, CLOCK_MONOTONIC, &end);
         else
-            ret = pthread_cond_wait(&__aio_done, &__aio_lock);
-        if (ret == ETIMEDOUT && !__aio_any_done(list, nent))
+            r = sem_wait(&w.sem);
+        if (r < 0 && (errno == ETIMEDOUT || errno == EINTR)) {
+            if (!__aio_any_done(list, nent))
+                ret = errno == ETIMEDOUT ? EAGAIN : EINTR;
             break;
-        ret = 0;
+        }
     }
     pthread_cleanup_pop(1);
     if (ret) {
-        errno = EAGAIN;
+        errno = ret;
         return -1;
     }
     return 0;

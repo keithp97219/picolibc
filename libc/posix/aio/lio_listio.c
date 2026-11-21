@@ -94,20 +94,43 @@ lio_listio(int mode, struct aiocb * __restrict const list[__restrict], int nent,
     }
 
     if (wait) {
-        int cancel;
+        struct __aio_waiter w;
+        bool                interrupted = false;
+        int                 cancel;
 
         /*
-         * Cancelling the wait would leave the lock held and l in use,
-         * so this isn't a cancellation point
+         * Cancelling the wait would leave l in use, so this isn't a
+         * cancellation point. A signal handler ends the wait, and then
+         * the last request frees l instead.
          */
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cancel);
-        pthread_mutex_lock(&__aio_lock);
+        sem_init(&w.sem, 0, 0);
+        __aio_add_waiter(&w);
+        __aio_lock_nosig(&old);
         --l->count;
-        while (l->count)
-            pthread_cond_wait(&__aio_done, &__aio_lock);
-        failed = l->failed;
-        pthread_mutex_unlock(&__aio_lock);
+        for (;;) {
+            if (l->count == 0) {
+                failed = l->failed;
+                interrupted = false;
+                break;
+            }
+            if (interrupted) {
+                l->wait = false;
+                break;
+            }
+            __aio_unlock_nosig(&old);
+            if (sem_wait(&w.sem) < 0 && errno == EINTR)
+                interrupted = true;
+            __aio_lock_nosig(&old);
+        }
+        __aio_unlock_nosig(&old);
+        __aio_remove_waiter(&w);
+        sem_destroy(&w.sem);
         pthread_setcancelstate(cancel, NULL);
+        if (interrupted) {
+            errno = EINTR;
+            return -1;
+        }
     } else {
         __aio_lock_nosig(&old);
         if (--l->count == 0)
