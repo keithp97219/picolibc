@@ -55,6 +55,7 @@ Supporting OS subroutines required: None.
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
 #include <limits.h>
+#include <stdint.h>
 
 long
 a64l(const char *input)
@@ -172,5 +173,6 @@ a64l(const char *input)
         result = (result << 6) + digit;
     }
 
-    return (long int)result;
+    /* Only the low-order 32 bits are used, sign-extended to long */
+    return (long int)(int32_t)(uint32_t)result;
 }
