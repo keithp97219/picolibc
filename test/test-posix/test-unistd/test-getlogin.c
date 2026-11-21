@@ -40,11 +40,15 @@
 #if defined(__PICOLIBC_POSIX_USER_GROUPS)
 
 #include <errno.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* getlogin agrees with getlogin_r, failing the same way when there is no login name */
+/*
+ * getlogin agrees with getlogin_r, failing the same way when there is
+ * no login name; only another getlogin call may overwrite its string
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -68,6 +72,12 @@ main(void)
         check(p != NULL && strcmp(p, name) == 0, "same name");
         /* getlogin_r reports a short buffer */
         check(getlogin_r(name, strlen(p)) == ERANGE, "ERANGE");
+        /* The user database's own static data is separate */
+        (void)getpwuid(getuid());
+        (void)getpwnam("root");
+        (void)getpwuid(0);
+        check(getlogin_r(name, sizeof(name)) == 0 && strcmp(p, name) == 0,
+              "name after getpwuid and getpwnam");
     } else {
         check(p == NULL && errno != 0, "no login name");
     }
