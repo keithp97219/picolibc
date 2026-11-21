@@ -122,8 +122,10 @@ __fmem_seek(FILE *f, off_t pos, int whence)
         return EOF;
     }
     _Static_assert(sizeof(off_t) >= sizeof(size_t), "must avoid truncation");
-    if (pos < 0 || (off_t)mf->bufsize < pos)
+    if (pos < 0 || (off_t)mf->bufsize < pos) {
+        errno = EINVAL;
         return EOF;
+    }
     mf->pos = pos;
     return pos;
 }
