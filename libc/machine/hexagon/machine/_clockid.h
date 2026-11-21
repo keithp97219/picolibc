@@ -45,28 +45,25 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define CLOCK_REALTIME (0)
 
-#if defined(_POSIX_CPUTIME)
+/*
+ * As in <time.h>: whether the OS provides these clocks is up to
+ * _POSIX_CPUTIME, _POSIX_THREAD_CPUTIME and _POSIX_MONOTONIC_CLOCK
+ */
+#if __POSIX_VISIBLE >= 200112
 #define CLOCK_PROCESS_CPUTIME_ID (3)
+#define CLOCK_THREAD_CPUTIME_ID  (2)
 #endif
 
-#if defined(_POSIX_THREAD_CPUTIME)
-#define CLOCK_THREAD_CPUTIME_ID (2)
-#endif
-
-#if defined(_POSIX_MONOTONIC_CLOCK) || __GNU_VISIBLE
+#if __GNU_VISIBLE || __POSIX_VISIBLE >= 200112
 #define CLOCK_MONOTONIC (1)
 #endif
 
 #if __GNU_VISIBLE
-
-#define CLOCK_MONOTONIC_RAW      (4)
-#define CLOCK_MONOTONIC_COARSE   (6)
-#define CLOCK_BOOTTIME           (32)
-#define CLOCK_REALTIME_ALARM     (33)
-#define CLOCK_BOOTTIME_ALARM     (34)
-#define CLOCK_PROCESS_CPUTIME_ID (3)
-#define CLOCK_THREAD_CPUTIME_ID  (2)
-
+#define CLOCK_MONOTONIC_RAW    (4)
+#define CLOCK_MONOTONIC_COARSE (6)
+#define CLOCK_BOOTTIME         (32)
+#define CLOCK_REALTIME_ALARM   (33)
+#define CLOCK_BOOTTIME_ALARM   (34)
 #endif
 
 #endif /* _MACHINE__CLOCKID_H */
