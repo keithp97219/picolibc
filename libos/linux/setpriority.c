@@ -34,10 +34,38 @@
  */
 
 #include "local-linux.h"
+#ifdef __PICOLIBC_PTHREADS
+#include "local-pthread.h"
+#endif
 #include <sys/resource.h>
+#include <unistd.h>
 
+/*
+ * Linux keeps a nice value for each thread, but setpriority changes
+ * the process: for this process, set the new value in every thread
+ */
 int
 setpriority(int which, id_t who, int prio)
 {
+#ifdef __PICOLIBC_PTHREADS
+    if (which == PRIO_PROCESS && (who == 0 || who == (id_t)getpid())
+        && __atomic_load_n(&_pthread_count, __ATOMIC_ACQUIRE) > 1) {
+        struct __pthread *self = _pthread_self(), *t;
+        int               ret, tid;
+
+        /* Threads are created and listed with this lock held */
+        pthread_mutex_lock(&_pthread_all_lock);
+        ret = (int)_syscall(LINUX_SYS_setpriority, PRIO_PROCESS, 0, prio);
+        if (ret == 0) {
+            for (t = _pthread_all; t; t = t->all_next) {
+                tid = __atomic_load_n(&t->tid, __ATOMIC_ACQUIRE);
+                if (t != self && tid)
+                    (void)_syscall_raw(LINUX_SYS_setpriority, PRIO_PROCESS, tid, prio);
+            }
+        }
+        pthread_mutex_unlock(&_pthread_all_lock);
+        return ret;
+    }
+#endif
     return (int)_syscall(LINUX_SYS_setpriority, which, who, prio);
 }
