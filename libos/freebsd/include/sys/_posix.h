@@ -56,7 +56,8 @@
 /* Option groups */
 #define __PICOLIBC_OS_CLOFORK            202405L
 #define __PICOLIBC_OS_DEVICE_IO          202405L
-#define __PICOLIBC_OS_FD_MGMT            202405L
+/* POSIX.1-2008: FreeBSD has no open file description locks */
+#define __PICOLIBC_OS_FD_MGMT            200809L
 #define __PICOLIBC_OS_FIFO               202405L
 #define __PICOLIBC_OS_FIFO_FD            202405L
 #define __PICOLIBC_OS_FILE_ATTRIBUTES    202405L
