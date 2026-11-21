@@ -94,8 +94,16 @@ main(void)
     check(grantpt(manager) == 0, "grantpt");
     name = ptsname(manager);
     check(name != NULL, "ptsname");
-    /* Locked until unlockpt */
-    check(open(name, O_RDWR | O_NOCTTY) == -1, "locked");
+    /*
+     * Applications must call unlockpt before opening the subsidiary;
+     * whether it is locked until then is up to the system (FreeBSD's
+     * never are)
+     */
+    fds[0] = open(name, O_RDWR | O_NOCTTY);
+    if (fds[0] >= 0) {
+        printf("subsidiary not locked before unlockpt\n");
+        check(close(fds[0]) == 0, "close");
+    }
     check(unlockpt(manager) == 0, "unlockpt");
     fds[0] = open(name, O_RDWR | O_NOCTTY);
     check(fds[0] >= 0, "open after unlockpt");

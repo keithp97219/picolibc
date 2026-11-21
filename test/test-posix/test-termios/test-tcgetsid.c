@@ -103,10 +103,16 @@ main(void)
         fd = open(name, O_RDWR);
         if (fd < 0)
             _exit(2);
-        _exit(tcgetsid(fd) == getsid(0) ? 0 : 3);
+        if (tcgetsid(fd) == getsid(0))
+            _exit(0);
+        /* Whether opening it makes it the controlling terminal is up to the system */
+        _exit(errno == ENOTTY ? 4 : 3);
     }
     check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "child");
-    check(WEXITSTATUS(status) == 0, "tcgetsid in the session");
+    if (WEXITSTATUS(status) == 4)
+        printf("opening a terminal doesn't make it the controlling terminal\n");
+    else
+        check(WEXITSTATUS(status) == 0, "tcgetsid in the session");
     check(close(subsidiary) == 0 && close(manager) == 0, "close");
     printf("success\n");
     return 0;

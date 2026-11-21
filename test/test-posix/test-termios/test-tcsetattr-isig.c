@@ -237,7 +237,9 @@ session(void)
     intr = (char)t.c_cc[VINTR];
     quit = (char)t.c_cc[VQUIT];
     susp = (char)t.c_cc[VSUSP];
-    check(intr != _POSIX_VDISABLE && quit != _POSIX_VDISABLE && susp != _POSIX_VDISABLE,
+    /* As cc_t, as _POSIX_VDISABLE may not fit in a char */
+    check(t.c_cc[VINTR] != _POSIX_VDISABLE && t.c_cc[VQUIT] != _POSIX_VDISABLE
+              && t.c_cc[VSUSP] != _POSIX_VDISABLE,
           "signal characters set");
 
     /* Each character sends its signal and isn't read */

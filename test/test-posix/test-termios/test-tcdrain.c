@@ -83,10 +83,17 @@ open_pty(int *subsidiary)
 int
 main(void)
 {
-    int subsidiary, manager = open_pty(&subsidiary);
-    int fds[2];
+    int  subsidiary, manager = open_pty(&subsidiary);
+    int  fds[2];
 
+    char c;
+
+    /*
+     * A pseudo-terminal's output may count as transmitted only once
+     * the manager has read it (FreeBSD's does)
+     */
     check(write(subsidiary, "x", 1) == 1, "write");
+    check(read(manager, &c, 1) == 1 && c == 'x', "read manager");
     check(tcdrain(subsidiary) == 0, "tcdrain");
     check(pipe(fds) == 0, "pipe");
     check(tcdrain(fds[0]) == -1 && errno == ENOTTY, "ENOTTY");

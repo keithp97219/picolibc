@@ -68,10 +68,9 @@ static char name[64];
 int
 main(void)
 {
-    static char zero[SIZE];
-    char       *map;
-    int         fd, status;
-    pid_t       pid;
+    char *map;
+    int   fd, status;
+    pid_t pid;
 
     snprintf(name, sizeof(name), "/picolibc-test-shm-%ld", (long)getpid());
     (void)shm_unlink(name);
@@ -80,7 +79,8 @@ main(void)
     check(fd >= 0, "shm_open create");
     check(shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600) == -1 && errno == EEXIST,
           "shm_open O_EXCL existing");
-    check(write(fd, zero, SIZE) == SIZE, "size object");
+    /* write on a shared memory object is unspecified; ftruncate sizes it */
+    check(ftruncate(fd, SIZE) == 0, "size object");
     map = mmap(NULL, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     check(map != MAP_FAILED, "mmap");
     check(close(fd) == 0, "close");
