@@ -289,13 +289,18 @@ int vsprintf(char *__s, const char *__fmt, __gnuc_va_list ap) __PRINTF_ATTRIBUTE
     __picolibc_export;
 int vsnprintf(char *__s, size_t __n, const char *__fmt, __gnuc_va_list ap)
     __PRINTF_ATTRIBUTE__(3, 0) __picolibc_export;
-int   asprintf(char **strp, const char *fmt, ...) __PRINTF_ATTRIBUTE__(2, 3) __picolibc_export;
-char *asnprintf(char *str, size_t *lenp, const char *fmt, ...) __PRINTF_ATTRIBUTE__(3, 4)
+#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
+int asprintf(char ** __restrict __strp, const char * __restrict __fmt, ...)
+    __PRINTF_ATTRIBUTE__(2, 3) __picolibc_export;
+int vasprintf(char ** __restrict __strp, const char * __restrict __fmt, __gnuc_va_list __ap)
+    __PRINTF_ATTRIBUTE__(2, 0) __picolibc_export;
+#endif
+#if __MISC_VISIBLE
+char *asnprintf(char *__str, size_t *__lenp, const char *__fmt, ...) __PRINTF_ATTRIBUTE__(3, 4)
     __picolibc_export;
-int vasprintf(char **strp, const char *fmt, __gnuc_va_list ap) __PRINTF_ATTRIBUTE__(2, 0)
-    __picolibc_export;
-char *vasnprintf(char *str, size_t *lenp, const char *fmt, __gnuc_va_list ap)
+char *vasnprintf(char *__str, size_t *__lenp, const char *__fmt, __gnuc_va_list __ap)
     __PRINTF_ATTRIBUTE__(3, 0) __picolibc_export;
+#endif
 
 int    fputs(const char *__str, FILE *__stream) __nonnull((2)) __picolibc_export;
 int    puts(const char *__str) __picolibc_export;
@@ -619,7 +624,8 @@ int vfprintf_s(FILE * __restrict stream, const char * __restrict fmt, va_list ap
 #define L_ctermid 9 /* "/dev/tty" */
 #endif
 
-#if __MISC_VISIBLE || __XSI_VISIBLE
+/* P_tmpdir was removed from XSI in Issue 8 */
+#if __MISC_VISIBLE || (__XSI_VISIBLE && __XSI_VISIBLE < 800)
 #ifdef __P_tmpdir
 #define P_tmpdir __P_tmpdir
 #else
