@@ -47,7 +47,10 @@ _statbuf(struct stat *statbuf, const struct __freebsd_stat *kstat)
     statbuf->st_nlink = kstat->st_nlink;
     statbuf->st_uid = kstat->st_uid;
     statbuf->st_gid = kstat->st_gid;
-    statbuf->st_rdev = kstat->st_rdev;
+    /* FreeBSD reports NODEV for anything but a device; picolibc reports 0 */
+    statbuf->st_rdev = 0;
+    if (S_ISCHR(statbuf->st_mode) || S_ISBLK(statbuf->st_mode))
+        statbuf->st_rdev = kstat->st_rdev;
     statbuf->st_size = kstat->st_size;
     statbuf->st_blksize = kstat->st_blksize;
     statbuf->st_blocks = kstat->st_blocks;

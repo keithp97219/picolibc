@@ -54,8 +54,8 @@ sbrk(intptr_t increment)
 {
     uintptr_t old = brk_cur;
 
-    if (increment < 0)
-        return (void *)(uintptr_t)-1;
+    if (increment < 0 || (size_t)increment > SIZE_MAX - SBRK_MASK)
+        goto fail;
     if (brk_cur == 0 || brk_end - brk_cur < (uintptr_t)increment) {
         size_t size = ((size_t)increment + SBRK_MASK) & ~(size_t)SBRK_MASK;
         void  *map;
@@ -64,7 +64,7 @@ sbrk(intptr_t increment)
         map = mmap(brk_cur ? (void *)brk_end : NULL, size, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (map == MAP_FAILED)
-            return (void *)(uintptr_t)-1;
+            goto fail;
         if ((uintptr_t)map != brk_end) {
             /* Somewhere else: start a new region; malloc copes with the gap */
             old = (uintptr_t)map;
@@ -74,4 +74,8 @@ sbrk(intptr_t increment)
     }
     brk_cur = old + (uintptr_t)increment;
     return (void *)old;
+
+fail:
+    errno = ENOMEM;
+    return (void *)(uintptr_t)-1;
 }

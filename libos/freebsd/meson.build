@@ -94,6 +94,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'rename.c',
     'sbrk.c',
     'sigaction.c',
+    'signal.c',
     'sigprocmask.c',
     'stat.c',
     'statvfs.c',

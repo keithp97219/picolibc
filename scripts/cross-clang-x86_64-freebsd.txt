@@ -2,8 +2,8 @@
 # base system clang, so the compiler and its support library are the
 # ones FreeBSD ships; libos/freebsd carries the kernel interface it uses
 [binaries]
-c = ['clang', '--target=x86_64-unknown-freebsd15.1', '-march=core2', '-mfpmath=sse', '-msse2', '-fno-pic', '-fno-PIE', '-static', '-nostdlib']
-cpp = ['clang++', '--target=x86_64-unknown-freebsd15.1', '-march=core2', '-mfpmath=sse', '-msse2', '-fno-pic', '-fno-PIE', '-static', '-nostdlib']
+c = ['clang', '--target=x86_64-unknown-freebsd15.1', '-march=core2', '-mfpmath=sse', '-msse2', '-fno-pic', '-fno-PIE', '-static', '-nostdlib', '-nostdlibinc', '-isystem', '/usr/local/llvm19/lib/clang/19/include']
+cpp = ['clang++', '--target=x86_64-unknown-freebsd15.1', '-march=core2', '-mfpmath=sse', '-msse2', '-fno-pic', '-fno-PIE', '-static', '-nostdlib', '-nostdlibinc', '-isystem', '/usr/local/llvm19/lib/clang/19/include']
 c_ld = 'lld'
 cpp_ld = 'lld'
 ar = 'ar'
