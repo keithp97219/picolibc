@@ -50,6 +50,8 @@ typedef enum { FIND, ENTER } ACTION;
 
 typedef enum { preorder, postorder, endorder, leaf } VISIT;
 
+typedef void posix_tnode;
+
 #ifdef _SEARCH_PRIVATE
 typedef struct node {
     char        *key;
@@ -78,11 +80,11 @@ ENTRY *hsearch(ENTRY, ACTION) __picolibc_export;
 int    hcreate_r(size_t, struct hsearch_data *) __picolibc_export;
 void   hdestroy_r(struct hsearch_data *) __picolibc_export;
 int    hsearch_r(ENTRY, ACTION, ENTRY **, struct hsearch_data *) __picolibc_export;
-void  *tdelete(const void  *__restrict, void  **__restrict, __compar_fn_t) __picolibc_export;
+void  *tdelete(const void  *__restrict, posix_tnode  **__restrict, __compar_fn_t) __picolibc_export;
 void   tdestroy(void *, void (*)(void *)) __picolibc_export;
-void  *tfind(const void *, void **, __compar_fn_t) __picolibc_export;
-void  *tsearch(const void *, void **, __compar_fn_t) __picolibc_export;
-void   twalk(const void *, void (*)(const void *, VISIT, int)) __picolibc_export;
+posix_tnode *tfind(const void *, posix_tnode * const *, __compar_fn_t) __picolibc_export;
+posix_tnode *tsearch(const void *, posix_tnode **, __compar_fn_t) __picolibc_export;
+void twalk(const posix_tnode *, void (*)(const posix_tnode *, VISIT, int)) __picolibc_export;
 _END_STD_C
 
 #endif /* !_SEARCH_H_ */
