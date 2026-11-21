@@ -142,7 +142,7 @@ lio_listio(int mode, struct aiocb * __restrict const list[__restrict], int nent,
     if (wait) {
         free(l);
         if (failed || submit_failed) {
-            errno = EIO;
+            errno = submit_error ? submit_error : EIO;
             return -1;
         }
         return 0;
