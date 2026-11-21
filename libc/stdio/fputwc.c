@@ -48,8 +48,10 @@ __STDIO_UNLOCKED(putwc)(wchar_t c, FILE *stream)
 
     u.wc = c;
     for (i = 0; i < sizeof(wchar_t); i++)
-        if (stream->put(u.c[i], stream) < 0)
+        if (stream->put(u.c[i], stream) < 0) {
+            stream->flags |= __SERR;
             return WEOF;
+        }
 
     return (wint_t)c;
 }
