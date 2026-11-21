@@ -77,7 +77,12 @@ _BEGIN_STD_C
 #endif
 
 #ifndef __PICOLIBC_UNGETC_SIZE
+#if defined(__MB_CAPABLE) && __SIZEOF_WCHAR_T__ == 4
+/* ungetwc must be able to push back any wide character */
+#define __PICOLIBC_UNGETC_SIZE 4
+#else
 #define __PICOLIBC_UNGETC_SIZE 2
+#endif
 #endif
 
 #if __PICOLIBC_UNGETC_SIZE == 4
