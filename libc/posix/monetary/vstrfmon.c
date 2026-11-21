@@ -230,14 +230,17 @@ __vstrfmon(char * __restrict buf, size_t size, const char * __restrict format, v
             /* Compute total width of value */
             total_width = val_width;
 
-            /* Add sign character */
-            if (negative) {
+            /*
+             * Add sign characters. With a left precision, positive
+             * values get spaces in their place so that positive and
+             * negative values line up
+             */
+            if (negative || left_precision >= 0) {
                 if (sign_paren)
                     total_width += 2;
                 else
                     total_width += 1;
-            } else if (left_precision >= 0)
-                total_width += 1;
+            }
 
             /* Add left precision pad */
             if (left_precision > left_width)
@@ -281,6 +284,8 @@ __vstrfmon(char * __restrict buf, size_t size, const char * __restrict format, v
             if (sign_paren) {
                 if (negative)
                     output(')');
+                else if (left_precision >= 0)
+                    output(' ');
             }
 
             /* Pad field on right */

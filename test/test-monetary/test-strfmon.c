@@ -68,13 +68,22 @@ static const struct {
     { "%!.4n",        123.45,   "123.4500",     0 },
     { "%=*#5.2n",     1234.56,  " *1234.56",    0 },
     { "%=*#5.2n",     -1234.56, "-*1234.56",    0 },
+#ifdef __GLIBC__
+    /* glibc doesn't pad positive values to match the parentheses */
     { "%(=*#5.2n",    1234.56,  " *1234.56",    0 },
+#else
+    { "%(=*#5.2n", 1234.56, " *1234.56 ", 0 },
+#endif
     { "%(=*#5.2n",    -1234.56, "(*1234.56)",   0 },
     { "%=*12#5.2n",   1234.56,  "    *1234.56", 0 },
     { "%=*12#5.2n",   -1234.56, "   -*1234.56", 0 },
     { "%=*-12#5.2n",  1234.56,  " *1234.56   ", 0 },
     { "%=*-12#5.2n",  -1234.56, "-*1234.56   ", 0 },
+#ifdef __GLIBC__
     { "%(=*12#5.2n",  1234.56,  "    *1234.56", 0 },
+#else
+    { "%(=*12#5.2n", 1234.56, "   *1234.56 ", 0 },
+#endif
     { "%(=*12#5.2n",  -1234.56, "  (*1234.56)", 0 },
     { "%(=*-12#5.2n", 1234.56,  " *1234.56   ", 0 },
     { "%(=*-12#5.2n", -1234.56, "(*1234.56)  ", 0 },
@@ -236,8 +245,14 @@ static const struct test_data data[] = {
     STRFMON_TC_OK_DECL(DISABLE_GROUPING, "   123.45", "-  123.45", "  3456.78"),
     STRFMON_TC_OK_DECL(ROUND_WHOLE, "   123", "-  123", "  3457"),
     STRFMON_TC_OK_DECL(INCREASE_PRECISION, "   123.4500", "-  123.4500", "  3456.7810"),
+#ifdef __GLIBC__
+    /* glibc doesn't pad positive values to match the parentheses */
     STRFMON_TC_OK_DECL(ALTERNATE_POS_NEG, "   123.45", "(  123.45)", "  3456.78"),
     STRFMON_TC_OK_DECL(NO_CURRENCY_SYMBOL, "   123.45", "(  123.45)", "  3456.78"),
+#else
+    STRFMON_TC_OK_DECL(ALTERNATE_POS_NEG, "   123.45 ", "(  123.45)", "  3456.78 "),
+    STRFMON_TC_OK_DECL(NO_CURRENCY_SYMBOL, "   123.45 ", "(  123.45)", "  3456.78 "),
+#endif
     STRFMON_TC_OK_DECL(LEFT_JUSTIFY, "   123.4500   ", "-  123.4500   ", "  3456.7810   "),
     STRFMON_TC_OK_DECL(RIGHT_JUSTIFY, "      123.4500", "   -  123.4500", "     3456.7810"),
 #elif defined(CONFIG_TEST_LOCALE_CHOICE_EN_US_UTF8)
