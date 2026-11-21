@@ -42,10 +42,10 @@
 #define LINUX_SC_STREAM_MAX       5
 #define LINUX_SC_TZNAME_MAX       6
 #define LINUX_SC_VERSION          29
-#define LINUX_SC_PAGE_SIZE        30
 #define LINUX_SC_PAGESIZE         30
 #define LINUX_SC_PAGESIZE         30
 #define LINUX_SC_PAGESIZE         .30
+#define LINUX_SC_PAGE_SIZE        30
 #define LINUX_SC_BC_BASE_MAX      36
 #define LINUX_SC_BC_DIM_MAX       37
 #define LINUX_SC_BC_SCALE_MAX     38
