@@ -34,6 +34,7 @@
  */
 
 #include "local-wait.h"
+#include "local-cancel.h"
 
 /*
  * FreeBSD queues SIGCHLD with each child's status and takes it from
@@ -42,15 +43,20 @@
 pid_t
 waitpid(pid_t pid, int *wstatus, int options)
 {
+    void *cancel;
     pid_t ret;
     int   kstatus = 0;
 
+    /* A pending cancellation acts even when the options are bad */
+    cancel = _cancel_enter();
     if (options & ~(WNOHANG | WUNTRACED | WCONTINUED)) {
+        _cancel_leave(cancel);
         errno = EINVAL;
         return -1;
     }
     ret = (pid_t)_syscall(FREEBSD_SYS_wait4, pid, &kstatus, _wait_options_to_freebsd(options),
                           NULL);
+    _cancel_leave(cancel);
     /* With WNOHANG, 0 means no child changed state and there's no status */
     if (ret > 0 && wstatus)
         *wstatus = _wait_status_from_freebsd(kstatus);

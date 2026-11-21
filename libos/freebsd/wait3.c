@@ -34,6 +34,7 @@
  */
 
 #include "local-wait.h"
+#include "local-cancel.h"
 #include <sys/resource.h>
 #include <freebsd/freebsd-timeval-struct.h>
 #include <freebsd/freebsd-rusage-struct.h>
@@ -44,9 +45,11 @@ wait3(int *wstatus, int options, struct rusage *rusage)
     struct __freebsd_rusage kusage;
     pid_t                   ret;
     int                     kstatus = 0;
+    void                   *cancel = _cancel_enter();
 
     ret = (pid_t)_syscall(FREEBSD_SYS_wait4, -1, &kstatus, _wait_options_to_freebsd(options),
                           rusage ? &kusage : NULL);
+    _cancel_leave(cancel);
     if (ret > 0) {
         if (wstatus)
             *wstatus = _wait_status_from_freebsd(kstatus);

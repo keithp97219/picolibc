@@ -34,12 +34,18 @@
  */
 
 #include "local-signal.h"
+#include "local-cancel.h"
 
 int
 sigsuspend(const sigset_t *mask)
 {
     struct __freebsd_sigset kmask;
+    void                   *cancel;
+    int                     ret;
 
     _sigmask_to_freebsd(&kmask, mask);
-    return (int)_syscall(FREEBSD_SYS_sigsuspend, &kmask);
+    cancel = _cancel_enter();
+    ret = (int)_syscall(FREEBSD_SYS_sigsuspend, &kmask);
+    _cancel_leave(cancel);
+    return ret;
 }

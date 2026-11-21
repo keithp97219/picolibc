@@ -34,6 +34,7 @@
  */
 
 #include "local-signal.h"
+#include "local-cancel.h"
 #include <freebsd/freebsd-timespec-struct.h>
 
 int
@@ -44,6 +45,7 @@ _sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeo
     struct __freebsd_timespec kts, *pkts = NULL;
     long                      ret;
     int                       bad_timeout = 0;
+    void                     *cancel;
 
     if (timeout) {
         /*
@@ -63,7 +65,9 @@ _sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeo
     }
     _sigmask_to_freebsd(&kset, set);
 
+    cancel = _cancel_enter();
     ret = _syscall_raw(FREEBSD_SYS_sigtimedwait, &kset, &kinfo, pkts);
+    _cancel_leave(cancel);
     if (ret < 0) {
         ret = _syscall_errno(ret);
         if (ret == EAGAIN && bad_timeout)
