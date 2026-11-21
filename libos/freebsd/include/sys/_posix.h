@@ -39,10 +39,40 @@
 /*
  * What libos/freebsd provides, in the __PICOLIBC_OS_ terms doc/os.md
  * defines; <unistd.h> derives the public POSIX names from these. This
- * grows with the implementation: so far the single process group
- * (sysconf from libos/fallback, uname here).
+ * grows with the implementation.
  */
 
-#define __PICOLIBC_OS_SINGLE_PROCESS 202405L
+/* clang-format off */
+
+/* Options POSIX.1-2024 requires, provided by the kernel */
+#define __PICOLIBC_OS_CHOWN_RESTRICTED             1
+#define __PICOLIBC_OS_NO_TRUNC                     1
+
+/* Options */
+#define __PICOLIBC_OS_ADVISORY_INFO                202405L
+#define __PICOLIBC_OS_FSYNC                        202405L
+/* SYNCHRONIZED_IO waits for msync, with the memory mapping functions */
+
+/* Option groups */
+#define __PICOLIBC_OS_CLOFORK            202405L
+#define __PICOLIBC_OS_DEVICE_IO          202405L
+#define __PICOLIBC_OS_FD_MGMT            202405L
+#define __PICOLIBC_OS_FIFO               202405L
+#define __PICOLIBC_OS_FIFO_FD            202405L
+#define __PICOLIBC_OS_FILE_ATTRIBUTES    202405L
+#define __PICOLIBC_OS_FILE_ATTRIBUTES_FD 202405L
+#define __PICOLIBC_OS_FILE_SYSTEM        202405L
+#define __PICOLIBC_OS_FILE_SYSTEM_EXT    202405L
+#define __PICOLIBC_OS_FILE_SYSTEM_FD     202405L
+#define __PICOLIBC_OS_PIPE               202405L
+#define __PICOLIBC_OS_SINGLE_PROCESS     202405L
+#define __PICOLIBC_OS_SYMBOLIC_LINKS     202405L
+#define __PICOLIBC_OS_SYMBOLIC_LINKS_FD  202405L
+
+/* XSI option groups */
+#define __PICOLIBC_OS_XSI_DEVICE_IO      202405L
+#define __PICOLIBC_OS_XSI_FILE_SYSTEM    202405L
+
+/* clang-format on */
 
 #endif /* _SYS__POSIX_H_ */

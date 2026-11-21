@@ -33,34 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
-#include <dirent.h>
+#include "local-dirent.h"
 #include <string.h>
-#include <freebsd/freebsd-dirent.h>
-#include <freebsd/freebsd-dirent-struct.h>
-
-static unsigned char
-_dt_from_freebsd(__uint8_t kdt)
-{
-    switch (kdt) {
-    case FREEBSD_DT_BLK:
-        return DT_BLK;
-    case FREEBSD_DT_CHR:
-        return DT_CHR;
-    case FREEBSD_DT_DIR:
-        return DT_DIR;
-    case FREEBSD_DT_FIFO:
-        return DT_FIFO;
-    case FREEBSD_DT_LNK:
-        return DT_LNK;
-    case FREEBSD_DT_REG:
-        return DT_REG;
-    case FREEBSD_DT_SOCK:
-        return DT_SOCK;
-    default:
-        return DT_UNKNOWN;
-    }
-}
 
 struct dirent *
 readdir(DIR *dir)
@@ -71,9 +45,8 @@ readdir(DIR *dir)
 
     for (;;) {
         if (dir->__dd_offset == dir->__dd_count) {
-            __int64_t base;
-            ssize_t   ret = _syscall(FREEBSD_SYS_getdirentries, dir->__dd_fd, dir->__dd_buf,
-                                     sizeof(dir->__dd_buf), &base);
+            ssize_t ret = _syscall(FREEBSD_SYS_getdirentries, dir->__dd_fd, dir->__dd_buf,
+                                   sizeof(dir->__dd_buf), NULL);
             if (ret <= 0)
                 return NULL;
             dir->__dd_offset = 0;
@@ -81,8 +54,7 @@ readdir(DIR *dir)
         }
         k_dirent = (struct __freebsd_dirent *)(dir->__dd_buf + dir->__dd_offset);
         dir->__dd_offset += k_dirent->d_reclen;
-        /* Entries for removed files (whiteouts and empty slots) have no inode */
-        if (k_dirent->d_fileno != 0 && k_dirent->d_type != FREEBSD_DT_WHT)
+        if (!_dirent_is_hole(k_dirent))
             break;
     }
 
