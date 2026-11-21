@@ -33,11 +33,16 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
-#include <sys/mman.h>
+#include "local-mman.h"
 
 int
 munmap(void *addr, size_t length)
 {
-    return _syscall(FREEBSD_SYS_munmap, addr, length);
+    if (_page_misaligned(addr))
+        return -1;
+    if (length == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    return (int)_syscall(FREEBSD_SYS_munmap, addr, length);
 }

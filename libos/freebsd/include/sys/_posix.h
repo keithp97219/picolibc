@@ -45,6 +45,13 @@
 
 #define __PICOLIBC_OS_SINGLE_PROCESS 202405L
 
+/* Options */
+#define __PICOLIBC_OS_MAPPED_FILES          202405L
+#define __PICOLIBC_OS_MEMLOCK               202405L
+#define __PICOLIBC_OS_MEMLOCK_RANGE         202405L
+#define __PICOLIBC_OS_MEMORY_PROTECTION     202405L
+#define __PICOLIBC_OS_SHARED_MEMORY_OBJECTS 202405L
+
 /* Sockets, with picolibc built for the FreeBSD network interfaces */
 #ifdef __PICOLIBC_NETWORK_FREEBSD
 #define __PICOLIBC_OS_IPV6        202405L
