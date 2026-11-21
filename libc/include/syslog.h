@@ -37,7 +37,10 @@
 #define _SYSLOG_H_
 
 #include <sys/cdefs.h>
+#if __BSD_VISIBLE || __GNU_VISIBLE
+/* Only vsyslog needs va_list; <syslog.h> may not define the va_ names */
 #include <stdarg.h>
+#endif
 
 _BEGIN_STD_C
 
