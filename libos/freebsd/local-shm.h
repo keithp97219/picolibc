@@ -36,6 +36,8 @@
 #ifndef _LOCAL_SHM_H_
 #define _LOCAL_SHM_H_
 
+#include "local-freebsd.h"
+
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
