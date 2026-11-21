@@ -40,6 +40,8 @@ if get_option('semihost')
   subdir('semihost')
 endif
 
+subdir('pthread')
+
 if get_option('os-linux')
   subdir('linux')
 endif

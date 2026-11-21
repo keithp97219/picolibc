@@ -1845,6 +1845,11 @@ if get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
   inc_dirs = ['libos/linux/include'] + inc_dirs
 endif
 
+# libos/pthread supplies <sys/_pthread.h>, the thread types
+if posix_threads or (get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family))
+  inc_dirs = ['libos/pthread/include'] + inc_dirs
+endif
+
 # As does libos/freebsd
 if os_freebsd
   inc_dirs = ['libos/freebsd/include'] + inc_dirs

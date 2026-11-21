@@ -42,7 +42,6 @@ srcs_os_linux_machine = [
 if posix_threads
   srcs_os_linux_machine += [
     'clone.S',
-    'pthread_tls_setup.c',
   ]
 endif
 
