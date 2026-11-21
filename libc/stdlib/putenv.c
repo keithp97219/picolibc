@@ -19,26 +19,25 @@
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <stdbool.h>
+#include "local.h"
 
+/*
+ * POSIX: the string itself becomes part of the environment, so
+ * changing it later changes the environment. A string without '='
+ * (or with an empty name) is rejected with EINVAL.
+ */
 int
 putenv(char *str)
 {
-    register char *p, *equal;
-    int            rval;
+    char *equal;
+    bool  used;
 
-    p = strdup(str);
-
-    if (!p)
-        return 1;
-
-    if (!(equal = strchr(p, '='))) {
-        (void)free(p);
-        return 1;
+    if (str == NULL || (equal = strchr(str, '=')) == NULL || equal == str) {
+        errno = EINVAL;
+        return -1;
     }
 
-    *equal = '\0';
-    rval = setenv(p, equal + 1, 1);
-    (void)free(p);
-
-    return rval;
+    return __env_put(str, (size_t)(equal - str), str, false, true, &used);
 }

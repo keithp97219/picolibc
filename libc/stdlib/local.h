@@ -10,11 +10,15 @@ All rights reserved.
 #include <stdint.h>
 #include <stddef.h>
 
-char           *_gcvt(double, int, char *, char, int);
+char         *_gcvt(double, int, char *, char, int);
 
-extern char   **environ;
+extern char **environ;
 
-char           *__findenv(const char *name, size_t *offset);
+char         *__findenv(const char *name, size_t *offset);
+char         *__findenv_n(const char *name, size_t name_len, size_t *offset);
+int           __env_put(const char *name, size_t l_name, char *entry, _Bool owned, _Bool overwrite,
+                        _Bool *used);
+_Bool         __env_disown(const char *entry);
 
 extern uint32_t __environ_sequence;
 
