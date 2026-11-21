@@ -40,17 +40,25 @@
 ssize_t
 getdelim(char ** restrict lineptr, size_t * restrict nptr, int delim, FILE * restrict stream)
 {
-    char   *line = *lineptr;
-    size_t  n = line ? *nptr : 0;
+    char   *line;
+    size_t  n;
     ssize_t count = 0;
+
+    if (!lineptr || !nptr) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    line = *lineptr;
+    n = line ? *nptr : 0;
 
     __flockfile(stream);
     for (;;) {
         int c = getc_unlocked(stream);
         int is_eof = (c == EOF);
 
-        /* EOF at the start: return -1 */
-        if (is_eof && count == 0) {
+        /* EOF at the start, or an error anywhere: return -1 */
+        if (is_eof && (count == 0 || !__feof_unlocked(stream))) {
             count = -1;
             goto bail;
         }
