@@ -95,6 +95,8 @@ dir_tests = [
   'test-tcsetpgrp',
   'test-truncate',
   'test-ttyname_r',
+  'test-unistd_h-names',
+  'test-unistd_h-process',
   'test-unlinkat',
 ]
 
