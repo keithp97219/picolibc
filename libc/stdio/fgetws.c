@@ -34,6 +34,7 @@ __STDIO_UNLOCKED(fgetws)(wchar_t *str, int size, FILE *stream)
 {
     wchar_t *cp;
     wint_t   c;
+    bool     had_error = (stream->flags & __SERR) != 0;
 
     if ((stream->flags & __SRD) == 0) {
         __stdio_bad_dir(stream);
@@ -45,7 +46,9 @@ __STDIO_UNLOCKED(fgetws)(wchar_t *str, int size, FILE *stream)
     size--;
     for (c = 0, cp = str; c != L'\n' && size > 0; size--, cp++) {
         if ((c = __STDIO_UNLOCKED(getwc)(stream)) == WEOF) {
-            if (cp == str)
+            /* After a read or encoding error, return a null pointer */
+            if (cp == str || (stream->flags & __SEOF) == 0
+                || (!had_error && (stream->flags & __SERR) != 0))
                 return NULL;
             break;
         }
