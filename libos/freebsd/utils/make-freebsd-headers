@@ -129,6 +129,8 @@ PROBE_HEADERS = [
     "machine/sysarch.h",
     "sys/select.h",
     "sys/unistd.h",
+    "sys/rtprio.h",
+    "sys/aio.h",
 ]
 
 # Constant groups: output name, the header whose '#define NAME' lines
@@ -149,6 +151,7 @@ CONSTANTS = [
     ("dirent", ["sys/dirent.h"], r"DT_[A-Z]+", False),
     ("sched", ["sys/sched.h"], r"SCHED_(FIFO|OTHER|RR)", False),
     ("mount", ["sys/mount.h"], r"MNT_(RDONLY|NOSUID|WAIT|NOWAIT)", True),
+    ("rtprio", ["sys/rtprio.h"], r"RTP_[A-Z_]+", False),
     ("sysctl", ["sys/sysctl.h"], r"(CTL_(KERN|HW)|KERN_(OSTYPE|OSRELEASE|VERSION|HOSTNAME|ARND)|HW_(MACHINE|PAGESIZE|NCPU))", False),
     ("fadvise", ["sys/fcntl.h"], r"POSIX_FADV_[A-Z]+", False),
     ("pathconf", ["sys/unistd.h"], r"_PC_[A-Z0-9_]+", False),
@@ -220,6 +223,11 @@ STRUCTS = [
         ("stack_size", "__size_t"), ("tls_base", "char *"), ("tls_size", "__size_t"),
         ("child_tid", "long *"), ("parent_tid", "long *"), ("flags", "int"),
         ("rtp", "void *"),
+    ]),
+    ("rtprio", "struct rtprio", [("type", "__uint16_t"), ("prio", "__uint16_t")]),
+    ("aiocb", "struct aiocb", [
+        ("aio_fildes", "int"), ("aio_offset", "__int64_t"), ("aio_buf", "void *"),
+        ("aio_nbytes", "__size_t"), ("aio_sigevent", "struct __freebsd_sigevent"),
     ]),
     ("umtx_time", "struct _umtx_time", [
         ("_timeout", "struct __freebsd_timespec"), ("_flags", "__uint32_t"),

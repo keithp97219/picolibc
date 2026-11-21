@@ -1632,13 +1632,15 @@ conf_data.set('__STRCMP_PAIR', strcmp_pair, description: 'Use RISC-V paired-word
 conf_data.set('__GLOBAL_ERRNO', get_option('newlib-global-errno'), description: 'use global errno variable')
 conf_data.set('__INIT_FINI_ARRAY', get_option('initfini-array'), description: 'Support INIT_ARRAY linker sections')
 conf_data.set('__INIT_FINI_FUNCS', get_option('initfini'), description: 'Support _init() and _fini() functions')
-# POSIX threads are implemented by an OS layer; libos/linux supports
-# them on these machines
+# POSIX threads are implemented by an OS layer; libos/linux and
+# libos/freebsd support them on these machines
 posix_threads_linux_machines = ['aarch64', 'arm', 'hexagon', 'x86']
+posix_threads_freebsd_machines = ['x86']
 posix_threads_possible = thread_local_storage and not get_option('single-thread')
 if get_option('posix-threads') == 'auto'
-  posix_threads = (posix_threads_possible and get_option('os-linux')
-                   and host_cpu_family in posix_threads_linux_machines)
+  posix_threads = (posix_threads_possible
+                   and ((get_option('os-linux') and host_cpu_family in posix_threads_linux_machines)
+                        or (os_freebsd and host_cpu_family in posix_threads_freebsd_machines)))
 else
   posix_threads = get_option('posix-threads') == 'true'
   if posix_threads and not posix_threads_possible
@@ -1838,6 +1840,11 @@ endif
 # libos/linux supplies <sys/_posix.h>, which <unistd.h> includes
 if get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
   inc_dirs = ['libos/linux/include'] + inc_dirs
+endif
+
+# libos/pthread supplies <sys/_pthread.h>, the thread types
+if posix_threads or (get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family))
+  inc_dirs = ['libos/pthread/include'] + inc_dirs
 endif
 
 # As does libos/freebsd

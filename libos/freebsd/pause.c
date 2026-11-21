@@ -34,14 +34,20 @@
  */
 
 #include "local-signal.h"
+#include "local-cancel.h"
 
 /* FreeBSD has no pause system call: wait with the current signal mask */
 int
 pause(void)
 {
     struct __freebsd_sigset kmask;
+    void                   *cancel;
+    int                     ret;
 
     if (_syscall(FREEBSD_SYS_sigprocmask, FREEBSD_SIG_BLOCK, NULL, &kmask) < 0)
         return -1;
-    return (int)_syscall(FREEBSD_SYS_sigsuspend, &kmask);
+    cancel = _cancel_enter();
+    ret = (int)_syscall(FREEBSD_SYS_sigsuspend, &kmask);
+    _cancel_leave(cancel);
+    return ret;
 }

@@ -47,6 +47,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* POSIX leaves PTHREAD_STACK_MIN out where it isn't a constant */
+#ifndef PTHREAD_STACK_MIN
+#define PTHREAD_STACK_MIN ((size_t)sysconf(_SC_THREAD_STACK_MIN))
+#endif
+
 /* Thread creation, termination, joining, detaching and attributes */
 
 #define check(condition, message)                      \

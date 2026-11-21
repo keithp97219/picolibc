@@ -61,14 +61,14 @@ robust_node(pthread_mutex_t *mutex)
 static void
 robust_register(struct __pthread *self)
 {
-    if (self->robust_registered)
+    if (self->os.robust_registered)
         return;
-    self->robust.list = &self->robust.list;
-    self->robust.futex_offset
+    self->os.robust.list = &self->os.robust.list;
+    self->os.robust.futex_offset
         = (long)offsetof(pthread_mutex_t, __state) - (long)offsetof(pthread_mutex_t, __robust_next);
-    self->robust.list_op_pending = NULL;
-    if (_syscall_raw(LINUX_SYS_set_robust_list, &self->robust, sizeof(self->robust)) == 0)
-        self->robust_registered = true;
+    self->os.robust.list_op_pending = NULL;
+    if (_syscall_raw(LINUX_SYS_set_robust_list, &self->os.robust, sizeof(self->os.robust)) == 0)
+        self->os.robust_registered = true;
 }
 
 /*
@@ -81,16 +81,16 @@ _pthread_robust_available(void)
     struct __pthread *self = _pthread_self();
 
     robust_register(self);
-    return self->robust_registered;
+    return self->os.robust_registered;
 }
 
 /* After fork, the child's only thread holds no robust mutexes */
 void
 _pthread_robust_reset(struct __pthread *self)
 {
-    if (!self->robust_registered)
+    if (!self->os.robust_registered)
         return;
-    self->robust_registered = false;
+    self->os.robust_registered = false;
     robust_register(self);
 }
 
@@ -100,7 +100,7 @@ robust_entry(void *link, struct __pthread *self)
 {
     void **next = (void **)((uintptr_t)link & ~(uintptr_t)ROBUST_PI);
 
-    if (next == &self->robust.list)
+    if (next == &self->os.robust.list)
         return NULL;
     return (pthread_mutex_t *)((char *)next - offsetof(pthread_mutex_t, __robust_next));
 }
@@ -109,15 +109,15 @@ robust_entry(void *link, struct __pthread *self)
 static void
 robust_link(pthread_mutex_t *mutex, struct __pthread *self)
 {
-    pthread_mutex_t *first = robust_entry(self->robust.list, self);
+    pthread_mutex_t *first = robust_entry(self->os.robust.list, self);
 
-    mutex->__robust_next = self->robust.list;
-    mutex->__robust_prev = &self->robust.list;
+    mutex->__robust_next = self->os.robust.list;
+    mutex->__robust_prev = &self->os.robust.list;
     if (first)
         first->__robust_prev = &mutex->__robust_next;
     /* The kernel may walk the list should the thread die; publish the mutex last */
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
-    self->robust.list = robust_node(mutex);
+    self->os.robust.list = robust_node(mutex);
 }
 
 /*
@@ -220,7 +220,7 @@ _pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t c
 
     robust_register(self);
     /* Tells the kernel about the mutex while it is being locked */
-    self->robust.list_op_pending = robust_node(mutex);
+    self->os.robust.list_op_pending = robust_node(mutex);
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
 
     if (robust_pi(mutex))
@@ -241,7 +241,7 @@ _pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t c
         }
     }
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
-    self->robust.list_op_pending = NULL;
+    self->os.robust.list_op_pending = NULL;
     return ret;
 }
 
@@ -251,9 +251,9 @@ _pthread_robust_unlock(pthread_mutex_t *mutex, struct __pthread *self)
     /* Unlocked without being made consistent, it can never be used again */
     if (mutex->__robust_state == _PTHREAD_ROBUST_INCONSISTENT)
         mutex->__robust_state = _PTHREAD_ROBUST_NOTRECOVERABLE;
-    self->robust.list_op_pending = robust_node(mutex);
+    self->os.robust.list_op_pending = robust_node(mutex);
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
     robust_release(mutex, self);
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
-    self->robust.list_op_pending = NULL;
+    self->os.robust.list_op_pending = NULL;
 }

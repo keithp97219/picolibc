@@ -34,10 +34,15 @@
  */
 
 #include "local-freebsd.h"
+#include "local-cancel.h"
 #include <time.h>
 
 int
 nanosleep(const struct timespec *req, struct timespec *rem)
 {
-    return _syscall(FREEBSD_SYS_nanosleep, req, rem);
+    void *cancel = _cancel_enter();
+    int   ret = (int)_syscall(FREEBSD_SYS_nanosleep, req, rem);
+
+    _cancel_leave(cancel);
+    return ret;
 }

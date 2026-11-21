@@ -34,6 +34,7 @@
  */
 
 #include "local-wait.h"
+#include "local-cancel.h"
 #include <string.h>
 
 int
@@ -44,6 +45,7 @@ waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     int                      kstatus;
     long                     ret;
     int                      kidtype;
+    void                    *cancel;
 
     switch (idtype) {
     case P_ALL:
@@ -65,7 +67,10 @@ waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     /* There must be something to wait for */
     if (!(options & (WEXITED | WSTOPPED | WCONTINUED)))
         kidtype = -1;
+    /* A pending cancellation acts even when the arguments are bad */
+    cancel = _cancel_enter();
     if (kidtype < 0) {
+        _cancel_leave(cancel);
         errno = EINVAL;
         return -1;
     }
@@ -84,6 +89,7 @@ waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     /* With WNOHANG and no child ready, wait6 returns 0 */
     memset(&kinfo, 0, sizeof(kinfo));
     ret = _syscall(FREEBSD_SYS_wait6, kidtype, (long)id, &kstatus, koptions, NULL, &kinfo);
+    _cancel_leave(cancel);
     if (ret < 0)
         return -1;
     memset(infop, 0, sizeof(*infop));

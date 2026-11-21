@@ -32,6 +32,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include "local-sched.h"
 
 int
@@ -43,5 +44,8 @@ sched_get_priority_min(int policy)
         errno = EINVAL;
         return -1;
     }
+    /* Time sharing has the one priority 0; see local-sched.h */
+    if (policy == SCHED_OTHER)
+        return 0;
     return (int)_syscall(FREEBSD_SYS_sched_get_priority_min, kpolicy);
 }

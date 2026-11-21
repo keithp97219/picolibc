@@ -234,11 +234,31 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'writev.c',
   ]
 
+  # POSIX threads, built with the shared code in libos/pthread
+  if posix_threads
+    srcs_os_freebsd += [
+      '__aio_signal.c',
+      '_futex_wait.c',
+      '_futex_wake.c',
+      'pthread_getcpuclockid.c',
+      '_pthread_getsched.c',
+      '_pthread_os_create.c',
+      '_pthread_os_exit.c',
+      '_pthread_os_set_tid.c',
+      '_pthread_os_sigcancel.c',
+      '_pthread_setsched.c',
+      '_pthread_tkill.c',
+      '_sigprocmask.c',
+      '_timer_thread.c',
+    ]
+  endif
+
   subdir(machine_dir)
 
-  src_os_freebsd = files(srcs_os_freebsd) + src_os_freebsd_machine
+  # The shared POSIX threads code goes into this library too
+  src_os_freebsd = files(srcs_os_freebsd) + src_os_freebsd_machine + src_os_pthread
 
-  srcs_libos += srcs_os_freebsd
+  srcs_libos += srcs_os_freebsd + srcs_os_pthread
 
   freebsd_inc = include_directories('machine' / freebsd_machines[host_cpu_family], 'include')
 
@@ -264,7 +284,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
                             build_subdir : target_dir,
                             install : really_install,
                             install_dir : instdir,
-                            include_directories : [freebsd_inc, inc],
+                            include_directories : [freebsd_inc, pthread_inc, inc],
                             c_args : target_c_args + c_args)
     else
       target_lib_prefix = params['lib_prefix']
@@ -272,7 +292,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
                             src_os_freebsd,
                             install : really_install,
                             install_dir : instdir,
-                            include_directories : [freebsd_inc, inc],
+                            include_directories : [freebsd_inc, pthread_inc, inc],
                             c_args : target_c_args + c_args)
     endif
 

@@ -68,6 +68,15 @@ libc_test_picolibc_skip = [
   'regression/raise-race',                      # real-time signals
 ]
 
+# The OS layer lacks what these need besides the threads it has
+libc_test_os_skip = []
+if os_freebsd
+  libc_test_os_skip += [
+    'functional/pthread_cancel-points',         # shm_open
+    'functional/pthread_mutex_pi',              # no priority inheritance
+  ]
+endif
+
 # glibc fails this one: it forks in a signal handler while raise runs
 libc_test_native_skip = [
   'regression/raise-race',
@@ -124,6 +133,9 @@ if posix_threads
     _link_depends = get_variable('test_link_depends' + target, test_link_depends) + _libs
 
     foreach t1 : libc_test_tests
+      if t1 in libc_test_os_skip
+        continue
+      endif
       t1_name = 'libc-test-' + t1.replace('/', '-') + target
       test(t1_name,
            executable(t1_name, [t1 + '.c'] + libc_test_common,

@@ -38,8 +38,9 @@
 #include "local-sched.h"
 
 int
-_pthread_getsched(int tid, int *policy, int *priority)
+_pthread_getsched(struct __pthread *thread, int *policy, int *priority)
 {
+    int                         tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
     struct __kernel_sched_param kparam;
     long                        lpolicy;
     int                         ret = 0;

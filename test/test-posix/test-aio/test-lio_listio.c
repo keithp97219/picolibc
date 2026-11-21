@@ -194,8 +194,12 @@ no_resources(int fd)
         rd.aio_nbytes = 4;
         rd.aio_lio_opcode = LIO_READ;
         rd.aio_sigevent.sigev_notify = SIGEV_NONE;
+        /* Measuring the address space needs Linux's /proc */
         size = address_space();
-        check(size > 0, "address space size");
+        if (size <= 0) {
+            printf("no address space size; skipping the EAGAIN check\n");
+            exit(0);
+        }
         /* No new mappings fit, so no thread stacks */
         rl.rlim_cur = rl.rlim_max = size;
         check(setrlimit(RLIMIT_AS, &rl) == 0, "setrlimit");

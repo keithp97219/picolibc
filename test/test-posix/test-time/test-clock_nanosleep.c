@@ -35,16 +35,16 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_CLOCK_SELECTION > 0
+#if _POSIX_CLOCK_SELECTION > 0 && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
 #include <time.h>
 
 /* clock_nanosleep returns errors and reports the time left when interrupted */
@@ -67,7 +67,6 @@ int
 main(void)
 {
     struct sigaction act;
-    struct itimerval itv;
     struct timespec  ts, rem;
     int              save_errno, ret;
 
@@ -87,9 +86,8 @@ main(void)
     act.sa_handler = handler;
     sigemptyset(&act.sa_mask);
     check(sigaction(SIGALRM, &act, NULL) == 0, "sigaction");
-    memset(&itv, 0, sizeof(itv));
-    itv.it_value.tv_usec = 50000;
-    check(setitimer(ITIMER_REAL, &itv, NULL) == 0, "setitimer");
+    /* POSIX.1-2024 has no setitimer; alarm's second will do */
+    alarm(1);
     ts.tv_sec = 10;
     ts.tv_nsec = 0;
     memset(&rem, 0, sizeof(rem));

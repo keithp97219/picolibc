@@ -34,18 +34,22 @@
  */
 
 #include "local-time.h"
+#include "local-cancel.h"
 
 /* Returns the error number rather than setting errno */
 int
 clock_nanosleep(clockid_t clock_id, int flags, const struct timespec *req, struct timespec *rem)
 {
-    long kclock = _clock_to_freebsd(clock_id);
-    long ret;
+    long  kclock = _clock_to_freebsd(clock_id);
+    void *cancel;
+    long  ret;
 
     if (kclock < 0)
         return EINVAL;
+    cancel = _cancel_enter();
     ret = _syscall_raw(FREEBSD_SYS_clock_nanosleep, kclock,
                        (flags & TIMER_ABSTIME) ? FREEBSD_TIMER_ABSTIME : 0, req, rem);
+    _cancel_leave(cancel);
     /*
      * The kernel returns the error number as the result (it is one of
      * the kern_posix_error calls), not with the carry flag

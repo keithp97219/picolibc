@@ -32,15 +32,18 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include "local-sched.h"
 
 int
 sched_getparam(pid_t pid, struct sched_param *param)
 {
     struct __freebsd_sched_param kparam;
+    long                         kpolicy = _syscall(FREEBSD_SYS_sched_getscheduler, pid);
 
-    if (_syscall(FREEBSD_SYS_sched_getparam, pid, &kparam) < 0)
+    if (kpolicy < 0 || _syscall(FREEBSD_SYS_sched_getparam, pid, &kparam) < 0)
         return -1;
-    param->sched_priority = kparam.sched_priority;
+    /* Time sharing has the one priority 0; see local-sched.h */
+    param->sched_priority = kpolicy == FREEBSD_SCHED_OTHER ? 0 : kparam.sched_priority;
     return 0;
 }

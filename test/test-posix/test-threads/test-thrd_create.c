@@ -37,9 +37,10 @@
 /* RLIMIT_NPROC, which limits the number of threads on Linux, is an extension */
 #define _DEFAULT_SOURCE
 #include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0
+#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
 
 #include <errno.h>
 #include <stdbool.h>
@@ -186,12 +187,15 @@ main(void)
 
 #ifndef __GLIBC__
     /* glibc reports a stack it can't map as EAGAIN, so thrd_error */
-    if (!is_qemu()) {
+    if (is_qemu()) {
+        printf("qemu ignores RLIMIT_AS, thrd_nomem check skipped\n");
+    } else if (vm_size() == 0) {
+        /* Measuring the address space needs Linux's /proc */
+        printf("no address space size, thrd_nomem check skipped\n");
+    } else {
         res = limited_create(RLIMIT_AS);
         printf("thrd_create with no address space left: %d\n", res);
         check(res == thrd_nomem, "thrd_create without memory");
-    } else {
-        printf("qemu ignores RLIMIT_AS, thrd_nomem check skipped\n");
     }
 #endif
 

@@ -313,8 +313,11 @@ static void (* const volatile funcs[])(void) = {
     FUNC(pthread_mutexattr_setprotocol),
 #endif
 #if _POSIX_TIMEOUTS >= 202405L
+/* These are [MSG TMO]: message passing with timeouts */
+#if _POSIX_MESSAGE_PASSING >= 202405L
     FUNC(mq_timedreceive),
     FUNC(mq_timedsend),
+#endif
     FUNC(pthread_mutex_timedlock),
     FUNC(pthread_rwlock_timedrdlock),
     FUNC(pthread_rwlock_timedwrlock),

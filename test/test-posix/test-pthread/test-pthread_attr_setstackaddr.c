@@ -47,6 +47,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* POSIX leaves PTHREAD_STACK_MIN out where it isn't a constant */
+#ifndef PTHREAD_STACK_MIN
+#define PTHREAD_STACK_MIN ((size_t)sysconf(_SC_THREAD_STACK_MIN))
+#endif
+
 /* Allow testing functions that are deprecated (for good reason) */
 #if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __GNUC__ > 4)
 #pragma GCC diagnostic ignored "-Wpragmas"

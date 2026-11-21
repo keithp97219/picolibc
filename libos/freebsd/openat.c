@@ -34,6 +34,7 @@
  */
 
 #include "local-freebsd.h"
+#include "local-cancel.h"
 #include <stdarg.h>
 #include <freebsd/freebsd-errno.h>
 
@@ -42,14 +43,17 @@ openat(int dirfd, const char *path, int flags, ...)
 {
     va_list ap;
     int     mode;
+    void   *cancel;
     long    ret;
 
     va_start(ap, flags);
     mode = va_arg(ap, int);
     va_end(ap);
 
+    cancel = _cancel_enter();
     ret = _syscall_raw(FREEBSD_SYS_openat, _at_fd_to_freebsd(dirfd), path,
                        _open_flags_to_freebsd(flags), mode);
+    _cancel_leave(cancel);
     if (ret < 0) {
         /* FreeBSD reports EMLINK for O_NOFOLLOW on a symbolic link, POSIX ELOOP */
         errno = (ret == _FREEBSD_ERR(FREEBSD_EMLINK) && (flags & O_NOFOLLOW)) ? ELOOP
