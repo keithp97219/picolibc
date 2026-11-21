@@ -111,6 +111,12 @@ __retarget_lock_acquire_recursive(_LOCK_T lock)
     (void)pthread_mutex_lock(&lock->mutex);
 }
 
+int __no_thread_safety_analysis
+__retarget_lock_try_acquire_recursive(_LOCK_T lock)
+{
+    return pthread_mutex_trylock(&lock->mutex) != 0;
+}
+
 void __no_thread_safety_analysis
 __retarget_lock_release(_LOCK_T lock)
 {
