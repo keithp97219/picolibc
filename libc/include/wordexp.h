@@ -7,7 +7,10 @@
 #ifndef _WORDEXP_H_
 #define _WORDEXP_H_
 
-#include <sys/types.h>
+#include <sys/cdefs.h>
+#include <sys/_types.h>
+#define __need_size_t
+#include <stddef.h>
 
 _BEGIN_STD_C
 
