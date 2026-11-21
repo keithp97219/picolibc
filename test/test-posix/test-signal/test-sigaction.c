@@ -154,6 +154,7 @@ main(void)
     struct sigaction act, old;
     sigset_t         set, pending;
     pid_t            child;
+    siginfo_t        cinfo;
     int              stop_signalled;
     bool             qemu = is_qemu();
     int              status, err;
@@ -267,14 +268,16 @@ main(void)
     stop_signalled = sigismember(&pending, SIGCHLD);
     /* Reap the child first, so a failure can't leave it stopped */
     check(kill(child, SIGKILL) == 0, "kill child");
+    /* Look before collecting it: a wait that collects the only child clears SIGCHLD */
+    check(waitid(P_PID, (id_t)child, &cinfo, WEXITED | WNOWAIT) == 0, "child terminated");
+    check(sigpending(&pending) == 0, "sigpending");
     check(waitpid(child, &status, 0) == child, "reap child");
     /* qemu's user-mode emulation ignores SA_NOCLDSTOP */
     if (qemu && stop_signalled)
         printf("qemu: SIGCHLD for a stopped child despite SA_NOCLDSTOP\n");
     else
         check(!stop_signalled, "no SIGCHLD for a stopped child");
-    check(sigpending(&pending) == 0 && sigismember(&pending, SIGCHLD),
-          "SIGCHLD for a terminated child");
+    check(sigismember(&pending, SIGCHLD), "SIGCHLD for a terminated child");
     act.sa_handler = SIG_DFL;
     act.sa_flags = 0;
     check(sigaction(SIGCHLD, &act, NULL) == 0, "default SIGCHLD");

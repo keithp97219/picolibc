@@ -121,6 +121,7 @@ main(void)
     sigset_t         set, old;
     pid_t            pid, child;
     struct sigaction sa;
+    siginfo_t        info;
     char             c;
 
     /* Nothing is flushed and no atexit function runs; the descriptors are closed */
@@ -145,8 +146,10 @@ main(void)
     check(pid >= 0, "fork");
     if (pid == 0)
         _exit(0);
-    check(waitpid(pid, &status, 0) == pid, "waitpid");
+    /* Look before collecting it: a wait that collects the only child clears SIGCHLD */
+    check(waitid(P_PID, (id_t)pid, &info, WEXITED | WNOWAIT) == 0, "child terminated");
     check(sigpending(&set) == 0 && sigismember(&set, SIGCHLD) == 1, "SIGCHLD");
+    check(waitpid(pid, &status, 0) == pid, "waitpid");
     check(sigprocmask(SIG_SETMASK, &old, NULL) == 0, "restore the mask");
 
     /* The children of a process that exits go to a system process */
