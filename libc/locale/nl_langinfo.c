@@ -145,7 +145,8 @@ nl_langinfo_l(nl_item item, locale_t locale)
     case CRNCYSTR:
         return "";
     default:
-        return NULL;
+        /* An invalid item gives an empty string */
+        return "";
     }
 }
 
