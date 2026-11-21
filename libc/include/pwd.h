@@ -66,14 +66,15 @@ struct passwd {
     char *pw_shell; /* default shell */
 };
 
-struct passwd *getpwuid(uid_t uid);
+struct passwd *getpwuid(uid_t __uid);
 
-int getpwuid_r(uid_t uid, struct passwd *pwd, char *buffer, size_t bufsize, struct passwd **result);
+int            getpwuid_r(uid_t __uid, struct passwd *__pwd, char *__buffer, size_t __bufsize,
+                          struct passwd **__result);
 
-struct passwd *getpwnam(const char *name);
+struct passwd *getpwnam(const char *__name);
 
-int            getpwnam_r(const char *name, struct passwd *pwd, char *buffer, size_t bufsize,
-                          struct passwd **result);
+int getpwnam_r(const char *__name, struct passwd *__pwd, char *__buffer, size_t __bufsize,
+               struct passwd **__result);
 
 #if __MISC_VISIBLE || __XSI_VISIBLE >= 4
 struct passwd *getpwent(void);
