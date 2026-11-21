@@ -1,0 +1,47 @@
+From 6b2f3def74093e36b55d1fafe33c2aa6a782c92b Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:00:18 +0000
+Subject: [PATCH 12/12] test-posix: Check that the user database functions
+ leave getlogin's name alone
+
+---
+ test/test-posix/test-unistd/test-getlogin.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/test/test-posix/test-unistd/test-getlogin.c b/test/test-posix/test-unistd/test-getlogin.c
+index 4a26fea018..277f46edc0 100644
+--- a/test/test-posix/test-unistd/test-getlogin.c
++++ b/test/test-posix/test-unistd/test-getlogin.c
+@@ -40,11 +40,15 @@
+ #if defined(__PICOLIBC_POSIX_USER_GROUPS)
+ 
+ #include <errno.h>
++#include <pwd.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-/* getlogin agrees with getlogin_r, failing the same way when there is no login name */
++/*
++ * getlogin agrees with getlogin_r, failing the same way when there is
++ * no login name; only another getlogin call may overwrite its string
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -68,6 +72,12 @@ main(void)
+         check(p != NULL && strcmp(p, name) == 0, "same name");
+         /* getlogin_r reports a short buffer */
+         check(getlogin_r(name, strlen(p)) == ERANGE, "ERANGE");
++        /* The user database's own static data is separate */
++        (void)getpwuid(getuid());
++        (void)getpwnam("root");
++        (void)getpwuid(0);
++        check(getlogin_r(name, sizeof(name)) == 0 && strcmp(p, name) == 0,
++              "name after getpwuid and getpwnam");
+     } else {
+         check(p == NULL && errno != 0, "no login name");
+     }
+-- 
+2.47.3
+

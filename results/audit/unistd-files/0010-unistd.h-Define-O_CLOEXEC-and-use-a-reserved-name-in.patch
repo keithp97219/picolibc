@@ -1,0 +1,57 @@
+From 75c97a11de6476c766b19dbeb7679bb14e2d3ec1 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:51:59 +0000
+Subject: [PATCH 10/28] unistd.h: Define O_CLOEXEC and use a reserved name in
+ dup3 and pipe2
+
+POSIX.1-2024: "The <unistd.h> header shall define the symbolic
+constants O_CLOEXEC and O_CLOFORK as described in <fcntl.h>." Define
+O_CLOEXEC with the same value (picolibc has no O_CLOFORK). dup3 and
+pipe2 named their parameter 'flags', which an application macro
+breaks.
+---
+ libc/include/sys/unistd.h | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/libc/include/sys/unistd.h b/libc/include/sys/unistd.h
+index 52dab3080b..55b732b1d2 100644
+--- a/libc/include/sys/unistd.h
++++ b/libc/include/sys/unistd.h
+@@ -107,7 +107,7 @@ int daemon(int nochdir, int noclose) __picolibc_export;
+ int dup(int __fildes) __picolibc_export;
+ int dup2(int __fildes, int __fildes2) __picolibc_export;
+ #if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
+-int dup3(int __fildes, int __fildes2, int flags) __picolibc_export;
++int dup3(int __fildes, int __fildes2, int __flag) __picolibc_export;
+ #endif
+ #if __GNU_VISIBLE
+ int eaccess(const char *__path, int __mode) __picolibc_export;
+@@ -238,7 +238,7 @@ int pthread_atfork(void (*)(void), void (*)(void), void (*)(void)) __picolibc_ex
+ #endif
+ int pipe(int __fildes[2]) __picolibc_export;
+ #if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
+-int pipe2(int __fildes[2], int flags) __picolibc_export;
++int pipe2(int __fildes[2], int __flag) __picolibc_export;
+ #endif
+ #if __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 500
+ ssize_t pread(int __fd, void *__buf, size_t __nbytes, off_t __offset) __picolibc_export;
+@@ -367,6 +367,16 @@ int     symlinkat(const char *, int, const char *) __picolibc_export;
+ int     unlinkat(int, const char *, int) __picolibc_export;
+ #endif
+ 
++/* As in <fcntl.h>, for dup3 and pipe2 */
++#if __POSIX_VISIBLE >= 202405
++#ifndef _FNOINHERIT
++#define _FNOINHERIT 0x40000
++#endif
++#ifndef O_CLOEXEC
++#define O_CLOEXEC _FNOINHERIT
++#endif
++#endif
++
+ #define F_OK     0
+ #define R_OK     4
+ #define W_OK     2
+-- 
+2.47.3
+

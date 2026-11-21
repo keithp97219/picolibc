@@ -1,0 +1,73 @@
+From 69716631886f6c41711e56d89d213b7bd85d3589 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:15:59 +0000
+Subject: [PATCH 07/15] test-posix: Look for SIGCHLD before collecting the
+ child
+
+test-sigaction and test-_exit checked that SIGCHLD was still pending
+after waitpid had collected the only child. POSIX says that wait clears
+a blocked SIGCHLD then; Linux leaves it. Look with waitid(WNOWAIT)
+first, then collect the child.
+---
+ test/test-posix/test-signal/test-sigaction.c | 7 +++++--
+ test/test-posix/test-unistd/test-_exit.c     | 5 ++++-
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/test/test-posix/test-signal/test-sigaction.c b/test/test-posix/test-signal/test-sigaction.c
+index a255eb10db..030f3d7828 100644
+--- a/test/test-posix/test-signal/test-sigaction.c
++++ b/test/test-posix/test-signal/test-sigaction.c
+@@ -154,6 +154,7 @@ main(void)
+     struct sigaction act, old;
+     sigset_t         set, pending;
+     pid_t            child;
++    siginfo_t        cinfo;
+     int              stop_signalled;
+     bool             qemu = is_qemu();
+     int              status, err;
+@@ -267,14 +268,16 @@ main(void)
+     stop_signalled = sigismember(&pending, SIGCHLD);
+     /* Reap the child first, so a failure can't leave it stopped */
+     check(kill(child, SIGKILL) == 0, "kill child");
++    /* Look before collecting it: a wait that collects the only child clears SIGCHLD */
++    check(waitid(P_PID, (id_t)child, &cinfo, WEXITED | WNOWAIT) == 0, "child terminated");
++    check(sigpending(&pending) == 0, "sigpending");
+     check(waitpid(child, &status, 0) == child, "reap child");
+     /* qemu's user-mode emulation ignores SA_NOCLDSTOP */
+     if (qemu && stop_signalled)
+         printf("qemu: SIGCHLD for a stopped child despite SA_NOCLDSTOP\n");
+     else
+         check(!stop_signalled, "no SIGCHLD for a stopped child");
+-    check(sigpending(&pending) == 0 && sigismember(&pending, SIGCHLD),
+-          "SIGCHLD for a terminated child");
++    check(sigismember(&pending, SIGCHLD), "SIGCHLD for a terminated child");
+     act.sa_handler = SIG_DFL;
+     act.sa_flags = 0;
+     check(sigaction(SIGCHLD, &act, NULL) == 0, "default SIGCHLD");
+diff --git a/test/test-posix/test-unistd/test-_exit.c b/test/test-posix/test-unistd/test-_exit.c
+index a51d725cef..36aa234c0d 100644
+--- a/test/test-posix/test-unistd/test-_exit.c
++++ b/test/test-posix/test-unistd/test-_exit.c
+@@ -121,6 +121,7 @@ main(void)
+     sigset_t         set, old;
+     pid_t            pid, child;
+     struct sigaction sa;
++    siginfo_t        info;
+     char             c;
+ 
+     /* Nothing is flushed and no atexit function runs; the descriptors are closed */
+@@ -145,8 +146,10 @@ main(void)
+     check(pid >= 0, "fork");
+     if (pid == 0)
+         _exit(0);
+-    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    /* Look before collecting it: a wait that collects the only child clears SIGCHLD */
++    check(waitid(P_PID, (id_t)pid, &info, WEXITED | WNOWAIT) == 0, "child terminated");
+     check(sigpending(&set) == 0 && sigismember(&set, SIGCHLD) == 1, "SIGCHLD");
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
+     check(sigprocmask(SIG_SETMASK, &old, NULL) == 0, "restore the mask");
+ 
+     /* The children of a process that exits go to a system process */
+-- 
+2.47.3
+

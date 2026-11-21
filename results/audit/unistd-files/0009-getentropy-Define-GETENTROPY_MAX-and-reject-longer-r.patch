@@ -1,0 +1,73 @@
+From a8533280624fb1a3825dc7eb6daf6c7411e5bc77 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:51:59 +0000
+Subject: [PATCH 09/28] getentropy: Define GETENTROPY_MAX and reject longer
+ requests
+
+POSIX.1-2024 adds GETENTROPY_MAX to <limits.h> (at least 256), and
+getentropy "shall fail if: [EINVAL] The value of length is greater
+than {GETENTROPY_MAX}." Define it as 256, as other systems do, and
+check it.
+---
+ libc/include/sys/syslimits.h | 3 ++-
+ libos/dummyhost/getentropy.c | 4 ++--
+ libos/linux/getentropy.c     | 6 ++++++
+ 3 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/libc/include/sys/syslimits.h b/libc/include/sys/syslimits.h
+index a5cc7a7346..3a8eddfae1 100644
+--- a/libc/include/sys/syslimits.h
++++ b/libc/include/sys/syslimits.h
+@@ -119,7 +119,8 @@
+ #endif
+ 
+ #if __MISC_VISIBLE || __POSIX_VISIBLE >= 202405
+-#define NSIG_MAX 64 /* signal numbers are less than this; matches sigset_t */
++#define NSIG_MAX       64  /* signal numbers are less than this; matches sigset_t */
++#define GETENTROPY_MAX 256 /* max length for one getentropy call */
+ #endif
+ 
+ #endif
+diff --git a/libos/dummyhost/getentropy.c b/libos/dummyhost/getentropy.c
+index c270684a96..4c81d81842 100644
+--- a/libos/dummyhost/getentropy.c
++++ b/libos/dummyhost/getentropy.c
+@@ -36,12 +36,12 @@
+ #define _GNU_SOURCE
+ #include <unistd.h>
+ #include <errno.h>
++#include <limits.h>
+ 
+ int
+ getentropy(void *buffer, size_t length)
+ {
+     (void)buffer;
+-    (void)length;
+-    errno = ENOSYS;
++    errno = length > GETENTROPY_MAX ? EINVAL : ENOSYS;
+     return -1;
+ }
+diff --git a/libos/linux/getentropy.c b/libos/linux/getentropy.c
+index e19f7f51dd..dddfebdb6f 100644
+--- a/libos/linux/getentropy.c
++++ b/libos/linux/getentropy.c
+@@ -34,10 +34,16 @@
+  */
+ 
+ #include "local-linux.h"
++#include <limits.h>
++#include <unistd.h>
+ 
+ int
+ getentropy(void *buffer, size_t length)
+ {
++    if (length > GETENTROPY_MAX) {
++        errno = EINVAL;
++        return -1;
++    }
+     while (length) {
+         ssize_t bytes = _syscall(LINUX_SYS_getrandom, buffer, length, 0);
+         if (bytes < 0) {
+-- 
+2.47.3
+

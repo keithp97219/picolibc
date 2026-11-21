@@ -1,0 +1,491 @@
+From 19f3bbe5aaf528d1ee71536c872562f1e0830de4 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:06:16 +0000
+Subject: [PATCH 13/15] test-posix: Check setpriority across threads and
+ groups, and children's getrusage
+
+Make the priority changes in a child. Check that setpriority changes
+every thread, clamps large values, sets every process in a group, and
+that getpriority reports a group's lowest value and NZERO bounds it.
+Check that RUSAGE_CHILDREN counts waited-for children and grandchildren
+only, and not children discarded with SIGCHLD ignored.
+---
+ .../test-sys-resource/CMakeLists.txt          |   1 +
+ test/test-posix/test-sys-resource/meson.build |   4 +
+ .../test-sys-resource/test-getpriority.c      |   9 +-
+ .../test-sys-resource/test-getrusage.c        |  98 +++++++++++-
+ .../test-setpriority-thread.c                 | 143 ++++++++++++++++++
+ .../test-sys-resource/test-setpriority.c      | 101 ++++++++++++-
+ 6 files changed, 346 insertions(+), 10 deletions(-)
+ create mode 100644 test/test-posix/test-sys-resource/test-setpriority-thread.c
+
+diff --git a/test/test-posix/test-sys-resource/CMakeLists.txt b/test/test-posix/test-sys-resource/CMakeLists.txt
+index 4848c28bc8..5b7eec5fa9 100644
+--- a/test/test-posix/test-sys-resource/CMakeLists.txt
++++ b/test/test-posix/test-sys-resource/CMakeLists.txt
+@@ -37,6 +37,7 @@ set(tests
+   test-getpriority
+   test-getrusage
+   test-setpriority
++  test-setpriority-thread
+   test-setrlimit
+   test-setrlimit-enforce
+   test-sys_resource_h
+diff --git a/test/test-posix/test-sys-resource/meson.build b/test/test-posix/test-sys-resource/meson.build
+index 90f0339000..91df8e6029 100644
+--- a/test/test-posix/test-sys-resource/meson.build
++++ b/test/test-posix/test-sys-resource/meson.build
+@@ -44,3 +44,7 @@ dir_tests = [
+   'test-sys_resource_h-names',
+ ]
+ 
++# setpriority changes every thread of the process
++dir_thread_tests = [
++  'test-setpriority-thread',
++]
+diff --git a/test/test-posix/test-sys-resource/test-getpriority.c b/test/test-posix/test-sys-resource/test-getpriority.c
+index a1b28ee437..88a8c33632 100644
+--- a/test/test-posix/test-sys-resource/test-getpriority.c
++++ b/test/test-posix/test-sys-resource/test-getpriority.c
+@@ -64,7 +64,7 @@ main(void)
+ 
+     errno = 0;
+     prio = getpriority(PRIO_PROCESS, 0);
+-    check(errno == 0 && prio >= -20 && prio <= 19, "own priority");
++    check(errno == 0 && prio >= -NZERO && prio <= NZERO - 1, "own priority");
+     check(getpriority(PRIO_PROCESS, getpid()) == prio, "by pid");
+     errno = 0;
+     (void)getpriority(PRIO_PGRP, 0);
+@@ -72,6 +72,13 @@ main(void)
+     errno = 0;
+     check(getpriority(PRIO_PROCESS, INT_MAX) == -1 && errno == ESRCH, "ESRCH");
+     errno = 0;
++    check(getpriority(PRIO_PGRP, INT_MAX) == -1 && errno == ESRCH, "ESRCH for a group");
++    /* The lowest value of all the user's processes, ours among them */
++    errno = 0;
++    check(getpriority(PRIO_USER, 0) <= prio && errno == 0, "user");
++    errno = 0;
++    check(getpriority(PRIO_PGRP, (id_t)getpgrp()) <= prio && errno == 0, "own group by ID");
++    errno = 0;
+     check(getpriority(42, 0) == -1 && errno == EINVAL, "EINVAL");
+     printf("success\n");
+     return 0;
+diff --git a/test/test-posix/test-sys-resource/test-getrusage.c b/test/test-posix/test-sys-resource/test-getrusage.c
+index 9c86fb6218..2db360f306 100644
+--- a/test/test-posix/test-sys-resource/test-getrusage.c
++++ b/test/test-posix/test-sys-resource/test-getrusage.c
+@@ -39,15 +39,22 @@
+ #include "../posix-groups.h"
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS)
+ 
+ #include <errno.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <sys/resource.h>
++#include <signal.h>
+ #include <sys/time.h>
++#include <sys/wait.h>
+ 
+-/* getrusage reports CPU time used */
++/*
++ * getrusage reports CPU time used by the process, and by the children
++ * (and their children) that have been waited for, but not by children
++ * that weren't, such as those discarded with SIGCHLD ignored
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -57,11 +64,91 @@
+         }                                              \
+     } while (0)
+ 
++/* CPU time in microseconds */
++static long long
++usec(int who)
++{
++    struct rusage ru;
++
++    check(getrusage(who, &ru) == 0, "getrusage");
++    return (ru.ru_utime.tv_sec + ru.ru_stime.tv_sec) * 1000000LL + ru.ru_utime.tv_usec
++        + ru.ru_stime.tv_usec;
++}
++
++#define BURN 100000 /* 100ms */
++
++/* Use at least BURN microseconds of CPU time */
++static void
++burn(void)
++{
++    while (usec(RUSAGE_SELF) < BURN)
++        ;
++}
++
++static pid_t
++burner(int grandchild)
++{
++    pid_t pid = fork();
++
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        if (grandchild) {
++            /* The time of a grandchild waited for by its parent counts too */
++            pid_t g = burner(0);
++            _exit(waitpid(g, NULL, 0) == g ? 0 : 1);
++        }
++        burn();
++        _exit(0);
++    }
++    return pid;
++}
++
++static void
++children(void)
++{
++    struct sigaction sa;
++    siginfo_t        info;
++    pid_t            pid;
++    long long        before;
++    int              status;
++
++    /* A new process has no children's time */
++    check(usec(RUSAGE_CHILDREN) == 0, "no children's time yet");
++
++    /* A terminated child counts only once it is waited for */
++    pid = burner(0);
++    check(waitid(P_PID, (id_t)pid, &info, WEXITED | WNOWAIT) == 0, "waitid WNOWAIT");
++    check(usec(RUSAGE_CHILDREN) == 0, "not counted before the wait");
++    check(waitpid(pid, &status, 0) == pid && status == 0, "waitpid");
++    before = usec(RUSAGE_CHILDREN);
++    check(before >= BURN, "counted after the wait");
++
++    /* So does a grandchild its parent waited for */
++    pid = burner(1);
++    check(waitpid(pid, &status, 0) == pid && status == 0, "waitpid");
++    check(usec(RUSAGE_CHILDREN) >= before + BURN, "grandchild counted");
++    before = usec(RUSAGE_CHILDREN);
++
++    /* A child discarded with SIGCHLD ignored never counts */
++    memset(&sa, 0, sizeof(sa));
++    sa.sa_handler = SIG_IGN;
++    sigemptyset(&sa.sa_mask);
++    check(sigaction(SIGCHLD, &sa, NULL) == 0, "ignore SIGCHLD");
++    pid = burner(0);
++    /* This returns once the child is gone */
++    errno = 0;
++    check(waitpid(pid, &status, 0) == -1 && errno == ECHILD, "discarded");
++    check(usec(RUSAGE_CHILDREN) == before, "a discarded child isn't counted");
++    exit(0);
++}
++
+ int
+ main(void)
+ {
+     struct rusage ru;
+     volatile long i, sum = 0;
++    pid_t         pid;
++    int           status;
+ 
+     for (i = 0; i < 20000000; i++)
+         sum += i;
+@@ -73,6 +160,13 @@ main(void)
+           "some time used");
+     check(getrusage(RUSAGE_CHILDREN, &ru) == 0, "RUSAGE_CHILDREN");
+     check(getrusage(42, &ru) == -1 && errno == EINVAL, "EINVAL");
++
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        children();
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "children's time");
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-sys-resource/test-setpriority-thread.c b/test/test-posix/test-sys-resource/test-setpriority-thread.c
+new file mode 100644
+index 0000000000..797ac2131f
+--- /dev/null
++++ b/test/test-posix/test-sys-resource/test-setpriority-thread.c
+@@ -0,0 +1,143 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* getpriority and setpriority are XSI interfaces */
++#define _XOPEN_SOURCE 800
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE)
++
++#include <errno.h>
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
++
++/*
++ * setpriority(PRIO_PROCESS) changes the whole process, so every
++ * thread sees the new value, whether who is 0 or the process ID and
++ * whichever thread calls it. The changes are made in a child.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static int go[2], done[2];
++static int base, seen;
++
++static void *
++waiter(void *arg)
++{
++    char c;
++
++    (void)arg;
++    /* First report the value main set, then change it from here by process ID */
++    if (read(go[0], &c, 1) != 1)
++        return NULL;
++    seen = getpriority(PRIO_PROCESS, 0);
++    if (setpriority(PRIO_PROCESS, (id_t)getpid(), base + 2) != 0)
++        seen = -100;
++    (void)write(done[1], "x", 1);
++    return NULL;
++}
++
++static void
++child(void)
++{
++    pthread_t t;
++    char      c;
++
++    check(pipe(go) == 0 && pipe(done) == 0, "pipe");
++    check(pthread_create(&t, NULL, waiter, NULL) == 0, "pthread_create");
++
++    check(setpriority(PRIO_PROCESS, 0, base + 1) == 0, "setpriority");
++    check(getpriority(PRIO_PROCESS, 0) == base + 1, "the caller has the new value");
++    check(write(go[1], "x", 1) == 1 && read(done[0], &c, 1) == 1, "handshake");
++    check(pthread_join(t, NULL) == 0, "pthread_join");
++    check(seen != -100, "setpriority in the thread");
++    /* glibc's setpriority changes only one thread */
++#ifndef __GLIBC__
++    check(seen == base + 1, "the other thread has the new value");
++    check(getpriority(PRIO_PROCESS, 0) == base + 2, "the main thread has the thread's value");
++#endif
++    exit(0);
++}
++
++int
++main(void)
++{
++    pid_t pid;
++    int   status;
++
++    errno = 0;
++    base = getpriority(PRIO_PROCESS, 0);
++    check(base != -1 || errno == 0, "getpriority");
++    if (base > 17) {
++        printf("nice value %d leaves no room, skipping\n", base);
++        return 77;
++    }
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        child();
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "child checks");
++    check(getpriority(PRIO_PROCESS, 0) == base, "the parent is unchanged");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-resource/test-setpriority.c b/test/test-posix/test-sys-resource/test-setpriority.c
+index 852959e09a..86af2458f3 100644
+--- a/test/test-posix/test-sys-resource/test-setpriority.c
++++ b/test/test-posix/test-sys-resource/test-setpriority.c
+@@ -39,14 +39,24 @@
+ #include "../posix-groups.h"
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE)
+ 
+ #include <errno.h>
++#include <limits.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <sys/resource.h>
++#include <sys/wait.h>
+ 
+-/* setpriority changes nice values */
++/*
++ * setpriority changes nice values: of the caller, clamped to the
++ * supported range, and of every process in a group. Unprivileged
++ * callers can't lower them. The changes are made in a child.
++ */
++
++#ifndef NZERO
++#error "NZERO missing from <limits.h>"
++#endif
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -56,18 +66,95 @@
+         }                                              \
+     } while (0)
+ 
++static void
++child(int prio)
++{
++    int   ret, report[2], go[2], seen;
++    pid_t pid;
++    char  c;
++
++    /* Raising the nice value is always allowed */
++    check(setpriority(PRIO_PROCESS, 0, prio + 1) == 0, "setpriority");
++    check(getpriority(PRIO_PROCESS, 0) == prio + 1, "new value");
++
++    /* Lowering it again takes privilege (or a Linux RLIMIT_NICE allowance) */
++    errno = 0;
++    ret = setpriority(PRIO_PROCESS, 0, prio);
++    if (ret != 0) {
++        check(errno == EACCES || errno == EPERM, "lowering fails with EACCES");
++        check(getpriority(PRIO_PROCESS, 0) == prio + 1, "unchanged after EACCES");
++    } else if (geteuid() != 0) {
++        printf("lowering the nice value was allowed\n");
++    }
++
++    /* PRIO_PGRP 0 changes every process in the caller's group */
++    check(setpgid(0, 0) == 0, "own process group");
++    check(pipe(report) == 0 && pipe(go) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        int value;
++
++        if (read(go[0], &c, 1) != 1)
++            _exit(1);
++        value = getpriority(PRIO_PROCESS, 0);
++        (void)write(report[1], &value, sizeof(value));
++        _exit(0);
++    }
++    check(setpriority(PRIO_PGRP, 0, prio + 2) == 0, "setpriority(PRIO_PGRP)");
++    check(write(go[1], "x", 1) == 1, "go");
++    check(read(report[0], &seen, sizeof(seen)) == sizeof(seen), "report");
++    check(seen == prio + 2, "the other member has the group's value");
++    check(waitpid(pid, NULL, 0) == pid, "waitpid");
++
++    /* For a group, getpriority reports the lowest value */
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        (void)read(go[0], &c, 1);
++        _exit(0);
++    }
++    check(setpriority(PRIO_PROCESS, 0, prio + 3) == 0, "setpriority");
++    errno = 0;
++    check(getpriority(PRIO_PGRP, 0) == prio + 2 && errno == 0, "the group's lowest value");
++    check(write(go[1], "x", 1) == 1, "go");
++    check(waitpid(pid, NULL, 0) == pid, "waitpid");
++
++    /* Values above the range give the highest supported value */
++    check(setpriority(PRIO_PROCESS, 0, INT_MAX) == 0, "setpriority(INT_MAX)");
++    ret = getpriority(PRIO_PROCESS, 0);
++    /* Linux supports the whole range, up to NZERO - 1 */
++    check(ret == NZERO - 1, "clamped to the highest value");
++    exit(0);
++}
++
+ int
+ main(void)
+ {
+-    int prio = getpriority(PRIO_PROCESS, 0);
++    int   prio, status;
++    pid_t pid;
+ 
+-    /* Raising the nice value is always allowed */
+-    if (prio < 19) {
+-        check(setpriority(PRIO_PROCESS, 0, prio + 1) == 0, "setpriority");
+-        check(getpriority(PRIO_PROCESS, 0) == prio + 1, "new value");
++    errno = 0;
++    prio = getpriority(PRIO_PROCESS, 0);
++    check(errno == 0 && prio >= -NZERO && prio <= NZERO - 1, "own priority");
++    if (prio > NZERO - 4) {
++        printf("nice value %d leaves no room, skipping\n", prio);
++        return 77;
+     }
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        child(prio);
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "child checks");
++    check(getpriority(PRIO_PROCESS, 0) == prio, "the parent is unchanged");
++
+     errno = 0;
+     check(setpriority(42, 0, 0) == -1 && errno == EINVAL, "EINVAL");
++    errno = 0;
++    check(setpriority(PRIO_PROCESS, INT_MAX, prio + 1) == -1 && errno == ESRCH, "ESRCH");
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

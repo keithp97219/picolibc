@@ -1,0 +1,281 @@
+From 0e3f532b8750002022c5c96b16019f79874f8daf Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:15:01 +0000
+Subject: [PATCH 20/28] test-posix: Check links, open files, directories and
+ errors in unlink, unlinkat and rmdir
+
+---
+ test/test-posix/test-unistd/CMakeLists.txt |   1 +
+ test/test-posix/test-unistd/meson.build    |   1 +
+ test/test-posix/test-unistd/test-unlink.c  | 235 +++++++++++++++++++++
+ 3 files changed, 237 insertions(+)
+ create mode 100644 test/test-posix/test-unistd/test-unlink.c
+
+diff --git a/test/test-posix/test-unistd/CMakeLists.txt b/test/test-posix/test-unistd/CMakeLists.txt
+index d495c07c30..4601c8a7f0 100644
+--- a/test/test-posix/test-unistd/CMakeLists.txt
++++ b/test/test-posix/test-unistd/CMakeLists.txt
+@@ -104,6 +104,7 @@ set(tests
+   test-ttyname_r
+   test-unistd_h-names
+   test-unistd_h-process
++  test-unlink
+   test-unlinkat
+   test-write
+   )
+diff --git a/test/test-posix/test-unistd/meson.build b/test/test-posix/test-unistd/meson.build
+index 4dde3336cd..fc1495973f 100644
+--- a/test/test-posix/test-unistd/meson.build
++++ b/test/test-posix/test-unistd/meson.build
+@@ -101,6 +101,7 @@ dir_tests = [
+   'test-ttyname_r',
+   'test-unistd_h-names',
+   'test-unistd_h-process',
++  'test-unlink',
+   'test-unlinkat',
+   'test-write',
+ ]
+diff --git a/test/test-posix/test-unistd/test-unlink.c b/test/test-posix/test-unistd/test-unlink.c
+new file mode 100644
+index 0000000000..a2ba9c56f2
+--- /dev/null
++++ b/test/test-posix/test-unistd/test-unlink.c
+@@ -0,0 +1,235 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)      \
++    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)
++
++#include <errno.h>
++#include <fcntl.h>
++#include <limits.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
++/*
++ * unlink, unlinkat and rmdir: links, symbolic links, open files,
++ * directories and the errors, which leave the file alone
++ */
++
++static char dir[] = "tmp-XXXXXX";
++
++static void
++cleanup(void)
++{
++    static const char * const names[] = { "file", "hard", "link", "loop", "sub/x", "w/f" };
++    unsigned                  i;
++
++    (void)chmod("w", 0700);
++    for (i = 0; i < sizeof(names) / sizeof(names[0]); i++)
++        (void)unlink(names[i]);
++    (void)rmdir("sub/inner");
++    (void)rmdir("sub");
++    (void)rmdir("gone");
++    (void)rmdir("w");
++    if (chdir("..") == 0)
++        (void)rmdir(dir);
++}
++
++#define check(condition, message)                                                      \
++    do {                                                                               \
++        if (!(condition)) {                                                            \
++            printf("%d: %s: %s (errno %d)\n", __LINE__, (message), #condition, errno); \
++            cleanup();                                                                 \
++            exit(1);                                                                   \
++        }                                                                              \
++    } while (0)
++
++#define check_err(expr, err, message) check((errno = 0, (expr) == -1) && errno == (err), message)
++
++/* glibc passes Linux's EISDIR through for a directory */
++#ifdef __GLIBC__
++#define EPERM_DIR EISDIR
++#else
++#define EPERM_DIR EPERM
++#endif
++
++static int
++exists(const char *path)
++{
++    struct stat st;
++
++    return lstat(path, &st) == 0;
++}
++
++static char long_name[NAME_MAX + 2];
++
++int
++main(void)
++{
++    struct stat     st;
++    struct timespec old[2] = {
++        { 1000, 0 },
++        { 1000, 0 }
++    };
++    char buf[8];
++    int  fd, dfd, sfd;
++
++    check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
++    fd = open("file", O_RDWR | O_CREAT | O_EXCL, 0600);
++    check(fd >= 0 && write(fd, "data", 4) == 4, "create");
++    check(link("file", "hard") == 0 && symlink("file", "link") == 0, "links");
++
++    /* unlink removes one name and decrements the link count */
++    check(utimensat(AT_FDCWD, ".", old, 0) == 0, "set old directory times");
++    check(unlink("hard") == 0 && !exists("hard"), "unlink");
++    check(fstat(fd, &st) == 0 && st.st_nlink == 1, "link count decremented");
++    check(stat(".", &st) == 0 && st.st_mtime > 1000, "parent directory times updated");
++
++    /* A symbolic link goes, its target stays */
++    check(unlink("link") == 0 && !exists("link") && exists("file"), "unlink a symbolic link");
++
++    /* An open file stays readable after its last link goes */
++    check(unlink("file") == 0 && !exists("file"), "unlink the last link");
++    check(fstat(fd, &st) == 0 && st.st_nlink == 0, "no links left");
++    check(pread(fd, buf, 4, 0) == 4 && memcmp(buf, "data", 4) == 0, "still readable");
++    check(close(fd) == 0, "close");
++
++    /* EPERM for a directory, which stays */
++    check(mkdir("sub", 0700) == 0, "mkdir");
++    check_err(unlink("sub"), EPERM_DIR, "unlink a directory");
++    check_err(unlink("sub/"), EPERM_DIR, "unlink a directory with a trailing slash");
++    check_err(unlinkat(AT_FDCWD, "sub", 0), EPERM_DIR, "unlinkat a directory without AT_REMOVEDIR");
++    check(exists("sub"), "directory kept");
++
++    /* Pathname errors */
++    check(close(open("file", O_WRONLY | O_CREAT, 0600)) == 0, "create");
++    check_err(unlink("missing"), ENOENT, "missing file");
++    check_err(unlink(""), ENOENT, "empty path");
++    check_err(unlink("file/x"), ENOTDIR, "prefix not a directory");
++    check_err(unlink("file/"), ENOTDIR, "trailing slash on a file");
++    check(exists("file"), "file kept");
++    check(symlink("loop", "loop") == 0, "symlink loop");
++    check_err(unlink("loop/x"), ELOOP, "symbolic link loop");
++    memset(long_name, 'n', NAME_MAX + 1);
++    check_err(unlink(long_name), ENAMETOOLONG, "component longer than NAME_MAX");
++
++    /* EACCES without write permission on the directory (not as root) */
++    if (geteuid() != 0) {
++        check(mkdir("w", 0700) == 0 && close(open("w/f", O_WRONLY | O_CREAT, 0600)) == 0,
++              "create w/f");
++        check(chmod("w", 0500) == 0, "read-only directory");
++        check_err(unlink("w/f"), EACCES, "no write permission on the directory");
++        check(chmod("w", 0600) == 0, "no search permission");
++        check_err(unlink("w/f"), EACCES, "no search permission on the prefix");
++        check(chmod("w", 0700) == 0 && exists("w/f"), "file kept");
++    }
++
++    /* unlinkat relative to a directory descriptor */
++    dfd = open("sub", O_RDONLY | O_DIRECTORY);
++    check(dfd >= 0, "open directory");
++    check(close(openat(dfd, "x", O_WRONLY | O_CREAT, 0600)) == 0, "create sub/x");
++    check(mkdirat(dfd, "inner", 0700) == 0, "mkdirat");
++    check_err(unlinkat(dfd, "inner", 0), EPERM_DIR, "unlinkat a directory");
++    errno = 0;
++    check(unlinkat(AT_FDCWD, "sub", AT_REMOVEDIR) == -1 && (errno == EEXIST || errno == ENOTEMPTY),
++          "AT_REMOVEDIR on a directory that isn't empty");
++    check_err(unlinkat(dfd, "x", AT_REMOVEDIR), ENOTDIR, "AT_REMOVEDIR on a file");
++    check(unlinkat(dfd, "x", 0) == 0 && !exists("sub/x"), "unlinkat a file");
++    check(unlinkat(dfd, "inner", AT_REMOVEDIR) == 0 && !exists("sub/inner"), "AT_REMOVEDIR");
++    check(unlinkat(dfd, "/nonexistent-picolibc-test", 0) == -1, "absolute path ignores fd");
++    check_err(unlinkat(-1, "x", 0), EBADF, "bad descriptor");
++    check(unlinkat(-1, "/nonexistent-picolibc-test", 0) == -1 && errno == ENOENT,
++          "absolute path with a bad descriptor");
++    sfd = open("file", O_RDONLY);
++    check(sfd >= 0, "open file");
++    check_err(unlinkat(sfd, "x", 0), ENOTDIR, "descriptor of a file");
++    check(close(sfd) == 0, "close");
++    check(unlinkat(AT_FDCWD, "file", 0) == 0 && !exists("file"), "unlinkat AT_FDCWD");
++    check(close(dfd) == 0, "close directory");
++
++    /* rmdir */
++    check_err(rmdir("."), EINVAL, "rmdir of dot");
++    check_err(rmdir("sub/."), EINVAL, "rmdir of a final dot");
++    errno = 0;
++    check(rmdir("sub/..") == -1, "rmdir of dot-dot");
++    check(close(open("sub/x", O_WRONLY | O_CREAT, 0600)) == 0, "create sub/x");
++    errno = 0;
++    check(rmdir("sub") == -1 && (errno == EEXIST || errno == ENOTEMPTY), "rmdir non-empty");
++    check(unlink("sub/x") == 0, "unlink sub/x");
++    check(symlink("sub", "link") == 0, "symlink to a directory");
++    check_err(rmdir("link"), ENOTDIR, "rmdir of a symbolic link");
++    check(exists("sub"), "directory kept");
++    check(close(open("file", O_WRONLY | O_CREAT, 0600)) == 0, "create");
++    check_err(rmdir("file"), ENOTDIR, "rmdir of a file");
++    check_err(rmdir("missing"), ENOENT, "rmdir of a missing directory");
++    check_err(rmdir(""), ENOENT, "rmdir of an empty path");
++    check(unlink("link") == 0 && unlink("file") == 0, "cleanup");
++
++    /* An open directory is removed, and nothing new can be made in it */
++    check(mkdir("gone", 0700) == 0, "mkdir");
++    dfd = open("gone", O_RDONLY | O_DIRECTORY);
++    check(dfd >= 0, "open directory");
++    check(utimensat(AT_FDCWD, ".", old, 0) == 0, "set old directory times");
++    check(rmdir("gone") == 0 && !exists("gone"), "rmdir");
++    check(stat(".", &st) == 0 && st.st_mtime > 1000, "parent directory times updated");
++    errno = 0;
++    check(openat(dfd, "new", O_WRONLY | O_CREAT, 0600) == -1,
++          "no new entries in a removed directory");
++    check(close(dfd) == 0, "close");
++    check(rmdir("sub") == 0, "rmdir");
++
++    cleanup();
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

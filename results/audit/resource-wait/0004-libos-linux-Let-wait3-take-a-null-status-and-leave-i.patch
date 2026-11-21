@@ -1,0 +1,36 @@
+From 4f657623af530366ed9479533356217b3c9ca737 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:05:55 +0000
+Subject: [PATCH 04/15] libos/linux: Let wait3 take a null status, and leave it
+ alone with WNOHANG
+
+wait3 stored the status through a null pointer, and stored a value the
+kernel never wrote when WNOHANG found no child to report.
+---
+ libos/linux/wait3.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/libos/linux/wait3.c b/libos/linux/wait3.c
+index b3c0039186..aae8dd027c 100644
+--- a/libos/linux/wait3.c
++++ b/libos/linux/wait3.c
+@@ -68,13 +68,14 @@ wait3(int *wstatus, int options, struct rusage *rusage)
+     cancel = _cancel_enter();
+     ret = _syscall(LINUX_SYS_wait4, -1, &kstatus, koptions, pusage);
+     _cancel_leave(cancel);
+-    if (ret != (pid_t)-1) {
++    if (ret > 0) {
+         if (WIFSIGNALED(kstatus))
+             kstatus
+                 = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus))) | (kstatus & __W_COREFLAG);
+         else if (WIFSTOPPED(kstatus))
+             kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
+-        *wstatus = kstatus;
++        if (wstatus)
++            *wstatus = kstatus;
+         if (rusage) {
+             SIMPLE_MAP_TIMEVAL(&rusage->ru_utime, &kusage.ru_utime);
+             SIMPLE_MAP_TIMEVAL(&rusage->ru_stime, &kusage.ru_stime);
+-- 
+2.47.3
+

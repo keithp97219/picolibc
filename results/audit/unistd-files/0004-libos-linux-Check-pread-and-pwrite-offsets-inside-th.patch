@@ -1,0 +1,66 @@
+From f61e9baefe096b5b498f1abc19538cbf8a406f2e Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:51:59 +0000
+Subject: [PATCH 04/28] libos/linux: Check pread and pwrite offsets inside the
+ cancellation point
+
+A negative offset returned EINVAL before acting on a pending
+cancellation request, and for a pipe or other unseekable file POSIX
+wants ESPIPE (EINVAL is for regular and block special files). Check
+after entering the cancellation point, and report lseek's error.
+---
+ libos/linux/pread.c  | 10 ++++++++--
+ libos/linux/pwrite.c | 10 ++++++++--
+ 2 files changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/libos/linux/pread.c b/libos/linux/pread.c
+index 221b0c4918..4120d38a07 100644
+--- a/libos/linux/pread.c
++++ b/libos/linux/pread.c
+@@ -44,11 +44,17 @@ pread(int fd, void *buf, size_t count, off_t offset)
+     void *cancel;
+     long  ret;
+ 
++    cancel = _cancel_enter();
++    /*
++     * Linux reports EINVAL for any negative offset, but a file that
++     * can't seek gives ESPIPE, as lseek reports it
++     */
+     if (offset < 0) {
+-        errno = EINVAL;
++        if (lseek(fd, 0, SEEK_CUR) >= 0)
++            errno = EINVAL;
++        _cancel_leave(cancel);
+         return -1;
+     }
+-    cancel = _cancel_enter();
+ #if __SIZEOF_LONG__ == 8
+     ret = _syscall(LINUX_SYS_pread64, fd, buf, count, offset);
+ #else
+diff --git a/libos/linux/pwrite.c b/libos/linux/pwrite.c
+index 1303a60453..3908f78607 100644
+--- a/libos/linux/pwrite.c
++++ b/libos/linux/pwrite.c
+@@ -44,11 +44,17 @@ pwrite(int fd, const void *buf, size_t count, off_t offset)
+     void *cancel;
+     long  ret;
+ 
++    cancel = _cancel_enter();
++    /*
++     * Linux reports EINVAL for any negative offset, but a file that
++     * can't seek gives ESPIPE, as lseek reports it
++     */
+     if (offset < 0) {
+-        errno = EINVAL;
++        if (lseek(fd, 0, SEEK_CUR) >= 0)
++            errno = EINVAL;
++        _cancel_leave(cancel);
+         return -1;
+     }
+-    cancel = _cancel_enter();
+ #if __SIZEOF_LONG__ == 8
+     ret = _syscall(LINUX_SYS_pwrite64, fd, buf, count, offset);
+ #else
+-- 
+2.47.3
+

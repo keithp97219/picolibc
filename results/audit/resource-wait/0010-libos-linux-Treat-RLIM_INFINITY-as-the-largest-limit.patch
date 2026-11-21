@@ -1,0 +1,36 @@
+From a388438ea0cace440f2f0a944f90e83c8fd3166c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:05:55 +0000
+Subject: [PATCH 10/15] libos/linux: Treat RLIM_INFINITY as the largest limit
+ in setrlimit
+
+RLIM_INFINITY is INT64_MAX, and rlim_t has larger values. setrlimit
+rejected a soft limit above it with an infinite hard limit, and
+accepted an infinite soft limit with a larger finite hard limit, which
+Linux then rejected. POSIX: "The value RLIM_INFINITY ... shall be
+considered to be larger than any other limit value."
+---
+ libos/linux/setrlimit.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/libos/linux/setrlimit.c b/libos/linux/setrlimit.c
+index 649c80ee01..fca3108d71 100644
+--- a/libos/linux/setrlimit.c
++++ b/libos/linux/setrlimit.c
+@@ -50,9 +50,11 @@ setrlimit(int resource, const struct rlimit *rlim)
+      * forward RLIMIT_AS, RLIMIT_DATA and RLIMIT_STACK (applying them would
+      * also constrain QEMU itself), reporting success without validating
+      * anything. Check here so the error is reported consistently on both
+-     * real hardware and under emulation.
++     * real hardware and under emulation. RLIM_INFINITY is larger than
++     * any other value, although rlim_t has values above it.
+      */
+-    if (rlim->rlim_cur > rlim->rlim_max) {
++    if (rlim->rlim_max != RLIM_INFINITY
++        && (rlim->rlim_cur == RLIM_INFINITY || rlim->rlim_cur > rlim->rlim_max)) {
+         errno = EINVAL;
+         return -1;
+     }
+-- 
+2.47.3
+

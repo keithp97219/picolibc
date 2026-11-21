@@ -1,0 +1,33 @@
+From fe715223a5547afc08e6ef06b05f57122e779d11 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:57:06 +0000
+Subject: [PATCH 06/12] libos/linux: Report a login name limit that fits Linux
+ user names
+
+sysconf(_SC_LOGIN_NAME_MAX) gave the fallback's _POSIX_LOGIN_NAME_MAX,
+9, while Linux user names run to 32 characters or more, so getlogin_r
+gave ERANGE for a buffer of that size. Report 256, as glibc does.
+---
+ libos/linux/sysconf.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/libos/linux/sysconf.c b/libos/linux/sysconf.c
+index f317ac21fe..631f633e39 100644
+--- a/libos/linux/sysconf.c
++++ b/libos/linux/sysconf.c
+@@ -82,6 +82,12 @@ sysconf(int name)
+     case _SC_DELAYTIMER_MAX:
+         /* The kernel's timer overrun counts saturate at INT_MAX */
+         return INT_MAX;
++    case _SC_LOGIN_NAME_MAX:
++        /*
++         * Linux names users with up to 32 characters (utmp's ut_user),
++         * or more where useradd allows; glibc's LOGIN_NAME_MAX is 256
++         */
++        return 256;
+     case _SC_TTY_NAME_MAX:
+         /* Room for the /dev/pts/N and /dev/ttyXXX names ttyname returns */
+         return 32;
+-- 
+2.47.3
+

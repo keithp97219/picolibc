@@ -1,0 +1,256 @@
+From e48aa88729b395a431dcb6c8313e0554a1619c61 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:14:51 +0000
+Subject: [PATCH 15/28] test-posix: Check equal descriptors, FD_CLOEXEC and
+ errors in dup, dup2 and dup3
+
+---
+ test/test-posix/test-unistd/CMakeLists.txt |   1 +
+ test/test-posix/test-unistd/meson.build    |   1 +
+ test/test-posix/test-unistd/test-dup2.c    | 210 +++++++++++++++++++++
+ 3 files changed, 212 insertions(+)
+ create mode 100644 test/test-posix/test-unistd/test-dup2.c
+
+diff --git a/test/test-posix/test-unistd/CMakeLists.txt b/test/test-posix/test-unistd/CMakeLists.txt
+index 1b539c585f..4aded52753 100644
+--- a/test/test-posix/test-unistd/CMakeLists.txt
++++ b/test/test-posix/test-unistd/CMakeLists.txt
+@@ -40,6 +40,7 @@ set(tests
+   test-alarm
+   test-chown
+   test-confstr
++  test-dup2
+   test-dup3
+   test-execl
+   test-execl-thread
+diff --git a/test/test-posix/test-unistd/meson.build b/test/test-posix/test-unistd/meson.build
+index 3048495c30..a6671c350b 100644
+--- a/test/test-posix/test-unistd/meson.build
++++ b/test/test-posix/test-unistd/meson.build
+@@ -40,6 +40,7 @@ dir_tests = [
+   'test-alarm',
+   'test-chown',
+   'test-confstr',
++  'test-dup2',
+   'test-dup3',
+   'test-execl',
+   'test-execle',
+diff --git a/test/test-posix/test-unistd/test-dup2.c b/test/test-posix/test-unistd/test-dup2.c
+new file mode 100644
+index 0000000000..f395db3865
+--- /dev/null
++++ b/test/test-posix/test-unistd/test-dup2.c
+@@ -0,0 +1,210 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* glibc declares dup3 only with _GNU_SOURCE */
++#ifdef TEST_GLIBC
++#define _GNU_SOURCE
++#endif
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_FD_MGMT) && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
++    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++
++#include <errno.h>
++#include <fcntl.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
++#include <unistd.h>
++
++/*
++ * dup, dup2 and dup3: the descriptor chosen, the shared open file
++ * description, FD_CLOEXEC, equal descriptors and the errors
++ */
++
++static char dir[] = "tmp-XXXXXX";
++
++static void
++cleanup(void)
++{
++    (void)unlink("a");
++    (void)unlink("b");
++    if (chdir("..") == 0)
++        (void)rmdir(dir);
++}
++
++#define check(condition, message)                                                      \
++    do {                                                                               \
++        if (!(condition)) {                                                            \
++            printf("%d: %s: %s (errno %d)\n", __LINE__, (message), #condition, errno); \
++            cleanup();                                                                 \
++            exit(1);                                                                   \
++        }                                                                              \
++    } while (0)
++
++#define check_err(expr, err, message) check((errno = 0, (expr) == -1) && errno == (err), message)
++
++/* The lowest descriptor not open */
++static int
++lowest_free(void)
++{
++    int fd;
++
++    for (fd = 0; fcntl(fd, F_GETFD) != -1; fd++)
++        ;
++    return fd;
++}
++
++int
++main(void)
++{
++    struct rlimit rl;
++    char          c;
++    int           a, b, fd, low, status;
++    pid_t         pid;
++
++    check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
++    a = open("a", O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
++    check(a >= 0 && write(a, "aaaa", 4) == 4, "create a");
++    b = open("b", O_RDWR | O_CREAT | O_EXCL, 0600);
++    check(b >= 0 && write(b, "bbbb", 4) == 4, "create b");
++
++    /* dup: the lowest free descriptor, the same description, no FD_CLOEXEC */
++    low = lowest_free();
++    fd = dup(a);
++    check(fd == low, "dup returns the lowest free descriptor");
++    check(fcntl(fd, F_GETFD) == 0, "dup clears FD_CLOEXEC");
++    check(lseek(a, 1, SEEK_SET) == 1 && lseek(fd, 0, SEEK_CUR) == 1, "dup shares the offset");
++    check(fcntl(fd, F_SETFL, O_APPEND) == 0 && (fcntl(a, F_GETFL) & O_APPEND),
++          "dup shares the status flags");
++    check(fcntl(fd, F_SETFL, 0) == 0, "clear O_APPEND");
++    check(close(fd) == 0, "close");
++    check_err(dup(-1), EBADF, "dup of -1");
++    check_err(dup(fd), EBADF, "dup of a closed descriptor");
++
++    /* dup2: close fildes2 first and make it refer to fildes */
++    fd = dup2(a, b);
++    check(fd == b, "dup2 returns fildes2");
++    check(lseek(b, 0, SEEK_SET) == 0 && read(b, &c, 1) == 1 && c == 'a', "fildes2 refers to a");
++    check(fcntl(b, F_GETFD) == 0, "dup2 clears FD_CLOEXEC on fildes2");
++
++    /* dup2 to a free descriptor */
++    check(close(b) == 0, "close");
++    check(dup2(a, 50) == 50, "dup2 to a free descriptor");
++    check(fcntl(50, F_GETFD) == 0, "no FD_CLOEXEC");
++
++    /* fildes2 with FD_CLOEXEC set loses it */
++    check(fcntl(50, F_SETFD, FD_CLOEXEC) == 0 && dup2(a, 50) == 50, "dup2 over FD_CLOEXEC");
++    check(fcntl(50, F_GETFD) == 0, "FD_CLOEXEC cleared");
++
++    /* Equal descriptors: fildes2 returned, open, flags unchanged */
++    check(dup2(50, 50) == 50, "dup2 of a descriptor to itself");
++    check(fcntl(50, F_GETFD) == 0, "still open");
++    check(fcntl(a, F_GETFD) == FD_CLOEXEC && dup2(a, a) == a, "dup2 to itself with FD_CLOEXEC");
++    check(fcntl(a, F_GETFD) == FD_CLOEXEC, "FD_CLOEXEC unchanged");
++    check(close(50) == 0, "close");
++    check_err(dup2(50, 50), EBADF, "dup2 of a closed descriptor to itself");
++
++    /* An invalid fildes leaves fildes2 open */
++    b = open("b", O_RDWR);
++    check(b >= 0, "open b");
++    check_err(dup2(-1, b), EBADF, "dup2 of -1");
++    check_err(dup2(50, b), EBADF, "dup2 of a closed descriptor");
++    check(fcntl(b, F_GETFD) != -1 && read(b, &c, 1) == 1 && c == 'b', "fildes2 not closed");
++
++    /* fildes2 out of range */
++    check_err(dup2(a, -1), EBADF, "dup2 to -1");
++    check(getrlimit(RLIMIT_NOFILE, &rl) == 0, "getrlimit");
++    check_err(dup2(a, (int)rl.rlim_cur), EBADF, "dup2 to the descriptor limit");
++
++    /* dup3: equal descriptors fail; FD_CLOEXEC only from the flag */
++    check_err(dup3(a, a, 0), EINVAL, "dup3 of a descriptor to itself");
++    check_err(dup3(a, a, O_CLOEXEC), EINVAL, "dup3 of a descriptor to itself with O_CLOEXEC");
++    check(fcntl(b, F_SETFD, FD_CLOEXEC) == 0, "set FD_CLOEXEC");
++    check(dup3(a, b, 0) == b && fcntl(b, F_GETFD) == 0, "dup3 with no flag clears FD_CLOEXEC");
++    check(dup3(b, 51, O_CLOEXEC) == 51 && fcntl(51, F_GETFD) == FD_CLOEXEC, "dup3 O_CLOEXEC");
++    check(lseek(51, 3, SEEK_SET) == 3 && lseek(a, 0, SEEK_CUR) == 3, "dup3 shares the offset");
++    check_err(dup3(-1, 51, 0), EBADF, "dup3 of -1");
++    check(fcntl(51, F_GETFD) != -1, "dup3 failure leaves fildes2 open");
++    check_err(dup3(a, -1, 0), EBADF, "dup3 to -1");
++    check_err(dup3(a, (int)rl.rlim_cur, 0), EBADF, "dup3 to the descriptor limit");
++    check_err(dup3(a, 52, O_APPEND), EINVAL, "dup3 with a bad flag");
++    check(fcntl(52, F_GETFD) == -1, "no descriptor from a failed dup3");
++    check(close(51) == 0, "close");
++
++    /* EMFILE when every descriptor is in use */
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        int top = lowest_free();
++
++        rl.rlim_cur = (rlim_t)top + 2;
++        if (setrlimit(RLIMIT_NOFILE, &rl) != 0)
++            _exit(2);
++        if (dup(a) != top || dup(a) != top + 1)
++            _exit(3);
++        errno = 0;
++        if (dup(a) != -1 || errno != EMFILE)
++            _exit(4);
++        /* dup2 to an open descriptor still works */
++        if (dup2(b, top) != top)
++            _exit(5);
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "child");
++    check(WEXITSTATUS(status) == 0, "EMFILE from dup (child status)");
++
++    check(close(a) == 0 && close(b) == 0, "close");
++    cleanup();
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

@@ -1,0 +1,78 @@
+From 40336b96cd2048a33ba20a18b7b0693a496ceebb Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:06:16 +0000
+Subject: [PATCH 14/15] test-posix: Check that uname's fields are terminated
+ and consistent
+
+Check that every field is null-terminated within its array, that two
+calls agree, and on Linux that the node name matches gethostname,
+without printing the host's names.
+---
+ test/test-posix/test-sys-utsname/test-uname.c | 38 +++++++++++++++++--
+ 1 file changed, 34 insertions(+), 4 deletions(-)
+
+diff --git a/test/test-posix/test-sys-utsname/test-uname.c b/test/test-posix/test-sys-utsname/test-uname.c
+index f5d8088d03..14272bf608 100644
+--- a/test/test-posix/test-sys-utsname/test-uname.c
++++ b/test/test-posix/test-sys-utsname/test-uname.c
+@@ -41,9 +41,14 @@
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <sys/utsname.h>
+ 
+-/* uname fills in the system's names */
++/*
++ * uname fills in the system's names, each terminated within its
++ * array. The values are the host's own, so only their form and their
++ * agreement with other interfaces are checked, and nothing is printed.
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -53,13 +58,38 @@
+         }                                              \
+     } while (0)
+ 
++#define terminated(field) (memchr((field), '\0', sizeof(field)) != NULL)
++#define same(field)       (strcmp(name.field, again.field) == 0)
++
+ int
+ main(void)
+ {
+-    struct utsname name;
++    struct utsname name, again;
++    char           host[256];
++
++    /* Every byte starts non-zero, so a missing terminator shows */
++    memset(&name, 0xa5, sizeof(name));
++    check(uname(&name) >= 0, "uname");
++    check(terminated(name.sysname) && terminated(name.nodename) && terminated(name.release)
++              && terminated(name.version) && terminated(name.machine),
++          "null-terminated fields");
++    check(name.sysname[0] && name.release[0] && name.version[0] && name.machine[0], "uname fields");
+ 
+-    check(uname(&name) == 0, "uname");
+-    check(name.sysname[0] && name.release[0] && name.machine[0], "uname fields");
++    /* The same system gives the same names */
++    memset(&again, 0, sizeof(again));
++    check(uname(&again) >= 0, "uname again");
++    check(same(sysname) && same(nodename) && same(release) && same(version) && same(machine),
++          "same names twice");
++
++#ifdef __linux__
++    /* On Linux both come from the same kernel name; gethostname gives the node name */
++    check(strcmp(name.sysname, "Linux") == 0, "Linux sysname");
++    memset(host, 0, sizeof(host));
++    check(gethostname(host, sizeof(host) - 1) == 0, "gethostname");
++    check(strcmp(host, name.nodename) == 0, "nodename matches gethostname");
++#else
++    (void)host;
++#endif
+ 
+     printf("success\n");
+     return 0;
+-- 
+2.47.3
+

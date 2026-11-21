@@ -1,0 +1,37 @@
+From 6ffe404654232c642f000c9317b9f59f5e027b1a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:51:59 +0000
+Subject: [PATCH 03/28] libos/linux: Return the descriptor from dup2 when both
+ are equal
+
+Targets without a dup2 system call used dup3, which fails with EINVAL
+for equal descriptors. POSIX: "unless fildes is equal to fildes2 in
+which case dup2() shall return fildes2 without closing it". Check the
+descriptor with F_GETFD and return it.
+---
+ libos/linux/dup2.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/libos/linux/dup2.c b/libos/linux/dup2.c
+index 92b665ecf6..6cfe8ebde2 100644
+--- a/libos/linux/dup2.c
++++ b/libos/linux/dup2.c
+@@ -42,6 +42,15 @@ dup2(int oldfd, int newfd)
+ #ifdef LINUX_SYS_dup2
+     return _syscall(LINUX_SYS_dup2, oldfd, newfd);
+ #else
++    /*
++     * dup3 rejects equal descriptors, where dup2 returns the
++     * descriptor, if it is valid, without changing it
++     */
++    if (oldfd == newfd) {
++        if (_syscall(LINUX_SYS_fcntl, oldfd, LINUX_F_GETFD) < 0)
++            return -1;
++        return newfd;
++    }
+     return _syscall(LINUX_SYS_dup3, oldfd, newfd, 0);
+ #endif
+ }
+-- 
+2.47.3
+

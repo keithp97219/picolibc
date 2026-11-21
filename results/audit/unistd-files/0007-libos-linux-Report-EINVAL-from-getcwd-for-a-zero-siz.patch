@@ -1,0 +1,46 @@
+From 2444a9d7b69bc3a508a01afec6866aef5fe3d233 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:51:59 +0000
+Subject: [PATCH 07/28] libos/linux: Report EINVAL from getcwd for a zero size
+
+Linux gives ERANGE; POSIX: "[EINVAL] The size argument is 0." Also
+fail with ENOENT when Linux returns a name that isn't absolute (the
+"(unreachable)" prefix for a directory outside the root), as POSIX
+requires an absolute pathname.
+---
+ libos/linux/getcwd.c | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/getcwd.c b/libos/linux/getcwd.c
+index 764c8892d3..f35ecdf016 100644
+--- a/libos/linux/getcwd.c
++++ b/libos/linux/getcwd.c
+@@ -39,9 +39,24 @@
+ char *
+ getcwd(char *buf, size_t size)
+ {
+-    int ret;
++    long ret;
++
++    /* Linux gives ERANGE for a zero size */
++    if (size == 0) {
++        errno = EINVAL;
++        return NULL;
++    }
+     ret = _syscall(LINUX_SYS_getcwd, buf, size);
+     if (ret < 0)
+         return NULL;
++    /*
++     * A directory outside the root (after chroot or in another mount
++     * namespace) comes back as "(unreachable)/...", which isn't an
++     * absolute pathname
++     */
++    if (buf[0] != '/') {
++        errno = ENOENT;
++        return NULL;
++    }
+     return buf;
+ }
+-- 
+2.47.3
+

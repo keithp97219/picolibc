@@ -1,0 +1,47 @@
+From a0906ebbbe9043349e901fed7659988e4f763aec Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:05:55 +0000
+Subject: [PATCH 03/15] sys/wait.h: Don't include <sys/resource.h>
+
+<sys/wait.h> may make the <signal.h> names visible, but not
+getrlimit, setrlimit, struct rlimit or the RLIMIT_, RLIM_, PRIO_ and
+RUSAGE_ names. wait3 needs only an incomplete struct rusage.
+---
+ libc/include/sys/wait.h | 2 +-
+ libos/linux/wait3.c     | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libc/include/sys/wait.h b/libc/include/sys/wait.h
+index bed1bf78c3..9b0de015cc 100644
+--- a/libc/include/sys/wait.h
++++ b/libc/include/sys/wait.h
+@@ -35,13 +35,13 @@ _BEGIN_STD_C
+ 
+ #include <sys/types.h>
+ #include <sys/_wait.h>
+-#include <sys/resource.h>
+ 
+ #define WCOREDUMP(w) ((w) & __W_COREFLAG)
+ 
+ pid_t wait(int *);
+ pid_t waitpid(pid_t, int *, int);
+ #if __MISC_VISIBLE
++struct rusage;
+ pid_t wait3(int *, int, struct rusage *);
+ #endif
+ 
+diff --git a/libos/linux/wait3.c b/libos/linux/wait3.c
+index 8721629ae4..b3c0039186 100644
+--- a/libos/linux/wait3.c
++++ b/libos/linux/wait3.c
+@@ -37,6 +37,7 @@
+ #include "local-cancel.h"
+ #include "local-time.h"
+ #include <sys/wait.h>
++#include <sys/resource.h>
+ 
+ pid_t
+ wait3(int *wstatus, int options, struct rusage *rusage)
+-- 
+2.47.3
+

@@ -1,0 +1,450 @@
+From 6fab10facc3785be0d677553cfd6f90e539890e5 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:00:18 +0000
+Subject: [PATCH 08/12] test-posix: Check getpwnam, getpwuid and their
+ reentrant forms
+
+errno is left alone when nothing matches, ERANGE comes only from a
+buffer too small for the entry found, the strings lie in the buffer,
+sysconf(_SC_GETPW_R_SIZE_MAX) answers, and EMFILE is reported.
+---
+ test/test-posix/test-pwd/CMakeLists.txt    |   1 +
+ test/test-posix/test-pwd/meson.build       |   1 +
+ test/test-posix/test-pwd/test-getpwnam.c   | 189 +++++++++++++++++++++
+ test/test-posix/test-pwd/test-getpwnam_r.c |  66 ++++++-
+ test/test-posix/test-pwd/test-getpwuid_r.c |  71 +++++++-
+ 5 files changed, 316 insertions(+), 12 deletions(-)
+ create mode 100644 test/test-posix/test-pwd/test-getpwnam.c
+
+diff --git a/test/test-posix/test-pwd/CMakeLists.txt b/test/test-posix/test-pwd/CMakeLists.txt
+index 1f493edba8..ab62b07daf 100644
+--- a/test/test-posix/test-pwd/CMakeLists.txt
++++ b/test/test-posix/test-pwd/CMakeLists.txt
+@@ -35,6 +35,7 @@
+ 
+ set(tests
+   test-getpwent
++  test-getpwnam
+   test-getpwnam_r
+   test-getpwuid_r
+   test-pwd_h
+diff --git a/test/test-posix/test-pwd/meson.build b/test/test-posix/test-pwd/meson.build
+index e7bfd6347c..0d2c68036d 100644
+--- a/test/test-posix/test-pwd/meson.build
++++ b/test/test-posix/test-pwd/meson.build
+@@ -35,6 +35,7 @@
+ 
+ dir_tests = [
+   'test-getpwent',
++  'test-getpwnam',
+   'test-getpwnam_r',
+   'test-getpwuid_r',
+   'test-pwd_h',
+diff --git a/test/test-posix/test-pwd/test-getpwnam.c b/test/test-posix/test-pwd/test-getpwnam.c
+new file mode 100644
+index 0000000000..0f8cdec26f
+--- /dev/null
++++ b/test/test-posix/test-pwd/test-getpwnam.c
+@@ -0,0 +1,189 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_USER_GROUPS)
++
++#include <errno.h>
++#include <pwd.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/resource.h>
++
++/*
++ * getpwnam and getpwuid find root and the running user, and leave
++ * errno alone when nothing matches
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* ':' separates the fields of the user database, so no name holds one */
++#define NO_NAME "no:such:user"
++
++static void
++check_entry(const struct passwd *pw)
++{
++    check(pw->pw_name != NULL && pw->pw_dir != NULL && pw->pw_shell != NULL, "entry strings");
++}
++
++/* Look the entry up by name, and expect it to have this uid */
++static void
++check_by_name(const char *name, uid_t uid)
++{
++    struct passwd *pw;
++
++    errno = 0;
++    pw = getpwnam(name);
++    check(pw != NULL, "getpwnam of a name getpwuid returned");
++    check_entry(pw);
++    check(strcmp(pw->pw_name, name) == 0 && pw->pw_uid == uid, "getpwnam entry");
++}
++
++/*
++ * With every descriptor in use, the database can't be opened: the
++ * lookups may fail with EMFILE, and if they do, they report it
++ */
++static void
++check_emfile(void)
++{
++    struct rlimit lim, low;
++    struct passwd ent, *res;
++    char          buf[4096];
++    int           fds[64];
++    int           n = 0, ret;
++    void         *p;
++
++    if (getrlimit(RLIMIT_NOFILE, &lim) != 0)
++        return;
++    low = lim;
++    low.rlim_cur = 32;
++    if (lim.rlim_cur != RLIM_INFINITY && lim.rlim_cur < low.rlim_cur)
++        low.rlim_cur = lim.rlim_cur;
++    check(setrlimit(RLIMIT_NOFILE, &low) == 0, "setrlimit");
++    while (n < 64 && (fds[n] = dup(1)) >= 0)
++        n++;
++    check(n < 64 && errno == EMFILE, "descriptors used up");
++
++    errno = 0;
++    p = getpwnam("root");
++    check(p != NULL || errno == EMFILE, "getpwnam with no descriptors");
++    res = &ent;
++    ret = getpwnam_r("root", &ent, buf, sizeof(buf), &res);
++    check((ret == 0 && res == &ent) || (ret == EMFILE && res == NULL),
++          "getpwnam_r with no descriptors");
++
++    while (n > 0)
++        close(fds[--n]);
++    check(setrlimit(RLIMIT_NOFILE, &lim) == 0, "setrlimit");
++}
++
++int
++main(void)
++{
++    struct passwd *pw;
++    char          *name;
++    uid_t          uid = getuid();
++
++    /* Every system has root */
++    errno = 0;
++    pw = getpwuid(0);
++    if (!pw) {
++        check(errno == 0, "getpwuid(0) found nothing");
++        printf("no root entry, skipping\n");
++        return 77;
++    }
++    check_entry(pw);
++    check(pw->pw_uid == 0, "getpwuid(0) entry");
++    name = strdup(pw->pw_name);
++    check(name != NULL, "strdup");
++    check_by_name(name, 0);
++    free(name);
++
++    /* The running user, when the database has it */
++    errno = 0;
++    pw = getpwuid(uid);
++    if (pw) {
++        check_entry(pw);
++        check(pw->pw_uid == uid, "getpwuid(getuid()) entry");
++        name = strdup(pw->pw_name);
++        check(name != NULL, "strdup");
++        check_by_name(name, uid);
++        free(name);
++    } else {
++        check(errno == 0, "getpwuid(getuid()) found nothing");
++        printf("no entry for the running user\n");
++    }
++
++    /* No match leaves errno unchanged */
++    errno = 0;
++    check(getpwnam(NO_NAME) == NULL && errno == 0, "getpwnam of a missing name");
++    errno = 0;
++    check(getpwnam("") == NULL && errno == 0, "getpwnam of an empty name");
++    if (uid != (uid_t)-2) {
++        errno = 0;
++        check(getpwuid((uid_t)-2) == NULL && errno == 0, "getpwuid of a missing uid");
++    }
++
++    /* And a lookup after one that failed still works */
++    check(getpwuid(0) != NULL, "getpwuid(0) again");
++
++    check_emfile();
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-pwd/test-getpwnam_r.c b/test/test-posix/test-pwd/test-getpwnam_r.c
+index 30e7d0a86c..b722218715 100644
+--- a/test/test-posix/test-pwd/test-getpwnam_r.c
++++ b/test/test-posix/test-pwd/test-getpwnam_r.c
+@@ -37,7 +37,7 @@
+ #include "../posix-groups.h"
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
++#if defined(__PICOLIBC_POSIX_USER_GROUPS)
+ 
+ #include <errno.h>
+ #include <pwd.h>
+@@ -45,7 +45,10 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-/* getpwnam_r finds an entry by name, reporting a buffer too small */
++/*
++ * getpwnam_r finds an entry by name in the buffer it is given, reporting
++ * ERANGE only when that entry doesn't fit
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -55,11 +58,24 @@
+         }                                              \
+     } while (0)
+ 
++/* ':' separates the fields of the user database, so no name holds one */
++#define NO_NAME "no:such:user"
++
++/* The string lies within the first size bytes of buf */
++static int
++in_buffer(const char *s, const char *buf, size_t size)
++{
++    return s >= buf && s < buf + size && s + strlen(s) < buf + size;
++}
++
+ int
+ main(void)
+ {
+     struct passwd ent, *result;
+-    char          buf[1024], small[1];
++    char          buf[4096], small[1];
++    size_t        need;
++    long          suggested;
++    int           ret;
+ 
+     /* Every system has root */
+     check(getpwnam_r("root", &ent, buf, sizeof(buf), &result) == 0, "getpwnam_r");
+@@ -68,10 +84,50 @@ main(void)
+         return 77;
+     }
+     check(result == &ent && strcmp(ent.pw_name, "root") == 0 && ent.pw_uid == 0, "root");
+-    check(getpwnam_r("no-such-entry-here", &ent, buf, sizeof(buf), &result) == 0 && result == NULL,
+-          "missing");
++
++    /* Not finding an entry isn't an error */
++    result = &ent;
++    check(getpwnam_r(NO_NAME, &ent, buf, sizeof(buf), &result) == 0 && result == NULL, "missing");
++
++    /* A buffer too small: ERANGE and a null result */
++    result = &ent;
+     check(getpwnam_r("root", &ent, small, sizeof(small), &result) == ERANGE && result == NULL,
+           "ERANGE");
++
++    /*
++     * Grow the buffer a byte at a time: each one too small gives
++     * ERANGE, and the first that is big enough holds every string
++     */
++    for (need = 1;; need++) {
++        check(need <= sizeof(buf), "root's entry fits in 4096 bytes");
++        result = &ent;
++        ret = getpwnam_r("root", &ent, buf, need, &result);
++        if (ret == 0)
++            break;
++        check(ret == ERANGE && result == NULL, "ERANGE below the size needed");
++    }
++    check(result == &ent && strcmp(ent.pw_name, "root") == 0 && ent.pw_uid == 0, "root again");
++    check(in_buffer(ent.pw_name, buf, need) && in_buffer(ent.pw_dir, buf, need)
++              && in_buffer(ent.pw_shell, buf, need),
++          "strings in the buffer");
++
++#ifndef __GLIBC__
++    /*
++     * The size of the buffer only matters for the entry found: a
++     * missing entry is still not an error with a small buffer (glibc
++     * reports ERANGE for any line of the file that doesn't fit)
++     */
++    result = &ent;
++    check(getpwnam_r(NO_NAME, &ent, small, sizeof(small), &result) == 0 && result == NULL,
++          "missing, small buffer");
++#endif
++
++    /* sysconf suggests a size, or returns -1 without changing errno */
++    errno = 0;
++    suggested = sysconf(_SC_GETPW_R_SIZE_MAX);
++    check(suggested > 0 || (suggested == -1 && errno == 0), "sysconf(_SC_GETPW_R_SIZE_MAX)");
++    printf("sysconf(_SC_GETPW_R_SIZE_MAX) %ld, root needs %zu\n", suggested, need);
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-pwd/test-getpwuid_r.c b/test/test-posix/test-pwd/test-getpwuid_r.c
+index 4a44991da8..f5da564009 100644
+--- a/test/test-posix/test-pwd/test-getpwuid_r.c
++++ b/test/test-posix/test-pwd/test-getpwuid_r.c
+@@ -37,7 +37,7 @@
+ #include "../posix-groups.h"
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
++#if defined(__PICOLIBC_POSIX_USER_GROUPS)
+ 
+ #include <errno.h>
+ #include <pwd.h>
+@@ -45,7 +45,10 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-/* getpwuid_r finds an entry by id, reporting a buffer too small */
++/*
++ * getpwuid_r finds an entry by id in the buffer it is given, reporting
++ * ERANGE only when that entry doesn't fit
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -55,21 +58,75 @@
+         }                                              \
+     } while (0)
+ 
++/* ':' separates the fields of the user database, so no name holds one */
++#define NO_NAME "no:such:user"
++
++/* The string lies within the first size bytes of buf */
++static int
++in_buffer(const char *s, const char *buf, size_t size)
++{
++    return s >= buf && s < buf + size && s + strlen(s) < buf + size;
++}
++
+ int
+ main(void)
+ {
+     struct passwd ent, *result;
+-    char          buf[1024], small[1];
++    char          buf[4096], small[1];
++    size_t        need;
++    long          suggested;
++    int           ret;
+ 
++    /* Every system has root */
+     check(getpwuid_r(0, &ent, buf, sizeof(buf), &result) == 0, "getpwuid_r");
+     if (!result) {
+-        printf("no entry for id 0, skipping\n");
++        printf("no root entry, skipping\n");
+         return 77;
+     }
+-    check(result == &ent && ent.pw_uid == 0, "id 0");
+-    check(getpwuid_r((uid_t)123456789, &ent, buf, sizeof(buf), &result) == 0 && result == NULL,
+-          "missing");
++    check(result == &ent && strcmp(ent.pw_name, "root") == 0 && ent.pw_uid == 0, "root");
++
++    /* Not finding an entry isn't an error */
++    result = &ent;
++    check(getpwuid_r((uid_t)-2, &ent, buf, sizeof(buf), &result) == 0 && result == NULL, "missing");
++
++    /* A buffer too small: ERANGE and a null result */
++    result = &ent;
+     check(getpwuid_r(0, &ent, small, sizeof(small), &result) == ERANGE && result == NULL, "ERANGE");
++
++    /*
++     * Grow the buffer a byte at a time: each one too small gives
++     * ERANGE, and the first that is big enough holds every string
++     */
++    for (need = 1;; need++) {
++        check(need <= sizeof(buf), "root's entry fits in 4096 bytes");
++        result = &ent;
++        ret = getpwuid_r(0, &ent, buf, need, &result);
++        if (ret == 0)
++            break;
++        check(ret == ERANGE && result == NULL, "ERANGE below the size needed");
++    }
++    check(result == &ent && strcmp(ent.pw_name, "root") == 0 && ent.pw_uid == 0, "root again");
++    check(in_buffer(ent.pw_name, buf, need) && in_buffer(ent.pw_dir, buf, need)
++              && in_buffer(ent.pw_shell, buf, need),
++          "strings in the buffer");
++
++#ifndef __GLIBC__
++    /*
++     * The size of the buffer only matters for the entry found: a
++     * missing entry is still not an error with a small buffer (glibc
++     * reports ERANGE for any line of the file that doesn't fit)
++     */
++    result = &ent;
++    check(getpwuid_r((uid_t)-2, &ent, small, sizeof(small), &result) == 0 && result == NULL,
++          "missing, small buffer");
++#endif
++
++    /* sysconf suggests a size, or returns -1 without changing errno */
++    errno = 0;
++    suggested = sysconf(_SC_GETPW_R_SIZE_MAX);
++    check(suggested > 0 || (suggested == -1 && errno == 0), "sysconf(_SC_GETPW_R_SIZE_MAX)");
++    printf("sysconf(_SC_GETPW_R_SIZE_MAX) %ld, root needs %zu\n", suggested, need);
++
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

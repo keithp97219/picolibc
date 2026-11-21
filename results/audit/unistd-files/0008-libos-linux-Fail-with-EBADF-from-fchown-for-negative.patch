@@ -1,0 +1,38 @@
+From dd6942d9767cf220e210a8d3b005548af927a543 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:51:59 +0000
+Subject: [PATCH 08/28] libos/linux: Fail with EBADF from fchown for negative
+ descriptors
+
+fchown called fchownat with an empty path, which takes AT_FDCWD (-2)
+as the current directory, so fchown(-2, ...) changed the owner of the
+working directory. Call the system call directly and reject negative
+descriptors.
+---
+ libos/linux/fchown.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/libos/linux/fchown.c b/libos/linux/fchown.c
+index 15129372a5..dc61c02d65 100644
+--- a/libos/linux/fchown.c
++++ b/libos/linux/fchown.c
+@@ -39,6 +39,14 @@
+ int
+ fchown(int fd, uid_t owner, gid_t group)
+ {
+-    /* fchownat uses 32-bit ids everywhere, unlike fchown on some targets */
+-    return fchownat(fd, "", owner, group, AT_EMPTY_PATH);
++    /*
++     * fchownat uses 32-bit ids everywhere, unlike fchown on some
++     * targets. Call it directly, as fchownat would take AT_FDCWD
++     * (and Linux's AT_FDCWD) as the current directory.
++     */
++    if (fd < 0) {
++        errno = EBADF;
++        return -1;
++    }
++    return _syscall(LINUX_SYS_fchownat, fd, "", owner, group, LINUX_AT_EMPTY_PATH);
+ }
+-- 
+2.47.3
+

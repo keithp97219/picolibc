@@ -1,0 +1,66 @@
+From f7068c61f404e6a6d3a98a7595970350e1a992f9 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:51:59 +0000
+Subject: [PATCH 02/28] unistd: Close the descriptor in posix_close when the
+ flag is invalid
+
+POSIX: "If flag is invalid, posix_close() may fail with errno set to
+[EINVAL], but shall otherwise behave as if flag had been 0 and close
+fildes." It returned EINVAL and left the descriptor open, and so also
+skipped the cancellation point.
+---
+ libc/posix/unistd/posix_close.c                | 9 +++++----
+ test/test-posix/test-unistd/test-posix_close.c | 4 +---
+ 2 files changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/libc/posix/unistd/posix_close.c b/libc/posix/unistd/posix_close.c
+index 152d4a2f3c..bc8c43f359 100644
+--- a/libc/posix/unistd/posix_close.c
++++ b/libc/posix/unistd/posix_close.c
+@@ -42,10 +42,6 @@ posix_close(int fildes, int flag)
+ {
+     int ret;
+ 
+-    if (flag != 0 && flag != POSIX_CLOSE_RESTART) {
+-        errno = EINVAL;
+-        return -1;
+-    }
+     /*
+      * close never restarts here, so both flags behave the same. If it
+      * was interrupted the descriptor is closed anyway, which POSIX
+@@ -54,5 +50,10 @@ posix_close(int fildes, int flag)
+     ret = close(fildes);
+     if (ret < 0 && errno == EINTR)
+         errno = EINPROGRESS;
++    /* An invalid flag is reported, but the descriptor is closed as for 0 */
++    if (ret == 0 && flag != 0 && flag != POSIX_CLOSE_RESTART) {
++        errno = EINVAL;
++        ret = -1;
++    }
+     return ret;
+ }
+diff --git a/test/test-posix/test-unistd/test-posix_close.c b/test/test-posix/test-unistd/test-posix_close.c
+index b5c0d21076..908a9a04ba 100644
+--- a/test/test-posix/test-unistd/test-posix_close.c
++++ b/test/test-posix/test-unistd/test-posix_close.c
+@@ -49,7 +49,7 @@
+ #define TEST_FILE_NAME "POSIXCLO.TXT"
+ #endif
+ 
+-/* posix_close closes, and rejects a bad flag without closing */
++/* posix_close closes */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -72,8 +72,6 @@ main(void)
+     (void)unlink(TEST_FILE_NAME);
+     fd = open(TEST_FILE_NAME, O_WRONLY | O_CREAT | O_EXCL, 0600);
+     check(fd >= 0, "open");
+-    errno = 0;
+-    check(posix_close(fd, -1) == -1 && errno == EINVAL, "posix_close bad flag");
+     check(posix_close(fd, POSIX_CLOSE_RESTART) == 0, "posix_close");
+     errno = 0;
+     check(posix_close(fd, 0) == -1 && errno == EBADF, "posix_close closed descriptor");
+-- 
+2.47.3
+

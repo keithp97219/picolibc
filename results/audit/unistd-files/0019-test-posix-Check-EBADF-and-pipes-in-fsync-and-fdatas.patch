@@ -1,0 +1,84 @@
+From 16c2bbbc02b919c18f2d3e7c25ffdcea44b23c4f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:15:01 +0000
+Subject: [PATCH 19/28] test-posix: Check EBADF and pipes in fsync and
+ fdatasync
+
+---
+ test/test-posix/test-unistd/test-fdatasync.c | 17 ++++++++++++++++-
+ test/test-posix/test-unistd/test-fsync.c     | 17 ++++++++++++++++-
+ 2 files changed, 32 insertions(+), 2 deletions(-)
+
+diff --git a/test/test-posix/test-unistd/test-fdatasync.c b/test/test-posix/test-unistd/test-fdatasync.c
+index 6b0b869ed1..688e1ef378 100644
+--- a/test/test-posix/test-unistd/test-fdatasync.c
++++ b/test/test-posix/test-unistd/test-fdatasync.c
+@@ -50,7 +50,7 @@
+ #define TEST_FILE_NAME "FDATASYN.TXT"
+ #endif
+ 
+-/* fdatasync succeeds on a written file */
++/* fdatasync succeeds on a written file and fails for bad descriptors */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -73,6 +73,21 @@ main(void)
+ 
+     check(fdatasync(fd) == 0, "fdatasync");
+ 
++#ifdef __PICOLIBC_POSIX_PIPE
++    /* EBADF for a descriptor that isn't open */
++    errno = 0;
++    check(fdatasync(-1) == -1 && errno == EBADF, "fdatasync(-1)");
++    {
++        int p[2];
++
++        /* A pipe can't be synchronized on Linux; if not, it is EINVAL */
++        check(pipe(p) == 0, "pipe");
++        errno = 0;
++        check(fdatasync(p[1]) == 0 || errno == EINVAL, "fdatasync on a pipe");
++        check(close(p[0]) == 0 && close(p[1]) == 0, "close pipe");
++    }
++#endif
++
+     check(close(fd) == 0, "close");
+     check(unlink(TEST_FILE_NAME) == 0, "unlink");
+ 
+diff --git a/test/test-posix/test-unistd/test-fsync.c b/test/test-posix/test-unistd/test-fsync.c
+index facf42b0c9..1625dde4ac 100644
+--- a/test/test-posix/test-unistd/test-fsync.c
++++ b/test/test-posix/test-unistd/test-fsync.c
+@@ -50,7 +50,7 @@
+ #define TEST_FILE_NAME "FSYNC.TXT"
+ #endif
+ 
+-/* fsync succeeds on a written file */
++/* fsync succeeds on a written file and fails for bad descriptors */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -73,6 +73,21 @@ main(void)
+ 
+     check(fsync(fd) == 0, "fsync");
+ 
++#ifdef __PICOLIBC_POSIX_PIPE
++    /* EBADF for a descriptor that isn't open */
++    errno = 0;
++    check(fsync(-1) == -1 && errno == EBADF, "fsync(-1)");
++    {
++        int p[2];
++
++        /* A pipe can't be synchronized on Linux; if not, it is EINVAL */
++        check(pipe(p) == 0, "pipe");
++        errno = 0;
++        check(fsync(p[1]) == 0 || errno == EINVAL, "fsync on a pipe");
++        check(close(p[0]) == 0 && close(p[1]) == 0, "close pipe");
++    }
++#endif
++
+     check(close(fd) == 0, "close");
+     check(unlink(TEST_FILE_NAME) == 0, "unlink");
+ 
+-- 
+2.47.3
+

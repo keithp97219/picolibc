@@ -1,0 +1,433 @@
+From b17134865b151d1fe1373f539e0c53796f92f129 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:00:18 +0000
+Subject: [PATCH 11/12] test-posix: Check getgrent, setgrent and endgrent, and
+ the shared parser
+
+getgrent leaves errno alone at the end and setgrent and endgrent
+rewind and close without touching errno. fgetgrent and fgetgrent_r
+(extensions) show how lines are parsed: malformed ones skipped, 32-bit
+ids, an empty member field, a group with many members, and ERANGE
+leaving the entry to be read again.
+---
+ test/test-posix/test-grp/CMakeLists.txt   |   2 +
+ test/test-posix/test-grp/meson.build      |   2 +
+ test/test-posix/test-grp/test-fgetgrent.c | 194 ++++++++++++++++++++++
+ test/test-posix/test-grp/test-setgrent.c  | 170 +++++++++++++++++++
+ 4 files changed, 368 insertions(+)
+ create mode 100644 test/test-posix/test-grp/test-fgetgrent.c
+ create mode 100644 test/test-posix/test-grp/test-setgrent.c
+
+diff --git a/test/test-posix/test-grp/CMakeLists.txt b/test/test-posix/test-grp/CMakeLists.txt
+index 5f1494782b..83d1f49eeb 100644
+--- a/test/test-posix/test-grp/CMakeLists.txt
++++ b/test/test-posix/test-grp/CMakeLists.txt
+@@ -34,11 +34,13 @@
+ #
+ 
+ set(tests
++  test-fgetgrent
+   test-getgrent
+   test-getgrgid_r
+   test-getgrnam
+   test-getgrnam_r
+   test-grp_h
++  test-setgrent
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-grp/meson.build b/test/test-posix/test-grp/meson.build
+index 7dd7e5f7d1..530a83fcf3 100644
+--- a/test/test-posix/test-grp/meson.build
++++ b/test/test-posix/test-grp/meson.build
+@@ -34,9 +34,11 @@
+ #
+ 
+ dir_tests = [
++  'test-fgetgrent',
+   'test-getgrent',
+   'test-getgrgid_r',
+   'test-getgrnam',
+   'test-getgrnam_r',
+   'test-grp_h',
++  'test-setgrent',
+ ]
+diff --git a/test/test-posix/test-grp/test-fgetgrent.c b/test/test-posix/test-grp/test-fgetgrent.c
+new file mode 100644
+index 0000000000..60b16f5fd9
+--- /dev/null
++++ b/test/test-posix/test-grp/test-fgetgrent.c
+@@ -0,0 +1,194 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/* fgetgrent and fgetgrent_r are GNU extensions */
++#define _GNU_SOURCE
++#include <errno.h>
++#include <grp.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * fgetgrent and fgetgrent_r parse group database lines the way
++ * getgrnam, getgrgid and getgrent do: lines that aren't entries are
++ * skipped, ids are unsigned, an empty member field means no members,
++ * and long lines work
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* Members of the "many" group: "m000" ... */
++#define MANY      300
++#define MANY_SIZE 5
++
++static const char         head[] = "root:x:0:\n"
++                                   "\n"
++                                   "short:x\n"
++                                   "emptygid:x::a\n"
++                                   "badgid:x:7z:a\n"
++                                   "high:x:4294967294:a,b\n"
++                                   "many:x:9:";
++static const char         tail[] = "\n"
++                                   "last:x:10:z\n";
++
++static const char * const none[] = { NULL };
++static const char * const ab[] = { "a", "b", NULL };
++static const char * const z[] = { "z", NULL };
++
++static const struct {
++    const char         *name;
++    unsigned long       gid;
++    const char * const *mem;
++} expect[] = {
++    { "root", 0,          none },
++    { "high", 4294967294, ab   },
++    { "many", 9,          NULL },
++    { "last", 10,         z    },
++};
++
++#define NEXPECT (sizeof(expect) / sizeof(expect[0]))
++
++static char contents[sizeof(head) + MANY * MANY_SIZE + sizeof(tail)];
++
++static void
++check_entry(const struct group *gr, size_t e)
++{
++    size_t m;
++    char   member[MANY_SIZE];
++
++    if (strcmp(gr->gr_name, expect[e].name) != 0 || gr->gr_gid != expect[e].gid) {
++        printf("entry %zu: got '%s' %lu want '%s' %lu\n", e, gr->gr_name, (unsigned long)gr->gr_gid,
++               expect[e].name, expect[e].gid);
++        exit(1);
++    }
++    for (m = 0; gr->gr_mem[m]; m++) {
++        if (expect[e].mem) {
++            check(expect[e].mem[m] != NULL && strcmp(gr->gr_mem[m], expect[e].mem[m]) == 0,
++                  "member");
++        } else {
++            snprintf(member, sizeof(member), "m%03zu", m);
++            check(m < MANY && strcmp(gr->gr_mem[m], member) == 0, "many member");
++        }
++    }
++    if (expect[e].mem)
++        check(expect[e].mem[m] == NULL, "member count");
++    else
++        check(m == MANY, "many member count");
++}
++
++static FILE *
++open_contents(void)
++{
++    FILE *f = fmemopen(contents, strlen(contents), "r");
++
++    check(f != NULL, "fmemopen");
++    return f;
++}
++
++int
++main(void)
++{
++    static char  buf[4096];
++    struct group ent, *gr;
++    FILE        *f;
++    size_t       e, m;
++    char        *p;
++    int          ret;
++
++    if (sizeof(gid_t) < 4) {
++        printf("gid_t narrower than 32 bits, skipping\n");
++        return 77;
++    }
++
++    p = contents;
++    strcpy(p, head);
++    p += strlen(head);
++    for (m = 0; m < MANY; m++) {
++        sprintf(p, "%sm%03zu", m ? "," : "", m);
++        p += strlen(p);
++    }
++    strcpy(p, tail);
++
++    /* fgetgrent_r, with a buffer big enough for every line */
++    f = open_contents();
++    for (e = 0; e < NEXPECT; e++) {
++        ret = fgetgrent_r(f, &ent, buf, sizeof(buf), &gr);
++        check(ret == 0 && gr == &ent, "fgetgrent_r");
++        check_entry(gr, e);
++    }
++    gr = &ent;
++    check(fgetgrent_r(f, &ent, buf, sizeof(buf), &gr) == ENOENT && gr == NULL, "fgetgrent_r end");
++    fclose(f);
++
++    /*
++     * A buffer too small for the long entry gives ERANGE, and leaves it
++     * to be read again with a bigger one
++     */
++    f = open_contents();
++    check(fgetgrent_r(f, &ent, buf, sizeof(buf), &gr) == 0, "fgetgrent_r");
++    check_entry(gr, 0);
++    check(fgetgrent_r(f, &ent, buf, sizeof(buf), &gr) == 0, "fgetgrent_r");
++    check_entry(gr, 1);
++    gr = &ent;
++    check(fgetgrent_r(f, &ent, buf, 100, &gr) == ERANGE && gr == NULL, "fgetgrent_r ERANGE");
++    check(fgetgrent_r(f, &ent, buf, sizeof(buf), &gr) == 0, "fgetgrent_r after ERANGE");
++    check_entry(gr, 2);
++    fclose(f);
++
++    /* fgetgrent, whose own buffer must hold the long entry */
++    f = open_contents();
++    for (e = 0; e < NEXPECT; e++) {
++        errno = 0;
++        gr = fgetgrent(f);
++        check(gr != NULL, "fgetgrent");
++        check_entry(gr, e);
++    }
++#ifdef __PICOLIBC__
++    /* picolibc's fgetgrent, like getgetgrent, leaves errno alone at the end */
++    errno = 0;
++    check(fgetgrent(f) == NULL && errno == 0, "fgetgrent end leaves errno alone");
++#endif
++    fclose(f);
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-grp/test-setgrent.c b/test/test-posix/test-grp/test-setgrent.c
+new file mode 100644
+index 0000000000..9f9072134f
+--- /dev/null
++++ b/test/test-posix/test-grp/test-setgrent.c
+@@ -0,0 +1,170 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#define _XOPEN_SOURCE   800
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_XSI_USER_GROUPS)
++
++#include <errno.h>
++#include <grp.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * getgrent walks the group database, leaving errno alone at the end;
++ * setgrent rewinds it and endgrent closes it, also leaving errno alone
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* The prototypes, with the types POSIX gives */
++static void          (         *const p_endgrent)(void) = endgrent;
++static struct group *(* const p_getgrent)(void) = getgrent;
++static void          (         *const p_setgrent)(void) = setgrent;
++
++static char         *first, *second;
++
++/* Read the whole database, returning the number of entries */
++static unsigned long
++walk(int *found_root, int *found_group)
++{
++    unsigned long count = 0;
++    struct group *gr;
++    size_t        m;
++
++    *found_root = *found_group = 0;
++    for (;;) {
++        errno = 0;
++        gr = getgrent();
++        if (!gr)
++            break;
++        check(gr->gr_name != NULL && gr->gr_mem != NULL, "pointers");
++        for (m = 0; gr->gr_mem[m]; m++)
++            check(gr->gr_mem[m][0] != '\0', "member name");
++        if (count == 0) {
++            if (!first)
++                check((first = strdup(gr->gr_name)) != NULL, "strdup");
++            else
++                check(strcmp(gr->gr_name, first) == 0, "same first entry");
++        } else if (count == 1) {
++            if (!second)
++                check((second = strdup(gr->gr_name)) != NULL, "strdup");
++            else
++                check(strcmp(gr->gr_name, second) == 0, "same second entry");
++        }
++        if (gr->gr_gid == 0)
++            *found_root = 1;
++        if (gr->gr_gid == getgid())
++            *found_group = 1;
++        check(++count < 10000000, "the database ends");
++    }
++    /* The end of the database is not an error */
++    check(errno == 0, "errno at the end");
++    return count;
++}
++
++int
++main(void)
++{
++    unsigned long count, again;
++    int           found_root, found_group, root_again, group_again;
++    struct group *gr;
++
++    count = walk(&found_root, &found_group);
++    if (count == 0) {
++        printf("empty group database, skipping\n");
++        return 77;
++    }
++    check(found_root, "group 0 is in the database");
++
++    /* setgrent rewinds; it leaves errno alone */
++    errno = 0;
++    p_setgrent();
++    check(errno == 0, "setgrent errno");
++    again = walk(&root_again, &group_again);
++    check(again == count && root_again == found_root && group_again == found_group, "same walk");
++
++    /* endgrent closes; the next getgrent starts over */
++    errno = 0;
++    p_endgrent();
++    check(errno == 0, "endgrent errno");
++    gr = p_getgrent();
++    check(gr != NULL && strcmp(gr->gr_name, first) == 0, "first entry after endgrent");
++
++    /* Lookups by name and uid don't move getgrent along */
++    if (count > 1) {
++        check(getgrnam(first) != NULL, "getgrnam");
++        check(getgrgid(0) != NULL, "getgrgid");
++        gr = getgrent();
++        check(gr != NULL && strcmp(gr->gr_name, second) == 0, "second entry after lookups");
++    }
++
++    /* setgrent on a database open in the middle, and endgrent twice */
++    setgrent();
++    gr = getgrent();
++    check(gr != NULL && strcmp(gr->gr_name, first) == 0, "first entry after setgrent");
++    endgrent();
++    errno = 0;
++    endgrent();
++    check(errno == 0, "endgrent when closed");
++
++    free(first);
++    free(second);
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

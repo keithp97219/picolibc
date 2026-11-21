@@ -1,0 +1,30 @@
+From e9ccccb492f643350d9f3eb60092de274fa1eeae Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:00:17 +0000
+Subject: [PATCH 11/28] libos/linux: Report the kernel's symbolic link length
+ in pathconf
+
+_PC_SYMLINK_MAX fell through to the POSIX minimum, 255, but Linux
+stores link contents up to its PATH_MAX (4096 with the terminating
+null). symlink is to fail with ENAMETOOLONG only past {SYMLINK_MAX}.
+---
+ libos/linux/local-statfs.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libos/linux/local-statfs.h b/libos/linux/local-statfs.h
+index 604b8aaf12..990562501f 100644
+--- a/libos/linux/local-statfs.h
++++ b/libos/linux/local-statfs.h
+@@ -76,6 +76,9 @@ _pathconf_statvfs(const struct statvfs *buf, int name)
+         return LINK_MAX;
+     case _PC_2_SYMLINKS:
+         return 1;
++    case _PC_SYMLINK_MAX:
++        /* Linux takes link contents up to its PATH_MAX, 4096 with the null */
++        return 4095;
+     case _PC_VDISABLE:
+         return LINUX_POSIX_VDISABLE;
+     case _PC_TIMESTAMP_RESOLUTION:
+-- 
+2.47.3
+

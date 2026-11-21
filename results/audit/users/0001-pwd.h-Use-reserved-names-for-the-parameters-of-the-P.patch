@@ -1,0 +1,40 @@
+From 7fbb66bbe9bdbbe78f10135a3d125334f8f7b832 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:53:28 +0000
+Subject: [PATCH 01/12] pwd.h: Use reserved names for the parameters of the
+ POSIX prototypes
+
+An application macro named uid, pwd, buffer, bufsize, result or name,
+defined before the include, broke the header.
+---
+ libc/include/pwd.h | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/libc/include/pwd.h b/libc/include/pwd.h
+index 462fd69665..d11bc8c790 100644
+--- a/libc/include/pwd.h
++++ b/libc/include/pwd.h
+@@ -66,14 +66,15 @@ struct passwd {
+     char *pw_shell; /* default shell */
+ };
+ 
+-struct passwd *getpwuid(uid_t uid);
++struct passwd *getpwuid(uid_t __uid);
+ 
+-int getpwuid_r(uid_t uid, struct passwd *pwd, char *buffer, size_t bufsize, struct passwd **result);
++int            getpwuid_r(uid_t __uid, struct passwd *__pwd, char *__buffer, size_t __bufsize,
++                          struct passwd **__result);
+ 
+-struct passwd *getpwnam(const char *name);
++struct passwd *getpwnam(const char *__name);
+ 
+-int            getpwnam_r(const char *name, struct passwd *pwd, char *buffer, size_t bufsize,
+-                          struct passwd **result);
++int getpwnam_r(const char *__name, struct passwd *__pwd, char *__buffer, size_t __bufsize,
++               struct passwd **__result);
+ 
+ #if __MISC_VISIBLE || __XSI_VISIBLE >= 4
+ struct passwd *getpwent(void);
+-- 
+2.47.3
+

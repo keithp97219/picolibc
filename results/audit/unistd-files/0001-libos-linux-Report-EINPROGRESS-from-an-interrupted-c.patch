@@ -1,0 +1,52 @@
+From 43ef91ce87f79133bb5ee39f8e4ad29747563761 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:51:59 +0000
+Subject: [PATCH 01/28] libos/linux: Report EINPROGRESS from an interrupted
+ close
+
+Linux releases the descriptor before anything in close can be
+interrupted, so EINTR from the kernel means the descriptor is closed.
+With POSIX_CLOSE_RESTART non-zero, POSIX reads EINTR from close as
+"fildes remaining open"; report EINPROGRESS instead.
+---
+ libos/linux/close.c | 19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/libos/linux/close.c b/libos/linux/close.c
+index e71d3ded8c..f7995d8c77 100644
+--- a/libos/linux/close.c
++++ b/libos/linux/close.c
+@@ -35,13 +35,28 @@
+ 
+ #include "local-linux.h"
+ #include "local-cancel.h"
++#include <linux/linux-errno.h>
+ 
+ int
+ close(int fd)
+ {
+     void *cancel = _cancel_enter();
+-    long  ret = _syscall(LINUX_SYS_close, fd);
++    long  ret = _syscall_raw(LINUX_SYS_close, fd);
+ 
+     _cancel_leave(cancel);
+-    return ret;
++    /*
++     * Linux releases the descriptor before anything that can be
++     * interrupted, so an interrupted close has still closed it. With
++     * a non-zero POSIX_CLOSE_RESTART, EINTR would mean it is still
++     * open, so report EINPROGRESS instead.
++     */
++    if (ret == -LINUX_EINTR) {
++        errno = EINPROGRESS;
++        return -1;
++    }
++    if (ret < 0) {
++        errno = _syscall_errno(ret);
++        return -1;
++    }
++    return 0;
+ }
+-- 
+2.47.3
+

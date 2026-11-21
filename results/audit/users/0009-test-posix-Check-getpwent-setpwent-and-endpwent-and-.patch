@@ -1,0 +1,410 @@
+From 97d90f4266c51f50c0f2360f52552566d2c15316 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:00:18 +0000
+Subject: [PATCH 09/12] test-posix: Check getpwent, setpwent and endpwent, and
+ the shared parser
+
+getpwent leaves errno alone at the end, setpwent and endpwent rewind
+and close without touching errno, and every name fits
+{LOGIN_NAME_MAX}. fgetpwent and fgetpwent_r (extensions) show how
+lines are parsed: malformed ones skipped, 32-bit ids, empty last
+fields, long lines, and ERANGE leaving the entry to be read again.
+---
+ test/test-posix/test-pwd/CMakeLists.txt   |   2 +
+ test/test-posix/test-pwd/meson.build      |   2 +
+ test/test-posix/test-pwd/test-fgetpwent.c | 170 +++++++++++++++++++++
+ test/test-posix/test-pwd/test-setpwent.c  | 171 ++++++++++++++++++++++
+ 4 files changed, 345 insertions(+)
+ create mode 100644 test/test-posix/test-pwd/test-fgetpwent.c
+ create mode 100644 test/test-posix/test-pwd/test-setpwent.c
+
+diff --git a/test/test-posix/test-pwd/CMakeLists.txt b/test/test-posix/test-pwd/CMakeLists.txt
+index ab62b07daf..5c28f08dfc 100644
+--- a/test/test-posix/test-pwd/CMakeLists.txt
++++ b/test/test-posix/test-pwd/CMakeLists.txt
+@@ -34,11 +34,13 @@
+ #
+ 
+ set(tests
++  test-fgetpwent
+   test-getpwent
+   test-getpwnam
+   test-getpwnam_r
+   test-getpwuid_r
+   test-pwd_h
++  test-setpwent
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-pwd/meson.build b/test/test-posix/test-pwd/meson.build
+index 0d2c68036d..be18d2a6de 100644
+--- a/test/test-posix/test-pwd/meson.build
++++ b/test/test-posix/test-pwd/meson.build
+@@ -34,9 +34,11 @@
+ #
+ 
+ dir_tests = [
++  'test-fgetpwent',
+   'test-getpwent',
+   'test-getpwnam',
+   'test-getpwnam_r',
+   'test-getpwuid_r',
+   'test-pwd_h',
++  'test-setpwent',
+ ]
+diff --git a/test/test-posix/test-pwd/test-fgetpwent.c b/test/test-posix/test-pwd/test-fgetpwent.c
+new file mode 100644
+index 0000000000..8f370cdc7a
+--- /dev/null
++++ b/test/test-posix/test-pwd/test-fgetpwent.c
+@@ -0,0 +1,170 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/* fgetpwent and fgetpwent_r are GNU extensions */
++#define _GNU_SOURCE
++#include <errno.h>
++#include <pwd.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * fgetpwent and fgetpwent_r parse user database lines the way getpwnam,
++ * getpwuid and getpwent do: lines that aren't entries are skipped, ids
++ * are unsigned, empty fields are kept, and long lines work
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define LONG_GECOS 2000
++
++static const char head[] = "root:x:0:0:root:/root:/bin/sh\n"
++                           "\n"
++                           "short:x\n"
++                           "emptyuid:x::1::/:/bin/sh\n"
++                           "baduid:x:12a:1::/:/bin/sh\n"
++                           "badgid:x:1:1b::/:/bin/sh\n"
++                           "high:x:4294967294:4294967293::/home/high:/bin/sh\n"
++                           "long:x:5:5:";
++static const char tail[] = ":/home/long:/bin/long\n"
++                           "noshell:x:6:6::/:\n";
++
++static const struct {
++    const char   *name;
++    unsigned long uid, gid;
++    const char   *dir, *shell;
++} expect[] = {
++    { "root",    0,          0,          "/root",      "/bin/sh"   },
++    { "high",    4294967294, 4294967293, "/home/high", "/bin/sh"   },
++    { "long",    5,          5,          "/home/long", "/bin/long" },
++    { "noshell", 6,          6,          "/",          ""          },
++};
++
++#define NEXPECT (sizeof(expect) / sizeof(expect[0]))
++
++static char contents[sizeof(head) + LONG_GECOS + sizeof(tail)];
++
++static void
++check_entry(const struct passwd *pw, size_t e)
++{
++    if (strcmp(pw->pw_name, expect[e].name) != 0 || pw->pw_uid != expect[e].uid
++        || pw->pw_gid != expect[e].gid || strcmp(pw->pw_dir, expect[e].dir) != 0
++        || strcmp(pw->pw_shell, expect[e].shell) != 0) {
++        printf("entry %zu: got '%s' %lu %lu '%s' '%s'\n", e, pw->pw_name, (unsigned long)pw->pw_uid,
++               (unsigned long)pw->pw_gid, pw->pw_dir, pw->pw_shell);
++        printf("    want '%s' %lu %lu '%s' '%s'\n", expect[e].name, expect[e].uid, expect[e].gid,
++               expect[e].dir, expect[e].shell);
++        exit(1);
++    }
++}
++
++static FILE *
++open_contents(void)
++{
++    FILE *f = fmemopen(contents, strlen(contents), "r");
++
++    check(f != NULL, "fmemopen");
++    return f;
++}
++
++int
++main(void)
++{
++    static char   buf[4096];
++    struct passwd ent, *pw;
++    FILE         *f;
++    size_t        e;
++    int           ret;
++
++    if (sizeof(uid_t) < 4 || sizeof(gid_t) < 4) {
++        printf("uid_t or gid_t narrower than 32 bits, skipping\n");
++        return 77;
++    }
++
++    strcpy(contents, head);
++    memset(contents + strlen(head), 'g', LONG_GECOS);
++    strcpy(contents + strlen(head) + LONG_GECOS, tail);
++
++    /* fgetpwent_r, with a buffer big enough for every line */
++    f = open_contents();
++    for (e = 0; e < NEXPECT; e++) {
++        ret = fgetpwent_r(f, &ent, buf, sizeof(buf), &pw);
++        check(ret == 0 && pw == &ent, "fgetpwent_r");
++        check_entry(pw, e);
++    }
++    pw = &ent;
++    check(fgetpwent_r(f, &ent, buf, sizeof(buf), &pw) == ENOENT && pw == NULL, "fgetpwent_r end");
++    fclose(f);
++
++    /*
++     * A buffer too small for the long entry gives ERANGE, and leaves it
++     * to be read again with a bigger one
++     */
++    f = open_contents();
++    check(fgetpwent_r(f, &ent, buf, sizeof(buf), &pw) == 0, "fgetpwent_r");
++    check_entry(pw, 0);
++    check(fgetpwent_r(f, &ent, buf, sizeof(buf), &pw) == 0, "fgetpwent_r");
++    check_entry(pw, 1);
++    pw = &ent;
++    check(fgetpwent_r(f, &ent, buf, 100, &pw) == ERANGE && pw == NULL, "fgetpwent_r ERANGE");
++    check(fgetpwent_r(f, &ent, buf, sizeof(buf), &pw) == 0, "fgetpwent_r after ERANGE");
++    check_entry(pw, 2);
++    fclose(f);
++
++    /* fgetpwent, whose own buffer must hold the long entry */
++    f = open_contents();
++    for (e = 0; e < NEXPECT; e++) {
++        errno = 0;
++        pw = fgetpwent(f);
++        check(pw != NULL, "fgetpwent");
++        check_entry(pw, e);
++    }
++#ifdef __PICOLIBC__
++    /* picolibc's fgetpwent, like getgetpwent, leaves errno alone at the end */
++    errno = 0;
++    check(fgetpwent(f) == NULL && errno == 0, "fgetpwent end leaves errno alone");
++#endif
++    fclose(f);
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-pwd/test-setpwent.c b/test/test-posix/test-pwd/test-setpwent.c
+new file mode 100644
+index 0000000000..de3fdfd0a2
+--- /dev/null
++++ b/test/test-posix/test-pwd/test-setpwent.c
+@@ -0,0 +1,171 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#define _XOPEN_SOURCE   800
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_XSI_USER_GROUPS)
++
++#include <errno.h>
++#include <pwd.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * getpwent walks the user database, leaving errno alone at the end;
++ * setpwent rewinds it and endpwent closes it, also leaving errno alone
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* The prototypes, with the types POSIX gives */
++static void           (          *const p_endpwent)(void) = endpwent;
++static struct passwd *(* const p_getpwent)(void) = getpwent;
++static void           (          *const p_setpwent)(void) = setpwent;
++
++static char          *first, *second;
++
++/* Read the whole database, returning the number of entries */
++static unsigned long
++walk(int *found_root, int *found_user)
++{
++    unsigned long  count = 0;
++    struct passwd *pw;
++    long           login_max = sysconf(_SC_LOGIN_NAME_MAX);
++
++    *found_root = *found_user = 0;
++    for (;;) {
++        errno = 0;
++        pw = getpwent();
++        if (!pw)
++            break;
++        check(pw->pw_name != NULL && pw->pw_dir != NULL && pw->pw_shell != NULL, "strings");
++        /* {LOGIN_NAME_MAX} includes the null */
++        if (login_max > 0)
++            check(strlen(pw->pw_name) < (size_t)login_max, "name fits {LOGIN_NAME_MAX}");
++        if (count == 0) {
++            if (!first)
++                check((first = strdup(pw->pw_name)) != NULL, "strdup");
++            else
++                check(strcmp(pw->pw_name, first) == 0, "same first entry");
++        } else if (count == 1) {
++            if (!second)
++                check((second = strdup(pw->pw_name)) != NULL, "strdup");
++            else
++                check(strcmp(pw->pw_name, second) == 0, "same second entry");
++        }
++        if (pw->pw_uid == 0)
++            *found_root = 1;
++        if (pw->pw_uid == getuid())
++            *found_user = 1;
++        check(++count < 10000000, "the database ends");
++    }
++    /* The end of the database is not an error */
++    check(errno == 0, "errno at the end");
++    return count;
++}
++
++int
++main(void)
++{
++    unsigned long  count, again;
++    int            found_root, found_user, root_again, user_again;
++    struct passwd *pw;
++
++    count = walk(&found_root, &found_user);
++    if (count == 0) {
++        printf("empty user database, skipping\n");
++        return 77;
++    }
++    check(found_root, "root is in the database");
++
++    /* setpwent rewinds; it leaves errno alone */
++    errno = 0;
++    p_setpwent();
++    check(errno == 0, "setpwent errno");
++    again = walk(&root_again, &user_again);
++    check(again == count && root_again == found_root && user_again == found_user, "same walk");
++
++    /* endpwent closes; the next getpwent starts over */
++    errno = 0;
++    p_endpwent();
++    check(errno == 0, "endpwent errno");
++    pw = p_getpwent();
++    check(pw != NULL && strcmp(pw->pw_name, first) == 0, "first entry after endpwent");
++
++    /* Lookups by name and uid don't move getpwent along */
++    if (count > 1) {
++        check(getpwnam(first) != NULL, "getpwnam");
++        check(getpwuid(0) != NULL, "getpwuid");
++        pw = getpwent();
++        check(pw != NULL && strcmp(pw->pw_name, second) == 0, "second entry after lookups");
++    }
++
++    /* setpwent on a database open in the middle, and endpwent twice */
++    setpwent();
++    pw = getpwent();
++    check(pw != NULL && strcmp(pw->pw_name, first) == 0, "first entry after setpwent");
++    endpwent();
++    errno = 0;
++    endpwent();
++    check(errno == 0, "endpwent when closed");
++
++    free(first);
++    free(second);
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

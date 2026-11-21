@@ -473,3 +473,116 @@ Until those are fixed, the arm64 units check their own new or changed files with
 - **Tests** (everything but test-tgmath, `meson test -t 4`): Ok 615, Expected Fail 6, Fail 2, Skipped 38.
   - `test-math-errhandling` (picolibc build) fails with clang only; gcc passes it on the same commit. It reports "Exceptions are not supposed to be supported, but 0/0 raises FE_INVALID" (and FE_DIVBYZERO, FE_UNDERFLOW, FE_OVERFLOW, and FE_INVALID from the sNaN cases), so under clang the build's idea of whether exceptions are supported disagrees with what aarch64 does.
   - `test-mktemp` (picolibc build) fails with both clang and gcc ("contents: (char)c == *s"), so it's a native-configuration problem on aarch64, not a clang one.
+
+## From unistd-files (arm64 host)
+
+- **Descriptor functions built on `AT_EMPTY_PATH` take picolibc's AT_FDCWD (-2) or
+  Linux's (-100) as the working directory.** fchown called fchownat(fd, "", ...,
+  AT_EMPTY_PATH), so fchown(-2, ...) changed the owner of the current directory
+  (fixed here: it rejects negative descriptors and calls the system call itself).
+  The same shape is left in two other units' code: libos/linux/fstat.c passes the
+  descriptor straight to statx(fd, "", AT_EMPTY_PATH), so fstat(-100, &st)
+  succeeds with the working directory's attributes instead of EBADF (files unit),
+  and libos/linux/fexecve.c passes it to execveat(fd, "", ..., AT_EMPTY_PATH), so
+  fexecve(-100, ...) tries to run the working directory and gives EACCES, not
+  EBADF (unistd-process). Inferred by reading; not run. The fix is the same: fail
+  with EBADF for any negative descriptor first.
+- **read/recv on an unconnected AF_UNIX stream socket give EINVAL.** Linux's
+  unix_stream_read_generic returns EINVAL when the socket isn't connected; POSIX
+  (read, recv) says "shall fail [ENOTCONN]". TCP sockets give ENOTCONN. picolibc
+  passes the kernel's value through in read, recv and recvfrom (glibc too).
+  test-read uses an AF_INET socket for its ENOTCONN check. For net-sockets.
+- **`<stdio.h>`'s FILE members have plain names** (`unget`, `flags`, `put`, `get`,
+  `flush`, `lock`, and `close` in struct __file_close; libc/include/stdio.h:91-117). An application macro named `flags`
+  defined before `#include <stdio.h>` breaks the header, as DIR's members did
+  (dirs unit). Found while checking `<unistd.h>`'s dup3/pipe2 parameter names; the
+  unistd header tests #undef their macros before including `<stdio.h>`. For stdio.
+- **`<unistd.h>` and `<limits.h>` constants that unistd-config should look at:**
+  - `_POSIX_CHOWN_RESTRICTED`, `_POSIX_NO_TRUNC` and `_POSIX_VDISABLE` aren't
+    defined anywhere, although POSIX.1-2024 requires each "with a value other
+    than -1". The profile checks in sys/unistd.h (`defined(_POSIX_CHOWN_RESTRICTED)
+    && ...`) therefore never succeed. Linux always restricts chown, never
+    truncates names, and uses 0 for `_POSIX_VDISABLE` (`LINUX_POSIX_VDISABLE`).
+  - `NGROUPS_MAX` isn't in `<limits.h>` (a Runtime Increasable Value, minimum
+    `{_POSIX_NGROUPS_MAX}`), and `_POSIX_NGROUPS_MAX` is 0 where POSIX.1-2024 says 8.
+    test-chown sizes its group list with getgroups(0, NULL) instead.
+  - `optreset` is declared in `<unistd.h>` in strict mode (sys/unistd.h:322), a
+    BSD getopt extension that isn't reserved for the header.
+  - Changed here, for symlink's ENAMETOOLONG: pathconf/fpathconf(_PC_SYMLINK_MAX)
+    on Linux now return 4095 (libos/linux/local-statfs.h) instead of falling
+    through to the POSIX minimum 255; Linux accepts link contents up to its
+    PATH_MAX of 4096 bytes with the null. `GETENTROPY_MAX` (256) is new in
+    sys/syslimits.h.
+- **`<unistd.h>` has no O_CLOFORK.** POSIX.1-2024 requires `<unistd.h>` to define
+  O_CLOEXEC and O_CLOFORK; O_CLOEXEC is added here, O_CLOFORK waits on the
+  close-on-fork decision already recorded by the files unit (dup3 and pipe2 are
+  the `<unistd.h>` users).
+- **Linux deviations a library can't cheaply fix** (noted, not fixed):
+  - pwrite on an O_APPEND descriptor writes at the end of the file, not at the
+    offset ("writes into a given position ... regardless of whether O_APPEND is
+    set"). Linux 6.9 added RWF_NOAPPEND for pwritev2; this host's 5.10 has no way
+    to do it short of clearing O_APPEND around the call, which races with other
+    threads. The file offset itself is left alone, as required (checked).
+  - symlink("", path2) fails with ENOENT; POSIX says path1 "shall be treated only
+    as a string and shall not be validated as a pathname".
+  - chown(path, -1, -1) succeeds on a file owned by someone else, since Linux
+    changes nothing and checks nothing; POSIX lists EPERM when "The effective user
+    ID does not match the owner of the file". glibc behaves the same.
+- **glibc 2.43 gaps met here** (the tests guard them with `__GLIBC__`): pread and
+  pwrite with a negative offset on a pipe give EINVAL (should be ESPIPE); unlink
+  and unlinkat of a directory give EISDIR (should be EPERM); readlink and
+  readlinkat with a zero size give EINVAL; getentropy past 256 bytes gives EIO
+  (should be EINVAL) and `GETENTROPY_MAX` isn't defined; no posix_close or
+  POSIX_CLOSE_RESTART; `<unistd.h>` doesn't define O_CLOEXEC; dup3, pipe2,
+  SEEK_DATA and SEEK_HOLE need `_GNU_SOURCE`.
+- **File system limits in tests:** ext4 rejects lseek past its s_maxbytes (16 TiB
+  with 4 KiB blocks) with EINVAL, so a test can't put the file offset near
+  OFF_MAX; and on this file system SEEK_DATA may report a sparse region as data.
+  Tests of off_t limits should build their offsets from 2^40 or so plus a length,
+  not seek to OFF_MAX.
+
+## From users (arm64 host)
+
+- **picolibc's strsep drops an empty last field.** `strsep` is `__strtok_r(*s, delim, s, 0)`
+  (libc/string/strsep.c), and `__strtok_r` returns NULL when the remaining string is empty, so
+  `strsep` on `"a:"` gives `"a"` and then NULL, where BSD and glibc give `"a"`, `""`, NULL. The
+  old passwd parser used it, so an entry with an empty shell field (`name:x:1:1::/home:`) was
+  "malformed" and ended every lookup with EINVAL. pwd and grp no longer use strsep; any other
+  field splitter built on it loses trailing empty fields. strsep isn't POSIX (BSD extension);
+  for the strings unit. Read in the source, not run on its own.
+- **`ptrdiff_t / sizeof` is unsigned.** The old fgetgrent_r computed the room left for the
+  member array as `((buf + size) - (char *)aligned) / sizeof(char *)`; when alignment pushed
+  `aligned` past the end, the negative difference became a huge size_t and the array's NULL was
+  written past the caller's buffer. Any code that divides a pointer difference by `sizeof`
+  should check the sign first.
+- **The user and group lookups now use getline (malloc).** libc/posix/pwd and grp read each line
+  with getline and keep the non-reentrant functions' entry in allocated memory sized to fit.
+  Targets without malloc can't use them (they couldn't read /etc/passwd before either).
+- **getlogin has no login record to consult.** `<utmpx.h>` is an empty database by design
+  (14ebe3b96b), so getlogin and getlogin_r keep answering with the user database name for
+  `getuid()`, not "the name the user logged in under". glibc first reads
+  `/proc/self/loginuid` (the audit login uid, which survives su and setuid) and then utmp;
+  a libos/linux getlogin could do the former. Left for a decision (details in the users report).
+- **glibc 2.43 differences met here:** getpwnam_r, getpwuid_r, getgrnam_r and getgrgid_r return
+  ERANGE when *any* line before the match (or the whole file, for a missing entry) doesn't fit
+  the buffer, so "not found with a small buffer" checks are `#ifndef __GLIBC__`; glibc's
+  fgetpwent accepts a 4-field line (`short:x:1:1`) with empty dir and shell, and its
+  fgetpwent/fgetgrent set errno at the end of the file.
+
+## From resource-wait (arm64 host)
+
+- **waitpid now clears a blocked, pending SIGCHLD** when it returns a status and no other child has one, as POSIX requires; Linux never does.
+  - Tests that check SIGCHLD is still pending *after* collecting the only child are now wrong. test-sigaction and test-_exit were changed to look with `waitid(WNOWAIT)` first.
+  - system() (which blocks SIGCHLD while it waits), posix_spawn users and wordexp now get this clearing. That is what POSIX intends, but it matters to the stdlib and stdio units.
+- **nice now calls setpriority**, which sets every thread for the caller's own process. The unistd-process walk moved into libos/linux/setpriority.c.
+- **NZERO (20) is now in `sys/syslimits.h` under `__XSI_VISIBLE`.** This is for unistd-config and the limits work.
+- **gcc removes a malloc whose result is only compared with NULL.** The picolibc test builds don't pass `-fno-builtin`, so a test of ENOMEM from malloc passed or failed depending on the code around it. Store the result in a `void *volatile` object.
+- **CMake's semihost library lacks several fakes that meson has** (access, closedir, fstatvfs, ftruncate, getcwd, getrlimit, opendir, readdir, setrlimit, statvfs). Tests that call them unconditionally (test-getrlimit) can't be listed in CMake. Gated tests are fine.
+- **RLIM_INFINITY is INT64_MAX** while rlim_t is 64-bit unsigned. Changing it is an ABI decision.
+- **glibc 2.43 gaps for this area:**
+  - WCOREDUMP is defined only with `_DEFAULT_SOURCE`.
+  - RLIM_INFINITY is a cast, so it can't be used in `#if`.
+  - getpriority, setpriority and getrusage are declared in strict POSIX mode.
+  - waitid passes idtype 3 (P_PIDFD) and P_PGID 0 to Linux.
+  - waitpid doesn't clear a blocked SIGCHLD.
+  - setpriority changes one thread.

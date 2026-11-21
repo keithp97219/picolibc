@@ -1,0 +1,839 @@
+From 76c5e51f2431ebb949b1805f599c7f0950bdcf5e Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:06:16 +0000
+Subject: [PATCH 12/15] test-posix: Check <sys/resource.h>, and setrlimit in
+ children
+
+test-setrlimit lowered every limit of its own process and failed when
+a hard limit was below 2, as RLIMIT_CORE can be. Make the changes in a
+child for each resource, skip those whose hard limit is below 2, and
+check EPERM, EINVAL and that RLIM_INFINITY is the largest value. Check
+that the limits are enforced and kept across exec, the
+<sys/resource.h> declarations, and that the XSI functions are hidden in
+strict mode. test-setrlimit now skips without processes, so the CMake
+build runs it too.
+---
+ .../test-sys-resource/CMakeLists.txt          |   4 +
+ test/test-posix/test-sys-resource/meson.build |   4 +
+ .../test-setrlimit-enforce.c                  | 327 ++++++++++++++++++
+ .../test-sys-resource/test-setrlimit.c        | 190 +++++++---
+ .../test-sys_resource_h-names.c               |  84 +++++
+ .../test-sys-resource/test-sys_resource_h.c   | 133 +++++++
+ 6 files changed, 695 insertions(+), 47 deletions(-)
+ create mode 100644 test/test-posix/test-sys-resource/test-setrlimit-enforce.c
+ create mode 100644 test/test-posix/test-sys-resource/test-sys_resource_h-names.c
+ create mode 100644 test/test-posix/test-sys-resource/test-sys_resource_h.c
+
+diff --git a/test/test-posix/test-sys-resource/CMakeLists.txt b/test/test-posix/test-sys-resource/CMakeLists.txt
+index 5d140bdc82..4848c28bc8 100644
+--- a/test/test-posix/test-sys-resource/CMakeLists.txt
++++ b/test/test-posix/test-sys-resource/CMakeLists.txt
+@@ -37,6 +37,10 @@ set(tests
+   test-getpriority
+   test-getrusage
+   test-setpriority
++  test-setrlimit
++  test-setrlimit-enforce
++  test-sys_resource_h
++  test-sys_resource_h-names
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-sys-resource/meson.build b/test/test-posix/test-sys-resource/meson.build
+index d25b080fef..90f0339000 100644
+--- a/test/test-posix/test-sys-resource/meson.build
++++ b/test/test-posix/test-sys-resource/meson.build
+@@ -39,4 +39,8 @@ dir_tests = [
+   'test-getrusage',
+   'test-setpriority',
+   'test-setrlimit',
++  'test-setrlimit-enforce',
++  'test-sys_resource_h',
++  'test-sys_resource_h-names',
+ ]
++
+diff --git a/test/test-posix/test-sys-resource/test-setrlimit-enforce.c b/test/test-posix/test-sys-resource/test-setrlimit-enforce.c
+new file mode 100644
+index 0000000000..04434e6995
+--- /dev/null
++++ b/test/test-posix/test-sys-resource/test-setrlimit-enforce.c
+@@ -0,0 +1,327 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* RLIMIT_CPU and SIGXCPU/SIGXFSZ are XSI */
++#define _XOPEN_SOURCE 800
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS) \
++    && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
++
++#include <errno.h>
++#include <fcntl.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/mman.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
++#include "../is-qemu.h"
++
++/*
++ * The limits are enforced: RLIMIT_NOFILE with EMFILE, RLIMIT_FSIZE
++ * with SIGXFSZ or EFBIG, RLIMIT_CPU with SIGXCPU, RLIMIT_DATA and
++ * RLIMIT_AS with ENOMEM, RLIMIT_STACK with SIGSEGV, and exec keeps
++ * them. Each limit is set in a child.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define MiB (1024 * 1024)
++
++static void
++set_soft(int resource, rlim_t cur)
++{
++    struct rlimit rl;
++
++    check(getrlimit(resource, &rl) == 0, "getrlimit");
++    if (rl.rlim_max != RLIM_INFINITY && rl.rlim_max < cur)
++        cur = rl.rlim_max;
++    rl.rlim_cur = cur;
++    check(setrlimit(resource, &rl) == 0, "setrlimit");
++}
++
++/* Run fn in a child and return its wait status */
++static int
++in_child(void (*fn)(void))
++{
++    pid_t pid;
++    int   status;
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        /* No core files from the signals the limits send */
++        set_soft(RLIMIT_CORE, 0);
++        fn();
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    return status;
++}
++
++#define exited_ok(status) (WIFEXITED(status) && WEXITSTATUS(status) == 0)
++
++static void
++nofile(void)
++{
++    int fd;
++
++    set_soft(RLIMIT_NOFILE, 8);
++    while ((fd = dup(0)) >= 0)
++        check(fd < 8, "descriptor below RLIMIT_NOFILE");
++    check(errno == EMFILE, "dup EMFILE");
++    check(fcntl(7, F_GETFD) != -1, "every descriptor below the limit was used");
++    errno = 0;
++    check(open(".", O_RDONLY) == -1 && errno == EMFILE, "open EMFILE");
++}
++
++static char template[] = "setrlimit-enforce-XXXXXX";
++static char path[sizeof(template)];
++
++static int
++temp_file(void)
++{
++    int fd;
++
++    memcpy(path, template, sizeof(template));
++    fd = mkstemp(path);
++    check(fd >= 0, "mkstemp");
++    check(unlink(path) == 0, "unlink");
++    return fd;
++}
++
++static void
++fsize_ignored(void)
++{
++    char buf[200];
++    int  fd = temp_file();
++
++    memset(buf, 'x', sizeof(buf));
++    signal(SIGXFSZ, SIG_IGN);
++    set_soft(RLIMIT_FSIZE, 100);
++    /* Only what fits is written, then nothing */
++    check(write(fd, buf, sizeof(buf)) == 100, "partial write up to the limit");
++    errno = 0;
++    check(write(fd, buf, 1) == -1 && errno == EFBIG, "write EFBIG");
++    errno = 0;
++    check(ftruncate(fd, 200) == -1 && errno == EFBIG, "ftruncate EFBIG");
++    check(ftruncate(fd, 50) == 0, "ftruncate within the limit");
++}
++
++static void
++fsize_blocked(void)
++{
++    sigset_t set;
++    char     buf[200];
++    int      fd = temp_file(), sig;
++
++    memset(buf, 'x', sizeof(buf));
++    sigemptyset(&set);
++    sigaddset(&set, SIGXFSZ);
++    check(sigprocmask(SIG_BLOCK, &set, NULL) == 0, "block SIGXFSZ");
++    set_soft(RLIMIT_FSIZE, 100);
++    check(write(fd, buf, 100) == 100, "write up to the limit");
++    errno = 0;
++    check(write(fd, buf, 1) == -1 && errno == EFBIG, "blocked: write EFBIG");
++    /* The signal was still generated for the thread */
++    check(sigwait(&set, &sig) == 0 && sig == SIGXFSZ, "SIGXFSZ pending");
++}
++
++static void
++fsize_default(void)
++{
++    char buf[200];
++    int  fd = temp_file();
++
++    memset(buf, 'x', sizeof(buf));
++    set_soft(RLIMIT_FSIZE, 100);
++    (void)write(fd, buf, 100);
++    (void)write(fd, buf, 1);
++    _exit(2);
++}
++
++static volatile unsigned long spin;
++
++static void
++cpu(void)
++{
++
++    /* A safety net in case SIGXCPU never comes */
++    alarm(120);
++    set_soft(RLIMIT_CPU, 1);
++    for (;;)
++        spin++;
++}
++
++/* Stored, so the compiler can't assume the allocation succeeds and drop it */
++static void * volatile allocated;
++
++static void
++data(void)
++{
++    set_soft(RLIMIT_DATA, 32 * MiB);
++    errno = 0;
++    allocated = malloc(256 * MiB);
++    check(allocated == NULL && errno == ENOMEM, "malloc past RLIMIT_DATA");
++}
++
++static void
++as(void)
++{
++    set_soft(RLIMIT_AS, 512 * MiB);
++    errno = 0;
++    allocated = malloc(1024 * MiB);
++    check(allocated == NULL && errno == ENOMEM, "malloc past RLIMIT_AS");
++#ifdef MAP_ANONYMOUS
++    errno = 0;
++    allocated = mmap(NULL, 1024 * MiB, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++    check(allocated == MAP_FAILED && errno == ENOMEM, "mmap past RLIMIT_AS");
++#endif
++}
++
++static int
++recurse(int depth)
++{
++    volatile char frame[4096];
++
++    frame[0] = (char)depth;
++    frame[sizeof(frame) - 1] = (char)depth;
++    if (depth > 1000000)
++        return 0;
++    return recurse(depth + 1) + frame[0] + frame[sizeof(frame) - 1];
++}
++
++static void
++on_segv(int sig)
++{
++    (void)sig;
++    _exit(3);
++}
++
++static void
++stack(void)
++{
++    /* Without an alternate stack, the handler can't run and SIGSEGV kills */
++    signal(SIGSEGV, on_segv);
++    set_soft(RLIMIT_STACK, 256 * 1024);
++    (void)recurse(0);
++    _exit(2);
++}
++
++static char exe[1024];
++
++static void
++exec_keeps(void)
++{
++    char *args[] = { exe, "check-nofile", NULL };
++
++    set_soft(RLIMIT_NOFILE, 20);
++    execv(exe, args);
++    _exit(4);
++}
++
++int
++main(int argc, char **argv)
++{
++    int     qemu = is_qemu();
++    int     status;
++    ssize_t len;
++
++    if (argc > 1 && strcmp(argv[1], "check-nofile") == 0) {
++        struct rlimit rl;
++
++        return getrlimit(RLIMIT_NOFILE, &rl) == 0 && rl.rlim_cur == 20 ? 0 : 5;
++    }
++
++    status = in_child(nofile);
++    check(exited_ok(status), "RLIMIT_NOFILE");
++
++    status = in_child(fsize_ignored);
++    check(exited_ok(status), "RLIMIT_FSIZE, SIGXFSZ ignored");
++    status = in_child(fsize_blocked);
++    check(exited_ok(status), "RLIMIT_FSIZE, SIGXFSZ blocked");
++    status = in_child(fsize_default);
++    check(WIFSIGNALED(status) && WTERMSIG(status) == SIGXFSZ, "RLIMIT_FSIZE sends SIGXFSZ");
++
++    status = in_child(cpu);
++    check(WIFSIGNALED(status) && WTERMSIG(status) == SIGXCPU, "RLIMIT_CPU sends SIGXCPU");
++
++    if (qemu) {
++        printf("Running under QEMU, which doesn't apply RLIMIT_DATA, RLIMIT_AS or RLIMIT_STACK\n");
++    } else {
++        status = in_child(data);
++        check(exited_ok(status), "RLIMIT_DATA");
++        status = in_child(as);
++        check(exited_ok(status), "RLIMIT_AS");
++        status = in_child(stack);
++        check(WIFSIGNALED(status) && WTERMSIG(status) == SIGSEGV, "RLIMIT_STACK sends SIGSEGV");
++    }
++
++    len = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
++    if (len > 0) {
++        exe[len] = '\0';
++        status = in_child(exec_keeps);
++        check(exited_ok(status), "exec keeps the limits");
++    } else {
++        printf("no /proc/self/exe, exec not checked\n");
++    }
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-resource/test-setrlimit.c b/test/test-posix/test-sys-resource/test-setrlimit.c
+index 6498243f30..00d39bfc01 100644
+--- a/test/test-posix/test-sys-resource/test-setrlimit.c
++++ b/test/test-posix/test-sys-resource/test-setrlimit.c
+@@ -34,72 +34,168 @@
+  */
+ 
+ #define _POSIX_C_SOURCE 202405L
+-#include <sys/resource.h>
+-#include <stdio.h>
+-#include <assert.h>
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++
+ #include <errno.h>
+-#include <stdbool.h>
+-#include <string.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
+ #include "../is-qemu.h"
+ 
++/*
++ * setrlimit changes soft limits up to the hard limit, lowers hard
++ * limits irreversibly and rejects bad requests. Every change is made
++ * in a child, so the test's own limits stay as they were. Resources
++ * whose hard limit is below 2 are skipped.
++ */
++
+ static const int resources[] = {
+     RLIMIT_CORE, RLIMIT_CPU, RLIMIT_DATA, RLIMIT_FSIZE, RLIMIT_NOFILE, RLIMIT_STACK, RLIMIT_AS,
+ };
+ 
+-#define IS_MEM(r)    ((r) == RLIMIT_DATA || (r) == RLIMIT_STACK || (r) == RLIMIT_AS)
+-
+ #define NUM_RESOURCE (sizeof(resources) / sizeof(resources[0]))
+ 
+-#ifdef __PICOLIBC__
+-__typeof(setrlimit) __fake_setrlimit __weak;
+-#define is_fake(sym) ((sym) == __fake_##sym)
+-#else
+-#define is_fake(sym) 0
+-#endif
++/* qemu-user doesn't apply these to itself, and reports success without checking */
++#define IS_MEM(r) ((r) == RLIMIT_DATA || (r) == RLIMIT_STACK || (r) == RLIMIT_AS)
+ 
+-int
+-main(void)
++#define SKIPPED   77
++
++/*
++ * In the child, with limits that may stop printf from working, a
++ * failed check exits with its number
++ */
++static int step;
++
++#define check(condition)  \
++    do {                  \
++        step++;           \
++        if (!(condition)) \
++            _exit(step);  \
++    } while (0)
++
++static int
++same(int resource, rlim_t cur, rlim_t max)
+ {
+-    struct rlimit rlimit;
++    struct rlimit rl;
++
++    return getrlimit(resource, &rl) == 0 && rl.rlim_cur == cur && rl.rlim_max == max;
++}
++
++static void
++child(int resource, int qemu)
++{
++    struct rlimit old, rl;
++    int           relaxed = qemu && IS_MEM(resource);
+     int           ret;
+-    size_t        r;
+-    bool          qemu;
+ 
+-    if (is_fake(setrlimit)) {
+-        printf("fake setrlimit, skipping checks\n");
+-        return 77;
++    check(getrlimit(resource, &old) == 0);
++    if (old.rlim_max != RLIM_INFINITY && old.rlim_max < 2)
++        _exit(SKIPPED);
++
++    /* The soft limit can be anything up to the hard limit */
++    rl.rlim_max = old.rlim_max;
++    rl.rlim_cur = 1;
++    check(setrlimit(resource, &rl) == 0);
++    check(relaxed || same(resource, 1, old.rlim_max));
++    rl.rlim_cur = old.rlim_max;
++    check(setrlimit(resource, &rl) == 0);
++    check(relaxed || same(resource, old.rlim_max, old.rlim_max));
++
++    /* A soft limit above the hard limit is EINVAL, and changes nothing */
++    rl.rlim_cur = 2;
++    rl.rlim_max = 1;
++    errno = 0;
++    ret = setrlimit(resource, &rl);
++    check(relaxed || (ret == -1 && errno == EINVAL));
++    check(relaxed || same(resource, old.rlim_max, old.rlim_max));
++
++    if (old.rlim_max == RLIM_INFINITY) {
++        /* RLIM_INFINITY is larger than any other value, even where rlim_t has larger ones */
++        rl.rlim_cur = RLIM_INFINITY;
++        rl.rlim_max = 2;
++        errno = 0;
++        ret = setrlimit(resource, &rl);
++        check(relaxed || (ret == -1 && errno == EINVAL));
++        if ((rlim_t)RLIM_INFINITY + 1 != 0) {
++            rl.rlim_cur = (rlim_t)RLIM_INFINITY + 1;
++            rl.rlim_max = RLIM_INFINITY;
++            check(setrlimit(resource, &rl) == 0);
++            rl.rlim_cur = RLIM_INFINITY;
++            check(setrlimit(resource, &rl) == 0);
++        }
+     }
++
++    /* Lowering the hard limit is allowed */
++    rl.rlim_cur = 1;
++    rl.rlim_max = 2;
++    check(setrlimit(resource, &rl) == 0);
++    check(relaxed || same(resource, 1, 2));
++
++    /* Raising it again takes privilege */
++    rl.rlim_max = 3;
++    errno = 0;
++    ret = setrlimit(resource, &rl);
++    if (geteuid() != 0) {
++        check(relaxed || (ret == -1 && errno == EPERM));
++        check(relaxed || same(resource, 1, 2));
++    }
++
++    /* An invalid resource is EINVAL */
++    errno = 0;
++    check(setrlimit(9999, &rl) == -1 && errno == EINVAL);
++    _exit(0);
++}
++
++int
++main(void)
++{
++    size_t r;
++    int    qemu, status, skipped = 0;
++    pid_t  pid;
++
+     qemu = is_qemu();
+     if (qemu)
+         printf("Running under QEMU, tests relaxed\n");
+ 
+     for (r = 0; r < NUM_RESOURCE; r++) {
+-
+-        /* Fetch the current values */
+-        ret = getrlimit(resources[r], &rlimit);
+-        assert(ret == 0);
+-
+-        /* Set the soft limit to a small value */
+-        rlimit.rlim_cur = 1;
+-        ret = setrlimit(resources[r], &rlimit);
+-        assert(ret == 0);
+-
+-        /* Reset the soft limit back to the hard limit */
+-        rlimit.rlim_cur = rlimit.rlim_max;
+-        ret = setrlimit(resources[r], &rlimit);
+-        assert(ret == 0);
+-
+-        /* Set soft and hard limits, with soft limit < hard limit */
+-        rlimit.rlim_max = 2;
+-        rlimit.rlim_cur = 1;
+-        ret = setrlimit(resources[r], &rlimit);
+-        assert(ret == 0);
+-
+-        /* Set soft and hard limits, with soft limit > hard limit (should fail) */
+-        rlimit.rlim_max = 1;
+-        rlimit.rlim_cur = 2;
+-        ret = setrlimit(resources[r], &rlimit);
+-        assert((qemu && IS_MEM(resources[r])) || (ret == -1 && errno == EINVAL));
++        pid = fork();
++        if (pid < 0) {
++            printf("fork failed\n");
++            return 1;
++        }
++        if (pid == 0)
++            child(resources[r], qemu);
++        if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status)) {
++            printf("resource %d: child failed, status %#x\n", resources[r], status);
++            return 1;
++        }
++        if (WEXITSTATUS(status) == SKIPPED) {
++            printf("resource %d: hard limit below 2, skipped\n", resources[r]);
++            skipped++;
++        } else if (WEXITSTATUS(status) != 0) {
++            printf("resource %d: check %d failed\n", resources[r], WEXITSTATUS(status));
++            return 1;
++        }
+     }
++    if (skipped == (int)NUM_RESOURCE)
++        return 77;
++    printf("success\n");
+     return 0;
+ }
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-resource/test-sys_resource_h-names.c b/test/test-posix/test-sys-resource/test-sys_resource_h-names.c
+new file mode 100644
+index 0000000000..3d6d061cc2
+--- /dev/null
++++ b/test/test-posix/test-sys-resource/test-sys_resource_h-names.c
+@@ -0,0 +1,84 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <sys/resource.h>
++
++#include <stdio.h>
++
++/*
++ * In strict POSIX mode, without XSI, <sys/resource.h> declares
++ * getrlimit and setrlimit (in the base since Issue 8) with their
++ * structure and constants, but not the XSI functions
++ */
++
++#if !defined(RLIMIT_CORE) || !defined(RLIMIT_DATA) || !defined(RLIMIT_FSIZE)    \
++    || !defined(RLIMIT_NOFILE) || !defined(RLIMIT_STACK) || !defined(RLIMIT_AS)
++#error "RLIMIT_ constant missing"
++#endif
++
++#ifndef RLIM_INFINITY
++#error "RLIM_INFINITY missing"
++#endif
++
++#ifndef __GLIBC__
++/* glibc declares the XSI functions whatever the feature-test macros */
++static double getpriority;
++static double setpriority;
++static double getrusage;
++#endif
++
++#define check_type(f, t) _Generic(&(f), t: 1, default: 0)
++
++int
++main(void)
++{
++    struct rlimit rl = { .rlim_cur = RLIM_INFINITY, .rlim_max = RLIM_INFINITY };
++    rlim_t        lim = rl.rlim_cur;
++
++    (void)lim;
++#ifndef __GLIBC__
++    (void)getpriority;
++    (void)setpriority;
++    (void)getrusage;
++#endif
++    if (!check_type(getrlimit, int (*)(int, struct rlimit *))
++        || !check_type(setrlimit, int (*)(int, const struct rlimit *))) {
++        printf("wrong prototype\n");
++        return 1;
++    }
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-sys-resource/test-sys_resource_h.c b/test/test-posix/test-sys-resource/test-sys_resource_h.c
+new file mode 100644
+index 0000000000..bd210a813e
+--- /dev/null
++++ b/test/test-posix/test-sys-resource/test-sys_resource_h.c
+@@ -0,0 +1,133 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* PRIO_*, RUSAGE_*, struct rusage and three of the functions are XSI */
++#define _XOPEN_SOURCE 800
++#include <sys/resource.h>
++
++#include <stdio.h>
++
++/* <sys/resource.h> defines its types, constants, structures and prototypes */
++
++#if !defined(RLIM_INFINITY) || !defined(RLIM_SAVED_MAX) || !defined(RLIM_SAVED_CUR)
++#error "RLIM_ constant missing"
++#endif
++
++/* rlim_t is unsigned */
++_Static_assert((rlim_t)-1 > 0, "rlim_t unsigned");
++
++#ifndef __GLIBC__
++/*
++ * The RLIM_ values are usable in #if; glibc's 64-bit RLIM_INFINITY is
++ * a cast, which isn't
++ */
++#if RLIM_INFINITY == 0 || RLIM_SAVED_MAX == 0 || RLIM_SAVED_CUR == 0
++#error "RLIM_ constant zero"
++#endif
++#endif
++
++#define check_type(f, t) _Generic(&(f), t: 1, default: 0)
++#define check_expr(e, t) _Generic((e), t: 1, default: 0)
++
++int
++main(void)
++{
++    int           ok = 1;
++    struct rlimit rl;
++    struct rusage ru;
++    id_t          id = 0;
++    int           r;
++
++    ok &= check_type(getrlimit, int (*)(int, struct rlimit *));
++    ok &= check_type(setrlimit, int (*)(int, const struct rlimit *));
++    ok &= check_type(getpriority, int (*)(int, id_t));
++    ok &= check_type(setpriority, int (*)(int, id_t, int));
++    ok &= check_type(getrusage, int (*)(int, struct rusage *));
++    if (!ok) {
++        printf("wrong prototype\n");
++        return 1;
++    }
++
++    /* The structure members and their types */
++    rl.rlim_cur = 0;
++    rl.rlim_max = 0;
++    ok &= check_expr(rl.rlim_cur, rlim_t) & check_expr(rl.rlim_max, rlim_t);
++    ru.ru_utime.tv_sec = 0;
++    ru.ru_stime.tv_usec = 0;
++    ok &= check_expr(ru.ru_utime, struct timeval) & check_expr(ru.ru_stime, struct timeval);
++    (void)rl;
++    (void)ru;
++    (void)id;
++    if (!ok) {
++        printf("wrong member type\n");
++        return 1;
++    }
++
++    /* RLIM_INFINITY is a value of rlim_t */
++    rl.rlim_cur = RLIM_INFINITY;
++    if (rl.rlim_cur != RLIM_INFINITY) {
++        printf("RLIM_INFINITY isn't an rlim_t value\n");
++        return 1;
++    }
++
++    /* The resources, priorities and usage selectors are distinct (duplicate cases don't compile) */
++    for (r = 0; r < 1; r++) {
++        switch (r) {
++        case RLIMIT_CORE:
++        case RLIMIT_CPU:
++        case RLIMIT_DATA:
++        case RLIMIT_FSIZE:
++        case RLIMIT_NOFILE:
++        case RLIMIT_STACK:
++        case RLIMIT_AS:
++            break;
++        }
++        switch (r) {
++        case PRIO_PROCESS:
++        case PRIO_PGRP:
++        case PRIO_USER:
++            break;
++        }
++        switch (r) {
++        case RUSAGE_SELF:
++        case RUSAGE_CHILDREN:
++            break;
++        }
++    }
++
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

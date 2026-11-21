@@ -1,0 +1,59 @@
+From 5f2b248a6f45d7d6419ef2569810f7e939f6d638 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:51:59 +0000
+Subject: [PATCH 05/28] libos/linux: Accept a zero buffer size in readlink and
+ readlinkat
+
+Linux fails with EINVAL for a zero size; POSIX places the first
+bufsize bytes and returns the count, so a symbolic link gives 0.
+readlink now calls readlinkat.
+---
+ libos/linux/readlink.c   |  7 ++-----
+ libos/linux/readlinkat.c | 11 +++++++++++
+ 2 files changed, 13 insertions(+), 5 deletions(-)
+
+diff --git a/libos/linux/readlink.c b/libos/linux/readlink.c
+index 4cace5c38c..cf1678a799 100644
+--- a/libos/linux/readlink.c
++++ b/libos/linux/readlink.c
+@@ -34,14 +34,11 @@
+  */
+ 
+ #include "local-linux.h"
++#include <fcntl.h>
+ #include <unistd.h>
+ 
+ ssize_t
+ readlink(const char *path, char *buf, size_t bufsize)
+ {
+-#ifdef LINUX_SYS_readlink
+-    return _syscall(LINUX_SYS_readlink, path, buf, bufsize);
+-#else
+-    return _syscall(LINUX_SYS_readlinkat, LINUX_AT_FDCWD, path, buf, bufsize);
+-#endif
++    return readlinkat(AT_FDCWD, path, buf, bufsize);
+ }
+diff --git a/libos/linux/readlinkat.c b/libos/linux/readlinkat.c
+index ebd7704b3d..2dc770923c 100644
+--- a/libos/linux/readlinkat.c
++++ b/libos/linux/readlinkat.c
+@@ -39,5 +39,16 @@
+ ssize_t
+ readlinkat(int dirfd, const char * __restrict path, char * __restrict buf, size_t bufsize)
+ {
++    char    dummy;
++    ssize_t ret;
++
++    /*
++     * Linux rejects an empty buffer, where POSIX places the first
++     * bufsize (zero) bytes. Read into one byte and report none.
++     */
++    if (bufsize == 0) {
++        ret = _syscall(LINUX_SYS_readlinkat, _at_fd_to_linux(dirfd), path, &dummy, 1);
++        return ret < 0 ? ret : 0;
++    }
+     return _syscall(LINUX_SYS_readlinkat, _at_fd_to_linux(dirfd), path, buf, bufsize);
+ }
+-- 
+2.47.3
+

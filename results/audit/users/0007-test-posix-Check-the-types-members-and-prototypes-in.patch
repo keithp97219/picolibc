@@ -1,0 +1,452 @@
+From 97e2e131436628d4ac1da14f7f746806b73c5bd1 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:00:04 +0000
+Subject: [PATCH 07/12] test-posix: Check the types, members and prototypes in
+ <pwd.h>, <grp.h> and <utmpx.h>
+
+Also that, in strict POSIX mode, <pwd.h> and <grp.h> declare neither
+the XSI functions nor extensions, and that no prototype uses a name
+an application may have defined as a macro.
+---
+ test/test-posix/test-grp/CMakeLists.txt   |   1 +
+ test/test-posix/test-grp/meson.build      |   1 +
+ test/test-posix/test-grp/test-grp_h.c     | 115 +++++++++++++++++++++
+ test/test-posix/test-pwd/CMakeLists.txt   |   1 +
+ test/test-posix/test-pwd/meson.build      |   1 +
+ test/test-posix/test-pwd/test-pwd_h.c     | 116 ++++++++++++++++++++++
+ test/test-posix/test-utmpx/CMakeLists.txt |   1 +
+ test/test-posix/test-utmpx/meson.build    |   1 +
+ test/test-posix/test-utmpx/test-utmpx_h.c | 110 ++++++++++++++++++++
+ 9 files changed, 347 insertions(+)
+ create mode 100644 test/test-posix/test-grp/test-grp_h.c
+ create mode 100644 test/test-posix/test-pwd/test-pwd_h.c
+ create mode 100644 test/test-posix/test-utmpx/test-utmpx_h.c
+
+diff --git a/test/test-posix/test-grp/CMakeLists.txt b/test/test-posix/test-grp/CMakeLists.txt
+index 7520be5004..d7dfea8101 100644
+--- a/test/test-posix/test-grp/CMakeLists.txt
++++ b/test/test-posix/test-grp/CMakeLists.txt
+@@ -37,6 +37,7 @@ set(tests
+   test-getgrent
+   test-getgrgid_r
+   test-getgrnam_r
++  test-grp_h
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-grp/meson.build b/test/test-posix/test-grp/meson.build
+index 6cf1af4eac..03c0980b23 100644
+--- a/test/test-posix/test-grp/meson.build
++++ b/test/test-posix/test-grp/meson.build
+@@ -37,4 +37,5 @@ dir_tests = [
+   'test-getgrent',
+   'test-getgrgid_r',
+   'test-getgrnam_r',
++  'test-grp_h',
+ ]
+diff --git a/test/test-posix/test-grp/test-grp_h.c b/test/test-posix/test-grp/test-grp_h.c
+new file mode 100644
+index 0000000000..355e83f144
+--- /dev/null
++++ b/test/test-posix/test-grp/test-grp_h.c
+@@ -0,0 +1,115 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* The application's own macros, defined before the header */
++#define gid    +
++#define grp    +
++#define buffer +
++#define size   +
++#define result +
++#define name   +
++#define stream +
++#include <grp.h>
++#undef gid
++#undef grp
++#undef buffer
++#undef size
++#undef result
++#undef name
++#undef stream
++
++#include <stdio.h>
++
++/*
++ * <grp.h> defines struct group with the POSIX members, gid_t and
++ * size_t, and the prototypes POSIX gives. In strict POSIX mode,
++ * without XSI, it declares neither the XSI functions nor extensions,
++ * and its prototypes don't use the application's names
++ */
++
++/* The header alone defines these */
++static gid_t        g __attribute__((unused));
++static size_t       s __attribute__((unused));
++
++static struct group gr __attribute__((unused));
++
++_Static_assert(_Generic(gr.gr_name, char *: 1, default: 0), "gr_name");
++_Static_assert(_Generic(gr.gr_gid, gid_t: 1, default: 0), "gr_gid");
++_Static_assert(_Generic(gr.gr_mem, char **: 1, default: 0), "gr_mem");
++
++static struct group *(* const p_getgrgid)(gid_t) = getgrgid;
++static int           (          *const p_getgrgid_r)(gid_t, struct group *, char *, size_t, struct group **)
++    = getgrgid_r;
++static struct group *(* const p_getgrnam)(const char *) = getgrnam;
++static int (* const p_getgrnam_r)(const char *, struct group *, char *, size_t, struct group **)
++    = getgrnam_r;
++
++/* XSI interfaces */
++static int getgrent;
++static int setgrent;
++static int endgrent;
++
++/* Extensions */
++static int fgetgrent;
++static int fgetgrent_r;
++static int getgrent_r;
++static int initgroups;
++static int setgroups;
++static int putgrent;
++
++#ifdef _PATH_GROUP
++#error "_PATH_GROUP defined in strict mode"
++#endif
++
++int
++main(void)
++{
++    (void)p_getgrgid;
++    (void)p_getgrgid_r;
++    (void)p_getgrnam;
++    (void)p_getgrnam_r;
++    (void)getgrent;
++    (void)setgrent;
++    (void)endgrent;
++    (void)fgetgrent;
++    (void)fgetgrent_r;
++    (void)getgrent_r;
++    (void)initgroups;
++    (void)setgroups;
++    (void)putgrent;
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-pwd/CMakeLists.txt b/test/test-posix/test-pwd/CMakeLists.txt
+index 250b87fd4d..1f493edba8 100644
+--- a/test/test-posix/test-pwd/CMakeLists.txt
++++ b/test/test-posix/test-pwd/CMakeLists.txt
+@@ -37,6 +37,7 @@ set(tests
+   test-getpwent
+   test-getpwnam_r
+   test-getpwuid_r
++  test-pwd_h
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-pwd/meson.build b/test/test-posix/test-pwd/meson.build
+index 99852b76e4..e7bfd6347c 100644
+--- a/test/test-posix/test-pwd/meson.build
++++ b/test/test-posix/test-pwd/meson.build
+@@ -37,4 +37,5 @@ dir_tests = [
+   'test-getpwent',
+   'test-getpwnam_r',
+   'test-getpwuid_r',
++  'test-pwd_h',
+ ]
+diff --git a/test/test-posix/test-pwd/test-pwd_h.c b/test/test-posix/test-pwd/test-pwd_h.c
+new file mode 100644
+index 0000000000..aae6a7490c
+--- /dev/null
++++ b/test/test-posix/test-pwd/test-pwd_h.c
+@@ -0,0 +1,116 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* The application's own macros, defined before the header */
++#define uid     +
++#define pwd     +
++#define buffer  +
++#define bufsize +
++#define result  +
++#define name    +
++#define stream  +
++#include <pwd.h>
++#undef uid
++#undef pwd
++#undef buffer
++#undef bufsize
++#undef result
++#undef name
++#undef stream
++
++#include <stdio.h>
++
++/*
++ * <pwd.h> defines struct passwd with the POSIX members, gid_t, uid_t
++ * and size_t, and the prototypes POSIX gives. In strict POSIX mode,
++ * without XSI, it declares neither the XSI functions nor extensions,
++ * and its prototypes don't use the application's names
++ */
++
++/* The header alone defines these */
++static uid_t         u __attribute__((unused));
++static gid_t         g __attribute__((unused));
++static size_t        s __attribute__((unused));
++
++static struct passwd pw __attribute__((unused));
++
++_Static_assert(_Generic(pw.pw_name, char *: 1, default: 0), "pw_name");
++_Static_assert(_Generic(pw.pw_uid, uid_t: 1, default: 0), "pw_uid");
++_Static_assert(_Generic(pw.pw_gid, gid_t: 1, default: 0), "pw_gid");
++_Static_assert(_Generic(pw.pw_dir, char *: 1, default: 0), "pw_dir");
++_Static_assert(_Generic(pw.pw_shell, char *: 1, default: 0), "pw_shell");
++
++static struct passwd *(* const p_getpwnam)(const char *) = getpwnam;
++static int (* const p_getpwnam_r)(const char *, struct passwd *, char *, size_t, struct passwd **)
++    = getpwnam_r;
++static struct passwd *(* const p_getpwuid)(uid_t) = getpwuid;
++static int (* const p_getpwuid_r)(uid_t, struct passwd *, char *, size_t, struct passwd **)
++    = getpwuid_r;
++
++/* XSI interfaces */
++static int getpwent;
++static int setpwent;
++static int endpwent;
++
++/* Extensions */
++static int fgetpwent;
++static int fgetpwent_r;
++static int getpwent_r;
++static int putpwent;
++static int getpw;
++
++#ifdef _PATH_PASSWD
++#error "_PATH_PASSWD defined in strict mode"
++#endif
++
++int
++main(void)
++{
++    (void)p_getpwnam;
++    (void)p_getpwnam_r;
++    (void)p_getpwuid;
++    (void)p_getpwuid_r;
++    (void)getpwent;
++    (void)setpwent;
++    (void)endpwent;
++    (void)fgetpwent;
++    (void)fgetpwent_r;
++    (void)getpwent_r;
++    (void)putpwent;
++    (void)getpw;
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-utmpx/CMakeLists.txt b/test/test-posix/test-utmpx/CMakeLists.txt
+index 7e4711ca1a..5e4d36b182 100644
+--- a/test/test-posix/test-utmpx/CMakeLists.txt
++++ b/test/test-posix/test-utmpx/CMakeLists.txt
+@@ -36,6 +36,7 @@
+ set(tests
+   test-getutxent
+   test-utmp
++  test-utmpx_h
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-utmpx/meson.build b/test/test-posix/test-utmpx/meson.build
+index 974d1c23a9..87600fa445 100644
+--- a/test/test-posix/test-utmpx/meson.build
++++ b/test/test-posix/test-utmpx/meson.build
+@@ -36,4 +36,5 @@
+ dir_tests = [
+   'test-getutxent',
+   'test-utmp',
++  'test-utmpx_h',
+ ]
+diff --git a/test/test-posix/test-utmpx/test-utmpx_h.c b/test/test-posix/test-utmpx/test-utmpx_h.c
+new file mode 100644
+index 0000000000..458243b5c0
+--- /dev/null
++++ b/test/test-posix/test-utmpx/test-utmpx_h.c
+@@ -0,0 +1,110 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#define _XOPEN_SOURCE   800
++/* The application's own macros, defined before the header */
++#define id   +
++#define line +
++#include <utmpx.h>
++#undef id
++#undef line
++
++#include <stdio.h>
++
++/*
++ * <utmpx.h> defines struct utmpx with the POSIX members, pid_t and
++ * struct timeval, the eight ut_type values, and the prototypes POSIX
++ * gives; its prototypes don't use the application's names
++ */
++
++/* The header alone defines these */
++static pid_t          p __attribute__((unused));
++static struct timeval tv __attribute__((unused));
++static struct utmpx   ut __attribute__((unused));
++
++/* struct timeval as <sys/time.h> describes it */
++#include <sys/time.h>
++_Static_assert(_Generic(tv.tv_sec, time_t: 1, default: 0), "tv_sec");
++#ifndef __GLIBC__
++/* glibc's tv_usec isn't suseconds_t on 32-bit targets with 64-bit time */
++_Static_assert(_Generic(tv.tv_usec, suseconds_t: 1, default: 0), "tv_usec");
++#endif
++
++/* The strings are arrays of char */
++_Static_assert(_Generic(&ut.ut_user, char (*)[sizeof(ut.ut_user)]: 1, default: 0), "ut_user");
++_Static_assert(_Generic(&ut.ut_id, char (*)[sizeof(ut.ut_id)]: 1, default: 0), "ut_id");
++_Static_assert(_Generic(&ut.ut_line, char (*)[sizeof(ut.ut_line)]: 1, default: 0), "ut_line");
++_Static_assert(_Generic(ut.ut_pid, pid_t: 1, default: 0), "ut_pid");
++_Static_assert(_Generic(ut.ut_type, short: 1, default: 0), "ut_type");
++#ifndef __GLIBC__
++/* glibc's ut_tv is a pair of int32_t on 32-bit targets, not a struct timeval */
++_Static_assert(_Generic(ut.ut_tv, struct timeval: 1, default: 0), "ut_tv");
++#endif
++
++/* Eight distinct values that fit in ut_type */
++static const short types[] = {
++    EMPTY, BOOT_TIME, OLD_TIME, NEW_TIME, USER_PROCESS, INIT_PROCESS, LOGIN_PROCESS, DEAD_PROCESS,
++};
++
++#define NTYPES (sizeof(types) / sizeof(types[0]))
++
++static void          (         *const p_endutxent)(void) = endutxent;
++static struct utmpx *(* const p_getutxent)(void) = getutxent;
++static struct utmpx *(* const p_getutxid)(const struct utmpx *) = getutxid;
++static struct utmpx *(* const p_getutxline)(const struct utmpx *) = getutxline;
++static struct utmpx *(* const p_pututxline)(const struct utmpx *) = pututxline;
++static void          (         *const p_setutxent)(void) = setutxent;
++
++int
++main(void)
++{
++    size_t i, j;
++
++    for (i = 0; i < NTYPES; i++)
++        for (j = i + 1; j < NTYPES; j++)
++            if (types[i] == types[j]) {
++                printf("ut_type values %zu and %zu are both %d\n", i, j, types[i]);
++                return 1;
++            }
++    (void)p_endutxent;
++    (void)p_getutxent;
++    (void)p_getutxid;
++    (void)p_getutxline;
++    (void)p_pututxline;
++    (void)p_setutxent;
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

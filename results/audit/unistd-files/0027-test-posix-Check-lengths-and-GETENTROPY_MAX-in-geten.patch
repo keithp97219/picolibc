@@ -1,0 +1,162 @@
+From f51b3757c45995ccdd85964f20a9d3b738b2e02e Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:15:01 +0000
+Subject: [PATCH 27/28] test-posix: Check lengths and GETENTROPY_MAX in
+ getentropy
+
+---
+ test/test-posix/test-unistd/CMakeLists.txt    |   1 +
+ test/test-posix/test-unistd/meson.build       |   1 +
+ test/test-posix/test-unistd/test-getentropy.c | 116 ++++++++++++++++++
+ 3 files changed, 118 insertions(+)
+ create mode 100644 test/test-posix/test-unistd/test-getentropy.c
+
+diff --git a/test/test-posix/test-unistd/CMakeLists.txt b/test/test-posix/test-unistd/CMakeLists.txt
+index 469fee1497..213ae20332 100644
+--- a/test/test-posix/test-unistd/CMakeLists.txt
++++ b/test/test-posix/test-unistd/CMakeLists.txt
+@@ -56,6 +56,7 @@ set(tests
+   test-fsync
+   test-ftruncate
+   test-getcwd
++  test-getentropy
+   test-getgid
+   test-getgroups
+   test-gethostid
+diff --git a/test/test-posix/test-unistd/meson.build b/test/test-posix/test-unistd/meson.build
+index 905a342447..90bf941e8b 100644
+--- a/test/test-posix/test-unistd/meson.build
++++ b/test/test-posix/test-unistd/meson.build
+@@ -55,6 +55,7 @@ dir_tests = [
+   'test-fsync',
+   'test-ftruncate',
+   'test-getcwd',
++  'test-getentropy',
+   'test-getgid',
+   'test-getgroups',
+   'test-gethostid',
+diff --git a/test/test-posix/test-unistd/test-getentropy.c b/test/test-posix/test-unistd/test-getentropy.c
+new file mode 100644
+index 0000000000..98b27ab502
+--- /dev/null
++++ b/test/test-posix/test-unistd/test-getentropy.c
+@@ -0,0 +1,116 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* glibc declares getentropy only with _GNU_SOURCE (or _DEFAULT_SOURCE) */
++#ifdef TEST_GLIBC
++#define _GNU_SOURCE
++#endif
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_C_LIB_EXT) && defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
++
++#include <errno.h>
++#include <limits.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++
++/* getentropy fills exactly the length asked, up to GETENTROPY_MAX */
++
++#ifndef GETENTROPY_MAX /* glibc doesn't define it; its limit is 256 */
++#define GETENTROPY_MAX 256
++#endif
++
++#define check(condition, message)                                                      \
++    do {                                                                               \
++        if (!(condition)) {                                                            \
++            printf("%d: %s: %s (errno %d)\n", __LINE__, (message), #condition, errno); \
++            exit(1);                                                                   \
++        }                                                                              \
++    } while (0)
++
++static unsigned char buf[GETENTROPY_MAX + 16], buf2[GETENTROPY_MAX + 16];
++
++int
++main(void)
++{
++    size_t i, zero;
++
++    /* Nothing written for a zero length */
++    memset(buf, 0xa5, sizeof(buf));
++    check(getentropy(buf, 0) == 0, "zero length");
++    check(buf[0] == 0xa5, "nothing written");
++
++    /* Exactly length bytes, and different each time */
++    memset(buf, 0xa5, sizeof(buf));
++    check(getentropy(buf, GETENTROPY_MAX) == 0, "GETENTROPY_MAX bytes");
++    for (i = GETENTROPY_MAX; i < sizeof(buf); i++)
++        check(buf[i] == 0xa5, "nothing past the length");
++    memset(buf2, 0xa5, sizeof(buf2));
++    check(getentropy(buf2, GETENTROPY_MAX) == 0, "again");
++    check(memcmp(buf, buf2, GETENTROPY_MAX) != 0, "different data");
++    for (zero = 0, i = 0; i < GETENTROPY_MAX; i++)
++        zero += buf[i] == 0xa5;
++    check(zero < GETENTROPY_MAX / 4, "the buffer was written");
++
++    /* EINVAL past GETENTROPY_MAX, writing nothing */
++    memset(buf, 0xa5, sizeof(buf));
++    errno = 0;
++    check(getentropy(buf, GETENTROPY_MAX + 1) == -1, "GETENTROPY_MAX + 1 fails");
++#ifndef __GLIBC__ /* glibc reports EIO */
++    check(errno == EINVAL, "EINVAL past GETENTROPY_MAX");
++#endif
++    for (i = 0; i < sizeof(buf); i++)
++        check(buf[i] == 0xa5, "nothing written on failure");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

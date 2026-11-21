@@ -1,0 +1,1256 @@
+From d241073cd386397858938042a9c40f7b2293449f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:06:16 +0000
+Subject: [PATCH 11/15] test-posix: Check <sys/wait.h> and the groups, statuses
+ and signals of the wait functions
+
+Check the <sys/wait.h> declarations and that it doesn't expose
+<sys/resource.h>; waitpid's process-group selection, status values and
+replaced stop statuses; EINTR; that orphans get a new parent; the
+waitid idtype, option and WNOWAIT handling; WCOREDUMP against
+CLD_DUMPED and RLIMIT_CORE 0; the clearing of a blocked SIGCHLD;
+cancellation with bad arguments; and wait3.
+---
+ test/test-posix/test-sys-wait/CMakeLists.txt  |   5 +
+ test/test-posix/test-sys-wait/meson.build     |   9 +
+ .../test-sys-wait/test-sys_wait_h.c           | 151 ++++++++++++++
+ test/test-posix/test-sys-wait/test-wait.c     |  83 +++++++-
+ test/test-posix/test-sys-wait/test-wait3.c    | 109 ++++++++++
+ test/test-posix/test-sys-wait/test-waitid.c   | 101 +++++++++-
+ .../test-sys-wait/test-waitpid-cancel.c       | 131 ++++++++++++
+ .../test-sys-wait/test-waitpid-sigchld.c      | 137 +++++++++++++
+ test/test-posix/test-sys-wait/test-waitpid.c  | 149 +++++++++++++-
+ .../test-posix/test-sys-wait/test-wcoredump.c | 187 ++++++++++++++++++
+ 10 files changed, 1057 insertions(+), 5 deletions(-)
+ create mode 100644 test/test-posix/test-sys-wait/test-sys_wait_h.c
+ create mode 100644 test/test-posix/test-sys-wait/test-wait3.c
+ create mode 100644 test/test-posix/test-sys-wait/test-waitpid-cancel.c
+ create mode 100644 test/test-posix/test-sys-wait/test-waitpid-sigchld.c
+ create mode 100644 test/test-posix/test-sys-wait/test-wcoredump.c
+
+diff --git a/test/test-posix/test-sys-wait/CMakeLists.txt b/test/test-posix/test-sys-wait/CMakeLists.txt
+index 3ee270e2eb..eb3c9efaa7 100644
+--- a/test/test-posix/test-sys-wait/CMakeLists.txt
++++ b/test/test-posix/test-sys-wait/CMakeLists.txt
+@@ -34,9 +34,14 @@
+ #
+ 
+ set(tests
++  test-sys_wait_h
+   test-wait
++  test-wait3
+   test-waitpid
++  test-waitpid-cancel
++  test-waitpid-sigchld
+   test-waitid
++  test-wcoredump
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-sys-wait/meson.build b/test/test-posix/test-sys-wait/meson.build
+index a522d1b573..c2df4fcfad 100644
+--- a/test/test-posix/test-sys-wait/meson.build
++++ b/test/test-posix/test-sys-wait/meson.build
+@@ -34,7 +34,16 @@
+ #
+ 
+ dir_tests = [
++  'test-sys_wait_h',
+   'test-wait',
++  'test-wait3',
+   'test-waitpid',
++  'test-waitpid-sigchld',
+   'test-waitid',
++  'test-wcoredump',
++]
++
++# Cancellation needs threads
++dir_thread_tests = [
++  'test-waitpid-cancel',
+ ]
+diff --git a/test/test-posix/test-sys-wait/test-sys_wait_h.c b/test/test-posix/test-sys-wait/test-sys_wait_h.c
+new file mode 100644
+index 0000000000..e432b726ca
+--- /dev/null
++++ b/test/test-posix/test-sys-wait/test-sys_wait_h.c
+@@ -0,0 +1,151 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <sys/wait.h>
++
++#include <stdio.h>
++
++/*
++ * <sys/wait.h> defines the wait options, the status macros, idtype_t,
++ * id_t, pid_t, siginfo_t and the prototypes, and in strict mode
++ * nothing from <sys/resource.h> or wait3
++ */
++
++#if !defined(WEXITSTATUS) || !defined(WIFEXITED) || !defined(WIFSIGNALED) || !defined(WIFSTOPPED) \
++    || !defined(WSTOPSIG) || !defined(WTERMSIG)
++#error "status macro missing"
++#endif
++
++/* New in Issue 8; glibc 2.43 defines it only with _DEFAULT_SOURCE */
++#if !defined(WCOREDUMP) && !defined(__GLIBC__)
++#error "WCOREDUMP missing"
++#endif
++#ifndef WCOREDUMP
++#define WCOREDUMP(w) 0
++#endif
++
++#if !defined(WNOHANG) || !defined(WUNTRACED)
++#error "waitpid option missing"
++#endif
++
++#if !defined(WEXITED) || !defined(WSTOPPED) || !defined(WNOWAIT)
++#error "waitid option missing"
++#endif
++
++/* The waitpid options are distinct bits */
++_Static_assert(WNOHANG != 0 && WUNTRACED != 0 && (WNOHANG & WUNTRACED) == 0, "waitpid options");
++
++/* The waitid options can be combined */
++_Static_assert(WEXITED != 0 && WSTOPPED != 0 && WNOWAIT != 0, "waitid options");
++_Static_assert((WEXITED & WSTOPPED) == 0 && (WEXITED & WNOWAIT) == 0 && (WSTOPPED & WNOWAIT) == 0,
++               "waitid options");
++_Static_assert((WNOHANG & (WEXITED | WSTOPPED | WNOWAIT)) == 0, "WNOHANG with waitid");
++
++#ifdef WCONTINUED
++_Static_assert(WCONTINUED != 0 && (WCONTINUED & (WNOHANG | WUNTRACED)) == 0, "WCONTINUED");
++_Static_assert((WCONTINUED & (WEXITED | WSTOPPED | WNOWAIT)) == 0, "WCONTINUED with waitid");
++#endif
++
++/* idtype_t values */
++_Static_assert(P_ALL != P_PID && P_ALL != P_PGID && P_PID != P_PGID, "idtype_t values");
++
++/* pid_t is signed; id_t can hold a pid_t */
++_Static_assert((pid_t)-1 < 0, "pid_t signed");
++_Static_assert(sizeof(id_t) >= sizeof(pid_t), "id_t size");
++
++#define check_type(f, t) _Generic(&(f), t: 1, default: 0)
++
++/* Nothing from <sys/resource.h>, which isn't one of the headers <sys/wait.h> may expose */
++#if defined(RLIMIT_CORE) || defined(RLIM_INFINITY) || defined(PRIO_PROCESS) || defined(RUSAGE_SELF)
++#error "<sys/resource.h> constants visible"
++#endif
++struct rlimit {
++    char not_the_header_s;
++};
++static double getrlimit;
++static double setrlimit;
++static double getpriority;
++static double setpriority;
++static double getrusage;
++
++/* wait3 is an extension */
++static double wait3;
++
++int
++main(void)
++{
++    int          ok = 1;
++    idtype_t     idtype = P_ALL;
++    id_t         id = 0;
++    siginfo_t    info;
++    union sigval value;
++
++    ok &= check_type(wait, pid_t (*)(int *));
++    ok &= check_type(waitpid, pid_t (*)(pid_t, int *, int));
++    ok &= check_type(waitid, int (*)(idtype_t, id_t, siginfo_t *, int));
++
++    /* siginfo_t has the members waitid fills in */
++    info.si_signo = 0;
++    info.si_code = 0;
++    info.si_pid = (pid_t)0;
++    info.si_uid = (uid_t)0;
++    info.si_status = 0;
++    value.sival_int = 0;
++    (void)info;
++    (void)value;
++    (void)idtype;
++    (void)id;
++
++    /* The status macros give integral values */
++    ok &= (WIFEXITED(0) | WEXITSTATUS(0) | WIFSIGNALED(0) | WTERMSIG(0) | WIFSTOPPED(0)
++           | WSTOPSIG(0) | WCOREDUMP(0) | 1)
++        != 0;
++
++    (void)sizeof(struct rlimit);
++    (void)getrlimit;
++    (void)setrlimit;
++    (void)getpriority;
++    (void)setpriority;
++    (void)getrusage;
++    (void)wait3;
++
++    if (!ok) {
++        printf("wrong prototype\n");
++        return 1;
++    }
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-sys-wait/test-wait.c b/test/test-posix/test-sys-wait/test-wait.c
+index 184c8677ee..c7ef70f02d 100644
+--- a/test/test-posix/test-sys-wait/test-wait.c
++++ b/test/test-posix/test-sys-wait/test-wait.c
+@@ -37,15 +37,21 @@
+ #include "../posix-groups.h"
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS)
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS) \
++    && defined(__PICOLIBC_POSIX_PIPE)
+ 
+ #include <errno.h>
+ #include <signal.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <sys/wait.h>
+ 
+-/* wait collects any child's status, and fails when there are none */
++/*
++ * wait collects any child's status, fails when there are none, is
++ * interrupted by signal handlers, and children of a process that
++ * exits get another parent
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -55,6 +61,76 @@
+         }                                              \
+     } while (0)
+ 
++static volatile sig_atomic_t got_alarm;
++
++static void
++on_alarm(int sig)
++{
++    (void)sig;
++    got_alarm = 1;
++}
++
++static void
++interrupted(void)
++{
++    struct sigaction sa;
++    int              fds[2], status;
++    pid_t            pid;
++    char             c;
++
++    check(pipe(fds) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        close(fds[1]);
++        (void)read(fds[0], &c, 1);
++        _exit(4);
++    }
++    close(fds[0]);
++    memset(&sa, 0, sizeof(sa));
++    sa.sa_handler = on_alarm;
++    sigemptyset(&sa.sa_mask);
++    check(sigaction(SIGALRM, &sa, NULL) == 0, "sigaction");
++    alarm(1);
++    errno = 0;
++    check(wait(&status) == -1 && errno == EINTR && got_alarm, "EINTR");
++    close(fds[1]);
++    check(wait(&status) == pid && WEXITSTATUS(status) == 4, "reaped after EINTR");
++}
++
++/* When a process exits, its children get a new parent */
++static void
++orphaned(void)
++{
++    int   go[2], report[2], status;
++    pid_t pid, parent;
++    char  c;
++
++    check(pipe(go) == 0 && pipe(report) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        /* Taken before the fork: getppid in the grandchild may already show the new parent */
++        parent = getpid();
++        if (fork() == 0) {
++            if (read(go[0], &c, 1) != 1)
++                _exit(1);
++            c = getppid() != parent;
++            (void)write(report[1], &c, 1);
++            _exit(0);
++        }
++        _exit(0);
++    }
++    close(go[0]);
++    close(report[1]);
++    check(waitpid(pid, &status, 0) == pid && status == 0, "parent exited");
++    /* Once the parent is reaped, the grandchild has been given to another */
++    check(write(go[1], "x", 1) == 1, "go");
++    check(read(report[0], &c, 1) == 1 && c == 1, "the orphan has a new parent");
++    close(go[1]);
++    close(report[0]);
++}
++
+ int
+ main(void)
+ {
+@@ -98,6 +174,9 @@ main(void)
+     check(wait(NULL) == pid, "wait(NULL)");
+     errno = 0;
+     check(wait(NULL) == -1 && errno == ECHILD, "ECHILD again");
++
++    interrupted();
++    orphaned();
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-sys-wait/test-wait3.c b/test/test-posix/test-sys-wait/test-wait3.c
+new file mode 100644
+index 0000000000..e7405e1742
+--- /dev/null
++++ b/test/test-posix/test-sys-wait/test-wait3.c
+@@ -0,0 +1,109 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/* wait3 is an extension */
++#define _DEFAULT_SOURCE
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE)
++
++#include <errno.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
++
++/*
++ * wait3 reports any child's status and its resource use, accepts a
++ * null status and leaves the status alone when WNOHANG finds nothing
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++int
++main(void)
++{
++    struct rusage ru;
++    int           fds[2], status;
++    pid_t         pid;
++    char          c;
++
++    check(pipe(fds) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        close(fds[1]);
++        (void)read(fds[0], &c, 1);
++        _exit(5);
++    }
++    close(fds[0]);
++
++    status = 12345;
++    check(wait3(&status, WNOHANG, &ru) == 0 && status == 12345, "WNOHANG leaves status alone");
++    close(fds[1]);
++    ru.ru_utime.tv_usec = -1;
++    check(wait3(&status, 0, &ru) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 5, "wait3");
++    check(ru.ru_utime.tv_usec >= 0 && ru.ru_utime.tv_usec < 1000000, "resource use");
++
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        _exit(0);
++    check(wait3(NULL, 0, NULL) == pid, "null status");
++    errno = 0;
++    check(wait3(NULL, 0, NULL) == -1 && errno == ECHILD, "ECHILD");
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-wait/test-waitid.c b/test/test-posix/test-sys-wait/test-waitid.c
+index 18e0d0d26c..58c9553b22 100644
+--- a/test/test-posix/test-sys-wait/test-waitid.c
++++ b/test/test-posix/test-sys-wait/test-waitid.c
+@@ -37,7 +37,8 @@
+ #include "../posix-groups.h"
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS)
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS) \
++    && defined(__PICOLIBC_POSIX_PIPE)
+ 
+ #include <errno.h>
+ #include <signal.h>
+@@ -72,6 +73,41 @@ child(int status)
+     return pid;
+ }
+ 
++/* A child that exits with status once a byte arrives on the pipe, or at EOF */
++static pid_t
++gated_child(int fds[2], int status)
++{
++    pid_t pid;
++    char  c;
++
++    check(pipe(fds) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        close(fds[1]);
++        (void)read(fds[0], &c, 1);
++        _exit(status);
++    }
++    close(fds[0]);
++    return pid;
++}
++
++static void
++release(int fds[2])
++{
++    check(write(fds[1], "x", 1) == 1, "release child");
++    close(fds[1]);
++}
++
++static volatile sig_atomic_t got_alarm;
++
++static void
++on_alarm(int sig)
++{
++    (void)sig;
++    got_alarm = 1;
++}
++
+ int
+ main(void)
+ {
+@@ -84,6 +120,7 @@ main(void)
+     memset(&info, 0xff, sizeof(info));
+     check(waitid(P_PID, (id_t)pid, &info, WEXITED) == 0, "waitid exited");
+     check(info.si_pid == pid, "si_pid");
++    check(info.si_uid == getuid(), "si_uid");
+     check(info.si_signo == SIGCHLD, "si_signo");
+     check(info.si_code == CLD_EXITED, "si_code exited");
+     check(info.si_status == 7, "si_status exited");
+@@ -99,11 +136,18 @@ main(void)
+     pid = child(-1);
+     memset(&info, 0xff, sizeof(info));
+     check(waitid(P_PID, (id_t)pid, &info, WEXITED | WNOHANG) == 0, "waitid WNOHANG");
+-    check(info.si_pid == 0, "WNOHANG with no change");
++    check(info.si_pid == 0 && info.si_signo == 0, "WNOHANG with no change");
+ 
+     check(kill(pid, SIGSTOP) == 0, "SIGSTOP");
++    check(waitid(P_PID, (id_t)pid, &info, WSTOPPED | WNOWAIT) == 0, "waitid stopped, WNOWAIT");
++    check(info.si_code == CLD_STOPPED && info.si_status == SIGSTOP, "stopped info, WNOWAIT");
++    /* WNOWAIT left the stop to be reported again */
+     check(waitid(P_PID, (id_t)pid, &info, WSTOPPED) == 0, "waitid stopped");
+     check(info.si_code == CLD_STOPPED && info.si_status == SIGSTOP, "stopped info");
++    /* Once reported, it isn't reported again */
++    memset(&info, 0xff, sizeof(info));
++    check(waitid(P_PID, (id_t)pid, &info, WSTOPPED | WNOHANG) == 0 && info.si_pid == 0,
++          "stop reported once");
+ 
+     check(kill(pid, SIGCONT) == 0, "SIGCONT");
+     check(waitid(P_PID, (id_t)pid, &info, WCONTINUED) == 0, "waitid continued");
+@@ -120,6 +164,59 @@ main(void)
+     /* Some state to wait for is required */
+     check(waitid(P_ALL, 0, &info, WNOHANG) == -1 && errno == EINVAL, "EINVAL");
+ 
++    {
++        int   fds[2];
++        pid_t grouped;
++
++        /* With a child to wait for, bad arguments still give EINVAL */
++        pid = gated_child(fds, 3);
++        errno = 0;
++        check(waitid(P_ALL, 0, &info, WEXITED | WNOHANG | 0x100) == -1 && errno == EINVAL,
++              "unknown option bit");
++#ifndef __GLIBC__
++        /* glibc passes 3 to Linux, which takes it as P_PIDFD */
++        errno = 0;
++        check(waitid((idtype_t)3, 9999, &info, WEXITED | WNOHANG) == -1 && errno == EINVAL,
++              "unknown idtype");
++        /* glibc passes 0 to Linux, which takes it as the caller's group */
++        errno = 0;
++        check(waitid(P_PGID, 0, &info, WEXITED | WNOHANG) == -1 && errno == EINVAL,
++              "process group 0");
++#endif
++        /* Not a child */
++        errno = 0;
++        check(waitid(P_PID, (id_t)getpid(), &info, WEXITED | WNOHANG) == -1 && errno == ECHILD,
++              "P_PID of a non-child");
++
++        /* A signal handler interrupts the wait */
++        struct sigaction sa;
++        memset(&sa, 0, sizeof(sa));
++        sa.sa_handler = on_alarm;
++        sigemptyset(&sa.sa_mask);
++        check(sigaction(SIGALRM, &sa, NULL) == 0, "sigaction");
++        alarm(1);
++        errno = 0;
++        check(waitid(P_PID, (id_t)pid, &info, WEXITED) == -1 && errno == EINTR && got_alarm,
++              "EINTR");
++        release(fds);
++        check(waitid(P_PID, (id_t)pid, &info, WEXITED) == 0 && info.si_status == 3,
++              "reaped after EINTR");
++
++        /* P_PGID selects the children in one process group */
++        grouped = gated_child(fds, 4);
++        check(setpgid(grouped, grouped) == 0, "setpgid");
++        pid = child(5);
++        check(waitid(P_PGID, (id_t)getpgrp(), &info, WEXITED) == 0 && info.si_pid == pid,
++              "P_PGID own group");
++        memset(&info, 0xff, sizeof(info));
++        check(waitid(P_PGID, (id_t)getpgrp(), &info, WEXITED | WNOHANG) == -1 && errno == ECHILD,
++              "no child left in own group");
++        release(fds);
++        check(waitid(P_PGID, (id_t)grouped, &info, WEXITED) == 0 && info.si_pid == grouped
++                  && info.si_status == 4,
++              "P_PGID other group");
++    }
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-sys-wait/test-waitpid-cancel.c b/test/test-posix/test-sys-wait/test-waitpid-cancel.c
+new file mode 100644
+index 0000000000..a2a11e4c81
+--- /dev/null
++++ b/test/test-posix/test-sys-wait/test-waitpid-cancel.c
+@@ -0,0 +1,131 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++
++#include <errno.h>
++#include <pthread.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/wait.h>
++
++/*
++ * wait, waitid and waitpid are cancellation points, and a pending
++ * cancellation acts even when the call would fail with EINVAL
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++enum which { WAIT, WAITPID, WAITID, WAITPID_BAD, WAITID_BAD };
++
++static volatile int returned;
++
++static void *
++waiter(void *arg)
++{
++    enum which which = (enum which)(intptr_t)arg;
++    siginfo_t  info;
++    int        old;
++
++    /* Make the cancellation pending before the call */
++    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old);
++    pthread_cancel(pthread_self());
++    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &old);
++    switch (which) {
++    case WAIT:
++        (void)wait(NULL);
++        break;
++    case WAITPID:
++        (void)waitpid(-1, NULL, WNOHANG);
++        break;
++    case WAITID:
++        (void)waitid(P_ALL, 0, &info, WEXITED | WNOHANG);
++        break;
++    case WAITPID_BAD:
++        (void)waitpid(-1, NULL, 0x100);
++        break;
++    case WAITID_BAD:
++        (void)waitid(P_ALL, 0, &info, WEXITED | 0x100);
++        break;
++    }
++    returned = 1;
++    return NULL;
++}
++
++int
++main(void)
++{
++    static const char * const names[]
++        = { "wait", "waitpid", "waitid", "waitpid with bad options", "waitid with bad options" };
++    pthread_t t;
++    void     *result;
++    int       i;
++
++    for (i = WAIT; i <= WAITID_BAD; i++) {
++        returned = 0;
++        check(pthread_create(&t, NULL, waiter, (void *)(intptr_t)i) == 0, "pthread_create");
++        check(pthread_join(t, &result) == 0, "pthread_join");
++        if (result != PTHREAD_CANCELED || returned) {
++            printf("%s didn't act on the pending cancellation\n", names[i]);
++            return 1;
++        }
++    }
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-wait/test-waitpid-sigchld.c b/test/test-posix/test-sys-wait/test-waitpid-sigchld.c
+new file mode 100644
+index 0000000000..0f05ef5a82
+--- /dev/null
++++ b/test/test-posix/test-sys-wait/test-waitpid-sigchld.c
+@@ -0,0 +1,137 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS)
++
++#include <errno.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/wait.h>
++
++/*
++ * Linux doesn't queue SIGCHLD. Then, with SIGCHLD blocked, a wait or
++ * waitpid that returns a child's status clears a pending SIGCHLD
++ * unless another child's status is available.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* A child that exits at once, waited for without collecting its status */
++static pid_t
++exited_child(int status)
++{
++    siginfo_t info;
++    pid_t     pid = fork();
++
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        _exit(status);
++    /* The SIGCHLD is pending by the time the status can be seen */
++    check(waitid(P_PID, (id_t)pid, &info, WEXITED | WNOWAIT) == 0, "waitid WNOWAIT");
++    return pid;
++}
++
++static int
++sigchld_pending(void)
++{
++    sigset_t set;
++
++    check(sigpending(&set) == 0, "sigpending");
++    return sigismember(&set, SIGCHLD);
++}
++
++int
++main(void)
++{
++    sigset_t block;
++    pid_t    a, b;
++    int      status;
++
++    sigemptyset(&block);
++    sigaddset(&block, SIGCHLD);
++    check(sigprocmask(SIG_BLOCK, &block, NULL) == 0, "block SIGCHLD");
++
++    /* One child: waitpid clears the signal */
++    a = exited_child(1);
++    check(sigchld_pending() == 1, "SIGCHLD pending");
++    check(waitpid(a, &status, 0) == a && WEXITSTATUS(status) == 1, "waitpid");
++#ifndef __GLIBC__
++    /* glibc leaves it pending, as Linux does */
++    check(sigchld_pending() == 0, "cleared by waitpid");
++#endif
++
++    /* Two children: the signal stays until the second is collected */
++    a = exited_child(2);
++    b = exited_child(3);
++    check(waitpid(a, &status, 0) == a && WEXITSTATUS(status) == 2, "first waitpid");
++    check(sigchld_pending() == 1, "still pending for the other child");
++    check(wait(&status) == b && WEXITSTATUS(status) == 3, "wait");
++#ifndef __GLIBC__
++    check(sigchld_pending() == 0, "cleared by wait");
++#endif
++
++    /* With nothing left, a SIGCHLD that is pending without a status stays */
++    check(kill(getpid(), SIGCHLD) == 0, "raise SIGCHLD");
++    errno = 0;
++    check(waitpid(-1, &status, WNOHANG) == -1 && errno == ECHILD, "ECHILD");
++    check(sigchld_pending() == 1, "a failed wait leaves SIGCHLD");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-wait/test-waitpid.c b/test/test-posix/test-sys-wait/test-waitpid.c
+index 0486abb67b..2a9981ed92 100644
+--- a/test/test-posix/test-sys-wait/test-waitpid.c
++++ b/test/test-posix/test-sys-wait/test-waitpid.c
+@@ -38,12 +38,13 @@
+ 
+ /* Without the system support this test needs, it is skipped */
+ #if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS) \
+-    && _POSIX_JOB_CONTROL > 0
++    && defined(__PICOLIBC_POSIX_PIPE) && _POSIX_JOB_CONTROL > 0
+ 
+ #include <errno.h>
+ #include <signal.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <sys/wait.h>
+ 
+ /* waitpid reports the chosen child's exit, stop and continuation, with or without waiting */
+@@ -56,6 +57,148 @@
+         }                                              \
+     } while (0)
+ 
++/* Exactly one of the status macros holds */
++#define one_of(status)                                                                 \
++    ((WIFEXITED(status) != 0) + (WIFSIGNALED(status) != 0) + (WIFSTOPPED(status) != 0) \
++         + (WIFCONTINUED(status) != 0)                                                 \
++     == 1)
++
++/* A child that exits with status once the pipe is closed */
++static pid_t
++gated_child(int fds[2], int status, int own_group)
++{
++    pid_t pid;
++    char  c;
++
++    check(pipe(fds) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        close(fds[1]);
++        (void)read(fds[0], &c, 1);
++        _exit(status);
++    }
++    close(fds[0]);
++    /* Before the child can exit, so there's no race */
++    if (own_group)
++        check(setpgid(pid, pid) == 0, "setpgid");
++    return pid;
++}
++
++static void
++groups(void)
++{
++    int   fds_a[2], fds_b[2];
++    pid_t a, b;
++    int   status;
++
++    /* a is in a group of its own, b in ours */
++    a = gated_child(fds_a, 1, 1);
++    b = gated_child(fds_b, 2, 0);
++    close(fds_a[1]);
++    close(fds_b[1]);
++
++    /* pid 0 waits only for children in the caller's group */
++    check(waitpid(0, &status, 0) == b && WIFEXITED(status) && WEXITSTATUS(status) == 2,
++          "waitpid(0)");
++    errno = 0;
++    check(waitpid(0, &status, WNOHANG) == -1 && errno == ECHILD, "no child in our group");
++    errno = 0;
++    check(waitpid(-getpgrp(), &status, WNOHANG) == -1 && errno == ECHILD,
++          "no child in our group by number");
++
++    /* pid < -1 waits for children in group -pid */
++    check(waitpid(-a, &status, 0) == a && WIFEXITED(status) && WEXITSTATUS(status) == 1,
++          "waitpid(-pgid)");
++}
++
++static void
++statuses(void)
++{
++    siginfo_t info;
++    pid_t     pid;
++    int       status;
++
++    /* 0 only for a child that exited with 0; the low 8 bits of the exit value */
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        _exit(0);
++    check(waitpid(pid, &status, 0) == pid && status == 0 && one_of(status), "exit 0");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        _exit(0x1ff);
++    check(waitpid(pid, &status, 0) == pid && status != 0 && WIFEXITED(status)
++              && WEXITSTATUS(status) == 0xff && one_of(status),
++          "exit 0x1ff");
++
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        for (;;)
++            pause();
++    }
++
++    /* A stop isn't reported without WUNTRACED */
++    check(kill(pid, SIGSTOP) == 0, "SIGSTOP");
++    check(waitid(P_PID, (id_t)pid, &info, WSTOPPED | WNOWAIT) == 0, "stopped");
++    check(waitpid(pid, &status, WNOHANG) == 0, "stop without WUNTRACED");
++    check(waitpid(pid, &status, WNOHANG | WCONTINUED) == 0, "stop with only WCONTINUED");
++
++    /* Continuing replaces the unreported stop */
++    check(kill(pid, SIGCONT) == 0, "SIGCONT");
++    check(waitid(P_PID, (id_t)pid, &info, WCONTINUED | WNOWAIT) == 0, "continued");
++    status = 0;
++    check(waitpid(pid, &status, WUNTRACED | WCONTINUED) == pid && WIFCONTINUED(status)
++              && one_of(status),
++          "only the continuation is reported");
++    check(waitpid(pid, &status, WUNTRACED | WCONTINUED | WNOHANG) == 0, "and only once");
++
++    /* Stopped and killed statuses satisfy exactly one macro */
++    check(kill(pid, SIGSTOP) == 0, "SIGSTOP again");
++    check(waitpid(pid, &status, WUNTRACED | WCONTINUED) == pid && WIFSTOPPED(status)
++              && one_of(status),
++          "stopped status");
++    check(kill(pid, SIGKILL) == 0, "SIGKILL");
++    check(waitpid(pid, &status, WUNTRACED | WCONTINUED) == pid && WIFSIGNALED(status)
++              && WTERMSIG(status) == SIGKILL && one_of(status),
++          "killed status");
++#ifdef WCOREDUMP
++    /* SIGKILL doesn't dump core (glibc defines WCOREDUMP only with _DEFAULT_SOURCE) */
++    check(!WCOREDUMP(status), "no core from SIGKILL");
++#endif
++}
++
++static volatile sig_atomic_t got_alarm;
++
++static void
++on_alarm(int sig)
++{
++    (void)sig;
++    got_alarm = 1;
++}
++
++/* A signal handler interrupts waitpid */
++static void
++interrupted(void)
++{
++    struct sigaction sa;
++    int              fds[2], status;
++    pid_t            pid;
++
++    pid = gated_child(fds, 6, 0);
++    memset(&sa, 0, sizeof(sa));
++    sa.sa_handler = on_alarm;
++    sigemptyset(&sa.sa_mask);
++    check(sigaction(SIGALRM, &sa, NULL) == 0, "sigaction");
++    alarm(1);
++    errno = 0;
++    check(waitpid(pid, &status, 0) == -1 && errno == EINTR && got_alarm, "EINTR");
++    close(fds[1]);
++    check(waitpid(pid, &status, 0) == pid && WEXITSTATUS(status) == 6, "reaped after EINTR");
++}
++
+ int
+ main(void)
+ {
+@@ -98,6 +241,10 @@ main(void)
+     check(waitpid(getpid(), &status, 0) == -1 && errno == ECHILD, "not a child");
+     errno = 0;
+     check(waitpid(-1, &status, 0x100) == -1 && errno == EINVAL, "bad options");
++
++    groups();
++    statuses();
++    interrupted();
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-sys-wait/test-wcoredump.c b/test/test-posix/test-sys-wait/test-wcoredump.c
+new file mode 100644
+index 0000000000..c542cd6db9
+--- /dev/null
++++ b/test/test-posix/test-sys-wait/test-wcoredump.c
+@@ -0,0 +1,187 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS) \
++    && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
++
++#include <dirent.h>
++#include <errno.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
++
++/*
++ * WCOREDUMP reports whether a core image was attempted, which waitid
++ * reports as CLD_DUMPED, and RLIMIT_CORE 0 prevents the core file.
++ * Core files go to a directory of the test's own, and only when the
++ * system writes them to the current directory.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* glibc 2.43 defines WCOREDUMP only with _DEFAULT_SOURCE */
++#ifdef WCOREDUMP
++#define coredump(status) (WCOREDUMP(status) != 0)
++#else
++#define coredump(status) (-1)
++#endif
++
++#define CORE_MAX (64 * 1024 * 1024)
++
++/* Kill a child with sig, with RLIMIT_CORE set to core, and check its status */
++static int
++killed(char *dir, int sig, rlim_t core)
++{
++    siginfo_t info;
++    pid_t     pid;
++    int       status;
++
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct rlimit rl;
++
++        if (chdir(dir) != 0 || getrlimit(RLIMIT_CORE, &rl) != 0)
++            _exit(1);
++        if (rl.rlim_max != RLIM_INFINITY && rl.rlim_max < core)
++            core = rl.rlim_max;
++        rl.rlim_cur = core;
++        if (setrlimit(RLIMIT_CORE, &rl) != 0)
++            _exit(2);
++        signal(sig, SIG_DFL);
++        raise(sig);
++        _exit(3);
++    }
++    memset(&info, 0, sizeof(info));
++    check(waitid(P_PID, (id_t)pid, &info, WEXITED | WNOWAIT) == 0, "waitid");
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFSIGNALED(status) && WTERMSIG(status) == sig, "killed by the signal");
++    check(info.si_code == CLD_KILLED || info.si_code == CLD_DUMPED, "si_code");
++#ifdef WCOREDUMP
++    check(coredump(status) == (info.si_code == CLD_DUMPED), "WCOREDUMP matches CLD_DUMPED");
++#endif
++    return info.si_code == CLD_DUMPED;
++}
++
++/* Count, and remove, the files in dir */
++static int
++empty(char *dir)
++{
++    DIR           *d = opendir(dir);
++    struct dirent *e;
++    char           path[512];
++    int            n = 0;
++
++    check(d != NULL, "opendir");
++    while ((e = readdir(d)) != NULL) {
++        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0)
++            continue;
++        snprintf(path, sizeof(path), "%s/%s", dir, e->d_name);
++        check(unlink(path) == 0, "unlink");
++        n++;
++    }
++    closedir(d);
++    return n;
++}
++
++/* Cores are written to the current directory unless the pattern is a path or a pipe */
++static int
++local_cores(void)
++{
++    FILE *f = fopen("/proc/sys/kernel/core_pattern", "r");
++    char  pattern[256];
++    int   local = 0;
++
++    if (!f)
++        return 0;
++    if (fgets(pattern, sizeof(pattern), f))
++        local = pattern[0] != '|' && strchr(pattern, '/') == NULL;
++    fclose(f);
++    return local;
++}
++
++int
++main(void)
++{
++    char dir[] = "wcoredump-XXXXXX";
++    int  dumped;
++
++    check(mkdtemp(dir) != NULL, "mkdtemp");
++
++    /* SIGKILL never dumps core */
++    check(killed(dir, SIGKILL, CORE_MAX) == 0, "SIGKILL dumped core");
++
++    if (local_cores()) {
++        /* A limit of 0 prevents the core file */
++        check(killed(dir, SIGQUIT, 0) == 0 && empty(dir) == 0, "core file with RLIMIT_CORE 0");
++
++        /* SIGQUIT dumps core where the system can */
++        dumped = killed(dir, SIGQUIT, CORE_MAX);
++        printf("SIGQUIT %s\n", dumped ? "dumped core" : "didn't dump core");
++        (void)empty(dir);
++    } else {
++        printf("cores aren't written to the current directory, SIGQUIT not checked\n");
++    }
++    check(rmdir(dir) == 0, "rmdir");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

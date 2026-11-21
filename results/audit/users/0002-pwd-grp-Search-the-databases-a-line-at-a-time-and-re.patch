@@ -1,0 +1,1144 @@
+From 65f28fe467966c4f1268bf09ee64651057345297 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:55:05 +0000
+Subject: [PATCH 02/12] pwd, grp: Search the databases a line at a time, and
+ report only real errors
+
+The lookups read each line into the caller's buffer, so:
+
+ - a line that didn't fit gave ERANGE even when it wasn't the entry
+   asked for, and a missing entry with a small buffer was ERANGE, not
+   "not found";
+ - a malformed line (or, through strsep, one with an empty last field
+   such as an empty shell) ended the search with EINVAL;
+ - getgrnam_r and friends could write the member array's terminator
+   past the end of the buffer (a negative ptrdiff_t divided by
+   sizeof);
+ - the gid field wasn't checked, ids were parsed with strtol (so
+   4294967294 became LONG_MAX on 32-bit targets) and an empty uid read
+   as 0;
+ - getpwnam, getpwuid, getgrnam, getgrgid, getpwent and getgrent set
+   errno to ENOENT when nothing matched or at the end of the database,
+   where POSIX says errno shall not change.
+
+Now each line is read with getline and parsed in place, lines that
+aren't entries are skipped, and only the entry found is copied into
+the caller's buffer, with ERANGE (and, for a seekable stream, the
+position kept so the entry can be read again) when it doesn't fit.
+The files are opened close-on-exec.
+---
+ libc/posix/grp/CMakeLists.txt |   1 +
+ libc/posix/grp/__gr_find.c    | 147 ++++++++++++++++++++++++++++++++++
+ libc/posix/grp/fgetgrent.c    |  12 ++-
+ libc/posix/grp/fgetgrent_r.c  |  94 +---------------------
+ libc/posix/grp/getgrent.c     |   2 +-
+ libc/posix/grp/getgrent_r.c   |   2 +-
+ libc/posix/grp/getgrgid.c     |  14 ++--
+ libc/posix/grp/getgrgid_r.c   |  25 ++----
+ libc/posix/grp/getgrnam.c     |  13 +--
+ libc/posix/grp/getgrnam_r.c   |  25 ++----
+ libc/posix/grp/local-grp.h    |  17 ++++
+ libc/posix/grp/meson.build    |   1 +
+ libc/posix/pwd/CMakeLists.txt |   1 +
+ libc/posix/pwd/__pw_find.c    | 120 +++++++++++++++++++++++++++
+ libc/posix/pwd/fgetpwent.c    |  12 ++-
+ libc/posix/pwd/fgetpwent_r.c  |  85 +-------------------
+ libc/posix/pwd/getpwent.c     |   2 +-
+ libc/posix/pwd/getpwent_r.c   |   2 +-
+ libc/posix/pwd/getpwnam.c     |  13 +--
+ libc/posix/pwd/getpwnam_r.c   |  23 ++----
+ libc/posix/pwd/getpwuid.c     |  13 +--
+ libc/posix/pwd/getpwuid_r.c   |  23 ++----
+ libc/posix/pwd/local-getent.h |  91 +++++++++++++++++++++
+ libc/posix/pwd/local-pwd.h    |  17 ++++
+ libc/posix/pwd/meson.build    |   1 +
+ 25 files changed, 484 insertions(+), 272 deletions(-)
+ create mode 100644 libc/posix/grp/__gr_find.c
+ create mode 100644 libc/posix/pwd/__pw_find.c
+ create mode 100644 libc/posix/pwd/local-getent.h
+
+diff --git a/libc/posix/grp/CMakeLists.txt b/libc/posix/grp/CMakeLists.txt
+index 0049fe5cf8..cfd19c342f 100644
+--- a/libc/posix/grp/CMakeLists.txt
++++ b/libc/posix/grp/CMakeLists.txt
+@@ -33,6 +33,7 @@
+ # OF THE POSSIBILITY OF SUCH DAMAGE.
+ #
+ picolibc_sources(
++  __gr_find.c
+   endgrent.c
+   fgetgrent.c
+   fgetgrent_r.c
+diff --git a/libc/posix/grp/__gr_find.c b/libc/posix/grp/__gr_find.c
+new file mode 100644
+index 0000000000..74640d3ad5
+--- /dev/null
++++ b/libc/posix/grp/__gr_find.c
+@@ -0,0 +1,147 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _DEFAULT_SOURCE
++#include <errno.h>
++#include <stdint.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/types.h>
++#include "local-grp.h"
++#include "../pwd/local-getent.h"
++
++/*
++ * Split a line into the group name, the gid and the member list, in
++ * place. A missing member field means no members.
++ */
++static bool
++gr_parse(char *line, struct group *gr, char **members)
++{
++    char         *field[3];
++    unsigned long gid;
++    size_t        n;
++
++    /* name:passwd:gid:members, ignoring anything after */
++    for (n = 0; n < 3; n++)
++        if ((field[n] = __getent_field(&line)) == NULL)
++            return false;
++    *members = __getent_field(&line);
++    if (field[0][0] == '\0' || !__getent_id(field[2], (gid_t) ~(gid_t)0, &gid))
++        return false;
++    gr->gr_name = field[0];
++    gr->gr_gid = (gid_t)gid;
++    return true;
++}
++
++int
++__gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct group *grbuf,
++          char *buf, size_t size, struct group **result)
++{
++    int          saved_errno = errno;
++    char        *line = NULL;
++    size_t       cap = 0;
++    ssize_t      len;
++    off_t        start;
++    struct group ent;
++    char        *members, *m, **mem;
++    size_t       nmem, array, need;
++    int          ret;
++
++    *result = NULL;
++    for (;;) {
++        start = ftello(file);
++        errno = 0;
++        len = getline(&line, &cap, file);
++        if (len < 0) {
++            if (errno == 0)
++                ret = ferror(file) ? EIO : ENOENT;
++            else
++                ret = errno;
++            break;
++        }
++        if (len > 0 && line[len - 1] == '\n')
++            line[--len] = '\0';
++        if (!gr_parse(line, &ent, &members))
++            continue;
++        if (match == __gr_match_name && strcmp(ent.gr_name, name) != 0)
++            continue;
++        if (match == __gr_match_gid && ent.gr_gid != gid)
++            continue;
++
++        /* An empty member field means no members, not one with an empty name */
++        nmem = 0;
++        if (members && *members) {
++            nmem = 1;
++            for (m = members; *m; m++)
++                if (*m == ',')
++                    nmem++;
++        }
++
++        /* The line, then the aligned, null-terminated array of members */
++        array = (size_t)len + 1;
++        array += (sizeof(char *) - ((uintptr_t)buf + array) % sizeof(char *)) % sizeof(char *);
++        need = array + (nmem + 1) * sizeof(char *);
++
++        /* Only the entry found has to fit */
++        if (need > size) {
++            /* Leave the entry to be read again with a larger buffer */
++            if (start >= 0)
++                (void)fseeko(file, start, SEEK_SET);
++            ret = ERANGE;
++            break;
++        }
++        memcpy(buf, line, (size_t)len + 1);
++        grbuf->gr_name = buf + (ent.gr_name - line);
++        grbuf->gr_gid = ent.gr_gid;
++        mem = (char **)(void *)(buf + array);
++        grbuf->gr_mem = mem;
++        if (nmem) {
++            for (m = buf + (members - line);;) {
++                *mem++ = m;
++                m = strchr(m, ',');
++                if (!m)
++                    break;
++                *m++ = '\0';
++            }
++        }
++        *mem = NULL;
++        *result = grbuf;
++        ret = 0;
++        break;
++    }
++    free(line);
++    errno = saved_errno;
++    return ret;
++}
+diff --git a/libc/posix/grp/fgetgrent.c b/libc/posix/grp/fgetgrent.c
+index 12e36b399d..9eb80d1c4a 100644
+--- a/libc/posix/grp/fgetgrent.c
++++ b/libc/posix/grp/fgetgrent.c
+@@ -36,14 +36,18 @@
+ #define _DEFAULT_SOURCE
+ #include <stdio.h>
+ #include <sys/types.h>
++#include <errno.h>
+ #include "local-grp.h"
+ 
+ struct group *
+ fgetgrent(FILE *stream)
+ {
+-    struct group *grp = NULL;
++    struct group *grp_ret;
++    int           ret;
+ 
+-    if (fgetgrent_r(stream, &__group_data, __group_buffer, sizeof(__group_buffer), &grp) == 0)
+-        return grp;
+-    return NULL;
++    ret = fgetgrent_r(stream, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
++    /* The end of the file leaves errno alone */
++    if (ret != 0 && ret != ENOENT)
++        errno = ret;
++    return grp_ret;
+ }
+diff --git a/libc/posix/grp/fgetgrent_r.c b/libc/posix/grp/fgetgrent_r.c
+index bffa5ecfc4..aa2b035067 100644
+--- a/libc/posix/grp/fgetgrent_r.c
++++ b/libc/posix/grp/fgetgrent_r.c
+@@ -33,101 +33,13 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#define _GNU_SOURCE
+-#include <sys/types.h>
++#define _DEFAULT_SOURCE
+ #include <stdio.h>
+-#include <pwd.h>
+-#include <stdbool.h>
+-#include <errno.h>
+-#include <stddef.h>
+-#include <string.h>
+-#include <stdlib.h>
++#include <grp.h>
+ #include "local-grp.h"
+ 
+-enum gr_id {
+-    gr_name,
+-    gr_passwd,
+-    gr_gid,
+-    gr_mem,
+-    gr_count,
+-};
+-
+ int
+ fgetgrent_r(FILE *stream, struct group *grbuf, char *buf, size_t size, struct group **grbufp)
+ {
+-    char      *line;
+-    char      *nl;
+-    char      *token, *mem;
+-    enum gr_id id;
+-    char     **gr_memp;
+-    size_t     n_gr_mem;
+-
+-    errno = 0;
+-    line = fgets(buf, size, stream);
+-    if (!line) {
+-        *grbufp = NULL;
+-        if (errno == 0)
+-            errno = ENOENT;
+-        return errno;
+-    }
+-    nl = strchrnul(line, '\n');
+-    if (!*nl && !feof(stream)) {
+-        /* The line doesn't fit in the buffer */
+-        *grbufp = NULL;
+-        return (errno = ERANGE);
+-    }
+-    *nl = '\0';
+-
+-    /* Use the rest of the buffer for pointers to group members */
+-    gr_memp = (char **)__align_up(nl + 1, sizeof(*gr_memp));
+-    n_gr_mem = ((buf + size) - (char *)gr_memp) / sizeof(*gr_memp);
+-
+-    if (n_gr_mem == 0)
+-        return (errno = ERANGE);
+-
+-    id = gr_name;
+-
+-    /*
+-     * Use strsep instead of strtok_r because strsep permits empty
+-     * fields
+-     */
+-    while ((token = strsep(&line, ":")) != NULL) {
+-        if (id < gr_count) {
+-            char *num_end;
+-            switch (id) {
+-            case gr_name:
+-                grbuf->gr_name = token;
+-                break;
+-            case gr_passwd:
+-                break;
+-            case gr_gid:
+-                grbuf->gr_gid = strtol(token, &num_end, 10);
+-                if (*num_end != '\0')
+-                    break;
+-                break;
+-            case gr_mem:
+-                grbuf->gr_mem = gr_memp;
+-                while ((mem = strsep(&token, ",")) != NULL && n_gr_mem > 1) {
+-                    *gr_memp++ = mem;
+-                    n_gr_mem--;
+-                }
+-                if (mem)
+-                    return (errno = ERANGE);
+-                *gr_memp = NULL;
+-                break;
+-            case gr_count:
+-                break;
+-            }
+-            id++;
+-        }
+-    }
+-    if (id == gr_mem) {
+-        grbuf->gr_mem = gr_memp;
+-        *gr_memp = NULL;
+-        id++;
+-    }
+-    if (id != gr_count)
+-        return (errno = EINVAL);
+-    *grbufp = grbuf;
+-    return 0;
++    return __gr_find(stream, __gr_match_any, NULL, 0, grbuf, buf, size, grbufp);
+ }
+diff --git a/libc/posix/grp/getgrent.c b/libc/posix/grp/getgrent.c
+index 7a7504070d..c1b33b1ae2 100644
+--- a/libc/posix/grp/getgrent.c
++++ b/libc/posix/grp/getgrent.c
+@@ -40,7 +40,7 @@ struct group *
+ getgrent(void)
+ {
+     if (!__group_file) {
+-        __group_file = fopen(_PATH_GROUP, "r");
++        __group_file = fopen(_PATH_GROUP, "re");
+         if (!__group_file)
+             return NULL;
+     }
+diff --git a/libc/posix/grp/getgrent_r.c b/libc/posix/grp/getgrent_r.c
+index 4aeca0ac24..bbad3dfeac 100644
+--- a/libc/posix/grp/getgrent_r.c
++++ b/libc/posix/grp/getgrent_r.c
+@@ -43,7 +43,7 @@ int
+ getgrent_r(struct group *grbuf, char *buf, size_t size, struct group **grbufp)
+ {
+     if (!__group_file) {
+-        __group_file = fopen(_PATH_GROUP, "r");
++        __group_file = fopen(_PATH_GROUP, "re");
+         if (!__group_file) {
+             *grbufp = NULL;
+             return errno;
+diff --git a/libc/posix/grp/getgrgid.c b/libc/posix/grp/getgrgid.c
+index 822077a7f3..5eb5f38fc2 100644
+--- a/libc/posix/grp/getgrgid.c
++++ b/libc/posix/grp/getgrgid.c
+@@ -36,15 +36,19 @@
+ #define _DEFAULT_SOURCE
+ #include <stdio.h>
+ #include <sys/types.h>
+-#include <string.h>
++#include <grp.h>
++#include <errno.h>
+ #include "local-grp.h"
+ 
+ struct group *
+ getgrgid(gid_t gid)
+ {
+-    struct group *grp_ret = NULL;
++    struct group *grp_ret;
++    int           saved_errno = errno;
++    int           ret;
+ 
+-    if (getgrgid_r(gid, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret) == 0)
+-        return grp_ret;
+-    return NULL;
++    ret = getgrgid_r(gid, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
++    /* errno changes only for an error */
++    errno = ret ? ret : saved_errno;
++    return grp_ret;
+ }
+diff --git a/libc/posix/grp/getgrgid_r.c b/libc/posix/grp/getgrgid_r.c
+index b93a27805d..03d7f0ae26 100644
+--- a/libc/posix/grp/getgrgid_r.c
++++ b/libc/posix/grp/getgrgid_r.c
+@@ -33,34 +33,25 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#define _GNU_SOURCE
++#define _DEFAULT_SOURCE
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <grp.h>
+-#include <string.h>
+ #include <errno.h>
++#include "local-grp.h"
+ 
+ int
+ getgrgid_r(gid_t gid, struct group *grbuf, char *buf, size_t size, struct group **grbufp)
+ {
+-    FILE         *file;
+-    struct group *grp;
+-    int           ret;
++    FILE *file;
++    int   ret;
+ 
+-    file = fopen(_PATH_GROUP, "r");
+-    if (!file) {
+-        *grbufp = NULL;
++    *grbufp = NULL;
++    file = fopen(_PATH_GROUP, "re");
++    if (!file)
+         return errno;
+-    }
+-    while ((ret = fgetgrent_r(file, grbuf, buf, size, &grp)) == 0)
+-        if (grp->gr_gid == gid)
+-            break;
++    ret = __gr_find(file, __gr_match_gid, NULL, gid, grbuf, buf, size, grbufp);
+     fclose(file);
+-    if (ret == 0) {
+-        *grbufp = grp;
+-        return 0;
+-    }
+     /* Reaching the end without a match isn't an error */
+-    *grbufp = NULL;
+     return ret == ENOENT ? 0 : ret;
+ }
+diff --git a/libc/posix/grp/getgrnam.c b/libc/posix/grp/getgrnam.c
+index 34293b779e..e2b02b6de8 100644
+--- a/libc/posix/grp/getgrnam.c
++++ b/libc/posix/grp/getgrnam.c
+@@ -37,15 +37,18 @@
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <grp.h>
+-#include <string.h>
++#include <errno.h>
+ #include "local-grp.h"
+ 
+ struct group *
+ getgrnam(const char *name)
+ {
+-    struct group *grp_ret = NULL;
++    struct group *grp_ret;
++    int           saved_errno = errno;
++    int           ret;
+ 
+-    if (getgrnam_r(name, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret) == 0)
+-        return grp_ret;
+-    return NULL;
++    ret = getgrnam_r(name, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
++    /* errno changes only for an error */
++    errno = ret ? ret : saved_errno;
++    return grp_ret;
+ }
+diff --git a/libc/posix/grp/getgrnam_r.c b/libc/posix/grp/getgrnam_r.c
+index e433475ac0..87a039dcc4 100644
+--- a/libc/posix/grp/getgrnam_r.c
++++ b/libc/posix/grp/getgrnam_r.c
+@@ -33,34 +33,25 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
+-#define _GNU_SOURCE
++#define _DEFAULT_SOURCE
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <grp.h>
+-#include <string.h>
+ #include <errno.h>
++#include "local-grp.h"
+ 
+ int
+ getgrnam_r(const char *name, struct group *grbuf, char *buf, size_t size, struct group **grbufp)
+ {
+-    FILE         *file;
+-    struct group *grp;
+-    int           ret;
++    FILE *file;
++    int   ret;
+ 
+-    file = fopen(_PATH_GROUP, "r");
+-    if (!file) {
+-        *grbufp = NULL;
++    *grbufp = NULL;
++    file = fopen(_PATH_GROUP, "re");
++    if (!file)
+         return errno;
+-    }
+-    while ((ret = fgetgrent_r(file, grbuf, buf, size, &grp)) == 0)
+-        if (strcmp(name, grp->gr_name) == 0)
+-            break;
++    ret = __gr_find(file, __gr_match_name, name, 0, grbuf, buf, size, grbufp);
+     fclose(file);
+-    if (ret == 0) {
+-        *grbufp = grp;
+-        return 0;
+-    }
+     /* Reaching the end without a match isn't an error */
+-    *grbufp = NULL;
+     return ret == ENOENT ? 0 : ret;
+ }
+diff --git a/libc/posix/grp/local-grp.h b/libc/posix/grp/local-grp.h
+index a9fd038dce..34773a749a 100644
+--- a/libc/posix/grp/local-grp.h
++++ b/libc/posix/grp/local-grp.h
+@@ -42,4 +42,21 @@ extern char         __group_buffer[BUFSIZ];
+ extern struct group __group_data;
+ extern FILE        *__group_file;
+ 
++/* What __gr_find looks for */
++enum __gr_match {
++    __gr_match_any,
++    __gr_match_name,
++    __gr_match_gid,
++};
++
++/*
++ * Read entries from file until one matches, skipping lines that aren't
++ * valid entries. Returns 0 with the entry stored in buf, ENOENT at the
++ * end of the file, ERANGE when the matching entry doesn't fit (leaving
++ * a seekable file positioned to read it again), or another error. errno
++ * is left alone.
++ */
++int __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct group *grbuf,
++              char *buf, size_t size, struct group **result);
++
+ #endif /* _LOCAL_GRP_H_ */
+diff --git a/libc/posix/grp/meson.build b/libc/posix/grp/meson.build
+index 9b13595f95..13646169f6 100644
+--- a/libc/posix/grp/meson.build
++++ b/libc/posix/grp/meson.build
+@@ -35,6 +35,7 @@
+ # <grp.h>
+ 
+ dir_srcs = [
++  '__gr_find.c',
+   'endgrent.c',
+   'fgetgrent.c',
+   'fgetgrent_r.c',
+diff --git a/libc/posix/pwd/CMakeLists.txt b/libc/posix/pwd/CMakeLists.txt
+index 6d633387ff..43f3cdc8ec 100644
+--- a/libc/posix/pwd/CMakeLists.txt
++++ b/libc/posix/pwd/CMakeLists.txt
+@@ -33,6 +33,7 @@
+ # OF THE POSSIBILITY OF SUCH DAMAGE.
+ #
+ picolibc_sources(
++  __pw_find.c
+   endpwent.c
+   fgetpwent.c
+   fgetpwent_r.c
+diff --git a/libc/posix/pwd/__pw_find.c b/libc/posix/pwd/__pw_find.c
+new file mode 100644
+index 0000000000..a64d301675
+--- /dev/null
++++ b/libc/posix/pwd/__pw_find.c
+@@ -0,0 +1,120 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _DEFAULT_SOURCE
++#include <errno.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/types.h>
++#include "local-pwd.h"
++#include "local-getent.h"
++
++/* Split a line into the passwd fields, in place */
++static bool
++pw_parse(char *line, struct passwd *pw)
++{
++    char         *field[7];
++    unsigned long uid, gid;
++    size_t        n;
++
++    /* name:passwd:uid:gid:gecos:dir:shell, ignoring anything after */
++    for (n = 0; n < 7; n++)
++        if ((field[n] = __getent_field(&line)) == NULL)
++            return false;
++    if (field[0][0] == '\0' || !__getent_id(field[2], (uid_t) ~(uid_t)0, &uid)
++        || !__getent_id(field[3], (gid_t) ~(gid_t)0, &gid))
++        return false;
++    pw->pw_name = field[0];
++    pw->pw_uid = (uid_t)uid;
++    pw->pw_gid = (gid_t)gid;
++    pw->pw_dir = field[5];
++    pw->pw_shell = field[6];
++    return true;
++}
++
++int
++__pw_find(FILE *file, enum __pw_match match, const char *name, uid_t uid, struct passwd *pwbuf,
++          char *buf, size_t size, struct passwd **result)
++{
++    int           saved_errno = errno;
++    char         *line = NULL;
++    size_t        cap = 0;
++    ssize_t       len;
++    off_t         start;
++    struct passwd ent;
++    int           ret;
++
++    *result = NULL;
++    for (;;) {
++        start = ftello(file);
++        errno = 0;
++        len = getline(&line, &cap, file);
++        if (len < 0) {
++            if (errno == 0)
++                ret = ferror(file) ? EIO : ENOENT;
++            else
++                ret = errno;
++            break;
++        }
++        if (len > 0 && line[len - 1] == '\n')
++            line[--len] = '\0';
++        if (!pw_parse(line, &ent))
++            continue;
++        if (match == __pw_match_name && strcmp(ent.pw_name, name) != 0)
++            continue;
++        if (match == __pw_match_uid && ent.pw_uid != uid)
++            continue;
++        /* Only the entry found has to fit */
++        if ((size_t)len >= size) {
++            /* Leave the entry to be read again with a larger buffer */
++            if (start >= 0)
++                (void)fseeko(file, start, SEEK_SET);
++            ret = ERANGE;
++            break;
++        }
++        memcpy(buf, line, (size_t)len + 1);
++        pwbuf->pw_name = buf + (ent.pw_name - line);
++        pwbuf->pw_uid = ent.pw_uid;
++        pwbuf->pw_gid = ent.pw_gid;
++        pwbuf->pw_dir = buf + (ent.pw_dir - line);
++        pwbuf->pw_shell = buf + (ent.pw_shell - line);
++        *result = pwbuf;
++        ret = 0;
++        break;
++    }
++    free(line);
++    errno = saved_errno;
++    return ret;
++}
+diff --git a/libc/posix/pwd/fgetpwent.c b/libc/posix/pwd/fgetpwent.c
+index 78d3c35f58..096ee23a34 100644
+--- a/libc/posix/pwd/fgetpwent.c
++++ b/libc/posix/pwd/fgetpwent.c
+@@ -37,14 +37,18 @@
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <pwd.h>
++#include <errno.h>
+ #include "local-pwd.h"
+ 
+ struct passwd *
+ fgetpwent(FILE *stream)
+ {
+-    struct passwd *pwd = NULL;
++    struct passwd *pwd_ret;
++    int            ret;
+ 
+-    if (fgetpwent_r(stream, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd) == 0)
+-        return pwd;
+-    return NULL;
++    ret = fgetpwent_r(stream, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
++    /* The end of the file leaves errno alone */
++    if (ret != 0 && ret != ENOENT)
++        errno = ret;
++    return pwd_ret;
+ }
+diff --git a/libc/posix/pwd/fgetpwent_r.c b/libc/posix/pwd/fgetpwent_r.c
+index e35e9d1cd5..71543366b3 100644
+--- a/libc/posix/pwd/fgetpwent_r.c
++++ b/libc/posix/pwd/fgetpwent_r.c
+@@ -34,93 +34,12 @@
+  */
+ 
+ #define _DEFAULT_SOURCE
+-#include <sys/types.h>
+ #include <stdio.h>
+ #include <pwd.h>
+-#include <stdbool.h>
+-#include <errno.h>
+-#include <stddef.h>
+-#include <string.h>
+-#include <stdlib.h>
+-
+-enum pw_id {
+-    pw_name,
+-    pw_passwd,
+-    pw_uid,
+-    pw_gid,
+-    pw_gecos,
+-    pw_dir,
+-    pw_shell,
+-    pw_count,
+-};
+-
+-static const ptrdiff_t pw_offset[] = {
+-    [pw_name] = __offsetof(struct passwd, pw_name),
+-    [pw_passwd] = -1,
+-    [pw_uid] = __offsetof(struct passwd, pw_uid),
+-    [pw_gid] = __offsetof(struct passwd, pw_gid),
+-    [pw_gecos] = -1,
+-    [pw_dir] = __offsetof(struct passwd, pw_dir),
+-    [pw_shell] = __offsetof(struct passwd, pw_shell),
+-};
+-
+-static inline bool
+-pw_is_numeric(enum pw_id state)
+-{
+-    return state == pw_uid || state == pw_gid;
+-}
++#include "local-pwd.h"
+ 
+ int
+ fgetpwent_r(FILE *stream, struct passwd *pwbuf, char *buf, size_t size, struct passwd **pwbufp)
+ {
+-    char      *line;
+-    char      *nl;
+-    char      *token;
+-    enum pw_id id;
+-    ptrdiff_t  offset;
+-    void      *ptr;
+-
+-    errno = 0;
+-    line = fgets(buf, size, stream);
+-    if (!line) {
+-        *pwbufp = NULL;
+-        if (errno == 0)
+-            errno = ENOENT;
+-        return errno;
+-    }
+-    if ((nl = strchr(line, '\n')) != NULL) {
+-        *nl = '\0';
+-    } else if (!feof(stream)) {
+-        /* The line doesn't fit in the buffer */
+-        *pwbufp = NULL;
+-        return (errno = ERANGE);
+-    }
+-    id = pw_name;
+-
+-    /*
+-     * Use strsep instead of strtok_r because strsep permits empty
+-     * fields
+-     */
+-    while ((token = strsep(&line, ":")) != NULL) {
+-        if (id < pw_count) {
+-            offset = pw_offset[id];
+-            if (offset != -1) {
+-                ptr = (char *)pwbuf + offset;
+-                if (pw_is_numeric(id)) {
+-                    char *num_end;
+-                    uid_t uid = strtol(token, &num_end, 10);
+-                    if (*num_end != '\0')
+-                        break;
+-                    *((uid_t *)ptr) = uid;
+-                } else {
+-                    *((char **)ptr) = token;
+-                }
+-            }
+-            id++;
+-        }
+-    }
+-    if (id != pw_count)
+-        return (errno = EINVAL);
+-    *pwbufp = pwbuf;
+-    return 0;
++    return __pw_find(stream, __pw_match_any, NULL, 0, pwbuf, buf, size, pwbufp);
+ }
+diff --git a/libc/posix/pwd/getpwent.c b/libc/posix/pwd/getpwent.c
+index b1f94b0f09..5d21b202a9 100644
+--- a/libc/posix/pwd/getpwent.c
++++ b/libc/posix/pwd/getpwent.c
+@@ -40,7 +40,7 @@ struct passwd *
+ getpwent(void)
+ {
+     if (!__passwd_file) {
+-        __passwd_file = fopen(_PATH_PASSWD, "r");
++        __passwd_file = fopen(_PATH_PASSWD, "re");
+         if (!__passwd_file)
+             return NULL;
+     }
+diff --git a/libc/posix/pwd/getpwent_r.c b/libc/posix/pwd/getpwent_r.c
+index ffa2374d38..760b51599c 100644
+--- a/libc/posix/pwd/getpwent_r.c
++++ b/libc/posix/pwd/getpwent_r.c
+@@ -43,7 +43,7 @@ int
+ getpwent_r(struct passwd *pwbuf, char *buf, size_t size, struct passwd **pwbufp)
+ {
+     if (!__passwd_file) {
+-        __passwd_file = fopen(_PATH_PASSWD, "r");
++        __passwd_file = fopen(_PATH_PASSWD, "re");
+         if (!__passwd_file) {
+             *pwbufp = NULL;
+             return errno;
+diff --git a/libc/posix/pwd/getpwnam.c b/libc/posix/pwd/getpwnam.c
+index d4ae94e37f..80374b6c5d 100644
+--- a/libc/posix/pwd/getpwnam.c
++++ b/libc/posix/pwd/getpwnam.c
+@@ -37,15 +37,18 @@
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <pwd.h>
+-#include <string.h>
++#include <errno.h>
+ #include "local-pwd.h"
+ 
+ struct passwd *
+ getpwnam(const char *name)
+ {
+-    struct passwd *pwd_ret = NULL;
++    struct passwd *pwd_ret;
++    int            saved_errno = errno;
++    int            ret;
+ 
+-    if (getpwnam_r(name, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret) == 0)
+-        return pwd_ret;
+-    return NULL;
++    ret = getpwnam_r(name, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
++    /* errno changes only for an error */
++    errno = ret ? ret : saved_errno;
++    return pwd_ret;
+ }
+diff --git a/libc/posix/pwd/getpwnam_r.c b/libc/posix/pwd/getpwnam_r.c
+index c5d069b6bb..2a7670aecb 100644
+--- a/libc/posix/pwd/getpwnam_r.c
++++ b/libc/posix/pwd/getpwnam_r.c
+@@ -37,30 +37,21 @@
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <pwd.h>
+-#include <string.h>
+ #include <errno.h>
++#include "local-pwd.h"
+ 
+ int
+ getpwnam_r(const char *name, struct passwd *pwbuf, char *buf, size_t size, struct passwd **pwbufp)
+ {
+-    FILE          *file;
+-    struct passwd *pwd;
+-    int            ret;
++    FILE *file;
++    int   ret;
+ 
+-    file = fopen(_PATH_PASSWD, "r");
+-    if (!file) {
+-        *pwbufp = NULL;
++    *pwbufp = NULL;
++    file = fopen(_PATH_PASSWD, "re");
++    if (!file)
+         return errno;
+-    }
+-    while ((ret = fgetpwent_r(file, pwbuf, buf, size, &pwd)) == 0)
+-        if (strcmp(name, pwd->pw_name) == 0)
+-            break;
++    ret = __pw_find(file, __pw_match_name, name, 0, pwbuf, buf, size, pwbufp);
+     fclose(file);
+-    if (ret == 0) {
+-        *pwbufp = pwd;
+-        return 0;
+-    }
+     /* Reaching the end without a match isn't an error */
+-    *pwbufp = NULL;
+     return ret == ENOENT ? 0 : ret;
+ }
+diff --git a/libc/posix/pwd/getpwuid.c b/libc/posix/pwd/getpwuid.c
+index 15ca77dd7d..2d26c7be8e 100644
+--- a/libc/posix/pwd/getpwuid.c
++++ b/libc/posix/pwd/getpwuid.c
+@@ -37,15 +37,18 @@
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <pwd.h>
+-#include <string.h>
++#include <errno.h>
+ #include "local-pwd.h"
+ 
+ struct passwd *
+ getpwuid(uid_t uid)
+ {
+-    struct passwd *pwd_ret = NULL;
++    struct passwd *pwd_ret;
++    int            saved_errno = errno;
++    int            ret;
+ 
+-    if (getpwuid_r(uid, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret) == 0)
+-        return pwd_ret;
+-    return NULL;
++    ret = getpwuid_r(uid, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
++    /* errno changes only for an error */
++    errno = ret ? ret : saved_errno;
++    return pwd_ret;
+ }
+diff --git a/libc/posix/pwd/getpwuid_r.c b/libc/posix/pwd/getpwuid_r.c
+index 9c1ce89917..96eed1b301 100644
+--- a/libc/posix/pwd/getpwuid_r.c
++++ b/libc/posix/pwd/getpwuid_r.c
+@@ -37,30 +37,21 @@
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <pwd.h>
+-#include <string.h>
+ #include <errno.h>
++#include "local-pwd.h"
+ 
+ int
+ getpwuid_r(uid_t uid, struct passwd *pwbuf, char *buf, size_t size, struct passwd **pwbufp)
+ {
+-    FILE          *file;
+-    struct passwd *pwd;
+-    int            ret;
++    FILE *file;
++    int   ret;
+ 
+-    file = fopen(_PATH_PASSWD, "r");
+-    if (!file) {
+-        *pwbufp = NULL;
++    *pwbufp = NULL;
++    file = fopen(_PATH_PASSWD, "re");
++    if (!file)
+         return errno;
+-    }
+-    while ((ret = fgetpwent_r(file, pwbuf, buf, size, &pwd)) == 0)
+-        if (pwd->pw_uid == uid)
+-            break;
++    ret = __pw_find(file, __pw_match_uid, NULL, uid, pwbuf, buf, size, pwbufp);
+     fclose(file);
+-    if (ret == 0) {
+-        *pwbufp = pwd;
+-        return 0;
+-    }
+     /* Reaching the end without a match isn't an error */
+-    *pwbufp = NULL;
+     return ret == ENOENT ? 0 : ret;
+ }
+diff --git a/libc/posix/pwd/local-getent.h b/libc/posix/pwd/local-getent.h
+new file mode 100644
+index 0000000000..635bd999bb
+--- /dev/null
++++ b/libc/posix/pwd/local-getent.h
+@@ -0,0 +1,91 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#ifndef _LOCAL_GETENT_H_
++#define _LOCAL_GETENT_H_
++
++#include <stdbool.h>
++#include <string.h>
++
++/*
++ * Helpers for parsing the colon-separated lines of the user and group
++ * databases
++ */
++
++/*
++ * Split off the next ':'-separated field of *line, in place. At the
++ * last field, *line becomes NULL; once it is NULL, there are no more
++ * fields.
++ */
++static inline char *
++__getent_field(char **line)
++{
++    char *field = *line;
++    char *sep;
++
++    if (!field)
++        return NULL;
++    sep = strchr(field, ':');
++    if (sep) {
++        *sep = '\0';
++        *line = sep + 1;
++    } else {
++        *line = NULL;
++    }
++    return field;
++}
++
++/* Parse a user or group id: decimal digits only, no more than max */
++static inline bool
++__getent_id(const char *s, unsigned long max, unsigned long *value)
++{
++    unsigned long n = 0;
++    unsigned      digit;
++
++    if (*s == '\0')
++        return false;
++    do {
++        if (*s < '0' || *s > '9')
++            return false;
++        digit = (unsigned)(*s - '0');
++        if (n > (max - digit) / 10)
++            return false;
++        n = n * 10 + digit;
++    } while (*++s);
++    *value = n;
++    return true;
++}
++
++#endif /* _LOCAL_GETENT_H_ */
+diff --git a/libc/posix/pwd/local-pwd.h b/libc/posix/pwd/local-pwd.h
+index 83cc313898..57982e69e5 100644
+--- a/libc/posix/pwd/local-pwd.h
++++ b/libc/posix/pwd/local-pwd.h
+@@ -42,4 +42,21 @@ extern char          __passwd_buffer[BUFSIZ];
+ extern struct passwd __passwd_data;
+ extern FILE         *__passwd_file;
+ 
++/* What __pw_find looks for */
++enum __pw_match {
++    __pw_match_any,
++    __pw_match_name,
++    __pw_match_uid,
++};
++
++/*
++ * Read entries from file until one matches, skipping lines that aren't
++ * valid entries. Returns 0 with the entry stored in buf, ENOENT at the
++ * end of the file, ERANGE when the matching entry doesn't fit (leaving
++ * a seekable file positioned to read it again), or another error. errno
++ * is left alone.
++ */
++int __pw_find(FILE *file, enum __pw_match match, const char *name, uid_t uid, struct passwd *pwbuf,
++              char *buf, size_t size, struct passwd **result);
++
+ #endif /* _LOCAL_PWD_H_ */
+diff --git a/libc/posix/pwd/meson.build b/libc/posix/pwd/meson.build
+index 13b51d6437..5e173df6b4 100644
+--- a/libc/posix/pwd/meson.build
++++ b/libc/posix/pwd/meson.build
+@@ -35,6 +35,7 @@
+ # <pwd.h>
+ 
+ dir_srcs = [
++  '__pw_find.c',
+   'endpwent.c',
+   'fgetpwent.c',
+   'fgetpwent_r.c',
+-- 
+2.47.3
+

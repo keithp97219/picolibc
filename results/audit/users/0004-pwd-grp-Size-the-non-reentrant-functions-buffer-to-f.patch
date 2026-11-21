@@ -1,0 +1,307 @@
+From 41cc89910909ddc4716bc9d9203bc0cfe511def4 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:56:18 +0000
+Subject: [PATCH 04/12] pwd, grp: Size the non-reentrant functions' buffer to
+ fit the entry
+
+getpwnam, getpwuid, getgrnam, getgrgid, getpwent, getgrent and the
+fgetpwent/fgetgrent extensions used a BUFSIZ (512 byte) buffer, so an
+entry longer than that, such as a group with many members, couldn't be
+found and they failed with ERANGE. They now keep the line they read,
+grown to hold the member array for groups.
+---
+ libc/posix/grp/__gr_find.c | 32 +++++++++++++++++++++++++++-----
+ libc/posix/grp/fgetgrent.c |  2 +-
+ libc/posix/grp/getgrgid.c  | 11 ++++++++---
+ libc/posix/grp/getgrnam.c  | 11 ++++++++---
+ libc/posix/grp/grdata.c    |  2 +-
+ libc/posix/grp/local-grp.h |  6 ++++--
+ libc/posix/pwd/__pw_find.c | 10 ++++++++++
+ libc/posix/pwd/fgetpwent.c |  2 +-
+ libc/posix/pwd/getpwnam.c  | 11 ++++++++---
+ libc/posix/pwd/getpwuid.c  | 11 ++++++++---
+ libc/posix/pwd/local-pwd.h |  6 ++++--
+ libc/posix/pwd/pwdata.c    |  2 +-
+ 12 files changed, 81 insertions(+), 25 deletions(-)
+
+diff --git a/libc/posix/grp/__gr_find.c b/libc/posix/grp/__gr_find.c
+index 74640d3ad5..974e421da4 100644
+--- a/libc/posix/grp/__gr_find.c
++++ b/libc/posix/grp/__gr_find.c
+@@ -75,8 +75,8 @@ __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct
+     ssize_t      len;
+     off_t        start;
+     struct group ent;
+-    char        *members, *m, **mem;
+-    size_t       nmem, array, need;
++    char        *members, *m, **mem, *grown;
++    size_t       nmem, array, need, name_off, members_off;
+     int          ret;
+ 
+     *result = NULL;
+@@ -109,6 +109,21 @@ __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct
+                     nmem++;
+         }
+ 
++        name_off = (size_t)(ent.gr_name - line);
++        members_off = members ? (size_t)(members - line) : 0;
++
++        if (!buf) {
++            /* Grow the line to hold the members for the non-reentrant functions */
++            size = (size_t)len + sizeof(char *) + (nmem + 1) * sizeof(char *);
++            grown = realloc(line, size);
++            if (!grown) {
++                ret = ENOMEM;
++                break;
++            }
++            line = grown;
++            buf = grown;
++        }
++
+         /* The line, then the aligned, null-terminated array of members */
+         array = (size_t)len + 1;
+         array += (sizeof(char *) - ((uintptr_t)buf + array) % sizeof(char *)) % sizeof(char *);
+@@ -122,13 +137,20 @@ __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct
+             ret = ERANGE;
+             break;
+         }
+-        memcpy(buf, line, (size_t)len + 1);
+-        grbuf->gr_name = buf + (ent.gr_name - line);
++        if (buf == line) {
++            /* Keep the line for the non-reentrant functions */
++            free(__group_buffer);
++            __group_buffer = line;
++            line = NULL;
++        } else {
++            memcpy(buf, line, (size_t)len + 1);
++        }
++        grbuf->gr_name = buf + name_off;
+         grbuf->gr_gid = ent.gr_gid;
+         mem = (char **)(void *)(buf + array);
+         grbuf->gr_mem = mem;
+         if (nmem) {
+-            for (m = buf + (members - line);;) {
++            for (m = buf + members_off;;) {
+                 *mem++ = m;
+                 m = strchr(m, ',');
+                 if (!m)
+diff --git a/libc/posix/grp/fgetgrent.c b/libc/posix/grp/fgetgrent.c
+index 9eb80d1c4a..b7e6c7f4d0 100644
+--- a/libc/posix/grp/fgetgrent.c
++++ b/libc/posix/grp/fgetgrent.c
+@@ -45,7 +45,7 @@ fgetgrent(FILE *stream)
+     struct group *grp_ret;
+     int           ret;
+ 
+-    ret = fgetgrent_r(stream, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
++    ret = __gr_find(stream, __gr_match_any, NULL, 0, &__group_data, NULL, 0, &grp_ret);
+     /* The end of the file leaves errno alone */
+     if (ret != 0 && ret != ENOENT)
+         errno = ret;
+diff --git a/libc/posix/grp/getgrgid.c b/libc/posix/grp/getgrgid.c
+index 5eb5f38fc2..09f2ac48be 100644
+--- a/libc/posix/grp/getgrgid.c
++++ b/libc/posix/grp/getgrgid.c
+@@ -43,12 +43,17 @@
+ struct group *
+ getgrgid(gid_t gid)
+ {
+-    struct group *grp_ret;
++    struct group *grp_ret = NULL;
++    FILE         *file;
+     int           saved_errno = errno;
+     int           ret;
+ 
+-    ret = getgrgid_r(gid, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
++    file = fopen(_PATH_GROUP, "re");
++    if (!file)
++        return NULL;
++    ret = __gr_find(file, __gr_match_gid, NULL, gid, &__group_data, NULL, 0, &grp_ret);
++    fclose(file);
+     /* errno changes only for an error */
+-    errno = ret ? ret : saved_errno;
++    errno = ret && ret != ENOENT ? ret : saved_errno;
+     return grp_ret;
+ }
+diff --git a/libc/posix/grp/getgrnam.c b/libc/posix/grp/getgrnam.c
+index e2b02b6de8..2a797c2f12 100644
+--- a/libc/posix/grp/getgrnam.c
++++ b/libc/posix/grp/getgrnam.c
+@@ -43,12 +43,17 @@
+ struct group *
+ getgrnam(const char *name)
+ {
+-    struct group *grp_ret;
++    struct group *grp_ret = NULL;
++    FILE         *file;
+     int           saved_errno = errno;
+     int           ret;
+ 
+-    ret = getgrnam_r(name, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
++    file = fopen(_PATH_GROUP, "re");
++    if (!file)
++        return NULL;
++    ret = __gr_find(file, __gr_match_name, name, 0, &__group_data, NULL, 0, &grp_ret);
++    fclose(file);
+     /* errno changes only for an error */
+-    errno = ret ? ret : saved_errno;
++    errno = ret && ret != ENOENT ? ret : saved_errno;
+     return grp_ret;
+ }
+diff --git a/libc/posix/grp/grdata.c b/libc/posix/grp/grdata.c
+index 8b2b892e4f..67fab5c283 100644
+--- a/libc/posix/grp/grdata.c
++++ b/libc/posix/grp/grdata.c
+@@ -37,5 +37,5 @@
+ #include <stdio.h>
+ #include "local-grp.h"
+ 
+-char         __group_buffer[BUFSIZ];
++char        *__group_buffer;
+ struct group __group_data;
+diff --git a/libc/posix/grp/local-grp.h b/libc/posix/grp/local-grp.h
+index 34773a749a..d3bd4f1992 100644
+--- a/libc/posix/grp/local-grp.h
++++ b/libc/posix/grp/local-grp.h
+@@ -38,7 +38,8 @@
+ #include <stdio.h>
+ #include <grp.h>
+ 
+-extern char         __group_buffer[BUFSIZ];
++/* The non-reentrant functions' entry, in memory allocated to fit it */
++extern char        *__group_buffer;
+ extern struct group __group_data;
+ extern FILE        *__group_file;
+ 
+@@ -54,7 +55,8 @@ enum __gr_match {
+  * valid entries. Returns 0 with the entry stored in buf, ENOENT at the
+  * end of the file, ERANGE when the matching entry doesn't fit (leaving
+  * a seekable file positioned to read it again), or another error. errno
+- * is left alone.
++ * is left alone. With a null buf, the entry goes in memory allocated to
++ * fit it, which replaces the non-reentrant functions' buffer.
+  */
+ int __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct group *grbuf,
+               char *buf, size_t size, struct group **result);
+diff --git a/libc/posix/pwd/__pw_find.c b/libc/posix/pwd/__pw_find.c
+index a64d301675..0b08106e23 100644
+--- a/libc/posix/pwd/__pw_find.c
++++ b/libc/posix/pwd/__pw_find.c
+@@ -96,6 +96,16 @@ __pw_find(FILE *file, enum __pw_match match, const char *name, uid_t uid, struct
+             continue;
+         if (match == __pw_match_uid && ent.pw_uid != uid)
+             continue;
++        if (!buf) {
++            /* Keep the line for the non-reentrant functions */
++            free(__passwd_buffer);
++            __passwd_buffer = line;
++            line = NULL;
++            *pwbuf = ent;
++            *result = pwbuf;
++            ret = 0;
++            break;
++        }
+         /* Only the entry found has to fit */
+         if ((size_t)len >= size) {
+             /* Leave the entry to be read again with a larger buffer */
+diff --git a/libc/posix/pwd/fgetpwent.c b/libc/posix/pwd/fgetpwent.c
+index 096ee23a34..5c37b397f8 100644
+--- a/libc/posix/pwd/fgetpwent.c
++++ b/libc/posix/pwd/fgetpwent.c
+@@ -46,7 +46,7 @@ fgetpwent(FILE *stream)
+     struct passwd *pwd_ret;
+     int            ret;
+ 
+-    ret = fgetpwent_r(stream, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
++    ret = __pw_find(stream, __pw_match_any, NULL, 0, &__passwd_data, NULL, 0, &pwd_ret);
+     /* The end of the file leaves errno alone */
+     if (ret != 0 && ret != ENOENT)
+         errno = ret;
+diff --git a/libc/posix/pwd/getpwnam.c b/libc/posix/pwd/getpwnam.c
+index 80374b6c5d..925c75bc6b 100644
+--- a/libc/posix/pwd/getpwnam.c
++++ b/libc/posix/pwd/getpwnam.c
+@@ -43,12 +43,17 @@
+ struct passwd *
+ getpwnam(const char *name)
+ {
+-    struct passwd *pwd_ret;
++    struct passwd *pwd_ret = NULL;
++    FILE          *file;
+     int            saved_errno = errno;
+     int            ret;
+ 
+-    ret = getpwnam_r(name, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
++    file = fopen(_PATH_PASSWD, "re");
++    if (!file)
++        return NULL;
++    ret = __pw_find(file, __pw_match_name, name, 0, &__passwd_data, NULL, 0, &pwd_ret);
++    fclose(file);
+     /* errno changes only for an error */
+-    errno = ret ? ret : saved_errno;
++    errno = ret && ret != ENOENT ? ret : saved_errno;
+     return pwd_ret;
+ }
+diff --git a/libc/posix/pwd/getpwuid.c b/libc/posix/pwd/getpwuid.c
+index 2d26c7be8e..9ca27348b2 100644
+--- a/libc/posix/pwd/getpwuid.c
++++ b/libc/posix/pwd/getpwuid.c
+@@ -43,12 +43,17 @@
+ struct passwd *
+ getpwuid(uid_t uid)
+ {
+-    struct passwd *pwd_ret;
++    struct passwd *pwd_ret = NULL;
++    FILE          *file;
+     int            saved_errno = errno;
+     int            ret;
+ 
+-    ret = getpwuid_r(uid, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
++    file = fopen(_PATH_PASSWD, "re");
++    if (!file)
++        return NULL;
++    ret = __pw_find(file, __pw_match_uid, NULL, uid, &__passwd_data, NULL, 0, &pwd_ret);
++    fclose(file);
+     /* errno changes only for an error */
+-    errno = ret ? ret : saved_errno;
++    errno = ret && ret != ENOENT ? ret : saved_errno;
+     return pwd_ret;
+ }
+diff --git a/libc/posix/pwd/local-pwd.h b/libc/posix/pwd/local-pwd.h
+index 57982e69e5..33a463d5ae 100644
+--- a/libc/posix/pwd/local-pwd.h
++++ b/libc/posix/pwd/local-pwd.h
+@@ -38,7 +38,8 @@
+ #include <stdio.h>
+ #include <pwd.h>
+ 
+-extern char          __passwd_buffer[BUFSIZ];
++/* The non-reentrant functions' entry, in memory allocated to fit it */
++extern char         *__passwd_buffer;
+ extern struct passwd __passwd_data;
+ extern FILE         *__passwd_file;
+ 
+@@ -54,7 +55,8 @@ enum __pw_match {
+  * valid entries. Returns 0 with the entry stored in buf, ENOENT at the
+  * end of the file, ERANGE when the matching entry doesn't fit (leaving
+  * a seekable file positioned to read it again), or another error. errno
+- * is left alone.
++ * is left alone. With a null buf, the entry goes in memory allocated to
++ * fit it, which replaces the non-reentrant functions' buffer.
+  */
+ int __pw_find(FILE *file, enum __pw_match match, const char *name, uid_t uid, struct passwd *pwbuf,
+               char *buf, size_t size, struct passwd **result);
+diff --git a/libc/posix/pwd/pwdata.c b/libc/posix/pwd/pwdata.c
+index 6e2ce46595..c8380bfe54 100644
+--- a/libc/posix/pwd/pwdata.c
++++ b/libc/posix/pwd/pwdata.c
+@@ -37,5 +37,5 @@
+ #include <stdio.h>
+ #include "local-pwd.h"
+ 
+-char          __passwd_buffer[BUFSIZ];
++char         *__passwd_buffer;
+ struct passwd __passwd_data;
+-- 
+2.47.3
+

@@ -1,0 +1,36 @@
+From 7fa8c912aaab31d0e2eb12ff7c75020af617fffe Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:11:01 +0000
+Subject: [PATCH 15/15] test-posix: Check getrlimit's EINVAL for an invalid
+ resource
+
+---
+ test/test-posix/test-sys-resource/test-getrlimit.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/test/test-posix/test-sys-resource/test-getrlimit.c b/test/test-posix/test-sys-resource/test-getrlimit.c
+index 36d4278f8a..f9575b4d0c 100644
+--- a/test/test-posix/test-sys-resource/test-getrlimit.c
++++ b/test/test-posix/test-sys-resource/test-getrlimit.c
+@@ -37,6 +37,7 @@
+ #include <sys/resource.h>
+ #include <stdio.h>
+ #include <assert.h>
++#include <errno.h>
+ 
+ static const int resources[] = {
+     RLIMIT_CORE, RLIMIT_CPU, RLIMIT_DATA, RLIMIT_FSIZE, RLIMIT_NOFILE, RLIMIT_STACK, RLIMIT_AS,
+@@ -71,5 +72,10 @@ main(void)
+         if (rlimit.rlim_max != RLIM_INFINITY)
+             assert(rlimit.rlim_cur <= rlimit.rlim_max);
+     }
++
++    /* An invalid resource is EINVAL */
++    errno = 0;
++    ret = getrlimit(9999, &rlimit);
++    assert(ret == -1 && errno == EINVAL);
+     return 0;
+ }
+-- 
+2.47.3
+

@@ -1,0 +1,71 @@
+From 007b3c6817d20124532fc5f83520f03fe438bf96 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:05:55 +0000
+Subject: [PATCH 02/15] sys/wait.h: Define WCOREDUMP and keep the core flag in
+ statuses
+
+POSIX.1-2024 adds WCOREDUMP to <sys/wait.h>, and picolibc didn't define
+it. waitpid and wait3 also dropped the kernel's core-dump bit when they
+mapped the terminating signal, so the information was lost.
+---
+ libc/include/sys/_wait.h | 1 +
+ libc/include/sys/wait.h  | 2 ++
+ libos/linux/wait3.c      | 3 ++-
+ libos/linux/waitpid.c    | 3 ++-
+ 4 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/libc/include/sys/_wait.h b/libc/include/sys/_wait.h
+index d08599b848..da65d91e9e 100644
+--- a/libc/include/sys/_wait.h
++++ b/libc/include/sys/_wait.h
+@@ -53,5 +53,6 @@ SUCH DAMAGE.
+ #define WIFSIGNALED(w)     (((signed char)(((w) & 0x7f) + 1) >> 1) > 0)
+ #define WIFSTOPPED(w)      (((w) & 0xff) == 0x7f)
+ #define __W_EXITCODE(e, s) (((e) << 8) | (s))
++#define __W_COREFLAG       0x80
+ 
+ #endif
+diff --git a/libc/include/sys/wait.h b/libc/include/sys/wait.h
+index 088a7b15db..bed1bf78c3 100644
+--- a/libc/include/sys/wait.h
++++ b/libc/include/sys/wait.h
+@@ -37,6 +37,8 @@ _BEGIN_STD_C
+ #include <sys/_wait.h>
+ #include <sys/resource.h>
+ 
++#define WCOREDUMP(w) ((w) & __W_COREFLAG)
++
+ pid_t wait(int *);
+ pid_t waitpid(pid_t, int *, int);
+ #if __MISC_VISIBLE
+diff --git a/libos/linux/wait3.c b/libos/linux/wait3.c
+index 49f9da203b..8721629ae4 100644
+--- a/libos/linux/wait3.c
++++ b/libos/linux/wait3.c
+@@ -69,7 +69,8 @@ wait3(int *wstatus, int options, struct rusage *rusage)
+     _cancel_leave(cancel);
+     if (ret != (pid_t)-1) {
+         if (WIFSIGNALED(kstatus))
+-            kstatus = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus)));
++            kstatus
++                = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus))) | (kstatus & __W_COREFLAG);
+         else if (WIFSTOPPED(kstatus))
+             kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
+         *wstatus = kstatus;
+diff --git a/libos/linux/waitpid.c b/libos/linux/waitpid.c
+index 8e7cc1a5bb..185f465a45 100644
+--- a/libos/linux/waitpid.c
++++ b/libos/linux/waitpid.c
+@@ -61,7 +61,8 @@ waitpid(pid_t pid, int *wstatus, int options)
+     /* With WNOHANG, 0 means no child changed state and there's no status */
+     if (ret > 0 && wstatus) {
+         if (WIFSIGNALED(kstatus))
+-            kstatus = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus)));
++            kstatus
++                = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus))) | (kstatus & __W_COREFLAG);
+         else if (WIFSTOPPED(kstatus))
+             kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
+         *wstatus = kstatus;
+-- 
+2.47.3
+

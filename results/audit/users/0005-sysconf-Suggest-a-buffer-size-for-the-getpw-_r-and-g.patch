@@ -1,0 +1,34 @@
+From 19ee1bab8a776b0638c9df99777e268d5e910fdd Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 03:56:42 +0000
+Subject: [PATCH 05/12] sysconf: Suggest a buffer size for the getpw*_r and
+ getgr*_r functions
+
+sysconf(_SC_GETPW_R_SIZE_MAX) and sysconf(_SC_GETGR_R_SIZE_MAX) failed
+with EINVAL. POSIX: they return either -1 without changing errno or an
+initial value suggested for the size of the buffer. Suggest 1024.
+---
+ libos/fallback/sysconf.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/libos/fallback/sysconf.c b/libos/fallback/sysconf.c
+index 8fcbcf4b62..01852871ed 100644
+--- a/libos/fallback/sysconf.c
++++ b/libos/fallback/sysconf.c
+@@ -63,6 +63,13 @@ __fallback_sysconf(int name)
+         return _POSIX_CHILD_MAX;
+     case _SC_DELAYTIMER_MAX:
+         return _POSIX_DELAYTIMER_MAX;
++    /*
++     * A suggested initial size for the getpw*_r and getgr*_r buffers;
++     * entries in libc/posix/pwd and grp have no fixed limit
++     */
++    case _SC_GETGR_R_SIZE_MAX:
++    case _SC_GETPW_R_SIZE_MAX:
++        return 1024;
+     case _SC_HOST_NAME_MAX:
+         return _POSIX_HOST_NAME_MAX;
+     case _SC_IOV_MAX:
+-- 
+2.47.3
+

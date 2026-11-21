@@ -1,0 +1,28 @@
+From 6686d54a4175dce7c03fdfe8c93bbfb6fcac252c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 04:05:55 +0000
+Subject: [PATCH 01/15] limits: Define NZERO
+
+POSIX requires NZERO, the default nice value, in <limits.h> for XSI.
+getpriority and setpriority are defined in terms of it. Linux nice
+values run from -20 to 19, so it is 20.
+---
+ libc/include/sys/syslimits.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/libc/include/sys/syslimits.h b/libc/include/sys/syslimits.h
+index a5cc7a7346..02d2719260 100644
+--- a/libc/include/sys/syslimits.h
++++ b/libc/include/sys/syslimits.h
+@@ -122,4 +122,8 @@
+ #define NSIG_MAX 64 /* signal numbers are less than this; matches sigset_t */
+ #endif
+ 
++#if __XSI_VISIBLE
++#define NZERO 20 /* default nice value; Linux nice values run from -20 to 19 */
++#endif
++
+ #endif
+-- 
+2.47.3
+
