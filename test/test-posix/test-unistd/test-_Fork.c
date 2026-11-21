@@ -38,17 +38,16 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                             \
-    || (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+#if _POSIX_THREADS > 0
 #include <pthread.h>
 #endif
 
@@ -64,7 +63,7 @@
 
 static volatile int handler_ran;
 
-#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+#if _POSIX_THREADS > 0
 static void
 handler(void)
 {
@@ -78,7 +77,7 @@ main(void)
     pid_t pid;
     int   status;
 
-#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+#if _POSIX_THREADS > 0
     check(pthread_atfork(handler, handler, handler) == 0, "pthread_atfork");
 #endif
     pid = _Fork();

@@ -37,9 +37,8 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                    \
-    || (defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0 && defined(_POSIX_CPUTIME)                \
-        && _POSIX_CPUTIME > 0 && defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME > 0)
+#if _POSIX_TIMERS > 0 && defined(_POSIX_CPUTIME) && _POSIX_CPUTIME >= 0 \
+    && defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME >= 0
 
 #include <errno.h>
 #include <pthread.h>
@@ -143,6 +142,21 @@ main(void)
     int              status;
     clockid_t        tid_clock;
     pthread_t        thread;
+
+#if _POSIX_CPUTIME == 0
+    /* Zero leaves it to the system to say at run time */
+    if (sysconf(_SC_CPUTIME) <= 0) {
+        printf("no CPU-time clock, skipping\n");
+        return 77;
+    }
+#endif
+#if _POSIX_THREAD_CPUTIME == 0
+    /* Zero leaves it to the system to say at run time */
+    if (sysconf(_SC_THREAD_CPUTIME) <= 0) {
+        printf("no thread CPU-time clock, skipping\n");
+        return 77;
+    }
+#endif
 
     /* CLOCK_REALTIME is seconds since the Epoch, like time() */
     check(clock_gettime(CLOCK_REALTIME, &ts) == 0, "CLOCK_REALTIME");

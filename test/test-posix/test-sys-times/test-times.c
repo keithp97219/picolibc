@@ -45,7 +45,7 @@ _Static_assert(_Generic(tms_.tms_cutime, clock_t: 1, default: 0), "tms_cutime");
 _Static_assert(_Generic(tms_.tms_cstime, clock_t: 1, default: 0), "tms_cstime");
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__) || (defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0)
+#if _POSIX_TIMERS > 0
 
 #include <stdio.h>
 #include <stdlib.h>

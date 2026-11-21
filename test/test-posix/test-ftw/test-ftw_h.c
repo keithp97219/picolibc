@@ -82,9 +82,8 @@ _Static_assert(S_IFMT && S_IFDIR && S_IFREG && S_IFLNK && S_IRWXU && S_IRUSR && 
                "st_mode names");
 
 /* The function needs system support */
-#include <unistd.h>
-#if !defined(__PICOLIBC__)                                                         \
-    || (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)
+#include "../posix-groups.h"
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
 #define CHECK_PROTOTYPES
 static int (* const p_nftw)(const char *,
                             int (*)(const char *, const struct stat *, int, struct FTW *), int, int)

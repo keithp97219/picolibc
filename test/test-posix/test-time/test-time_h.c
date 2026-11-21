@@ -123,7 +123,7 @@ static char *(*p_strptime)(const char * restrict, const char * restrict, struct 
 static void (*p_tzset)(void) = tzset;
 
 /* The functions that need system support */
-#if !defined(__PICOLIBC__) || (defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0)
+#if _POSIX_TIMERS > 0
 #define CHECK_OS_PROTOTYPES
 static clock_t (*p_clock)(void) = clock;
 static int     (*p_clock_getcpuclockid)(pid_t, clockid_t *) = clock_getcpuclockid;

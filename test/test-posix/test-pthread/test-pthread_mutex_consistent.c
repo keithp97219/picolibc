@@ -34,13 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                       \
-    || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) \
-        && __PICOLIBC_POSIX_MULTI_PROCESS > 0 && defined(_POSIX_MAPPED_FILES)                    \
-        && _POSIX_MAPPED_FILES > 0)
+#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && _POSIX_MAPPED_FILES > 0
 
 #include <errno.h>
 #include <pthread.h>
@@ -157,7 +154,7 @@ init_robust_type(pthread_mutex_t *mutex, int pshared, int type)
     if (pshared)
         check(pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED) == 0, "pshared");
     check(pthread_mutexattr_settype(&attr, type) == 0, "settype");
-#if defined(_POSIX_THREAD_PRIO_INHERIT) && _POSIX_THREAD_PRIO_INHERIT > 0
+#if _POSIX_THREAD_PRIO_INHERIT > 0
     if (protocol != PTHREAD_PRIO_NONE)
         check(pthread_mutexattr_setprotocol(&attr, protocol) == 0, "setprotocol");
 #endif
@@ -298,7 +295,7 @@ main(void)
 {
     protocol = PTHREAD_PRIO_NONE;
     run();
-#if defined(_POSIX_THREAD_PRIO_INHERIT) && _POSIX_THREAD_PRIO_INHERIT > 0
+#if _POSIX_THREAD_PRIO_INHERIT > 0
     /* Priority inheritance mutexes are robust in a different way */
     protocol = PTHREAD_PRIO_INHERIT;
     run();

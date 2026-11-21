@@ -37,9 +37,7 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                \
-    || ((defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                   \
-        && (defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME > 0))
+#if _POSIX_THREADS > 0 && defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME >= 0
 
 #include <pthread.h>
 #include <stdio.h>
@@ -93,6 +91,14 @@ main(void)
     clockid_t id, self_id;
     long long before;
     pthread_t thread;
+
+#if _POSIX_THREAD_CPUTIME == 0
+    /* Zero leaves it to the system to say at run time */
+    if (sysconf(_SC_THREAD_CPUTIME) <= 0) {
+        printf("no thread CPU-time clock, skipping\n");
+        return 77;
+    }
+#endif
 
     /* Another thread's clock, while it spins */
     check(pthread_create(&thread, NULL, worker, NULL) == 0, "pthread_create");

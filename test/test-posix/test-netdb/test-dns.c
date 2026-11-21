@@ -37,7 +37,7 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_NETWORK_DNS) && defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+#if defined(__PICOLIBC_NETWORK_DNS) && _POSIX_THREADS > 0
 
 #include <arpa/inet.h>
 #include <errno.h>

@@ -36,13 +36,11 @@
 #define _POSIX_C_SOURCE 202405L
 /* posix_openpt, grantpt, unlockpt and ptsname are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                  \
-    || ((defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && __PICOLIBC_POSIX_DEVICE_SPECIFIC > 0) \
-        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)  \
-        && (defined(__PICOLIBC_POSIX_SIGNALS) && __PICOLIBC_POSIX_SIGNALS > 0))
+#if defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && defined(__PICOLIBC_POSIX_MULTI_PROCESS) \
+    && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <errno.h>
 #include <fcntl.h>

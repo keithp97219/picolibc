@@ -37,9 +37,7 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                              \
-    || ((defined(_POSIX_MEMLOCK) && _POSIX_MEMLOCK > 0)                 \
-        && (defined(_POSIX_MEMLOCK_RANGE) && _POSIX_MEMLOCK_RANGE > 0))
+#if _POSIX_MEMLOCK > 0 && _POSIX_MEMLOCK_RANGE > 0
 
 #include <errno.h>
 #include <stdio.h>

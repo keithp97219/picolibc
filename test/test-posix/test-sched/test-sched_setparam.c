@@ -37,8 +37,7 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                     \
-    || (defined(_POSIX_PRIORITY_SCHEDULING) && _POSIX_PRIORITY_SCHEDULING > 0)
+#if _POSIX_PRIORITY_SCHEDULING > 0
 
 #include <errno.h>
 #include <limits.h>

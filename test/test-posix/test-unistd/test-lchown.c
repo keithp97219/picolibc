@@ -34,16 +34,12 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                         \
-    || ((defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)                \
-        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && __PICOLIBC_POSIX_FILE_SYSTEM_EXT > 0)     \
-        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && __PICOLIBC_POSIX_FILE_SYSTEM_FD > 0)       \
-        && (defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS) && __PICOLIBC_POSIX_SYMBOLIC_LINKS > 0)       \
-        && (defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS_FD) && __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD > 0) \
-        && (defined(__PICOLIBC_POSIX_USER_GROUPS) && __PICOLIBC_POSIX_USER_GROUPS > 0))
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)      \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS) \
+    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS_FD) && defined(__PICOLIBC_POSIX_USER_GROUPS)
 
 #include <dirent.h>
 #include <errno.h>

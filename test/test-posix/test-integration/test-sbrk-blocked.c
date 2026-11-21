@@ -38,7 +38,7 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__) || (defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0)
+#if _POSIX_MAPPED_FILES > 0
 
 #include <stdint.h>
 #include <stdio.h>

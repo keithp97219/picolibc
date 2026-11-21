@@ -52,14 +52,11 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *      (only when TESTS_ENABLE_POSIX_IO is defined)
  */
 
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                    \
-    || ((defined(_POSIX_ADVISORY_INFO) && _POSIX_ADVISORY_INFO > 0)                           \
-        && (defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0)                          \
-        && (defined(_POSIX_MEMORY_PROTECTION) && _POSIX_MEMORY_PROTECTION > 0)                \
-        && (defined(__PICOLIBC_POSIX_SINGLE_PROCESS) && __PICOLIBC_POSIX_SINGLE_PROCESS > 0))
+#if _POSIX_ADVISORY_INFO > 0 && _POSIX_MAPPED_FILES > 0 && _POSIX_MEMORY_PROTECTION > 0 \
+    && defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
 
 #include <errno.h>
 #include <fcntl.h>

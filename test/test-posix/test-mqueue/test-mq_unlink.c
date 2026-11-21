@@ -39,7 +39,7 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__) || (defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING > 0)
+#if _POSIX_MESSAGE_PASSING > 0
 
 #include <errno.h>
 #include <fcntl.h>

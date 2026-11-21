@@ -34,15 +34,11 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                      \
-    || ((defined(_POSIX_ASYNCHRONOUS_IO) && _POSIX_ASYNCHRONOUS_IO > 0)                         \
-        && (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                                      \
-        && (defined(__PICOLIBC_POSIX_DEVICE_IO) && __PICOLIBC_POSIX_DEVICE_IO > 0)              \
-        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)          \
-        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && __PICOLIBC_POSIX_FILE_SYSTEM_EXT > 0))
+#if _POSIX_ASYNCHRONOUS_IO > 0 && _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_DEVICE_IO) \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)
 
 #include <aio.h>
 #include <errno.h>

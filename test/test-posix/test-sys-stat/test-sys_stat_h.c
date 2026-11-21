@@ -93,14 +93,11 @@ _Static_assert((UTIME_NOW < 0 || UTIME_NOW > 999999999)
                    && (UTIME_OMIT < 0 || UTIME_OMIT > 999999999),
                "UTIME_NOW and UTIME_OMIT are outside the nanosecond range");
 
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* The functions need system support */
-#if !defined(__PICOLIBC__)                                                                \
-    || ((defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && __PICOLIBC_POSIX_FILE_SYSTEM_FD > 0) \
-        && (defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES_FD)                                  \
-            && __PICOLIBC_POSIX_FILE_ATTRIBUTES_FD > 0)                                   \
-        && (defined(__PICOLIBC_POSIX_FIFO_FD) && __PICOLIBC_POSIX_FIFO_FD > 0))
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES_FD) \
+    && defined(__PICOLIBC_POSIX_FIFO_FD)
 #define CHECK_PROTOTYPES
 
 /* The prototypes */

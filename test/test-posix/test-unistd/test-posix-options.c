@@ -82,7 +82,7 @@
 #include <wordexp.h>
 
 /* Only some systems have these */
-#if defined(_POSIX_ASYNCHRONOUS_IO) && _POSIX_ASYNCHRONOUS_IO >= 202405L
+#if _POSIX_ASYNCHRONOUS_IO >= 202405L
 #include <aio.h>
 #endif
 #if defined(__PICOLIBC_POSIX_NETWORKING) && __PICOLIBC_POSIX_NETWORKING >= 202405L
@@ -99,18 +99,18 @@
 #include <sys/resource.h>
 #include <sys/uio.h>
 #include <syslog.h>
-#if defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0
+#if defined(__PICOLIBC_XSI_IPC)
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
 #endif
-#if defined(__PICOLIBC_XSI_USER_GROUPS) && __PICOLIBC_XSI_USER_GROUPS > 0
+#if defined(__PICOLIBC_XSI_USER_GROUPS)
 #include <utmpx.h>
 #endif
 
 /* POSIX.1-2024 needs close-on-fork */
-#if defined(_POSIX_VERSION) && _POSIX_VERSION >= 202405L
+#if _POSIX_VERSION >= 202405L
 #if !defined(O_CLOFORK) || !defined(FD_CLOFORK)
 #error "_POSIX_VERSION claims POSIX.1-2024 without close-on-fork"
 #endif
@@ -119,7 +119,7 @@
 #define FUNC(f) ((void (*)(void))(f))
 
 static void (* const volatile funcs[])(void) = {
-#if defined(_POSIX_ASYNCHRONOUS_IO) && _POSIX_ASYNCHRONOUS_IO >= 202405L
+#if _POSIX_ASYNCHRONOUS_IO >= 202405L
     FUNC(aio_cancel),
     FUNC(aio_error),
     FUNC(aio_fsync),
@@ -129,41 +129,41 @@ static void (* const volatile funcs[])(void) = {
     FUNC(aio_write),
     FUNC(lio_listio),
 #endif
-#if defined(_POSIX_BARRIERS) && _POSIX_BARRIERS >= 202405L
+#if _POSIX_BARRIERS >= 202405L
     FUNC(pthread_barrier_destroy),
     FUNC(pthread_barrier_init),
     FUNC(pthread_barrier_wait),
     FUNC(pthread_barrierattr_destroy),
     FUNC(pthread_barrierattr_init),
 #endif
-#if defined(_POSIX_CLOCK_SELECTION) && _POSIX_CLOCK_SELECTION >= 202405L
+#if _POSIX_CLOCK_SELECTION >= 202405L
     FUNC(clock_nanosleep),
     FUNC(pthread_condattr_getclock),
     FUNC(pthread_condattr_setclock),
 #endif
-#if defined(_POSIX_CPUTIME) && _POSIX_CPUTIME >= 202405L
+#if _POSIX_CPUTIME >= 202405L
     FUNC(clock_getcpuclockid),
 #endif
-#if defined(_POSIX_FSYNC) && _POSIX_FSYNC >= 202405L
+#if _POSIX_FSYNC >= 202405L
     FUNC(fsync),
 #endif
-#if defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES >= 202405L
+#if _POSIX_MAPPED_FILES >= 202405L
     FUNC(mmap),
     FUNC(msync),
     FUNC(munmap),
 #endif
-#if defined(_POSIX_MEMLOCK) && _POSIX_MEMLOCK >= 202405L
+#if _POSIX_MEMLOCK >= 202405L
     FUNC(mlockall),
     FUNC(munlockall),
 #endif
-#if defined(_POSIX_MEMLOCK_RANGE) && _POSIX_MEMLOCK_RANGE >= 202405L
+#if _POSIX_MEMLOCK_RANGE >= 202405L
     FUNC(mlock),
     FUNC(munlock),
 #endif
-#if defined(_POSIX_MEMORY_PROTECTION) && _POSIX_MEMORY_PROTECTION >= 202405L
+#if _POSIX_MEMORY_PROTECTION >= 202405L
     FUNC(mprotect),
 #endif
-#if defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING >= 202405L
+#if _POSIX_MESSAGE_PASSING >= 202405L
     FUNC(mq_close),
     FUNC(mq_getattr),
     FUNC(mq_notify),
@@ -173,7 +173,7 @@ static void (* const volatile funcs[])(void) = {
     FUNC(mq_setattr),
     FUNC(mq_unlink),
 #endif
-#if defined(_POSIX_PRIORITY_SCHEDULING) && _POSIX_PRIORITY_SCHEDULING >= 202405L
+#if _POSIX_PRIORITY_SCHEDULING >= 202405L
     FUNC(sched_get_priority_max),
     FUNC(sched_get_priority_min),
     FUNC(sched_getparam),
@@ -182,7 +182,7 @@ static void (* const volatile funcs[])(void) = {
     FUNC(sched_setparam),
     FUNC(sched_setscheduler),
 #endif
-#if defined(_POSIX_READER_WRITER_LOCKS) && _POSIX_READER_WRITER_LOCKS >= 202405L
+#if _POSIX_READER_WRITER_LOCKS >= 202405L
     FUNC(pthread_rwlock_destroy),
     FUNC(pthread_rwlock_init),
     FUNC(pthread_rwlock_rdlock),
@@ -195,12 +195,12 @@ static void (* const volatile funcs[])(void) = {
     FUNC(pthread_rwlockattr_init),
     FUNC(pthread_rwlockattr_setpshared),
 #endif
-#if defined(_POSIX_REALTIME_SIGNALS) && _POSIX_REALTIME_SIGNALS >= 202405L
+#if _POSIX_REALTIME_SIGNALS >= 202405L
     FUNC(sigqueue),
     FUNC(sigtimedwait),
     FUNC(sigwaitinfo),
 #endif
-#if defined(_POSIX_SEMAPHORES) && _POSIX_SEMAPHORES >= 202405L
+#if _POSIX_SEMAPHORES >= 202405L
     FUNC(sem_close),
     FUNC(sem_destroy),
     FUNC(sem_getvalue),
@@ -211,25 +211,25 @@ static void (* const volatile funcs[])(void) = {
     FUNC(sem_unlink),
     FUNC(sem_wait),
 #endif
-#if defined(_POSIX_SHARED_MEMORY_OBJECTS) && _POSIX_SHARED_MEMORY_OBJECTS >= 202405L
+#if _POSIX_SHARED_MEMORY_OBJECTS >= 202405L
     FUNC(mmap),
     FUNC(munmap),
     FUNC(shm_open),
     FUNC(shm_unlink),
 #endif
-#if defined(_POSIX_SPIN_LOCKS) && _POSIX_SPIN_LOCKS >= 202405L
+#if _POSIX_SPIN_LOCKS >= 202405L
     FUNC(pthread_spin_destroy),
     FUNC(pthread_spin_init),
     FUNC(pthread_spin_lock),
     FUNC(pthread_spin_trylock),
     FUNC(pthread_spin_unlock),
 #endif
-#if defined(_POSIX_SYNCHRONIZED_IO) && _POSIX_SYNCHRONIZED_IO >= 202405L
+#if _POSIX_SYNCHRONIZED_IO >= 202405L
     FUNC(fdatasync),
     FUNC(fsync),
     FUNC(msync),
 #endif
-#if defined(_POSIX_THREADS) && _POSIX_THREADS >= 202405L
+#if _POSIX_THREADS >= 202405L
     FUNC(pthread_atfork),
     FUNC(pthread_attr_destroy),
     FUNC(pthread_attr_getdetachstate),
@@ -278,14 +278,14 @@ static void (* const volatile funcs[])(void) = {
     FUNC(pthread_testcancel),
     FUNC(sched_yield),
 #endif
-#if defined(_POSIX_THREAD_ATTR_STACKSIZE) && _POSIX_THREAD_ATTR_STACKSIZE >= 202405L
+#if _POSIX_THREAD_ATTR_STACKSIZE >= 202405L
     FUNC(pthread_attr_getstacksize),
     FUNC(pthread_attr_setstacksize),
 #endif
-#if defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME >= 202405L
+#if _POSIX_THREAD_CPUTIME >= 202405L
     FUNC(pthread_getcpuclockid),
 #endif
-#if defined(_POSIX_THREAD_PRIORITY_SCHEDULING) && _POSIX_THREAD_PRIORITY_SCHEDULING >= 202405L
+#if _POSIX_THREAD_PRIORITY_SCHEDULING >= 202405L
     FUNC(pthread_attr_getinheritsched),
     FUNC(pthread_attr_getschedpolicy),
     FUNC(pthread_attr_getscope),
@@ -296,11 +296,11 @@ static void (* const volatile funcs[])(void) = {
     FUNC(pthread_setschedparam),
     FUNC(pthread_setschedprio),
 #endif
-#if defined(_POSIX_THREAD_PRIO_INHERIT) && _POSIX_THREAD_PRIO_INHERIT >= 202405L
+#if _POSIX_THREAD_PRIO_INHERIT >= 202405L
     FUNC(pthread_mutexattr_getprotocol),
     FUNC(pthread_mutexattr_setprotocol),
 #endif
-#if defined(_POSIX_THREAD_PRIO_PROTECT) && _POSIX_THREAD_PRIO_PROTECT >= 202405L
+#if _POSIX_THREAD_PRIO_PROTECT >= 202405L
     FUNC(pthread_mutex_getprioceiling),
     FUNC(pthread_mutex_setprioceiling),
     FUNC(pthread_mutexattr_getprioceiling),
@@ -308,7 +308,7 @@ static void (* const volatile funcs[])(void) = {
     FUNC(pthread_mutexattr_setprioceiling),
     FUNC(pthread_mutexattr_setprotocol),
 #endif
-#if defined(_POSIX_TIMEOUTS) && _POSIX_TIMEOUTS >= 202405L
+#if _POSIX_TIMEOUTS >= 202405L
     FUNC(mq_timedreceive),
     FUNC(mq_timedsend),
     FUNC(pthread_mutex_timedlock),
@@ -316,7 +316,7 @@ static void (* const volatile funcs[])(void) = {
     FUNC(pthread_rwlock_timedwrlock),
     FUNC(sem_timedwait),
 #endif
-#if defined(_POSIX_TIMERS) && _POSIX_TIMERS >= 202405L
+#if _POSIX_TIMERS >= 202405L
     FUNC(clock_getres),
     FUNC(clock_gettime),
     FUNC(clock_settime),
@@ -714,13 +714,13 @@ static void (* const volatile funcs[])(void) = {
 };
 
 static const clockid_t clocks[] = {
-#if defined(_POSIX_CPUTIME) && _POSIX_CPUTIME >= 202405L
+#if _POSIX_CPUTIME >= 202405L
     CLOCK_PROCESS_CPUTIME_ID,
 #endif
-#if defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK >= 202405L
+#if _POSIX_MONOTONIC_CLOCK >= 202405L
     CLOCK_MONOTONIC,
 #endif
-#if defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME >= 202405L
+#if _POSIX_THREAD_CPUTIME >= 202405L
     CLOCK_THREAD_CPUTIME_ID,
 #endif
     CLOCK_REALTIME, /* not checked; keeps the array non-empty */

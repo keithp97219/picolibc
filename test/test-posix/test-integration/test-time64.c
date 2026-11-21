@@ -40,14 +40,11 @@
  * architectures, and kernel structures must be converted, not copied.
  */
 
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                 \
-    || ((defined(_POSIX_CLOCK_SELECTION) && _POSIX_CLOCK_SELECTION > 0)                    \
-        && (defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0)                                   \
-        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0) \
-        && (defined(__PICOLIBC_POSIX_SIGNALS) && __PICOLIBC_POSIX_SIGNALS > 0))
+#if _POSIX_CLOCK_SELECTION > 0 && _POSIX_TIMERS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) \
+    && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <errno.h>
 #include <limits.h>

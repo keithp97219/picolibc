@@ -60,7 +60,7 @@ _Static_assert(PTHREAD_SCOPE_PROCESS != PTHREAD_SCOPE_SYSTEM, "contention scopes
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
+#if _POSIX_THREADS > 0
 
 /* The initializers are constant expressions for objects with static storage */
 static pthread_once_t s_once = PTHREAD_ONCE_INIT;

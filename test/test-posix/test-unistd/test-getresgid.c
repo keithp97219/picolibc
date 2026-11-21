@@ -40,11 +40,10 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                         \
-    || (defined(__PICOLIBC_POSIX_USER_GROUPS) && __PICOLIBC_POSIX_USER_GROUPS > 0)
+#if defined(__PICOLIBC_POSIX_USER_GROUPS)
 
 #include <errno.h>
 #include <stdio.h>

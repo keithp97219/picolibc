@@ -184,13 +184,11 @@ static const int advice[] = {
     POSIX_FADV_RANDOM,   POSIX_FADV_SEQUENTIAL, POSIX_FADV_WILLNEED,
 };
 
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* The functions need system support */
-#if !defined(__PICOLIBC__)                                                                \
-    || ((defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && __PICOLIBC_POSIX_FILE_SYSTEM_FD > 0) \
-        && (defined(__PICOLIBC_POSIX_FD_MGMT) && __PICOLIBC_POSIX_FD_MGMT > 0)            \
-        && (defined(_POSIX_ADVISORY_INFO) && _POSIX_ADVISORY_INFO > 0))
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && defined(__PICOLIBC_POSIX_FD_MGMT) \
+    && _POSIX_ADVISORY_INFO > 0
 #define CHECK_PROTOTYPES
 
 /* The prototypes */

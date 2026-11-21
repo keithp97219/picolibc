@@ -35,7 +35,7 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <sys/time.h>
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* The types, macros and prototypes in <sys/time.h> */
 
@@ -64,8 +64,7 @@ _Static_assert((suseconds_t)-1 < 0, "suseconds_t is signed");
 _Static_assert(FD_SETSIZE > 0, "FD_SETSIZE");
 
 /* The functions need system support */
-#if !defined(__PICOLIBC__)                                                         \
-    || (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0)
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
 #define CHECK_PROTOTYPES
 static int (* const p_select)(int, fd_set * restrict, fd_set * restrict, fd_set * restrict,
                               struct timeval * restrict)

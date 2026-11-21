@@ -36,14 +36,11 @@
 #define _POSIX_C_SOURCE 202405L
 /* POSIX message queues */
 
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                 \
-    || ((defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING > 0)                    \
-        && (defined(_POSIX_TIMEOUTS) && _POSIX_TIMEOUTS > 0)                               \
-        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0) \
-        && (defined(__PICOLIBC_POSIX_SIGNALS) && __PICOLIBC_POSIX_SIGNALS > 0))
+#if _POSIX_MESSAGE_PASSING > 0 && _POSIX_TIMEOUTS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) \
+    && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <errno.h>
 #include <fcntl.h>

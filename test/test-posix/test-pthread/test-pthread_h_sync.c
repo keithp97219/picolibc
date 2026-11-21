@@ -86,7 +86,7 @@ static pthread_spinlock_t    s_spinlock;
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
+#if _POSIX_THREADS > 0
 
 #define proto(name, ret, ...) static ret (* const p_##name)(__VA_ARGS__) = name
 

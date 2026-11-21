@@ -36,14 +36,11 @@
 #define _POSIX_C_SOURCE 202405L
 /* lockf and F_LOCK are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                  \
-    || ((defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                                     \
-        && (defined(_POSIX_SEMAPHORES) && _POSIX_SEMAPHORES > 0)                            \
-        && (defined(__PICOLIBC_POSIX_PIPE) && __PICOLIBC_POSIX_PIPE > 0)                    \
-        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0))
+#if _POSIX_THREADS > 0 && _POSIX_SEMAPHORES > 0 && defined(__PICOLIBC_POSIX_PIPE) \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
 
 #include <errno.h>
 #include <fcntl.h>
@@ -65,10 +62,10 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <time.h>
-#if defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING > 0
+#if _POSIX_MESSAGE_PASSING > 0
 #include <mqueue.h>
 #endif
-#if defined(_POSIX_ASYNCHRONOUS_IO) && _POSIX_ASYNCHRONOUS_IO > 0
+#if _POSIX_ASYNCHRONOUS_IO > 0
 #include <aio.h>
 #endif
 #ifndef __STDC_NO_THREADS__
@@ -166,7 +163,7 @@ do_lockf(void)
     (void)lockf(-1, F_LOCK, 0);
 }
 
-#if defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING > 0
+#if _POSIX_MESSAGE_PASSING > 0
 static void
 do_mq_receive(void)
 {
@@ -611,7 +608,7 @@ static const struct call calls[] = {
     CP(fdatasync),
     CP(fsync),
     CP(lockf),
-#if defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING > 0
+#if _POSIX_MESSAGE_PASSING > 0
     CP(mq_receive),
     CP(mq_send),
     CP(mq_timedreceive),
@@ -819,7 +816,7 @@ run_once(void *arg)
  * usable. glibc 2.43 returns at once from aio_suspend with only NULL
  * entries, which this uses to wait, so it's only checked for picolibc
  */
-#if defined(__PICOLIBC__) && defined(_POSIX_ASYNCHRONOUS_IO) && _POSIX_ASYNCHRONOUS_IO > 0
+#if defined(__PICOLIBC__) && _POSIX_ASYNCHRONOUS_IO > 0
 static struct aiocb aio_cb;
 
 static void *
@@ -924,7 +921,7 @@ main(void)
     check(once_first == 1 && once_second == 1, "init routine ran again");
     check(pthread_once(&once_control, once_runs) == 0 && once_second == 1, "pthread_once");
 
-#if defined(__PICOLIBC__) && defined(_POSIX_ASYNCHRONOUS_IO) && _POSIX_ASYNCHRONOUS_IO > 0
+#if defined(__PICOLIBC__) && _POSIX_ASYNCHRONOUS_IO > 0
     {
         const struct aiocb *list[1] = { &aio_cb };
         struct timespec     timeout = { .tv_sec = 5, .tv_nsec = 0 };

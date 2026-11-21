@@ -37,7 +37,7 @@
 /* The output delay masks and the mapping flags other than OPOST are XSI */
 #define _XOPEN_SOURCE 800
 #include <termios.h>
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* The types <termios.h> defines; cc_t, speed_t and tcflag_t are unsigned */
 _Static_assert((cc_t)-1 > 0 && (speed_t)-1 > 0 && (tcflag_t)-1 > 0,
@@ -107,8 +107,7 @@ static const int      flows[] = { TCIOFF, TCION, TCOOFF, TCOON };
 #include <stdlib.h>
 
 /* The functions need system support */
-#if !defined(__PICOLIBC__)                                                                 \
-    || (defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && __PICOLIBC_POSIX_DEVICE_SPECIFIC > 0)
+#if defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC)
 #define CHECK_PROTOTYPES
 
 /* Each function has the specified prototype */

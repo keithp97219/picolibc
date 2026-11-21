@@ -70,11 +70,10 @@ _Static_assert(member_is(struct statvfs, f_bsize, unsigned long)
 _Static_assert(ST_RDONLY != 0 && ST_NOSUID != 0 && (ST_RDONLY & ST_NOSUID) == 0,
                "ST_RDONLY and ST_NOSUID");
 
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* The functions need system support */
-#if !defined(__PICOLIBC__)                                                               \
-    || (defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && __PICOLIBC_POSIX_FILE_SYSTEM_FD > 0)
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD)
 #define CHECK_PROTOTYPES
 static int (* const p_fstatvfs)(int, struct statvfs *) = fstatvfs;
 static int (* const p_statvfs)(const char * restrict, struct statvfs * restrict) = statvfs;

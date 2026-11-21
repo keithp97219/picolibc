@@ -36,11 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* gethostid is an XSI interface */
 #define _XOPEN_SOURCE 800
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                               \
-    || (defined(__PICOLIBC_POSIX_SINGLE_PROCESS) && __PICOLIBC_POSIX_SINGLE_PROCESS > 0)
+#if defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
 
 #include <stdio.h>
 #include <stdlib.h>

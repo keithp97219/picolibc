@@ -36,11 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* setreuid is an XSI interface */
 #define _XOPEN_SOURCE 800
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                         \
-    || (defined(__PICOLIBC_POSIX_USER_GROUPS) && __PICOLIBC_POSIX_USER_GROUPS > 0)
+#if defined(__PICOLIBC_POSIX_USER_GROUPS)
 
 #include <errno.h>
 #include <stdio.h>

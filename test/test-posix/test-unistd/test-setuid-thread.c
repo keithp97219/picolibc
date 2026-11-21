@@ -36,13 +36,11 @@
 #define _POSIX_C_SOURCE 202405L
 /* setreuid and setregid are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                                  \
-    || ((defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                                     \
-        && (defined(__PICOLIBC_POSIX_USER_GROUPS) && __PICOLIBC_POSIX_USER_GROUPS > 0)      \
-        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0))
+#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_USER_GROUPS) \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
 
 #include <errno.h>
 #include <signal.h>

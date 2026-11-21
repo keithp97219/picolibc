@@ -38,12 +38,10 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                              \
-    || ((defined(__PICOLIBC_POSIX_FD_MGMT) && __PICOLIBC_POSIX_FD_MGMT > 0)             \
-        && (defined(__PICOLIBC_POSIX_FILE_SYSTEM) && __PICOLIBC_POSIX_FILE_SYSTEM > 0))
+#if defined(__PICOLIBC_POSIX_FD_MGMT) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
 
 #include <errno.h>
 #include <fcntl.h>

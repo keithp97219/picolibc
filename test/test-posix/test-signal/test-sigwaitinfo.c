@@ -37,7 +37,7 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__) || (defined(_POSIX_REALTIME_SIGNALS) && _POSIX_REALTIME_SIGNALS > 0)
+#if _POSIX_REALTIME_SIGNALS > 0
 
 #include <errno.h>
 #include <signal.h>

@@ -37,9 +37,7 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                              \
-    || ((defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                                 \
-        && (defined(_POSIX_THREAD_ATTR_STACKSIZE) && _POSIX_THREAD_ATTR_STACKSIZE > 0))
+#if _POSIX_THREADS > 0 && _POSIX_THREAD_ATTR_STACKSIZE > 0
 
 #include <errno.h>
 #include <limits.h>

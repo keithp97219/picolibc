@@ -62,7 +62,7 @@ _Static_assert(is_long(mq_flags) && is_long(mq_maxmsg) && is_long(mq_msgsize)
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__) || (defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING > 0)
+#if _POSIX_MESSAGE_PASSING > 0
 
 /* Each function has the specified prototype */
 static int     (    *const p_mq_close)(mqd_t) = mq_close;
