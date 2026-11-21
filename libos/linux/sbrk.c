@@ -54,11 +54,17 @@ sbrk(intptr_t increment)
         reported_brk = real_brk;
     }
 
-    void *new_brk = reported_brk + increment;
-    void *old_brk = reported_brk;
+    /*
+     * Compute in uintptr_t: pointer arithmetic that overflows is
+     * undefined, so compilers may drop a check made with pointers
+     */
+    uintptr_t new_addr = (uintptr_t)reported_brk + (uintptr_t)increment;
+    void     *old_brk = reported_brk;
 
-    if ((uintptr_t)new_brk < (uintptr_t)old_brk)
+    if (increment < 0 || new_addr < (uintptr_t)old_brk)
         return (void *)(uintptr_t)-1;
+
+    void *new_brk = (void *)new_addr;
 
     if ((uintptr_t)new_brk > (uintptr_t)real_brk) {
         void *old_real_brk = real_brk;
