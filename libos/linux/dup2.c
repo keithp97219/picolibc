@@ -42,6 +42,15 @@ dup2(int oldfd, int newfd)
 #ifdef LINUX_SYS_dup2
     return _syscall(LINUX_SYS_dup2, oldfd, newfd);
 #else
+    /*
+     * dup3 rejects equal descriptors, where dup2 returns the
+     * descriptor, if it is valid, without changing it
+     */
+    if (oldfd == newfd) {
+        if (_syscall(LINUX_SYS_fcntl, oldfd, LINUX_F_GETFD) < 0)
+            return -1;
+        return newfd;
+    }
     return _syscall(LINUX_SYS_dup3, oldfd, newfd, 0);
 #endif
 }
