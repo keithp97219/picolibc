@@ -47,10 +47,12 @@ round's results and then writes the next request, usually within an hour
 or two of the results landing.
 
 1. unistd-config, logging-misc, stdio (done; merged)
-2. stdlib, strings, locale (done; being merged)
-3. wide, search-dbm, math (current request)
+2. stdlib, strings, locale (done; merged)
+3. wide, search-dbm, math (done; being merged)
 
-The plan is complete after round 3; this section will say so.
+**The plan is complete.** No more audit rounds are queued; you can stop
+polling for requests. New work, if any, will arrive as a new request and
+an update to this file.
 
 ## Base and outputs
 
