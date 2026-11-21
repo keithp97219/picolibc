@@ -289,7 +289,8 @@
 #define __malloc_like_with_free(free, free_arg)
 #endif
 
-#define __malloc_like __malloc_like_with_free(free, 1)
+/* __builtin_free, so that headers needn't declare free */
+#define __malloc_like __malloc_like_with_free(__builtin_free, 1)
 
 #if __has_attribute(always_inline) && __has_attribute(gnu_inline)
 /*

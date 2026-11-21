@@ -118,7 +118,6 @@ int strcoll_l(const char *, const char *, locale_t) __picolibc_export;
 char  *strcpy(char  *__restrict, const char  *__restrict) __picolibc_export;
 size_t strcspn(const char *, const char *) __picolibc_export;
 #if __MISC_VISIBLE || __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 4 || __ISO_C_VISIBLE >= 2023
-void  free(void *) __nothrow __picolibc_export; /* for __malloc_like */
 char *strdup(const char *) __malloc_like __warn_unused_result __picolibc_export;
 #endif
 #if __GNU_VISIBLE && defined(__GNUC__)
