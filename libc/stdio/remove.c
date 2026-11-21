@@ -38,17 +38,5 @@
 int
 remove(const char *pathname)
 {
-    int ret = unlink(pathname);
-
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
-    /* For a directory, remove is rmdir */
-    if (ret < 0 && (errno == EPERM || errno == EISDIR)) {
-        int unlink_errno = errno;
-
-        ret = rmdir(pathname);
-        if (ret < 0 && errno == ENOTDIR)
-            errno = unlink_errno;
-    }
-#endif
-    return ret;
+    return unlink(pathname);
 }

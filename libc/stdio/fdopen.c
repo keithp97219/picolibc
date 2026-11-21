@@ -48,7 +48,7 @@ fdopen(int fd, const char *mode)
     if (stdio_flags == 0)
         return NULL;
 
-#ifdef __PICOLIBC_POSIX_FD_MGMT
+#ifdef __HAVE_FCNTL
     /* Fail with EBADF for an invalid descriptor */
     int fd_flags = fcntl(fd, F_GETFD);
     if (fd_flags < 0)

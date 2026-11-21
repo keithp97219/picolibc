@@ -204,6 +204,7 @@ if fs.is_dir(machine_dir)
     'rename.c',
     'renameat.c',
     'rewinddir.c',
+    'remove.c',
     'rmdir.c',
     'sbrk.c',
     'sched_get_priority_max.c',

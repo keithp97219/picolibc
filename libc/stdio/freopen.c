@@ -68,7 +68,7 @@ freopen(const char *pathname, const char *mode, FILE *stream)
         fd = open(pathname, open_flags, 0666);
     } else {
         fd = _FDEV_BUFIO_FD(pf);
-#ifdef __PICOLIBC_POSIX_FD_MGMT
+#ifdef __HAVE_FCNTL
         /* Fail with EBADF when the descriptor isn't valid */
         if (fcntl(fd, F_GETFD) < 0)
             fd = -1;
