@@ -42,5 +42,6 @@ dir_tests = [
   'test-towctrans',
   'test-wchar_h',
   'test-wcsnlen',
+  'test-wcstol',
   'test-wcwidth',
 ]
