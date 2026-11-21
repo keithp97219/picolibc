@@ -78,6 +78,10 @@ fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
                 cp += this_time;
                 bytes -= this_time;
             } else {
+                /* Once the end-of-file indicator is set, reads return EOF */
+                if (stream->flags & __SEOF)
+                    break;
+
                 /* Flush stdout if reading from stdin */
                 if (!flushed) {
                     flushed = true;
