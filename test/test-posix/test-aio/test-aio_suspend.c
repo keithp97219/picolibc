@@ -38,11 +38,13 @@
 
 /* Without the system support this test needs, it is skipped */
 #if _POSIX_ASYNCHRONOUS_IO > 0 && _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
-    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && defined(__PICOLIBC_POSIX_PIPE)            \
+    && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <aio.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -93,14 +95,60 @@ wait_for(struct aiocb *cb)
         check(aio_suspend(list, 1, NULL) == 0 || errno == EINTR, "aio_suspend");
 }
 
+static volatile sig_atomic_t interrupted;
+static volatile int          stop_interrupting;
+static pthread_t             main_thread;
+
+static void
+handler(int sig)
+{
+    (void)sig;
+    interrupted = 1;
+}
+
+/*
+ * Signals the main thread until told to stop; one of them arrives while
+ * it waits, whenever it starts to
+ */
+static void *
+interrupter(void *arg)
+{
+    struct timespec pause = { 0, 5000000 };
+
+    (void)arg;
+    while (!__atomic_load_n(&stop_interrupting, __ATOMIC_ACQUIRE)) {
+        pthread_kill(main_thread, SIGUSR1);
+        nanosleep(&pause, NULL);
+    }
+    return NULL;
+}
+
+/* Calls aio_suspend with a cancellation pending */
+static void *
+cancel_pending(void *arg)
+{
+    const struct aiocb * const *list = arg;
+
+    pthread_cancel(pthread_self());
+    aio_suspend(list, 1, NULL);
+    return NULL;
+}
+
 int
 main(void)
 {
     struct aiocb        cb, *none = NULL;
     const struct aiocb *list[2];
     struct timespec     timeout = { 0, 50000000 };
+    struct sigaction    sa;
+    pthread_t           thread;
+    void               *result;
     char                buf[4];
-    int                 fd = scratch("data");
+    int                 fd = scratch("data"), pipefd[2], ret;
+
+    /* A request that hangs ends the test */
+    alarm(60);
+    main_thread = pthread_self();
 
     memset(&cb, 0, sizeof(cb));
     cb.aio_fildes = fd;
@@ -123,10 +171,43 @@ main(void)
     while (aio_error(&cb) == EINPROGRESS)
         check(aio_suspend(list, 2, NULL) == 0, "aio_suspend again");
     check(aio_suspend(list, 2, &timeout) == 0, "already done");
+
+#ifndef __GLIBC__
+    /* Even so, a pending cancellation is acted on (glibc returns 0) */
+    check(pthread_create(&thread, NULL, cancel_pending, &list[1]) == 0, "pthread_create");
+    check(pthread_join(thread, &result) == 0 && result == PTHREAD_CANCELED, "cancelled");
+#else
+    (void)cancel_pending;
+    (void)result;
+#endif
     (void)aio_return(&cb);
 
+    /* A request that can't finish times out */
+    check(pipe(pipefd) == 0, "pipe");
+    cb.aio_fildes = pipefd[0];
+    check(aio_read(&cb) == 0, "aio_read from an empty pipe");
+    check(aio_suspend(list, 2, &timeout) == -1 && errno == EAGAIN, "timed out");
+
+    /* A signal handler interrupts the wait */
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handler;
+    sigemptyset(&sa.sa_mask);
+    check(sigaction(SIGUSR1, &sa, NULL) == 0, "sigaction");
+    check(pthread_create(&thread, NULL, interrupter, NULL) == 0, "pthread_create");
+    ret = aio_suspend(list, 2, NULL);
+    check(ret == -1 && errno == EINTR && interrupted, "EINTR");
+    __atomic_store_n(&stop_interrupting, 1, __ATOMIC_RELEASE);
+    check(pthread_join(thread, NULL) == 0, "pthread_join");
+    check(aio_error(&cb) == EINPROGRESS, "still waiting");
+
+    /* Then the request completes */
+    check(write(pipefd[1], "x", 1) == 1, "write to the pipe");
+    check(aio_suspend(list, 2, NULL) == 0 || errno == EINTR, "aio_suspend");
+    wait_for(&cb);
+    check(aio_return(&cb) == 1, "pipe read");
+    check(close(pipefd[0]) == 0 && close(pipefd[1]) == 0, "close the pipe");
+
     cleanup(fd);
-    (void)wait_for;
     printf("success\n");
     return 0;
 }
