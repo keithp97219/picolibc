@@ -37,9 +37,10 @@
 /* RLIMIT_NPROC, which limits the number of threads on Linux, is an extension */
 #define _DEFAULT_SOURCE
 #include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0
+#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
 
 #include <errno.h>
 #include <stdbool.h>
