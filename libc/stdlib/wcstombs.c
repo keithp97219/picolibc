@@ -51,7 +51,6 @@ effects vary with the locale.
 size_t
 wcstombs(char * __restrict s, const wchar_t * __restrict pwcs, size_t n)
 {
-#ifdef __MB_CAPABLE
     mbstate_t state;
     state.__count = 0;
 
@@ -85,17 +84,4 @@ wcstombs(char * __restrict s, const wchar_t * __restrict pwcs, size_t n)
         }
         return max;
     }
-#else  /* not __MB_CAPABLE */
-    int count = 0;
-
-    if (n != 0) {
-        do {
-            if ((*s++ = (char)*pwcs++) == 0)
-                break;
-            count++;
-        } while (--n != 0);
-    }
-
-    return count;
-#endif /* not __MB_CAPABLE */
 }
