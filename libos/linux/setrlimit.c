@@ -50,9 +50,11 @@ setrlimit(int resource, const struct rlimit *rlim)
      * forward RLIMIT_AS, RLIMIT_DATA and RLIMIT_STACK (applying them would
      * also constrain QEMU itself), reporting success without validating
      * anything. Check here so the error is reported consistently on both
-     * real hardware and under emulation.
+     * real hardware and under emulation. RLIM_INFINITY is larger than
+     * any other value, although rlim_t has values above it.
      */
-    if (rlim->rlim_cur > rlim->rlim_max) {
+    if (rlim->rlim_max != RLIM_INFINITY
+        && (rlim->rlim_cur == RLIM_INFINITY || rlim->rlim_cur > rlim->rlim_max)) {
         errno = EINVAL;
         return -1;
     }
