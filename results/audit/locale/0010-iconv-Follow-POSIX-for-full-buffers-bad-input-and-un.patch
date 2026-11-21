@@ -1,0 +1,378 @@
+From 6bdd39a1951d72d4dda2010a376ad6d4832c1c6d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:33:44 +0000
+Subject: [PATCH 10/19] iconv: Follow POSIX for full buffers, bad input and
+ unconvertible characters
+
+iconv deviated from POSIX in several ways:
+
+ * Without multibyte support it copied as many bytes as fit and
+   returned 0: no E2BIG when the output was full, and bytes outside
+   ASCII were passed through. The ASCII conversion now runs there too.
+
+ * A character whose output didn't fit was consumed and its bytes kept
+   in the descriptor, so E2BIG came back with inbytesleft 0.
+
+ * An incomplete character at the end of the input was consumed into
+   the conversion state and iconv succeeded; POSIX says it fails with
+   EINVAL, leaving the bytes unconverted.
+
+ * A null byte ended the conversion and the rest of the input was
+   dropped.
+
+ * //IGNORE and //NON_IDENTICAL_DISCARD moved the output pointer back
+   one byte for each discarded character.
+
+ * Without an indicator suffix, a character with no identical one in
+   the output codeset failed with EILSEQ. POSIX.1-2024 asks for an
+   implementation-defined conversion, counted in the return value;
+   picolibc writes '?', as //TRANSLIT does.
+
+ * A call with a null inbuf (or *inbuf) didn't reset the shift state
+   or write the reset sequence.
+
+Convert one character at a time, committing its input, output and
+states only once its output fits.
+---
+ libc/iconv/iconv.c         | 208 +++++++++++++++++++------------------
+ libc/iconv/iconv_close.c   |   2 -
+ libc/iconv/iconv_open.c    |  29 +++---
+ libc/iconv/iconv_private.h |  11 +-
+ 4 files changed, 128 insertions(+), 122 deletions(-)
+
+diff --git a/libc/iconv/iconv.c b/libc/iconv/iconv.c
+index fa7685cd25..4e7061d058 100644
+--- a/libc/iconv/iconv.c
++++ b/libc/iconv/iconv.c
+@@ -34,128 +34,134 @@
+  */
+ 
+ #include "iconv_private.h"
++#include <stdbool.h>
++
++/* Write the bytes that return the output to its initial shift state */
++static size_t
++iconv_reset(iconv_t ic, char **outbuf, size_t *outbytesleft)
++{
++    char      nul[MB_LEN_MAX], seq[MB_LEN_MAX];
++    mbstate_t initial;
++    int       nul_len, seq_len;
++    size_t    reset;
++
++    if (outbuf && *outbuf && outbytesleft && *outbytesleft > 0) {
++        /* The reset sequence is what precedes a null character */
++        memset(&initial, 0, sizeof(initial));
++        nul_len = ic->out_wctomb(nul, L'\0', &initial);
++        seq_len = ic->out_wctomb(seq, L'\0', &ic->out_state);
++        if (nul_len > 0 && seq_len > nul_len) {
++            reset = (size_t)(seq_len - nul_len);
++            if (reset > *outbytesleft) {
++                errno = E2BIG;
++                return (size_t)-1;
++            }
++            memcpy(*outbuf, seq, reset);
++            *outbuf += reset;
++            *outbytesleft -= reset;
++        }
++    }
++    memset(&ic->in_state, 0, sizeof(ic->in_state));
++    memset(&ic->out_state, 0, sizeof(ic->out_state));
++    return 0;
++}
+ 
+ size_t
+ iconv(iconv_t ic, char ** __restrict inbuf, size_t * __restrict inbytesleft,
+       char ** __restrict outbuf, size_t * __restrict outbytesleft)
+ {
++    char  *in, *out;
++    size_t inbytes, outbytes;
++    size_t inexact_count = 0;
++    int    err = 0;
++
+     if (ic == (iconv_t)-1) {
+         errno = EINVAL;
+         return (size_t)-1;
+     }
+ 
+-    if (!inbuf || !inbytesleft)
+-        return 0;
++    /* No input: return to the initial shift state */
++    if (!inbuf || !*inbuf)
++        return iconv_reset(ic, outbuf, outbytesleft);
+ 
+-    char  *in = *inbuf;
+-    char  *out = *outbuf;
+-    size_t inbytes = *inbytesleft;
+-    size_t outbytes = *outbytesleft;
+-    size_t tocopy;
+-#ifdef __MB_CAPABLE
+-    char   *wc_out;
+-    int     ret;
+-    wchar_t wc;
+-    size_t  inexact_count = 0;
++    in = *inbuf;
++    out = *outbuf;
++    inbytes = *inbytesleft;
++    outbytes = *outbytesleft;
+ 
+-    while (outbytes) {
+-        if (ic->buf_len) {
+-            tocopy = ic->buf_len - ic->buf_off;
+-            if (tocopy > outbytes) {
+-                errno = E2BIG;
+-                inexact_count = (size_t)-1;
+-                break;
+-            }
+-            memcpy(out, ic->buf + ic->buf_off, tocopy);
+-            out += tocopy;
+-            outbytes -= tocopy;
+-            ic->buf_off += tocopy;
+-            if (ic->buf_off == ic->buf_len) {
+-                ic->buf_off = ic->buf_len = 0;
++    /*
++     * Convert one character at a time, changing nothing until its
++     * output fits, so that the pointers and states always stop just
++     * after the last character converted
++     */
++    while (inbytes) {
++        mbstate_t in_state = ic->in_state;
++        mbstate_t out_state = ic->out_state;
++        char      mb[MB_LEN_MAX];
++        wchar_t   wc;
++        int       in_len, out_len;
++        bool      inexact = false;
++
++        in_len = ic->in_mbtowc(&wc, in, inbytes, &in_state);
++        if (in_len == -2) {
++            /* Incomplete character at the end of the input */
++            err = EINVAL;
++            break;
++        }
++        if (in_len == -1) {
++            if (ic->mode == iconv_ignore) {
++                /* Discard the invalid byte */
++                in++;
++                inbytes--;
++                continue;
+             }
+-        } else if (inbytes && ic->buf_len == 0) {
+-            ret = ic->in_mbtowc(&wc, in, inbytes, &ic->in_state);
+-            switch (ret) {
+-            case 0:
+-                wc = L'\0';
+-                in += inbytes;
+-                inbytes = 0;
+-                break;
+-            case -1:
+-                switch (ic->mode) {
+-                case iconv_ignore:
+-                    in += 1;
+-                    inbytes--;
+-                    break;
+-                default:
+-                    goto fail;
+-                }
+-                break;
+-            case -2:
+-                in += inbytes;
+-                inbytes = 0;
+-                goto done;
+-            default:
+-                in += ret;
+-                inbytes -= ret;
++            err = EILSEQ;
++            break;
++        }
++        if (in_len == 0) {
++            /* A null character: count any shift bytes before it */
++            char *nul = memchr(in, '\0', inbytes);
++            in_len = nul ? (int)(nul - in) + 1 : 1;
++        }
++
++        out_len = ic->out_wctomb(mb, wc, &out_state);
++        if (out_len == -1) {
++            /* No identical character in the output codeset */
++            inexact = true;
++            out_state = ic->out_state;
++            if (ic->mode == iconv_ignore || ic->mode == iconv_discard)
++                out_len = 0;
++            else
++                out_len = ic->out_wctomb(mb, L'?', &out_state);
++            if (out_len == -1) {
++                err = EILSEQ;
+                 break;
+             }
+-            if (outbytes >= MB_LEN_MAX) {
+-                wc_out = out;
+-            } else {
+-                wc_out = ic->buf;
+-            }
+-            ret = ic->out_wctomb(wc_out, wc, &ic->out_state);
+-            if (ret == -1) {
+-                switch (ic->mode) {
+-                default:
+-                    goto fail;
+-                case iconv_translit:
+-                    ret = ic->out_wctomb(wc_out, L'?', &ic->out_state);
+-                    if (ret == -1)
+-                        goto fail;
+-                    __fallthrough;
+-                case iconv_ignore:
+-                case iconv_discard:
+-                    inexact_count++;
+-                    break;
+-                }
+-            }
+-            if (outbytes >= MB_LEN_MAX) {
+-                out += ret;
+-                outbytes -= ret;
+-            } else {
+-                ic->buf_len = ret;
+-            }
+-        } else {
++        }
++
++        if ((size_t)out_len > outbytes) {
++            err = E2BIG;
+             break;
+         }
++
++        memcpy(out, mb, (size_t)out_len);
++        out += out_len;
++        outbytes -= out_len;
++        in += in_len;
++        inbytes -= in_len;
++        ic->in_state = in_state;
++        ic->out_state = out_state;
++        if (inexact)
++            inexact_count++;
+     }
+-done:
+-    *inbuf = in;
+-    *inbytesleft = inbytes;
+-    *outbuf = out;
+-    *outbytesleft = outbytes;
+-    return inexact_count;
+-fail:
+-    errno = EILSEQ;
+-    inexact_count = (size_t)-1;
+-    goto done;
+-#else
+-    (void)ic;
+ 
+-    tocopy = inbytes;
+-    if (tocopy > outbytes)
+-        tocopy = outbytes;
+-    memcpy(out, in, tocopy);
+-    in += tocopy;
+-    inbytes -= tocopy;
+-    out += tocopy;
+-    outbytes -= tocopy;
+     *inbuf = in;
+     *inbytesleft = inbytes;
+     *outbuf = out;
+     *outbytesleft = outbytes;
+-    return 0;
+-#endif
++    if (err) {
++        errno = err;
++        return (size_t)-1;
++    }
++    return inexact_count;
+ }
+diff --git a/libc/iconv/iconv_close.c b/libc/iconv/iconv_close.c
+index 260af65609..62e3ecd53f 100644
+--- a/libc/iconv/iconv_close.c
++++ b/libc/iconv/iconv_close.c
+@@ -42,8 +42,6 @@ iconv_close(iconv_t ic)
+         errno = EINVAL;
+         return -1;
+     }
+-#ifdef __MB_CAPABLE
+     free(ic);
+-#endif
+     return 0;
+ }
+diff --git a/libc/iconv/iconv_open.c b/libc/iconv/iconv_open.c
+index 74f09fca36..ab107d4932 100644
+--- a/libc/iconv/iconv_open.c
++++ b/libc/iconv/iconv_open.c
+@@ -39,16 +39,6 @@
+ iconv_t
+ iconv_open(const char *tocode, const char *fromcode)
+ {
+-    if (!tocode || !fromcode)
+-        goto fail;
+-
+-    enum locale_id toid = __find_charset(tocode);
+-    enum locale_id fromid = __find_charset(fromcode);
+-
+-    if (toid == locale_INVALID || fromid == locale_INVALID)
+-        goto fail;
+-
+-#ifdef __MB_CAPABLE
+     iconv_t     ic;
+     const char *mode_name;
+     static const struct {
+@@ -62,6 +52,16 @@ iconv_open(const char *tocode, const char *fromcode)
+ #define NMODE (sizeof(modes) / sizeof(modes[0]))
+     size_t            m;
+     enum __iconv_mode mode = iconv_default;
++    enum locale_id    toid, fromid;
++
++    if (!tocode || !fromcode)
++        goto fail;
++
++    toid = __find_charset(tocode);
++    fromid = __find_charset(fromcode);
++
++    if (toid == locale_INVALID || fromid == locale_INVALID)
++        goto fail;
+ 
+     mode_name = strchr(tocode, '/');
+     if (mode_name) {
+@@ -80,15 +80,12 @@ iconv_open(const char *tocode, const char *fromcode)
+ 
+     ic = calloc(1, sizeof(*ic));
+     if (!ic)
+-        goto fail;
++        return (iconv_t)-1;
+ 
+-    ic->in_mbtowc = __get_mbtowc(fromid);
+-    ic->out_wctomb = __get_wctomb(toid);
++    ic->in_mbtowc = __iconv_mbtowc(fromid);
++    ic->out_wctomb = __iconv_wctomb(toid);
+     ic->mode = mode;
+     return ic;
+-#else
+-    return NULL;
+-#endif
+ 
+ fail:
+     errno = EINVAL;
+diff --git a/libc/iconv/iconv_private.h b/libc/iconv/iconv_private.h
+index 924b294d21..78f2286cd2 100644
+--- a/libc/iconv/iconv_private.h
++++ b/libc/iconv/iconv_private.h
+@@ -47,10 +47,15 @@ struct __iconv_t {
+     wctomb_p          out_wctomb;
+     mbstate_t         in_state;
+     mbstate_t         out_state;
+-    size_t            buf_len;
+-    size_t            buf_off;
+     enum __iconv_mode mode;
+-    char              buf[MB_LEN_MAX];
+ };
+ 
++#ifdef __MB_CAPABLE
++#define __iconv_mbtowc(id) __get_mbtowc(id)
++#define __iconv_wctomb(id) __get_wctomb(id)
++#else
++#define __iconv_mbtowc(id) ((void)(id), __ascii_mbtowc)
++#define __iconv_wctomb(id) ((void)(id), __ascii_wctomb)
++#endif
++
+ #endif /* _ICONV_PRIVATE_H_ */
+-- 
+2.47.3
+

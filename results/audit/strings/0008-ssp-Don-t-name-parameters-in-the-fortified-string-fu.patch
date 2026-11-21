@@ -1,0 +1,78 @@
+From f589c77366f238653e48501e735c661bb1980b31 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:54:38 +0000
+Subject: [PATCH 08/17] ssp: Don't name parameters in the fortified string
+ functions
+
+With _FORTIFY_SOURCE, <string.h> defines inline __memcpy_ichk and the
+others with parameters named dst, src and len, and <ssp/ssp.h> declares
+set_fortify_handler with handler and sig, so an application macro with
+one of those names broke the header.
+---
+ libc/include/ssp/ssp.h    |  2 +-
+ libc/include/ssp/string.h | 32 ++++++++++++++++----------------
+ 2 files changed, 17 insertions(+), 17 deletions(-)
+
+diff --git a/libc/include/ssp/ssp.h b/libc/include/ssp/ssp.h
+index 30ba73ed7e..ab9c26226c 100644
+--- a/libc/include/ssp/ssp.h
++++ b/libc/include/ssp/ssp.h
+@@ -77,7 +77,7 @@
+ _BEGIN_STD_C
+ __noreturn void __stack_chk_fail(void) __picolibc_export;
+ __noreturn void __chk_fail(void) __picolibc_export;
+-void            set_fortify_handler(void (*handler)(int sig)) __picolibc_export;
++void            set_fortify_handler(void (*)(int)) __picolibc_export;
+ _END_STD_C
+ 
+ #endif /* _SSP_SSP_H_ */
+diff --git a/libc/include/ssp/string.h b/libc/include/ssp/string.h
+index 6f7f2cc398..0b03dd5bc0 100644
+--- a/libc/include/ssp/string.h
++++ b/libc/include/ssp/string.h
+@@ -56,26 +56,26 @@ _END_STD_C
+     (__ssp_bos_known(dst) ? __builtin___##fun##_chk(dst, src, __ssp_bos0(dst)) \
+                           : __##fun##_ichk(dst, src))
+ 
+-#define __ssp_bos_icheck3_restrict(fun, type1, type2)                                          \
+-    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict, type2 __restrict, size_t); \
+-    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict dst, type2 __restrict src,  \
+-                                                  size_t len)                                  \
+-    {                                                                                          \
+-        return __builtin___##fun##_chk(dst, src, len, __ssp_bos0(dst));                        \
++#define __ssp_bos_icheck3_restrict(fun, type1, type2)                                             \
++    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict, type2 __restrict, size_t);    \
++    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict __dst, type2 __restrict __src, \
++                                                  size_t __len)                                   \
++    {                                                                                             \
++        return __builtin___##fun##_chk(__dst, __src, __len, __ssp_bos0(__dst));                   \
+     }
+ 
+-#define __ssp_bos_icheck3(fun, type1, type2)                                        \
+-    __declare_extern_inline(type1) __##fun##_ichk(type1, type2, size_t);            \
+-    __declare_extern_inline(type1) __##fun##_ichk(type1 dst, type2 src, size_t len) \
+-    {                                                                               \
+-        return __builtin___##fun##_chk(dst, src, len, __ssp_bos0(dst));             \
++#define __ssp_bos_icheck3(fun, type1, type2)                                              \
++    __declare_extern_inline(type1) __##fun##_ichk(type1, type2, size_t);                  \
++    __declare_extern_inline(type1) __##fun##_ichk(type1 __dst, type2 __src, size_t __len) \
++    {                                                                                     \
++        return __builtin___##fun##_chk(__dst, __src, __len, __ssp_bos0(__dst));           \
+     }
+ 
+-#define __ssp_bos_icheck2_restrict(fun, type1, type2)                                         \
+-    __declare_extern_inline(type1) __##fun##_ichk(type1, type2);                              \
+-    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict dst, type2 __restrict src) \
+-    {                                                                                         \
+-        return __builtin___##fun##_chk(dst, src, __ssp_bos0(dst));                            \
++#define __ssp_bos_icheck2_restrict(fun, type1, type2)                                             \
++    __declare_extern_inline(type1) __##fun##_ichk(type1, type2);                                  \
++    __declare_extern_inline(type1) __##fun##_ichk(type1 __restrict __dst, type2 __restrict __src) \
++    {                                                                                             \
++        return __builtin___##fun##_chk(__dst, __src, __ssp_bos0(__dst));                          \
+     }
+ 
+ _BEGIN_STD_C
+-- 
+2.47.3
+

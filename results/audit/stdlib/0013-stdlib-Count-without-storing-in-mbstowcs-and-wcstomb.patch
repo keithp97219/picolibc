@@ -1,0 +1,80 @@
+From 4e1d1d1ec85e77049c8d6e4f0b6e67b6d87029d1 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:55:23 +0000
+Subject: [PATCH 13/24] stdlib: Count without storing in mbstowcs and wcstombs
+ without a buffer
+
+POSIX (XSI): with a null destination, mbstowcs and wcstombs return the
+length the conversion needs, whatever n is. Without __MB_CAPABLE they
+had their own loops, which wrote through the null pointer (or, for
+mbstowcs with n 0, returned 0). Use the general code in every
+configuration.
+---
+ libc/stdlib/mbstowcs.c | 15 ---------------
+ libc/stdlib/wcstombs.c | 14 --------------
+ 2 files changed, 29 deletions(-)
+
+diff --git a/libc/stdlib/mbstowcs.c b/libc/stdlib/mbstowcs.c
+index ba4325b03e..960c40597b 100644
+--- a/libc/stdlib/mbstowcs.c
++++ b/libc/stdlib/mbstowcs.c
+@@ -50,7 +50,6 @@ effects vary with the locale.
+ size_t
+ mbstowcs(wchar_t * __restrict pwcs, const char * __restrict s, size_t n)
+ {
+-#ifdef __MB_CAPABLE
+     mbstate_t state;
+     state.__count = 0;
+ 
+@@ -76,18 +75,4 @@ mbstowcs(wchar_t * __restrict pwcs, const char * __restrict s, size_t n)
+         }
+     }
+     return ret;
+-#else  /* not __MB_CAPABLE */
+-
+-    int count = 0;
+-
+-    if (n != 0) {
+-        do {
+-            if ((*pwcs++ = (wchar_t)*s++) == 0)
+-                break;
+-            count++;
+-        } while (--n != 0);
+-    }
+-
+-    return count;
+-#endif /* not __MB_CAPABLE */
+ }
+diff --git a/libc/stdlib/wcstombs.c b/libc/stdlib/wcstombs.c
+index d91576c642..493f1e7cb7 100644
+--- a/libc/stdlib/wcstombs.c
++++ b/libc/stdlib/wcstombs.c
+@@ -51,7 +51,6 @@ effects vary with the locale.
+ size_t
+ wcstombs(char * __restrict s, const wchar_t * __restrict pwcs, size_t n)
+ {
+-#ifdef __MB_CAPABLE
+     mbstate_t state;
+     state.__count = 0;
+ 
+@@ -85,17 +84,4 @@ wcstombs(char * __restrict s, const wchar_t * __restrict pwcs, size_t n)
+         }
+         return max;
+     }
+-#else  /* not __MB_CAPABLE */
+-    int count = 0;
+-
+-    if (n != 0) {
+-        do {
+-            if ((*s++ = (char)*pwcs++) == 0)
+-                break;
+-            count++;
+-        } while (--n != 0);
+-    }
+-
+-    return count;
+-#endif /* not __MB_CAPABLE */
+ }
+-- 
+2.47.3
+

@@ -1,0 +1,89 @@
+From 3d8ecbb7f7d2f5c7fd0de1e6e821e39f213f9d1a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:41:34 +0000
+Subject: [PATCH 09/24] stdlib: Split getsubopt suboptions at commas only
+
+POSIX separates suboptions with commas and values from tokens with the
+first '='. The BSD code also split at blanks and skipped empty
+suboptions, so 'a b' and values containing blanks were cut short.
+---
+ libc/stdlib/getsubopt.c | 50 ++++++++++++++++++-----------------------
+ 1 file changed, 22 insertions(+), 28 deletions(-)
+
+diff --git a/libc/stdlib/getsubopt.c b/libc/stdlib/getsubopt.c
+index 9184b049fd..cb8e376406 100644
+--- a/libc/stdlib/getsubopt.c
++++ b/libc/stdlib/getsubopt.c
+@@ -40,8 +40,13 @@
+  */
+ char *suboptarg;
+ 
++/*
++ * POSIX: suboptions are separated by commas alone, and the first '='
++ * in one separates its token from its value; blanks are part of the
++ * token or value.
++ */
+ int
+-getsubopt(char **optionp, char * const *tokens, char **valuep)
++getsubopt(char ** __restrict optionp, char * const * __restrict tokens, char ** __restrict valuep)
+ {
+     int   cnt;
+     char *p;
+@@ -51,38 +56,27 @@ getsubopt(char **optionp, char * const *tokens, char **valuep)
+     if (!optionp || !*optionp)
+         return (-1);
+ 
+-    /* skip leading white-space, commas */
+-    for (p = *optionp; *p && (*p == ',' || *p == ' ' || *p == '\t'); ++p)
+-        ;
+-
+-    if (!*p) {
+-        *optionp = p;
++    p = *optionp;
++    if (!*p)
+         return (-1);
+-    }
+ 
+-    /* save the start of the token, and skip the rest of the token. */
+-    for (suboptarg = p; *++p && *p != ',' && *p != '=' && *p != ' ' && *p != '\t';)
+-        ;
++    /* save the start of the token, and find the end of the suboption. */
++    suboptarg = p;
++    while (*p && *p != ',' && *p != '=')
++        p++;
+ 
+-    if (*p) {
+-        /*
+-         * If there's an equals sign, set the value pointer, and
+-         * skip over the value part of the token.  Terminate the
+-         * token.
+-         */
+-        if (*p == '=') {
+-            *p = '\0';
+-            for (*valuep = ++p; *p && *p != ',' && *p != ' ' && *p != '\t'; ++p)
+-                ;
+-            if (*p)
+-                *p++ = '\0';
+-        } else
+-            *p++ = '\0';
+-        /* Skip any whitespace or commas after this token. */
+-        for (; *p && (*p == ',' || *p == ' ' || *p == '\t'); ++p)
+-            ;
++    /* If there's an equals sign, terminate the token there and find the value */
++    if (*p == '=') {
++        *p++ = '\0';
++        *valuep = p;
++        while (*p && *p != ',')
++            p++;
+     }
+ 
++    /* Terminate the suboption and point past the comma, if any */
++    if (*p == ',')
++        *p++ = '\0';
++
+     /* set optionp for next round. */
+     *optionp = p;
+ 
+-- 
+2.47.3
+

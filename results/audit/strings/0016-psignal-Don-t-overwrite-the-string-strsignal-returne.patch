@@ -1,0 +1,131 @@
+From 8fe4ed9c6910f0cf81d72c3d1eb9ee4961c1779c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:59:06 +0000
+Subject: [PATCH 16/17] psignal: Don't overwrite the string strsignal returned
+
+POSIX: "The implementation shall behave as if no function defined in
+this standard calls strsignal()". psignal (and so psiginfo) called it,
+and for real-time and unknown signals strsignal builds the message in
+its per-thread buffer, so psignal replaced the string an earlier
+strsignal call had returned. psignal now builds its message in its own
+buffer through __strsignal_r.
+---
+ libc/signal/psignal.c        |  6 +++++-
+ libc/string/string_private.h |  5 +++++
+ libc/string/strsignal.c      | 37 +++++++++++++++++++++++-------------
+ 3 files changed, 34 insertions(+), 14 deletions(-)
+
+diff --git a/libc/signal/psignal.c b/libc/signal/psignal.c
+index c2e4c7e5fc..349093ee88 100644
+--- a/libc/signal/psignal.c
++++ b/libc/signal/psignal.c
+@@ -34,12 +34,16 @@ Supporting OS subroutines required: <<close>>, <<fstat>>, <<isatty>>,
+ #include <string.h>
+ #include <unistd.h>
+ #include <signal.h>
++#include "../string/string_private.h"
+ 
+ void
+ psignal(int sig, const char *s)
+ {
++    char buf[__STRSIGNAL_BUF];
++
+     fflush(stderr);
+     if (s != NULL && *s != '\0')
+         fprintf(stderr, "%s: ", s);
+-    fprintf(stderr, "%s\n", strsignal(sig));
++    /* Not strsignal, whose string psignal mustn't overwrite */
++    fprintf(stderr, "%s\n", __strsignal_r(sig, buf));
+ }
+diff --git a/libc/string/string_private.h b/libc/string/string_private.h
+index 729bfefff4..4af8c1fb09 100644
+--- a/libc/string/string_private.h
++++ b/libc/string/string_private.h
+@@ -41,4 +41,9 @@
+ 
+ char *_strerror_r(int errnum, int internal, int *errptr);
+ 
++/* Room for "Unknown signal", a space, a sign, ten digits and a null */
++#define __STRSIGNAL_BUF 32
++
++char *__strsignal_r(int signal, char buf[__STRSIGNAL_BUF]);
++
+ #endif // STRING_PRIVATE_H_
+diff --git a/libc/string/strsignal.c b/libc/string/strsignal.c
+index ffd80ee225..650001ba0c 100644
+--- a/libc/string/strsignal.c
++++ b/libc/string/strsignal.c
+@@ -51,6 +51,7 @@ QUICKREF
+ #include <signal.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include "string_private.h"
+ 
+ static const char * const signames[] = {
+ #ifdef SIGHUP
+@@ -162,15 +163,12 @@ static const char * const signames[] = {
+ 
+ #define NSIGNAMES (sizeof(signames) / sizeof(signames[0]))
+ 
+-/* Room for the longer head, a space, a sign, ten digits and a null */
+-static __THREAD_LOCAL char _signal_buf[32];
+-
+-static inline char *
+-_intsig(const char *head, int i)
++static char *
++_intsig(char *buf, const char *head, int i)
+ {
+     char     digits[12];
+     char    *d = digits + sizeof(digits);
+-    char    *buf = _signal_buf;
++    char    *b = buf;
+     unsigned u = i < 0 ? -(unsigned)i : (unsigned)i;
+ 
+     *--d = '\0';
+@@ -180,23 +178,36 @@ _intsig(const char *head, int i)
+     } while (u);
+     if (i < 0)
+         *--d = '-';
+-    buf = stpcpy(buf, head);
+-    *buf++ = ' ';
+-    strcpy(buf, d);
+-    return _signal_buf;
++    b = stpcpy(b, head);
++    *b++ = ' ';
++    strcpy(b, d);
++    return buf;
+ }
+ 
++/*
++ * The message for signal, using buf for the ones that hold a number.
++ * psignal calls this with its own buffer, as nothing may overwrite
++ * the string strsignal returned.
++ */
+ char *
+-strsignal(int signal)
++__strsignal_r(int signal, char buf[__STRSIGNAL_BUF])
+ {
+ #if defined(SIGRTMIN) && defined(SIGRTMAX)
+     if ((signal >= SIGRTMIN) && (signal <= SIGRTMAX)) {
+-        return _intsig("Real-time signal", signal - SIGRTMIN);
++        return _intsig(buf, "Real-time signal", signal - SIGRTMIN);
+     }
+ #endif
+ 
+     if ((unsigned)signal < NSIGNAMES && signames[(unsigned)signal])
+         return (char *)signames[(unsigned)signal];
+ 
+-    return _intsig("Unknown signal", signal);
++    return _intsig(buf, "Unknown signal", signal);
++}
++
++static __THREAD_LOCAL char _signal_buf[__STRSIGNAL_BUF];
++
++char *
++strsignal(int signal)
++{
++    return __strsignal_r(signal, _signal_buf);
+ }
+-- 
+2.47.3
+

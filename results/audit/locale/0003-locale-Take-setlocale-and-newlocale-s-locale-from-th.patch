@@ -1,0 +1,232 @@
+From dea1d11e2a0866a58db2d3c60e81772a04a402a7 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:29:24 +0000
+Subject: [PATCH 03/19] locale: Take setlocale and newlocale's "" locale from
+ the environment
+
+A locale name of "" means the locale the environment names: LC_ALL,
+then the category's LC_* variable, then LANG, ignoring empty values
+(XBD 8.2). setlocale and newlocale ignored the environment and always
+used the default. setlocale(LC_ALL, "") now checks every category's
+value before changing anything and fails if any names a locale that
+doesn't exist; newlocale fails with ENOENT.
+---
+ doc/build.md                 |  5 ++-
+ libc/locale/CMakeLists.txt   |  1 +
+ libc/locale/locale_env.c     | 73 ++++++++++++++++++++++++++++++++++++
+ libc/locale/locale_private.h |  2 +
+ libc/locale/meson.build      |  1 +
+ libc/locale/newlocale.c      | 30 ++++++++++++---
+ libc/locale/setlocale.c      | 19 +++++++++-
+ 7 files changed, 123 insertions(+), 8 deletions(-)
+ create mode 100644 libc/locale/locale_env.c
+
+diff --git a/doc/build.md b/doc/build.md
+index 8cfe756de2..6afd3d74ea 100644
+--- a/doc/build.md
++++ b/doc/build.md
+@@ -127,7 +127,10 @@ These options control how much internationalization support is included
+ in the library. Picolibc supports locale names of the form '<locale>' or
+ '<locale>.<charset>'; e.g. POSIX or C.UTF-8. When no charset is
+ specified, picolibc selects ASCII when multi-byte support is disabled
+-or locale is C. Otherwise, picolibc selects UTF-8.
++or locale is C. Otherwise, picolibc selects UTF-8. A name of "" takes
++the locale from the LC_ALL, LC_* and LANG environment variables, as
++POSIX describes; setlocale and newlocale fail when that names a
++charset the library doesn't have.
+ 
+ Picolibc supports the same charsets for locales and iconv.
+ 
+diff --git a/libc/locale/CMakeLists.txt b/libc/locale/CMakeLists.txt
+index 6f4366d922..9df2eaf571 100644
+--- a/libc/locale/CMakeLists.txt
++++ b/libc/locale/CMakeLists.txt
+@@ -44,6 +44,7 @@ picolibc_sources(
+   localedata.c
+   locale_ctype_ptr.c
+   locale_ctype_ptr_l.c
++  locale_env.c
+   localedata.c
+   locale_mb_cur_max.c
+   locale_names.c
+diff --git a/libc/locale/locale_env.c b/libc/locale/locale_env.c
+new file mode 100644
+index 0000000000..0ae6096bae
+--- /dev/null
++++ b/libc/locale/locale_env.c
+@@ -0,0 +1,73 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _DEFAULT_SOURCE
++#include "locale_private.h"
++
++static const char * const __category_names[_LC_LAST] = {
++    [LC_COLLATE] = "LC_COLLATE", [LC_CTYPE] = "LC_CTYPE", [LC_MONETARY] = "LC_MONETARY",
++    [LC_NUMERIC] = "LC_NUMERIC", [LC_TIME] = "LC_TIME",   [_LC_MESSAGES] = "LC_MESSAGES",
++};
++
++/* An environment variable that is unset or empty doesn't count */
++static const char *
++__locale_env(const char *name)
++{
++    const char *value = getenv(name);
++
++    if (value && *value)
++        return value;
++    return NULL;
++}
++
++/*
++ * The locale the environment names for category (not LC_ALL), in
++ * the order XBD 8.2 gives: LC_ALL, the category's own variable, then
++ * LANG, then the default locale. Returns locale_INVALID when the
++ * chosen value names a locale picolibc doesn't have.
++ */
++enum locale_id
++__find_locale_env(int category)
++{
++    const char *name = __locale_env("LC_ALL");
++
++    if (!name)
++        name = __locale_env(__category_names[category]);
++    if (!name)
++        name = __locale_env("LANG");
++    if (!name)
++        return _DEFAULT_LOCALE;
++    return __find_locale(name);
++}
+diff --git a/libc/locale/locale_private.h b/libc/locale/locale_private.h
+index 2cf438cc0a..9bd4b2ebd6 100644
+--- a/libc/locale/locale_private.h
++++ b/libc/locale/locale_private.h
+@@ -200,6 +200,8 @@ enum locale_id __find_charset(const char *name);
+ 
+ enum locale_id __find_locale(const char *name);
+ 
++enum locale_id __find_locale_env(int category);
++
+ /* LC_NUMERIC data */
+ #define DECIMAL_POINT         "."
+ #define DECIMAL_POINT_L(l)    ((void)(l), DECIMAL_POINT)
+diff --git a/libc/locale/meson.build b/libc/locale/meson.build
+index 3c0fbf9f82..ba6a3c70f2 100644
+--- a/libc/locale/meson.build
++++ b/libc/locale/meson.build
+@@ -45,6 +45,7 @@ srcs_locale = [
+   'localedata.c',
+   'locale_ctype_ptr.c',
+   'locale_ctype_ptr_l.c',
++  'locale_env.c',
+   'locale_mb_cur_max.c',
+   'locale_names.c',
+   'newlocale.c',
+diff --git a/libc/locale/newlocale.c b/libc/locale/newlocale.c
+index 3e365885a8..26dd81c523 100644
+--- a/libc/locale/newlocale.c
++++ b/libc/locale/newlocale.c
+@@ -54,11 +54,31 @@ newlocale(int category_mask, const char *name, locale_t base)
+         return 0;
+     }
+ 
+-    /* A locale picolibc doesn't have is ENOENT */
+-    locale = __find_locale(name);
+-    if (locale == locale_INVALID) {
+-        errno = ENOENT;
+-        return 0;
++    if (*name == '\0') {
++        int c;
++
++        /* The environment names each category's locale (XBD 8.2) */
++        locale = locale_C;
++        for (c = LC_ALL + 1; c < _LC_LAST; c++) {
++            enum locale_id id;
++
++            if ((category_mask & (1 << c)) == 0)
++                continue;
++            id = __find_locale_env(c);
++            if (id == locale_INVALID) {
++                errno = ENOENT;
++                return 0;
++            }
++            if (c == LC_CTYPE)
++                locale = id;
++        }
++    } else {
++        /* A locale picolibc doesn't have is ENOENT */
++        locale = __find_locale(name);
++        if (locale == locale_INVALID) {
++            errno = ENOENT;
++            return 0;
++        }
+     }
+ 
+     /*
+diff --git a/libc/locale/setlocale.c b/libc/locale/setlocale.c
+index c3fd6d927e..4ebecf28ee 100644
+--- a/libc/locale/setlocale.c
++++ b/libc/locale/setlocale.c
+@@ -52,11 +52,26 @@ setlocale(int category, const char *name)
+     if (name == NULL)
+         return (char *)__locale_name(__global_locale);
+ 
+-    /* Set the global locale */
+-    locale = __find_locale(name);
++    if (*name == '\0') {
++        /* The environment names the locale (XBD 8.2) */
++        if (category == LC_ALL) {
++            int c;
++
++            /* Check every category before changing any */
++            for (c = LC_ALL + 1; c < _LC_LAST; c++)
++                if (__find_locale_env(c) == locale_INVALID)
++                    return NULL;
++            locale = __find_locale_env(LC_CTYPE);
++        } else {
++            locale = __find_locale_env(category);
++        }
++    } else {
++        locale = __find_locale(name);
++    }
+     if (locale == locale_INVALID)
+         return NULL;
+ 
++    /* Set the global locale */
+     switch (category) {
+     case LC_ALL:
+     case LC_CTYPE:
+-- 
+2.47.3
+

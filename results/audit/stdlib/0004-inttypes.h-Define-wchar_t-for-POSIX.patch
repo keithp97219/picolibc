@@ -1,0 +1,36 @@
+From 96f6ecdd43cb87bbaccb74f3ba050d2f98ec72b4 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:41:06 +0000
+Subject: [PATCH 04/24] inttypes.h: Define wchar_t for POSIX
+
+POSIX requires <inttypes.h> to define wchar_t as in <stddef.h>; ISO C
+doesn't, so keep using the private name there.
+---
+ libc/include/inttypes.h | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/libc/include/inttypes.h b/libc/include/inttypes.h
+index 3a105cb21f..97fd9063d1 100644
+--- a/libc/include/inttypes.h
++++ b/libc/include/inttypes.h
+@@ -32,11 +32,16 @@ typedef struct {
+ 
+ /*
+  * In C++, wchar_t is a distinct built-in type, even when __WCHAR_TYPE__
+- * names an integer type. In C, avoid defining wchar_t when possible.
++ * names an integer type. ISO C doesn't define wchar_t here, so avoid it
++ * when possible; POSIX does.
+  */
+ 
+ #ifdef __cplusplus
+ typedef wchar_t _wchar_t;
++#elif __POSIX_VISIBLE
++#define __need_wchar_t
++#include <stddef.h>
++typedef wchar_t _wchar_t;
+ #elif defined(__WCHAR_TYPE__)
+ typedef __WCHAR_TYPE__ _wchar_t;
+ #else
+-- 
+2.47.3
+

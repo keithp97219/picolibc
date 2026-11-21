@@ -1,0 +1,654 @@
+From 370ddaaabd19e1b2be6844ac79dabda6ff29daa6 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:56:27 +0000
+Subject: [PATCH 13/17] test-posix: Check strtok_r, strndup and strcoll_l
+
+strtok and strtok_r: separators that change, the end of the string,
+uninitialized state that never points outside the string, interleaved
+strings and threads. strdup and strndup: limits, termination and
+ENOMEM. strcoll, strxfrm and their _l forms: byte order in the POSIX
+locale, agreement with each other, strxfrm's limit and length, and the
+locale argument rather than the current one.
+---
+ test/test-posix/test-string/CMakeLists.txt   |   3 +
+ test/test-posix/test-string/meson.build      |   3 +
+ test/test-posix/test-string/test-strcoll_l.c | 180 +++++++++++++++
+ test/test-posix/test-string/test-strndup.c   | 171 ++++++++++++++
+ test/test-posix/test-string/test-strtok_r.c  | 226 +++++++++++++++++++
+ 5 files changed, 583 insertions(+)
+ create mode 100644 test/test-posix/test-string/test-strcoll_l.c
+ create mode 100644 test/test-posix/test-string/test-strndup.c
+ create mode 100644 test/test-posix/test-string/test-strtok_r.c
+
+diff --git a/test/test-posix/test-string/CMakeLists.txt b/test/test-posix/test-string/CMakeLists.txt
+index 536c3cb4f8..31d29cdfa4 100644
+--- a/test/test-posix/test-string/CMakeLists.txt
++++ b/test/test-posix/test-string/CMakeLists.txt
+@@ -34,10 +34,13 @@
+ #
+ set(tests
+   test-memchr-pages
++  test-strcoll_l
+   test-strerror_r
+   test-string_h
++  test-strndup
+   test-strnlen-pages
+   test-strsignal
++  test-strtok_r
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-string/meson.build b/test/test-posix/test-string/meson.build
+index 89c512e0d6..3450741253 100644
+--- a/test/test-posix/test-string/meson.build
++++ b/test/test-posix/test-string/meson.build
+@@ -34,8 +34,11 @@
+ 
+ dir_tests = [
+   'test-memchr-pages',
++  'test-strcoll_l',
+   'test-strerror_r',
+   'test-string_h',
++  'test-strndup',
+   'test-strnlen-pages',
+   'test-strsignal',
++  'test-strtok_r',
+ ]
+diff --git a/test/test-posix/test-string/test-strcoll_l.c b/test/test-posix/test-string/test-strcoll_l.c
+new file mode 100644
+index 0000000000..32ddcb5ae5
+--- /dev/null
++++ b/test/test-posix/test-string/test-strcoll_l.c
+@@ -0,0 +1,180 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <errno.h>
++#include <locale.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * strcoll, strcoll_l, strxfrm and strxfrm_l: in the POSIX locale
++ * collation is byte order; strcmp of transformed strings agrees with
++ * strcoll (and strcoll_l with the same locale, whatever the current
++ * one); strxfrm's length, its limit of n bytes and a null s1 when n is
++ * 0; errno unchanged.
++ */
++
++static int ret;
++
++#define fail(...)            \
++    do {                     \
++        printf(__VA_ARGS__); \
++        printf("\n");        \
++        ret = 1;             \
++    } while (0)
++
++#define MARK EDOM
++#define XMAX 512
++
++static int
++sign(int v)
++{
++    return (v > 0) - (v < 0);
++}
++
++static const char * const strings[] = {
++    "",          "a",
++    "A",         "b",
++    "ab",        "abc",
++    "abd",       "aB",
++    "B",         "z",
++    "_",         "0",
++    "9",         " ",
++    "\x7f",      "\x80",
++    "\xc3\xa9",  "\xc3\xa8",
++    "e\xcc\x81", "\xff",
++    "a\xff",     "\xe2\x82\xac",
++    "zz",
++};
++
++#define N_STRINGS (sizeof(strings) / sizeof(strings[0]))
++
++/* Transform s in locale (or the current one), checking strxfrm's own rules */
++static size_t
++xfrm(const char *s, char *out, locale_t locale)
++{
++    size_t len, n, r;
++    char   buf[XMAX + 8];
++
++    errno = MARK;
++    len = locale ? strxfrm_l(NULL, s, 0, locale) : strxfrm(NULL, s, 0);
++    if (errno != MARK)
++        fail("strxfrm(\"%s\") changed errno", s);
++    if (len >= XMAX) {
++        fail("strxfrm(\"%s\") is too long, %zu", s, len);
++        return 0;
++    }
++    /* No more than n bytes are written, whatever n is */
++    for (n = 0; n <= len + 1; n++) {
++        memset(buf, 'x', sizeof(buf));
++        r = locale ? strxfrm_l(buf, s, n, locale) : strxfrm(buf, s, n);
++        if (r != len)
++            fail("strxfrm(\"%s\", %zu) is %zu, not %zu", s, n, r, len);
++        if (buf[n] != 'x')
++            fail("strxfrm(\"%s\", %zu) wrote past n", s, n);
++        if (n > len && buf[len] != '\0')
++            fail("strxfrm(\"%s\", %zu) isn't terminated", s, n);
++    }
++    r = locale ? strxfrm_l(out, s, len + 1, locale) : strxfrm(out, s, len + 1);
++    (void)r;
++    return len;
++}
++
++static void
++check_locale(const char *name, locale_t locale, int byte_order)
++{
++    static char xf[N_STRINGS][XMAX];
++    unsigned    i, j;
++
++    for (i = 0; i < N_STRINGS; i++)
++        xfrm(strings[i], xf[i], locale);
++    for (i = 0; i < N_STRINGS; i++)
++        for (j = 0; j < N_STRINGS; j++) {
++            const char *a = strings[i], *b = strings[j];
++            int         coll;
++
++            errno = MARK;
++            coll = sign(locale ? strcoll_l(a, b, locale) : strcoll(a, b));
++            if (errno != MARK)
++                fail("%s: strcoll(\"%s\", \"%s\") changed errno", name, a, b);
++            if (sign(strcmp(xf[i], xf[j])) != coll)
++                fail("%s: strcmp of the transformed \"%s\" and \"%s\" is %d, strcoll %d", name, a,
++                     b, sign(strcmp(xf[i], xf[j])), coll);
++            if (byte_order && coll != sign(strcmp(a, b)))
++                fail("%s: strcoll(\"%s\", \"%s\") is %d, strcmp %d", name, a, b, coll,
++                     sign(strcmp(a, b)));
++            if ((i == j) != (coll == 0) && strcmp(a, b) != 0 && byte_order)
++                fail("%s: \"%s\" and \"%s\" collate equal", name, a, b);
++        }
++}
++
++int
++main(void)
++{
++    locale_t posix, utf8;
++
++    posix = newlocale(LC_ALL_MASK, "POSIX", (locale_t)0);
++    if (posix == (locale_t)0) {
++        printf("newlocale(\"POSIX\") failed\n");
++        return 1;
++    }
++
++    /* The program starts in the POSIX locale */
++    check_locale("strcoll in the initial locale", (locale_t)0, 1);
++    check_locale("strcoll_l in POSIX", posix, 1);
++
++    utf8 = newlocale(LC_ALL_MASK, "C.UTF-8", (locale_t)0);
++    if (utf8 != (locale_t)0) {
++        locale_t old;
++
++        /* Any order, as long as strxfrm_l and strcoll_l agree */
++        check_locale("strcoll_l in C.UTF-8", utf8, 0);
++        /* With another current locale, strcoll_l still uses its argument */
++        old = uselocale(utf8);
++        check_locale("strcoll_l in POSIX with C.UTF-8 current", posix, 1);
++        check_locale("strcoll with C.UTF-8 current", (locale_t)0, 0);
++        uselocale(old);
++        freelocale(utf8);
++    } else {
++        printf("no C.UTF-8 locale; only the POSIX locale is checked\n");
++    }
++    freelocale(posix);
++
++    if (ret == 0)
++        printf("success\n");
++    return ret;
++}
+diff --git a/test/test-posix/test-string/test-strndup.c b/test/test-posix/test-string/test-strndup.c
+new file mode 100644
+index 0000000000..1c03a070ab
+--- /dev/null
++++ b/test/test-posix/test-string/test-strndup.c
+@@ -0,0 +1,171 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* setrlimit and RLIMIT_AS are XSI */
++#define _XOPEN_SOURCE 800
++#include "../posix-groups.h"
++#include <errno.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * strdup and strndup: copies that free() accepts, strndup's
++ * termination and its limit, and ENOMEM when there is no memory.
++ */
++
++static int ret;
++
++#define fail(...)            \
++    do {                     \
++        printf(__VA_ARGS__); \
++        printf("\n");        \
++        ret = 1;             \
++    } while (0)
++
++#if defined(__has_feature)
++#if __has_feature(address_sanitizer)
++#define SANITIZER_ALLOCATOR 1
++#endif
++#endif
++#ifndef SANITIZER_ALLOCATOR
++#define SANITIZER_ALLOCATOR 0
++#endif
++
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_XSI_MULTI_PROCESS)
++#include <sys/resource.h>
++#include <sys/wait.h>
++#include "../is-qemu.h"
++
++static void *(* volatile p_malloc)(size_t) = malloc;
++
++/* With every byte of memory taken, strdup and strndup fail with ENOMEM */
++static int
++out_of_memory(void)
++{
++    static const char src[] = "a string to copy when no memory is left";
++    struct rlimit     rl;
++    size_t            size;
++    char             *p;
++
++    rl.rlim_cur = rl.rlim_max = 256 * 1024 * 1024;
++    if (setrlimit(RLIMIT_AS, &rl) != 0) {
++        printf("setrlimit: %s\n", strerror(errno));
++        return 2;
++    }
++    /*
++     * Leak everything malloc will hand out, through a pointer so that
++     * the compiler can't assume each call succeeds
++     */
++    for (size = 1024 * 1024; size > 0; size /= 2)
++        while (p_malloc(size) != NULL)
++            ;
++    errno = 0;
++    p = strdup(src);
++    if (p != NULL || errno != ENOMEM) {
++        printf("strdup gave %p, errno %d\n", (void *)p, errno);
++        return 1;
++    }
++    errno = 0;
++    p = strndup(src, 10);
++    if (p != NULL || errno != ENOMEM) {
++        printf("strndup gave %p, errno %d\n", (void *)p, errno);
++        return 1;
++    }
++    return 0;
++}
++#endif
++
++int
++main(void)
++{
++    static const char src[] = "hello, world";
++    char              arr[5] = { 'a', 'b', 'c', 'd', 'e' };
++    char             *p;
++    size_t            n;
++
++    p = strdup(src);
++    if (p == NULL || p == src || strcmp(p, src) != 0)
++        fail("strdup");
++    free(p);
++    p = strdup("");
++    if (p == NULL || *p != '\0')
++        fail("strdup of an empty string");
++    free(p);
++
++    /* Up to size bytes, always terminated */
++    for (n = 0; n <= sizeof(src) + 2; n++) {
++        size_t want = n < strlen(src) ? n : strlen(src);
++
++        p = strndup(src, n);
++        if (p == NULL || strlen(p) != want || strncmp(p, src, want) != 0)
++            fail("strndup(src, %zu) is \"%s\"", n, p ? p : "(null)");
++        free(p);
++    }
++    /* The array needn't be terminated */
++    p = strndup(arr, sizeof(arr));
++    if (p == NULL || strcmp(p, "abcde") != 0)
++        fail("strndup of an unterminated array");
++    free(p);
++    /* A null before size bytes ends the copy */
++    p = strndup("ab\0cd", 5);
++    if (p == NULL || strcmp(p, "ab") != 0)
++        fail("strndup past a null");
++    free(p);
++
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_XSI_MULTI_PROCESS)
++    if (SANITIZER_ALLOCATOR) {
++        printf("the sanitizer's allocator ignores RLIMIT_AS; ENOMEM not checked\n");
++    } else if (is_qemu()) {
++        printf("qemu doesn't apply RLIMIT_AS; ENOMEM not checked\n");
++    } else {
++        pid_t pid;
++        int   status;
++
++        fflush(stdout);
++        pid = fork();
++        if (pid == 0)
++            _exit(out_of_memory());
++        if (pid < 0 || waitpid(pid, &status, 0) != pid || !WIFEXITED(status)
++            || WEXITSTATUS(status) != 0)
++            fail("ENOMEM check failed");
++    }
++#endif
++
++    if (ret == 0)
++        printf("success\n");
++    return ret;
++}
+diff --git a/test/test-posix/test-string/test-strtok_r.c b/test/test-posix/test-string/test-strtok_r.c
+new file mode 100644
+index 0000000000..8597475ddb
+--- /dev/null
++++ b/test/test-posix/test-string/test-strtok_r.c
+@@ -0,0 +1,226 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++#include <errno.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * strtok and strtok_r: tokens, separators that change from call to
++ * call, the end of the string, state that needn't be initialized and
++ * never points outside s, interleaved strings, and strtok_r in several
++ * threads at once.
++ */
++
++static int ret;
++
++#define fail(...)            \
++    do {                     \
++        printf(__VA_ARGS__); \
++        printf("\n");        \
++        ret = 1;             \
++    } while (0)
++
++#define MARK EDOM
++
++/* Split s with sep, using strtok_r if r, and compare with the tokens in want */
++static void
++split(const char *input, const char *sep, const char * const *want, int r)
++{
++    char  buf[128];
++    char *state, *tok;
++    char *garbage = (char *)"not the string";
++    int   i;
++
++    snprintf(buf, sizeof(buf), "%s", input);
++    /* The application needn't initialize the state */
++    state = garbage;
++    errno = MARK;
++    for (i = 0;; i++) {
++        tok = r ? strtok_r(i ? NULL : buf, sep, &state) : strtok(i ? NULL : buf, sep);
++        if (errno != MARK)
++            fail("%s changed errno", r ? "strtok_r" : "strtok");
++        if (r && state != NULL && (state < buf || state > buf + strlen(input)))
++            fail("strtok_r(\"%s\") left the state outside the string", input);
++        if (tok == NULL || want[i] == NULL)
++            break;
++        if (strcmp(tok, want[i]) != 0)
++            fail("%s(\"%s\", \"%s\") token %d is \"%s\", not \"%s\"", r ? "strtok_r" : "strtok",
++                 input, sep, i, tok, want[i]);
++        if (tok < buf || tok >= buf + sizeof(buf))
++            fail("token %d isn't in the string", i);
++    }
++    if (tok != NULL || want[i] != NULL)
++        fail("%s(\"%s\", \"%s\") gave %s token %d", r ? "strtok_r" : "strtok", input, sep,
++             tok ? "an extra" : "no", i);
++    /* Once there are no more tokens, later calls find none either */
++    if (r ? strtok_r(NULL, sep, &state) != NULL : strtok(NULL, sep) != NULL)
++        fail("%s(\"%s\") found another token after the end", r ? "strtok_r" : "strtok", input);
++}
++
++#define TOKENS(...) ((const char * const[]) { __VA_ARGS__, NULL })
++#define NONE        ((const char * const[]) { NULL })
++
++static void
++both(const char *input, const char *sep, const char * const *want)
++{
++    split(input, sep, want, 0);
++    split(input, sep, want, 1);
++}
++
++#if _POSIX_THREADS > 0
++#include <pthread.h>
++
++#define N_THREADS 4
++#define ROUNDS    20000
++
++static void *
++tokenize(void *arg)
++{
++    long n = (long)arg;
++    int  round;
++
++    for (round = 0; round < ROUNDS; round++) {
++        char  buf[96];
++        char *state, *tok;
++        int   count = 0;
++
++        snprintf(buf, sizeof(buf), "%ld,%ld,,%ld;%ld", n, n + 1, n + 2, n + 3);
++        for (tok = strtok_r(buf, ",;", &state); tok; tok = strtok_r(NULL, ",;", &state)) {
++            if (atol(tok) != n + count)
++                return (void *)1;
++            count++;
++        }
++        if (count != 4)
++            return (void *)1;
++    }
++    return NULL;
++}
++#endif
++
++int
++main(void)
++{
++    char  a[32], b[32];
++    char *p, *state;
++
++    /* The examples on strtok's page */
++    both("LINE TO BE SEPARATED", " ", TOKENS("LINE", "TO", "BE", "SEPARATED"));
++    both("key \t\n data\nrest", " \t\n", TOKENS("key", "data", "rest"));
++
++    both("  a  b  ", " ", TOKENS("a", "b"));
++    both("a", " ", TOKENS("a"));
++    both("   ", " ", NONE);
++    both("", " ", NONE);
++    both("abc", "", TOKENS("abc"));
++    both("a,b;;c", ",;", TOKENS("a", "b", "c"));
++    /* Bytes with the high bit set */
++    both("\x80x\x80\xff"
++         "y\xff",
++         "\x80\xff", TOKENS("x", "y"));
++    both("\xe9t\xe9 \xe9", " ", TOKENS("\xe9t\xe9", "\xe9"));
++
++    /* The separators may change from call to call */
++    snprintf(a, sizeof(a), "a,b c,d");
++    if ((p = strtok(a, ",")) == NULL || strcmp(p, "a") != 0)
++        fail("strtok with \",\"");
++    if ((p = strtok(NULL, " ")) == NULL || strcmp(p, "b") != 0)
++        fail("strtok then with \" \"");
++    if ((p = strtok(NULL, "")) == NULL || strcmp(p, "c,d") != 0)
++        fail("strtok then with \"\"");
++    snprintf(a, sizeof(a), "a,b c,d");
++    if ((p = strtok_r(a, ",", &state)) == NULL || strcmp(p, "a") != 0)
++        fail("strtok_r with \",\"");
++    if ((p = strtok_r(NULL, " ", &state)) == NULL || strcmp(p, "b") != 0)
++        fail("strtok_r then with \" \"");
++    if ((p = strtok_r(NULL, "", &state)) == NULL || strcmp(p, "c,d") != 0)
++        fail("strtok_r then with \"\"");
++
++    /* The separator is overwritten with a null and the next search starts after it */
++    snprintf(a, sizeof(a), "ab:cd");
++    p = strtok(a, ":");
++    if (p != a || a[2] != '\0' || strcmp(a + 3, "cd") != 0)
++        fail("strtok didn't end the token in place");
++    if ((p = strtok(NULL, ":")) != a + 3)
++        fail("the next token isn't after the separator");
++
++    /* strtok_r on two strings at once, and strtok's state is separate */
++    snprintf(a, sizeof(a), "1 2 3");
++    snprintf(b, sizeof(b), "x y z");
++    {
++        char *sa, *sb, *t;
++
++        t = strtok(a, " ");
++        if (t == NULL || strcmp(t, "1") != 0)
++            fail("strtok 1");
++        snprintf(b, sizeof(b), "x y z");
++        if ((p = strtok_r(b, " ", &sb)) == NULL || strcmp(p, "x") != 0)
++            fail("strtok_r x");
++        if ((t = strtok(NULL, " ")) == NULL || strcmp(t, "2") != 0)
++            fail("strtok_r disturbed strtok's state");
++        if ((p = strtok_r(NULL, " ", &sb)) == NULL || strcmp(p, "y") != 0)
++            fail("strtok disturbed strtok_r's state");
++        snprintf(a, sizeof(a), "1 2 3");
++        if ((p = strtok_r(a, " ", &sa)) == NULL || strcmp(p, "1") != 0)
++            fail("strtok_r 1");
++        if ((p = strtok_r(NULL, " ", &sb)) == NULL || strcmp(p, "z") != 0)
++            fail("strtok_r z after another string");
++        if ((p = strtok_r(NULL, " ", &sa)) == NULL || strcmp(p, "2") != 0)
++            fail("strtok_r 2 after another string");
++    }
++
++#if _POSIX_THREADS > 0
++    {
++        pthread_t threads[N_THREADS];
++        long      i;
++        void     *result;
++
++        for (i = 0; i < N_THREADS; i++)
++            if (pthread_create(&threads[i], NULL, tokenize, (void *)(i * 10)) != 0)
++                fail("pthread_create");
++        for (i = 0; i < N_THREADS; i++) {
++            if (pthread_join(threads[i], &result) != 0 || result != NULL)
++                fail("strtok_r in thread %ld went wrong", i);
++        }
++    }
++#endif
++
++    if (ret == 0)
++        printf("success\n");
++    return ret;
++}
+-- 
+2.47.3
+

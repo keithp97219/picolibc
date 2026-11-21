@@ -1,0 +1,31 @@
+From 6348eca49d2e6c681128df3bba4aa71cba482375 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:41:06 +0000
+Subject: [PATCH 05/24] stdlib: Set errno to EINVAL when realloc frees for a
+ zero size
+
+POSIX.1-2024: when realloc(ptr, 0) returns a null pointer and ptr
+isn't null, errno shall be set to EINVAL. reallocarray with a zero
+count or size goes through the same path.
+---
+ libc/stdlib/realloc.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/libc/stdlib/realloc.c b/libc/stdlib/realloc.c
+index c816df180c..913e26fddd 100644
+--- a/libc/stdlib/realloc.c
++++ b/libc/stdlib/realloc.c
+@@ -67,8 +67,10 @@ realloc(void *ptr, size_t size)
+     if (ptr == NULL)
+         return malloc(size);
+ 
++    /* POSIX: free the object, return NULL and set errno to EINVAL */
+     if (size == 0) {
+         free(ptr);
++        errno = EINVAL;
+         return NULL;
+     }
+ 
+-- 
+2.47.3
+

@@ -1,0 +1,32 @@
+From 3fb3ad3b53aa5f7fcbd0890ccea39979421a70a7 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:29:52 +0000
+Subject: [PATCH 06/19] locale: Report the codeset name, not the locale name,
+ for CODESET
+
+nl_langinfo(CODESET) returned the locale's name ("C", "C.UTF-8"),
+which isn't a codeset and which iconv_open rejects. Return "ASCII" in
+the C locale and the codeset part of the name ("UTF-8") otherwise.
+---
+ libc/locale/nl_langinfo.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/libc/locale/nl_langinfo.c b/libc/locale/nl_langinfo.c
+index cb00e952c6..7d7a99ce34 100644
+--- a/libc/locale/nl_langinfo.c
++++ b/libc/locale/nl_langinfo.c
+@@ -42,7 +42,10 @@ nl_langinfo_l(nl_item item, locale_t locale)
+ {
+     switch (item) {
+     case CODESET:
+-        return (char *)__locale_name(locale);
++        /* The codeset, not the locale: "ASCII" for C, the part after "C." otherwise */
++        if (locale == locale_C)
++            return "ASCII";
++        return (char *)__locale_name(locale) + 2;
+     case D_T_FMT:
+         return TIME_C_FMT;
+     case D_FMT:
+-- 
+2.47.3
+

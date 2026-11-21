@@ -1,0 +1,38 @@
+From 10afdc94403c4c29d980069b7e63a0dc59588f07 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:30:05 +0000
+Subject: [PATCH 07/19] langinfo.h: Define YESSTR and NOSTR only for
+ _DEFAULT_SOURCE
+
+YESSTR and NOSTR were removed from POSIX long ago, and <langinfo.h>
+reserves no prefix that covers them, so strict POSIX programs may use
+the names. The items keep their values under reserved names.
+---
+ libc/include/langinfo.h | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/libc/include/langinfo.h b/libc/include/langinfo.h
+index 5ce8408322..531744e10e 100644
+--- a/libc/include/langinfo.h
++++ b/libc/include/langinfo.h
+@@ -162,10 +162,13 @@ enum {
+ #define YESEXPR YESEXPR
+     NOEXPR, /* negative response expression */
+ #define NOEXPR NOEXPR
+-    YESSTR, /* affirmative response for yes/no queries */
+-#define YESSTR YESSTR
+-    NOSTR, /* negative response for yes/no queries */
+-#define NOSTR NOSTR
++    /* Removed from POSIX; kept so later items keep their values */
++    _NL_YESSTR, /* affirmative response for yes/no queries */
++    _NL_NOSTR,  /* negative response for yes/no queries */
++#if __MISC_VISIBLE
++#define YESSTR _NL_YESSTR
++#define NOSTR  _NL_NOSTR
++#endif
+ 
+     CRNCYSTR, /* currency symbol */
+ #define CRNCYSTR CRNCYSTR
+-- 
+2.47.3
+

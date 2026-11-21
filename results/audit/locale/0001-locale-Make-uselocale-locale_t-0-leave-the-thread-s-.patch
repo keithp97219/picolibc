@@ -1,0 +1,41 @@
+From 42e31b292dcde4e26ff32306082c3704a6d285ff Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:28:36 +0000
+Subject: [PATCH 01/19] locale: Make uselocale((locale_t)0) leave the thread's
+ locale alone
+
+uselocale((locale_t)0) only queries the current locale, but it
+uninstalled any thread-local locale. Also reject values that aren't
+locale objects with EINVAL.
+---
+ libc/locale/uselocale.c | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/libc/locale/uselocale.c b/libc/locale/uselocale.c
+index 333a7dcc67..32152fa026 100644
+--- a/libc/locale/uselocale.c
++++ b/libc/locale/uselocale.c
+@@ -47,10 +47,16 @@ uselocale(locale_t locale)
+     if (current == 0)
+         current = LC_GLOBAL_LOCALE;
+ 
+-    if (locale == LC_GLOBAL_LOCALE)
+-        locale = 0;
+-
+-    _locale = locale;
++    /* (locale_t)0 only asks for the current locale */
++    if (locale == LC_GLOBAL_LOCALE) {
++        _locale = 0;
++    } else if (locale != (locale_t)0) {
++        if (locale < locale_BASE || locale >= locale_END) {
++            errno = EINVAL;
++            return (locale_t)0;
++        }
++        _locale = locale;
++    }
+ 
+     return current;
+ }
+-- 
+2.47.3
+

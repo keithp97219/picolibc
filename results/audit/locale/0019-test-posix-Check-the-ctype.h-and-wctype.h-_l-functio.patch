@@ -1,0 +1,806 @@
+From 5052a3ad2d12e97437a63574393287729841f2e5 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 07:04:47 +0000
+Subject: [PATCH 19/19] test-posix: Check the <ctype.h> and <wctype.h> _l
+ functions
+
+Check that every <ctype.h> _l function, as a macro and as a function,
+gives the POSIX locale's classes and case mappings (XBD 7.3.1.1) for
+EOF and every byte, with only cntrl and punct allowed outside the
+portable characters, and that <ctype.h> takes application macros
+named like its parameters. Check wctype_l, wctrans_l, iswctype_l and
+towctrans_l, including (wctype_t)0 and (wctrans_t)0, the isw*_l and
+tow*_l functions and WEOF. With picolibc's ISO-8859-1 and C.UTF-8
+locales, check that the _l functions follow their argument and the
+others the thread's locale.
+---
+ test/test-posix/CMakeLists.txt                |   2 +
+ test/test-posix/meson.build                   |   2 +
+ test/test-posix/test-ctype/CMakeLists.txt     |  43 +++
+ test/test-posix/test-ctype/meson.build        |  38 +++
+ test/test-posix/test-ctype/test-isalpha_l.c   | 271 ++++++++++++++++++
+ test/test-posix/test-wctype/CMakeLists.txt    |  43 +++
+ test/test-posix/test-wctype/meson.build       |  38 +++
+ test/test-posix/test-wctype/test-iswalpha_l.c | 264 +++++++++++++++++
+ 8 files changed, 701 insertions(+)
+ create mode 100644 test/test-posix/test-ctype/CMakeLists.txt
+ create mode 100644 test/test-posix/test-ctype/meson.build
+ create mode 100644 test/test-posix/test-ctype/test-isalpha_l.c
+ create mode 100644 test/test-posix/test-wctype/CMakeLists.txt
+ create mode 100644 test/test-posix/test-wctype/meson.build
+ create mode 100644 test/test-posix/test-wctype/test-iswalpha_l.c
+
+diff --git a/test/test-posix/CMakeLists.txt b/test/test-posix/CMakeLists.txt
+index 9d15c31c1a..e05d5d1256 100644
+--- a/test/test-posix/CMakeLists.txt
++++ b/test/test-posix/CMakeLists.txt
+@@ -35,6 +35,7 @@
+ 
+ add_subdirectory(test-aio)
+ add_subdirectory(test-arpa-inet)
++add_subdirectory(test-ctype)
+ add_subdirectory(test-dirent)
+ add_subdirectory(test-fcntl)
+ add_subdirectory(test-fmtmsg)
+@@ -88,4 +89,5 @@ add_subdirectory(test-time)
+ add_subdirectory(test-unistd)
+ add_subdirectory(test-utmpx)
+ add_subdirectory(test-wchar)
++add_subdirectory(test-wctype)
+ add_subdirectory(test-wordexp)
+diff --git a/test/test-posix/meson.build b/test/test-posix/meson.build
+index df63d26c3b..7e28957a41 100644
+--- a/test/test-posix/meson.build
++++ b/test/test-posix/meson.build
+@@ -40,6 +40,7 @@
+ posix_test_dirs = [
+   'test-aio',
+   'test-arpa-inet',
++  'test-ctype',
+   'test-dirent',
+   'test-fcntl',
+   'test-fmtmsg',
+@@ -93,6 +94,7 @@ posix_test_dirs = [
+   'test-unistd',
+   'test-utmpx',
+   'test-wchar',
++  'test-wctype',
+   'test-wordexp',
+ ]
+ 
+diff --git a/test/test-posix/test-ctype/CMakeLists.txt b/test/test-posix/test-ctype/CMakeLists.txt
+new file mode 100644
+index 0000000000..47c1813f97
+--- /dev/null
++++ b/test/test-posix/test-ctype/CMakeLists.txt
+@@ -0,0 +1,43 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# Copyright © 2026 Keith Packard
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++#
++# 1. Redistributions of source code must retain the above copyright
++#    notice, this list of conditions and the following disclaimer.
++#
++# 2. Redistributions in binary form must reproduce the above
++#    copyright notice, this list of conditions and the following
++#    disclaimer in the documentation and/or other materials provided
++#    with the distribution.
++#
++# 3. Neither the name of the copyright holder nor the names of its
++#    contributors may be used to endorse or promote products derived
++#    from this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++# OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++set(tests
++  test-isalpha_l
++  )
++
++foreach(test IN LISTS tests)
++  picolibc_test(${test})
++  set_tests_properties(${test} PROPERTIES LABELS test-ctype)
++endforeach()
+diff --git a/test/test-posix/test-ctype/meson.build b/test/test-posix/test-ctype/meson.build
+new file mode 100644
+index 0000000000..563d96c812
+--- /dev/null
++++ b/test/test-posix/test-ctype/meson.build
+@@ -0,0 +1,38 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# Copyright © 2026 Keith Packard
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++#
++# 1. Redistributions of source code must retain the above copyright
++#    notice, this list of conditions and the following disclaimer.
++#
++# 2. Redistributions in binary form must reproduce the above
++#    copyright notice, this list of conditions and the following
++#    disclaimer in the documentation and/or other materials provided
++#    with the distribution.
++#
++# 3. Neither the name of the copyright holder nor the names of its
++#    contributors may be used to endorse or promote products derived
++#    from this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++# OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++dir_tests = [
++  'test-isalpha_l',
++]
+diff --git a/test/test-posix/test-ctype/test-isalpha_l.c b/test/test-posix/test-ctype/test-isalpha_l.c
+new file mode 100644
+index 0000000000..7101c8b48e
+--- /dev/null
++++ b/test/test-posix/test-ctype/test-isalpha_l.c
+@@ -0,0 +1,271 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* The application's own macros, defined before the header */
++#define c +
++#define l +
++#include <ctype.h>
++#undef c
++#undef l
++
++#include <locale.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++/*
++ * The <ctype.h> _l functions classify and convert by the locale they
++ * are given, as macros and as functions; in the POSIX locale the
++ * classes are those of XBD 7.3.1.1, with only cntrl and punct allowed
++ * outside the portable characters; the functions without _l follow
++ * the thread's locale
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define B(x) ((x) != 0)
++
++/* The POSIX locale's classes for the portable characters (0..127) */
++static int
++posix_class(int ch, char cls)
++{
++    switch (cls) {
++    case 'u':
++        return 'A' <= ch && ch <= 'Z';
++    case 'l':
++        return 'a' <= ch && ch <= 'z';
++    case 'a':
++        return posix_class(ch, 'u') || posix_class(ch, 'l');
++    case 'd':
++        return '0' <= ch && ch <= '9';
++    case 'n':
++        return posix_class(ch, 'a') || posix_class(ch, 'd');
++    case 'x':
++        return posix_class(ch, 'd') || ('A' <= ch && ch <= 'F') || ('a' <= ch && ch <= 'f');
++    case 's':
++        return ch == ' ' || ('\t' <= ch && ch <= '\r');
++    case 'b':
++        return ch == ' ' || ch == '\t';
++    case 'c':
++        return (0 <= ch && ch < 0x20) || ch == 0x7f;
++    case 'p':
++        return 0x21 <= ch && ch <= 0x7e && !posix_class(ch, 'n');
++    case 'g':
++        return 0x21 <= ch && ch <= 0x7e;
++    case 'r':
++        return 0x20 <= ch && ch <= 0x7e;
++    }
++    return 0;
++}
++
++/* Classify ch in locale l using macros (m) or functions */
++static int
++class_l(int ch, char cls, locale_t loc, int m)
++{
++    switch (cls) {
++    case 'u':
++        return B(m ? isupper_l(ch, loc) : (isupper_l)(ch, loc));
++    case 'l':
++        return B(m ? islower_l(ch, loc) : (islower_l)(ch, loc));
++    case 'a':
++        return B(m ? isalpha_l(ch, loc) : (isalpha_l)(ch, loc));
++    case 'd':
++        return B(m ? isdigit_l(ch, loc) : (isdigit_l)(ch, loc));
++    case 'n':
++        return B(m ? isalnum_l(ch, loc) : (isalnum_l)(ch, loc));
++    case 'x':
++        return B(m ? isxdigit_l(ch, loc) : (isxdigit_l)(ch, loc));
++    case 's':
++        return B(m ? isspace_l(ch, loc) : (isspace_l)(ch, loc));
++    case 'b':
++        return B(m ? isblank_l(ch, loc) : (isblank_l)(ch, loc));
++    case 'c':
++        return B(m ? iscntrl_l(ch, loc) : (iscntrl_l)(ch, loc));
++    case 'p':
++        return B(m ? ispunct_l(ch, loc) : (ispunct_l)(ch, loc));
++    case 'g':
++        return B(m ? isgraph_l(ch, loc) : (isgraph_l)(ch, loc));
++    case 'r':
++        return B(m ? isprint_l(ch, loc) : (isprint_l)(ch, loc));
++    }
++    return 0;
++}
++
++/* The same without _l, from the current locale */
++static int
++class_cur(int ch, char cls, int m)
++{
++    switch (cls) {
++    case 'u':
++        return B(m ? isupper(ch) : (isupper)(ch));
++    case 'l':
++        return B(m ? islower(ch) : (islower)(ch));
++    case 'a':
++        return B(m ? isalpha(ch) : (isalpha)(ch));
++    case 'd':
++        return B(m ? isdigit(ch) : (isdigit)(ch));
++    case 'n':
++        return B(m ? isalnum(ch) : (isalnum)(ch));
++    case 'x':
++        return B(m ? isxdigit(ch) : (isxdigit)(ch));
++    case 's':
++        return B(m ? isspace(ch) : (isspace)(ch));
++    case 'b':
++        return B(m ? isblank(ch) : (isblank)(ch));
++    case 'c':
++        return B(m ? iscntrl(ch) : (iscntrl)(ch));
++    case 'p':
++        return B(m ? ispunct(ch) : (ispunct)(ch));
++    case 'g':
++        return B(m ? isgraph(ch) : (isgraph)(ch));
++    case 'r':
++        return B(m ? isprint(ch) : (isprint)(ch));
++    }
++    return 0;
++}
++
++static const char classes[] = "ulandxsbcpgr";
++
++/* Check every character and EOF against the POSIX locale */
++static void
++check_posix(locale_t loc, const char *where)
++{
++    int         ch, m;
++    const char *cls;
++
++    printf("%s\n", where);
++    for (ch = EOF; ch <= 255; ch++) {
++        for (m = 0; m <= 1; m++) {
++            for (cls = classes; *cls; cls++) {
++                int got = class_l(ch, *cls, loc, m);
++                int cur = class_cur(ch, *cls, m);
++                int want;
++
++                if (ch == EOF)
++                    want = 0;
++                else if (ch < 0x80)
++                    want = posix_class(ch, *cls);
++                else if (*cls == 'c' || *cls == 'p')
++                    /* Allowed to be cntrl or punct, so just agree */
++                    want = got;
++                else if (*cls == 'g' || *cls == 'r')
++                    want = class_l(ch, 'p', loc, m);
++                else
++                    want = 0;
++                if (got != want || cur != want) {
++                    printf("char %d class %c: _l %d, current %d, want %d (%s)\n", ch, *cls, got,
++                           cur, want, m ? "macro" : "function");
++                    exit(1);
++                }
++            }
++            /* Only the portable letters change case */
++            {
++                int up = ('a' <= ch && ch <= 'z') ? ch - 'a' + 'A' : ch;
++                int down = ('A' <= ch && ch <= 'Z') ? ch - 'A' + 'a' : ch;
++
++                if ((m ? toupper_l(ch, loc) : (toupper_l)(ch, loc)) != up
++                    || (m ? tolower_l(ch, loc) : (tolower_l)(ch, loc)) != down
++                    || (m ? toupper(ch) : (toupper)(ch)) != up
++                    || (m ? tolower(ch) : (tolower)(ch)) != down) {
++                    printf("char %d: case conversion\n", ch);
++                    exit(1);
++                }
++            }
++        }
++    }
++}
++
++/*
++ * gcc treats the <ctype.h> and <wctype.h> functions as builtins whose
++ * result depends only on the argument, so it reuses results across
++ * uselocale. Read the characters from volatile objects to stop that.
++ */
++static volatile int e_acute = 0xe9;
++static volatile int E_acute = 0xc9;
++
++int
++main(void)
++{
++    int      (*p_isalnum_l)(int, locale_t) = isalnum_l;
++    int      (*p_toupper_l)(int, locale_t) = toupper_l;
++    locale_t posix, iso;
++
++    check(p_isalnum_l != NULL && p_toupper_l != NULL, "prototypes");
++
++    posix = newlocale(LC_ALL_MASK, "POSIX", (locale_t)0);
++    check(posix != (locale_t)0, "newlocale");
++    check_posix(posix, "POSIX locale object");
++    check(uselocale(posix) == LC_GLOBAL_LOCALE, "uselocale");
++    check_posix(posix, "as the thread's locale");
++    check(uselocale(LC_GLOBAL_LOCALE) == posix, "uselocale");
++
++    iso = (locale_t)0;
++#ifdef __PICOLIBC__
++    /* picolibc built with extended charsets has ISO-8859-1 */
++    iso = newlocale(LC_CTYPE_MASK, "C.ISO-8859-1", (locale_t)0);
++#endif
++    if (iso != (locale_t)0) {
++        /* The _l functions follow their argument, not the current locale */
++        check(isalpha_l(e_acute, iso) && islower_l(e_acute, iso) && isupper_l(E_acute, iso),
++              "ISO-8859-1 letters");
++        check((isalpha_l)(e_acute, iso) && (isupper_l)(E_acute, iso), "ISO-8859-1 functions");
++        check(toupper_l(e_acute, iso) == E_acute && tolower_l(E_acute, iso) == e_acute,
++              "ISO-8859-1 case");
++        check(!isalpha_l(e_acute, posix) && toupper_l(e_acute, posix) == e_acute,
++              "POSIX locale object");
++        check(!isalpha(e_acute) && toupper(e_acute) == e_acute, "global POSIX locale");
++
++        /* The functions without _l follow the thread's locale */
++        check(uselocale(iso) == LC_GLOBAL_LOCALE, "uselocale");
++        check(isalpha(e_acute) && (isalpha)(e_acute) && toupper(e_acute) == E_acute,
++              "thread ISO-8859-1");
++        check(!isalpha_l(e_acute, posix), "the _l functions still follow their argument");
++        check(uselocale(LC_GLOBAL_LOCALE) == iso, "uselocale");
++        check(!isalpha(e_acute), "back to the global locale");
++        freelocale(iso);
++    } else {
++        printf("no ISO-8859-1 locale, skipping its checks\n");
++    }
++
++    freelocale(posix);
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-wctype/CMakeLists.txt b/test/test-posix/test-wctype/CMakeLists.txt
+new file mode 100644
+index 0000000000..8635104bf7
+--- /dev/null
++++ b/test/test-posix/test-wctype/CMakeLists.txt
+@@ -0,0 +1,43 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# Copyright © 2026 Keith Packard
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++#
++# 1. Redistributions of source code must retain the above copyright
++#    notice, this list of conditions and the following disclaimer.
++#
++# 2. Redistributions in binary form must reproduce the above
++#    copyright notice, this list of conditions and the following
++#    disclaimer in the documentation and/or other materials provided
++#    with the distribution.
++#
++# 3. Neither the name of the copyright holder nor the names of its
++#    contributors may be used to endorse or promote products derived
++#    from this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++# OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++set(tests
++  test-iswalpha_l
++  )
++
++foreach(test IN LISTS tests)
++  picolibc_test(${test})
++  set_tests_properties(${test} PROPERTIES LABELS test-wctype)
++endforeach()
+diff --git a/test/test-posix/test-wctype/meson.build b/test/test-posix/test-wctype/meson.build
+new file mode 100644
+index 0000000000..92c8b69fde
+--- /dev/null
++++ b/test/test-posix/test-wctype/meson.build
+@@ -0,0 +1,38 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# Copyright © 2026 Keith Packard
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++#
++# 1. Redistributions of source code must retain the above copyright
++#    notice, this list of conditions and the following disclaimer.
++#
++# 2. Redistributions in binary form must reproduce the above
++#    copyright notice, this list of conditions and the following
++#    disclaimer in the documentation and/or other materials provided
++#    with the distribution.
++#
++# 3. Neither the name of the copyright holder nor the names of its
++#    contributors may be used to endorse or promote products derived
++#    from this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++# OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++dir_tests = [
++  'test-iswalpha_l',
++]
+diff --git a/test/test-posix/test-wctype/test-iswalpha_l.c b/test/test-posix/test-wctype/test-iswalpha_l.c
+new file mode 100644
+index 0000000000..5daec8e229
+--- /dev/null
++++ b/test/test-posix/test-wctype/test-iswalpha_l.c
+@@ -0,0 +1,264 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <wctype.h>
++
++#include <ctype.h>
++#include <errno.h>
++#include <locale.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++/*
++ * The <wctype.h> _l functions: classes and mappings from wctype_l and
++ * wctrans_l, (wctype_t)0 and (wctrans_t)0, the POSIX locale's classes,
++ * and the functions without _l following the thread's locale
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define B(x) ((x) != 0)
++
++static const char * const names[] = { "alnum", "alpha", "blank", "cntrl", "digit", "graph",
++                                      "lower", "print", "punct", "space", "upper", "xdigit" };
++#define NNAMES (sizeof(names) / sizeof(names[0]))
++
++/* The <ctype.h> class of a portable character, in the same order as names */
++static int
++byte_class(int ch, size_t n)
++{
++    switch (n) {
++    case 0:
++        return B(isalnum(ch));
++    case 1:
++        return B(isalpha(ch));
++    case 2:
++        return B(isblank(ch));
++    case 3:
++        return B(iscntrl(ch));
++    case 4:
++        return B(isdigit(ch));
++    case 5:
++        return B(isgraph(ch));
++    case 6:
++        return B(islower(ch));
++    case 7:
++        return B(isprint(ch));
++    case 8:
++        return B(ispunct(ch));
++    case 9:
++        return B(isspace(ch));
++    case 10:
++        return B(isupper(ch));
++    default:
++        return B(isxdigit(ch));
++    }
++}
++
++/* The isw*_l function for names[n] */
++static int
++wide_class_l(wint_t wc, size_t n, locale_t loc)
++{
++    switch (n) {
++    case 0:
++        return B(iswalnum_l(wc, loc));
++    case 1:
++        return B(iswalpha_l(wc, loc));
++    case 2:
++        return B(iswblank_l(wc, loc));
++    case 3:
++        return B(iswcntrl_l(wc, loc));
++    case 4:
++        return B(iswdigit_l(wc, loc));
++    case 5:
++        return B(iswgraph_l(wc, loc));
++    case 6:
++        return B(iswlower_l(wc, loc));
++    case 7:
++        return B(iswprint_l(wc, loc));
++    case 8:
++        return B(iswpunct_l(wc, loc));
++    case 9:
++        return B(iswspace_l(wc, loc));
++    case 10:
++        return B(iswupper_l(wc, loc));
++    default:
++        return B(iswxdigit_l(wc, loc));
++    }
++}
++
++/* Wide characters outside the portable set to look at */
++static const wint_t others[] = { 0x80, 0x9f, 0xa0, 0xc9, 0xe9, 0xff, 0x100, 0x3b1, 0x4e00, 0xff21 };
++#define NOTHERS (sizeof(others) / sizeof(others[0]))
++
++static void
++check_posix(locale_t loc)
++{
++    wctype_t  types[NNAMES];
++    wctrans_t lower, upper;
++    wint_t    wc;
++    size_t    n, i;
++
++    for (n = 0; n < NNAMES; n++) {
++        types[n] = wctype_l(names[n], loc);
++        check(types[n] != 0, "wctype_l of a standard class");
++        check(wctype(names[n]) != 0, "wctype of a standard class");
++    }
++    check(wctype_l("no-such-class", loc) == 0, "wctype_l of an unknown class");
++    check(wctype("no-such-class") == 0, "wctype of an unknown class");
++
++    lower = wctrans_l("tolower", loc);
++    upper = wctrans_l("toupper", loc);
++    check(lower != 0 && upper != 0 && wctrans("tolower") != 0, "wctrans_l");
++    errno = 0;
++    check(wctrans_l("no-such-mapping", loc) == 0, "wctrans_l of an unknown mapping");
++
++    /* The portable characters have their <ctype.h> classes */
++    for (wc = 0; wc < 0x80; wc++) {
++        for (n = 0; n < NNAMES; n++) {
++            int want = byte_class((int)wc, n);
++
++            if (wide_class_l(wc, n, loc) != want || B(iswctype_l(wc, types[n], loc)) != want
++                || B(iswctype(wc, types[n])) != want) {
++                printf("wide char %#lx class %s\n", (unsigned long)wc, names[n]);
++                exit(1);
++            }
++        }
++        check(iswctype_l(wc, 0, loc) == 0 && iswctype(wc, 0) == 0, "(wctype_t)0");
++        check(towlower_l(wc, loc) == (wint_t)tolower((int)wc)
++                  && towupper_l(wc, loc) == (wint_t)toupper((int)wc),
++              "towlower_l and towupper_l");
++        check(towctrans_l(wc, lower, loc) == (wint_t)tolower((int)wc)
++                  && towctrans_l(wc, upper, loc) == (wint_t)toupper((int)wc)
++                  && towctrans(wc, upper) == (wint_t)toupper((int)wc),
++              "towctrans_l");
++        check(towctrans_l(wc, 0, loc) == wc && towctrans(wc, 0) == wc, "(wctrans_t)0");
++    }
++
++    /* Others may only be cntrl or punct, and don't change case */
++    for (i = 0; i < NOTHERS; i++) {
++        wc = others[i];
++        for (n = 0; n < NNAMES; n++) {
++            int got = wide_class_l(wc, n, loc);
++
++            if (n == 3 || n == 8)
++                continue;
++            if ((n == 5 || n == 7) ? got != wide_class_l(wc, 8, loc) : got) {
++                printf("wide char %#lx is %s in the POSIX locale\n", (unsigned long)wc, names[n]);
++                exit(1);
++            }
++        }
++        check(towlower_l(wc, loc) == wc && towupper_l(wc, loc) == wc, "no case outside ASCII");
++    }
++
++    /* WEOF is in no class and maps to itself */
++    for (n = 0; n < NNAMES; n++)
++        check(!wide_class_l(WEOF, n, loc) && !iswctype_l(WEOF, types[n], loc), "WEOF class");
++    check(towlower_l(WEOF, loc) == WEOF && towupper_l(WEOF, loc) == WEOF, "WEOF case");
++}
++
++/*
++ * gcc treats the <ctype.h> and <wctype.h> functions as builtins whose
++ * result depends only on the argument, so it reuses results across
++ * uselocale. Read the characters from volatile objects to stop that.
++ */
++static volatile wint_t e_acute = 0xe9;
++static volatile wint_t E_acute = 0xc9;
++static volatile wint_t small_alpha = 0x3b1;
++static volatile wint_t cjk = 0x4e00;
++static volatile wint_t ALPHA = 0x391;
++
++int
++main(void)
++{
++    int       (*p_iswctype_l)(wint_t, wctype_t, locale_t) = iswctype_l;
++    wint_t    (*p_towctrans_l)(wint_t, wctrans_t, locale_t) = towctrans_l;
++    wctrans_t (*p_wctrans_l)(const char *, locale_t) = wctrans_l;
++    wctype_t  (*p_wctype_l)(const char *, locale_t) = wctype_l;
++    locale_t  posix, utf8;
++
++    check(p_iswctype_l && p_towctrans_l && p_wctrans_l && p_wctype_l, "prototypes");
++    check(WEOF == WEOF && sizeof(wint_t) > 0, "WEOF and wint_t");
++
++    posix = newlocale(LC_ALL_MASK, "POSIX", (locale_t)0);
++    check(posix != (locale_t)0, "newlocale");
++    check_posix(posix);
++    check(uselocale(posix) == LC_GLOBAL_LOCALE, "uselocale");
++    check_posix(posix);
++    check(uselocale(LC_GLOBAL_LOCALE) == posix, "uselocale");
++
++    utf8 = (locale_t)0;
++#ifdef __PICOLIBC__
++    /* picolibc built with multibyte support has C.UTF-8 */
++    utf8 = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);
++#endif
++    if (utf8 != (locale_t)0) {
++        wctype_t  alpha = wctype_l("alpha", utf8);
++        wctrans_t upper = wctrans_l("toupper", utf8);
++
++        /* The _l functions follow their argument */
++        check(iswalpha_l(e_acute, utf8) && iswlower_l(e_acute, utf8) && iswupper_l(E_acute, utf8),
++              "C.UTF-8 letters");
++        check(iswalpha_l(small_alpha, utf8) && iswctype_l(cjk, alpha, utf8), "more letters");
++        check(towupper_l(e_acute, utf8) == E_acute && towlower_l(E_acute, utf8) == e_acute,
++              "C.UTF-8 case");
++        check(towctrans_l(small_alpha, upper, utf8) == ALPHA, "towctrans_l");
++        check(!iswalpha_l(e_acute, posix) && !iswalpha(e_acute), "not in the POSIX locale");
++
++        /* The functions without _l follow the thread's locale */
++        check(uselocale(utf8) == LC_GLOBAL_LOCALE, "uselocale");
++        check(iswalpha(e_acute) && towupper(e_acute) == E_acute, "thread C.UTF-8");
++        check(iswctype(small_alpha, wctype("alpha"))
++                  && towctrans(small_alpha, wctrans("toupper")) == ALPHA,
++              "iswctype and towctrans");
++        check(!iswalpha_l(e_acute, posix), "the _l functions still follow their argument");
++        check(uselocale(LC_GLOBAL_LOCALE) == utf8, "uselocale");
++        check(!iswalpha(e_acute) && towupper(e_acute) == e_acute, "back to the global locale");
++        freelocale(utf8);
++    } else {
++        printf("no C.UTF-8 locale, skipping its checks\n");
++    }
++
++    freelocale(posix);
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

@@ -1,0 +1,44 @@
+From 8526113ef8094a6b7abe003fded9819639a87971 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:30:24 +0000
+Subject: [PATCH 06/17] string.h: Don't declare free
+
+<string.h> declared free for the deallocator in strdup's and strndup's
+__malloc_like attribute. free is only reserved at file scope when
+<stdlib.h> is included, so an application's own static free, or a free
+macro, clashed with it. __malloc_like now names __builtin_free, as
+glibc does, which needs no declaration.
+---
+ libc/include/string.h    | 1 -
+ libc/include/sys/cdefs.h | 3 ++-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libc/include/string.h b/libc/include/string.h
+index 414666c25a..c9013a6225 100644
+--- a/libc/include/string.h
++++ b/libc/include/string.h
+@@ -118,7 +118,6 @@ int strcoll_l(const char *, const char *, locale_t) __picolibc_export;
+ char  *strcpy(char  *__restrict, const char  *__restrict) __picolibc_export;
+ size_t strcspn(const char *, const char *) __picolibc_export;
+ #if __MISC_VISIBLE || __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 4 || __ISO_C_VISIBLE >= 2023
+-void  free(void *) __nothrow __picolibc_export; /* for __malloc_like */
+ char *strdup(const char *) __malloc_like __warn_unused_result __picolibc_export;
+ #endif
+ #if __GNU_VISIBLE && defined(__GNUC__)
+diff --git a/libc/include/sys/cdefs.h b/libc/include/sys/cdefs.h
+index 8be56274d8..a4a550c1dd 100644
+--- a/libc/include/sys/cdefs.h
++++ b/libc/include/sys/cdefs.h
+@@ -289,7 +289,8 @@
+ #define __malloc_like_with_free(free, free_arg)
+ #endif
+ 
+-#define __malloc_like __malloc_like_with_free(free, 1)
++/* __builtin_free, so that headers needn't declare free */
++#define __malloc_like __malloc_like_with_free(__builtin_free, 1)
+ 
+ #if __has_attribute(always_inline) && __has_attribute(gnu_inline)
+ /*
+-- 
+2.47.3
+

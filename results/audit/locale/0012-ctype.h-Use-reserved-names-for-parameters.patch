@@ -1,0 +1,383 @@
+From 3dee71aceb99bae5ccfb70e6f06277414ac9ec56 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:34:49 +0000
+Subject: [PATCH 12/19] ctype.h: Use reserved names for parameters
+
+The prototypes and inline functions named their parameters c and l,
+so an application macro with either name, defined before including
+<ctype.h>, broke the header. Use __c and __l.
+---
+ libc/include/ctype.h | 222 +++++++++++++++++++++----------------------
+ 1 file changed, 111 insertions(+), 111 deletions(-)
+
+diff --git a/libc/include/ctype.h b/libc/include/ctype.h
+index 31c92cf651..374fc4ec53 100644
+--- a/libc/include/ctype.h
++++ b/libc/include/ctype.h
+@@ -62,27 +62,27 @@ _BEGIN_STD_C
+ #endif
+ #endif
+ 
+-int isalnum(int c) __picolibc_export;
+-int isalpha(int c) __picolibc_export;
+-int iscntrl(int c) __picolibc_export;
+-int isdigit(int c) __picolibc_export;
+-int isgraph(int c) __picolibc_export;
+-int islower(int c) __picolibc_export;
+-int isprint(int c) __picolibc_export;
+-int ispunct(int c) __picolibc_export;
+-int isspace(int c) __picolibc_export;
+-int isupper(int c) __picolibc_export;
+-int isxdigit(int c) __picolibc_export;
+-int tolower(int c) __picolibc_export;
+-int toupper(int c) __picolibc_export;
++int isalnum(int __c) __picolibc_export;
++int isalpha(int __c) __picolibc_export;
++int iscntrl(int __c) __picolibc_export;
++int isdigit(int __c) __picolibc_export;
++int isgraph(int __c) __picolibc_export;
++int islower(int __c) __picolibc_export;
++int isprint(int __c) __picolibc_export;
++int ispunct(int __c) __picolibc_export;
++int isspace(int __c) __picolibc_export;
++int isupper(int __c) __picolibc_export;
++int isxdigit(int __c) __picolibc_export;
++int tolower(int __c) __picolibc_export;
++int toupper(int __c) __picolibc_export;
+ 
+ #if __ISO_C_VISIBLE >= 1999
+-int isblank(int c) __picolibc_export;
++int isblank(int __c) __picolibc_export;
+ #endif
+ 
+ #if __MISC_VISIBLE || __XSI_VISIBLE
+-int isascii(int c) __picolibc_export;
+-int toascii(int c) __picolibc_export;
++int isascii(int __c) __picolibc_export;
++int toascii(int __c) __picolibc_export;
+ #define _tolower(__c) ((__c) + ('a' - 'A'))
+ #define _toupper(__c) ((__c) - ('a' - 'A'))
+ #define isascii(__c)  ((unsigned)(__c) <= 0177)
+@@ -90,25 +90,25 @@ int toascii(int c) __picolibc_export;
+ #endif
+ 
+ #if __POSIX_VISIBLE >= 200809
+-int isalnum_l(int c, locale_t l) __picolibc_export;
+-int isalpha_l(int c, locale_t l) __picolibc_export;
+-int isblank_l(int c, locale_t l) __picolibc_export;
+-int iscntrl_l(int c, locale_t l) __picolibc_export;
+-int isdigit_l(int c, locale_t l) __picolibc_export;
+-int isgraph_l(int c, locale_t l) __picolibc_export;
+-int islower_l(int c, locale_t l) __picolibc_export;
+-int isprint_l(int c, locale_t l) __picolibc_export;
+-int ispunct_l(int c, locale_t l) __picolibc_export;
+-int isspace_l(int c, locale_t l) __picolibc_export;
+-int isupper_l(int c, locale_t l) __picolibc_export;
+-int isxdigit_l(int c, locale_t l) __picolibc_export;
+-int tolower_l(int c, locale_t l) __picolibc_export;
+-int toupper_l(int c, locale_t l) __picolibc_export;
++int isalnum_l(int __c, locale_t __l) __picolibc_export;
++int isalpha_l(int __c, locale_t __l) __picolibc_export;
++int isblank_l(int __c, locale_t __l) __picolibc_export;
++int iscntrl_l(int __c, locale_t __l) __picolibc_export;
++int isdigit_l(int __c, locale_t __l) __picolibc_export;
++int isgraph_l(int __c, locale_t __l) __picolibc_export;
++int islower_l(int __c, locale_t __l) __picolibc_export;
++int isprint_l(int __c, locale_t __l) __picolibc_export;
++int ispunct_l(int __c, locale_t __l) __picolibc_export;
++int isspace_l(int __c, locale_t __l) __picolibc_export;
++int isupper_l(int __c, locale_t __l) __picolibc_export;
++int isxdigit_l(int __c, locale_t __l) __picolibc_export;
++int tolower_l(int __c, locale_t __l) __picolibc_export;
++int toupper_l(int __c, locale_t __l) __picolibc_export;
+ #endif
+ 
+ #if __MISC_VISIBLE
+-int isascii_l(int c, locale_t l) __picolibc_export;
+-int toascii_l(int c, locale_t l) __picolibc_export;
++int isascii_l(int __c, locale_t __l) __picolibc_export;
++int toascii_l(int __c, locale_t __l) __picolibc_export;
+ #define isascii_l(__c, __l) ((void)(__l), (unsigned)(__c) <= 0177)
+ #define toascii_l(__c, __l) ((void)(__l), (__c) & 0177)
+ #endif
+@@ -118,178 +118,178 @@ int toascii_l(int c, locale_t l) __picolibc_export;
+ #ifdef __declare_extern_inline
+ 
+ __declare_extern_inline(int)
+-isblank(int c)
++isblank(int __c)
+ {
+-    return c == ' ' || c == '\t';
++    return __c == ' ' || __c == '\t';
+ }
+ 
+ __declare_extern_inline(int)
+-iscntrl(int c)
++iscntrl(int __c)
+ {
+-    return (0x00 <= c && c <= 0x1f) || c == 0x7f;
++    return (0x00 <= __c && __c <= 0x1f) || __c == 0x7f;
+ }
+ 
+ __declare_extern_inline(int)
+-isdigit(int c)
++isdigit(int __c)
+ {
+-    return '0' <= c && c <= '9';
++    return '0' <= __c && __c <= '9';
+ }
+ 
+ __declare_extern_inline(int)
+-isgraph(int c)
++isgraph(int __c)
+ {
+-    return '!' <= c && c <= '~';
++    return '!' <= __c && __c <= '~';
+ }
+ 
+ __declare_extern_inline(int)
+-islower(int c)
++islower(int __c)
+ {
+-    return 'a' <= c && c <= 'z';
++    return 'a' <= __c && __c <= 'z';
+ }
+ 
+ __declare_extern_inline(int)
+-isprint(int c)
++isprint(int __c)
+ {
+-    return ' ' <= c && c <= '~';
++    return ' ' <= __c && __c <= '~';
+ }
+ 
+ __declare_extern_inline(int)
+-ispunct(int c)
++ispunct(int __c)
+ {
+-    return (('!' <= c && c <= '/') || (':' <= c && c <= '@') || ('[' <= c && c <= '`')
+-            || ('{' <= c && c <= '~'));
++    return (('!' <= __c && __c <= '/') || (':' <= __c && __c <= '@') || ('[' <= __c && __c <= '`')
++            || ('{' <= __c && __c <= '~'));
+ }
+ 
+ __declare_extern_inline(int)
+-isspace(int c)
++isspace(int __c)
+ {
+-    return c == ' ' || ('\t' <= c && c <= '\r');
++    return __c == ' ' || ('\t' <= __c && __c <= '\r');
+ }
+ 
+ __declare_extern_inline(int)
+-isupper(int c)
++isupper(int __c)
+ {
+-    return 'A' <= c && c <= 'Z';
++    return 'A' <= __c && __c <= 'Z';
+ }
+ 
+ __declare_extern_inline(int)
+-isxdigit(int c)
++isxdigit(int __c)
+ {
+-    return (isdigit(c) || ('A' <= c && c <= 'F') || ('a' <= c && c <= 'f'));
++    return (isdigit(__c) || ('A' <= __c && __c <= 'F') || ('a' <= __c && __c <= 'f'));
+ }
+ 
+ __declare_extern_inline(int)
+-isalpha(int c)
++isalpha(int __c)
+ {
+-    return isupper(c) || islower(c);
++    return isupper(__c) || islower(__c);
+ }
+ 
+ __declare_extern_inline(int)
+-isalnum(int c)
++isalnum(int __c)
+ {
+-    return isalpha(c) || isdigit(c);
++    return isalpha(__c) || isdigit(__c);
+ }
+ 
+ __declare_extern_inline(int)
+-tolower(int c)
++tolower(int __c)
+ {
+-    if (isupper(c))
+-        c = c - 'A' + 'a';
+-    return c;
++    if (isupper(__c))
++        __c = __c - 'A' + 'a';
++    return __c;
+ }
+ 
+ __declare_extern_inline(int)
+-toupper(int c)
++toupper(int __c)
+ {
+-    if (islower(c))
+-        c = c - 'a' + 'A';
+-    return c;
++    if (islower(__c))
++        __c = __c - 'a' + 'A';
++    return __c;
+ }
+ 
+ #if __POSIX_VISIBLE >= 200809
+ __declare_extern_inline(int)
+-isalnum_l(int c, locale_t l)
++isalnum_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return isalnum(c);
++    (void)__l;
++    return isalnum(__c);
+ }
+ __declare_extern_inline(int)
+-isalpha_l(int c, locale_t l)
++isalpha_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return isalpha(c);
++    (void)__l;
++    return isalpha(__c);
+ }
+ __declare_extern_inline(int)
+-isblank_l(int c, locale_t l)
++isblank_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return isblank(c);
++    (void)__l;
++    return isblank(__c);
+ }
+ __declare_extern_inline(int)
+-iscntrl_l(int c, locale_t l)
++iscntrl_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return iscntrl(c);
++    (void)__l;
++    return iscntrl(__c);
+ }
+ __declare_extern_inline(int)
+-isdigit_l(int c, locale_t l)
++isdigit_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return isdigit(c);
++    (void)__l;
++    return isdigit(__c);
+ }
+ __declare_extern_inline(int)
+-isgraph_l(int c, locale_t l)
++isgraph_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return isgraph(c);
++    (void)__l;
++    return isgraph(__c);
+ }
+ __declare_extern_inline(int)
+-islower_l(int c, locale_t l)
++islower_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return islower(c);
++    (void)__l;
++    return islower(__c);
+ }
+ __declare_extern_inline(int)
+-isprint_l(int c, locale_t l)
++isprint_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return isprint(c);
++    (void)__l;
++    return isprint(__c);
+ }
+ __declare_extern_inline(int)
+-ispunct_l(int c, locale_t l)
++ispunct_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return ispunct(c);
++    (void)__l;
++    return ispunct(__c);
+ }
+ __declare_extern_inline(int)
+-isspace_l(int c, locale_t l)
++isspace_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return isspace(c);
++    (void)__l;
++    return isspace(__c);
+ }
+ __declare_extern_inline(int)
+-isupper_l(int c, locale_t l)
++isupper_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return isupper(c);
++    (void)__l;
++    return isupper(__c);
+ }
+ __declare_extern_inline(int)
+-isxdigit_l(int c, locale_t l)
++isxdigit_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return isxdigit(c);
++    (void)__l;
++    return isxdigit(__c);
+ }
+ __declare_extern_inline(int)
+-tolower_l(int c, locale_t l)
++tolower_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return tolower(c);
++    (void)__l;
++    return tolower(__c);
+ }
+ __declare_extern_inline(int)
+-toupper_l(int c, locale_t l)
++toupper_l(int __c, locale_t __l)
+ {
+-    (void)l;
+-    return toupper(c);
++    (void)__l;
++    return toupper(__c);
+ }
+ #endif
+ 
+@@ -356,9 +356,9 @@ const char *__locale_ctype_ptr(void) __picolibc_export;
+ 
+ #if __ISO_C_VISIBLE >= 1999 && defined(__declare_extern_inline)
+ __declare_extern_inline(int)
+-isblank(int c)
++isblank(int __c)
+ {
+-    return c == '\t' || __ctype_lookup(c) & __CTYPE_BLANK;
++    return __c == '\t' || __ctype_lookup(__c) & __CTYPE_BLANK;
+ }
+ #endif
+ 
+@@ -393,9 +393,9 @@ const char *__locale_ctype_ptr_l(locale_t) __picolibc_export;
+ 
+ #ifdef __declare_extern_inline
+ __declare_extern_inline(int)
+-isblank_l(int c, locale_t l)
++isblank_l(int __c, locale_t __l)
+ {
+-    return c == '\t' || (__ctype_lookup_l(c, l) & __CTYPE_BLANK);
++    return __c == '\t' || (__ctype_lookup_l(__c, __l) & __CTYPE_BLANK);
+ }
+ #endif
+ 
+-- 
+2.47.3
+

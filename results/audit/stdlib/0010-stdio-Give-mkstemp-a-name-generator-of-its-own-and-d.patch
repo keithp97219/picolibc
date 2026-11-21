@@ -1,0 +1,181 @@
+From 6afbb701606033888c45787e9418abac04530337 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:41:34 +0000
+Subject: [PATCH 10/24] stdio: Give mkstemp a name generator of its own, and
+ don't block on FIFOs
+
+The names came from random(), which changed the sequence of an
+application that had seeded it, and every process started from the
+same seed. Use a private generator seeded from the stack address.
+
+The existence check opened each candidate for reading, which blocks
+when the name is a FIFO and could make a terminal the controlling
+terminal; open it non-blocking with O_NOCTTY. A template with fewer
+than six Xs is now left untouched, and every X is replaced, not just
+the last six.
+---
+ libc/stdio/mktemp.c | 119 ++++++++++++++++++++++++++++----------------
+ 1 file changed, 75 insertions(+), 44 deletions(-)
+
+diff --git a/libc/stdio/mktemp.c b/libc/stdio/mktemp.c
+index 09eff99cb2..e93cd7c25c 100644
+--- a/libc/stdio/mktemp.c
++++ b/libc/stdio/mktemp.c
+@@ -96,79 +96,110 @@ Supporting OS subroutines required: <<open>>
+ #include "local-stdio.h"
+ 
+ /* Our names are six characters from [0-9a-z] */
+-#define NUM_NAMES (36UL * 36UL * 36UL * 36UL * 36UL * 36UL)
++/*
++ * Names come from a generator of their own, so that mkstemp and the
++ * others don't change the sequences of rand() or random(). It is
++ * seeded from the stack address, which differs between processes
++ * where the stack is randomized, and steps under the libc lock so
++ * that threads don't race on it.
++ */
++static uint64_t __gettemp_state;
++
++static uint32_t
++__gettemp_random(void)
++{
++    uint64_t z;
++    char     local;
++
++    __LIBC_LOCK();
++    if (__gettemp_state == 0)
++        __gettemp_state = ((uint64_t)(uintptr_t)&local << 16) ^ 0x2545f4914f6cdd1dULL;
++    __gettemp_state += 0x9e3779b97f4a7c15ULL;
++    z = __gettemp_state;
++    __LIBC_UNLOCK();
++
++    /* splitmix64 output function */
++    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
++    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
++    return (uint32_t)(z ^ (z >> 31));
++}
+ 
+-/* Attempts */
+ #define NUM_ATTEMPT (36UL * 36UL * 36UL)
+ 
+-/*
+- * Replace the Xs in path until create makes something by that name,
+- * returning what create returns, or -1. With no create function, stop
+- * at the first name that isn't in use and return 0.
+- */
+ int
+ __gettemp(char *path, int suffixlen, int (*create)(const char *path, int flags), int flags)
+ {
+-    char    *start, *trv;
++    char    *start;
+     char    *end;
++    size_t   len;
+     uint32_t attempt;
+ 
+-    end = path + strlen(path) - suffixlen;
+-    trv = end;
++    len = strlen(path);
++    if (suffixlen < 0 || (size_t)suffixlen > len) {
++        errno = EINVAL;
++        return -1;
++    }
++    end = path + len - suffixlen;
++    start = end;
+ 
+-    /* Replace 'X' with 'a', leaving trv at the first one */
+-    while (path < trv && trv[-1] == 'X')
+-        *--trv = 'a';
++    /* Find the Xs, leaving the template alone unless there are six */
++    while (path < start && start[-1] == 'X')
++        start--;
+ 
+-    /* Make sure we got six Xs */
+-    if (end - trv < 6) {
++    if (end - start < 6) {
+         errno = EINVAL;
+         return -1;
+     }
+ 
+-    start = trv;
+-
+     for (attempt = 0; attempt < NUM_ATTEMPT; attempt++) {
+-        /* Generate a random filename index */
+-        long   filename = random() % NUM_NAMES;
+-        size_t i;
++        char    *trv;
++        uint32_t bits = 0;
++        int      left = 0;
+ 
+-        /* Convert the random index into characters */
+-        for (i = 0; i < 6; i++) {
+-            char c = filename % 36;
+-            filename /= 36;
++        /* Replace every X, six characters from each random value */
++        for (trv = start; trv < end; trv++) {
++            char c;
++
++            if (left == 0) {
++                bits = __gettemp_random();
++                left = 6;
++            }
++            c = (char)(bits % 36);
++            bits /= 36;
++            left--;
+ 
+             if (c < 10)
+                 c += '0';
+             else
+                 c += 'a' - 10;
+-
+-            start[i] = c;
++            *trv = c;
+         }
+ 
+         /*
+          * Use open to check if the file exists to avoid depending on
+-         * stat or access. Don't rely on O_EXCL working, although if it
+-         * doesn't, this introduces a race condition
++         * stat or access. Don't rely on O_EXCL working (semihosting
++         * ignores it), although if it doesn't, this introduces a race
++         * condition. Don't wait for a FIFO or take a terminal.
+          */
+-        int fd = open(path, O_RDONLY);
+-        if (fd < 0) {
+-            if (errno != EACCES) {
+-                if (errno != ENOENT)
+-                    return -1;
+-                if (create) {
+-                    int ret = create(path, flags);
+-                    if (ret >= 0)
+-                        return ret;
+-                    if (errno != EEXIST)
+-                        return -1;
+-                } else {
+-                    return 0;
+-                }
+-            }
+-        } else
++        int fd = open(path, O_RDONLY | O_NONBLOCK | O_NOCTTY);
++        if (fd >= 0) {
+             close(fd);
++            continue;
++        }
++        if (create) {
++            /* Whatever stopped open, let the creation decide */
++            int ret = create(path, flags);
++            if (ret >= 0)
++                return ret;
++            if (errno != EEXIST)
++                return -1;
++        } else if (errno != EACCES) {
++            if (errno != ENOENT)
++                return -1;
++            return 0;
++        }
+     }
++    errno = EEXIST;
+     return -1;
+ }
+ 
+-- 
+2.47.3
+

@@ -1,0 +1,35 @@
+From 9a0c121b979bbae9b601cc18ed5a60116aca6ebe Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:41:34 +0000
+Subject: [PATCH 08/24] stdlib: Make a64l use only the low-order 32 bits
+
+POSIX: if long has more than 32 bits, only the low-order 32 bits are
+used and the result is sign-extended. Six digits hold 36 bits, so
+a64l("zzzzzz") gave 2^36 - 1 on LP64 targets instead of -1.
+---
+ libc/stdlib/a64l.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdlib/a64l.c b/libc/stdlib/a64l.c
+index 1d14e6d4d6..f59cfe147c 100644
+--- a/libc/stdlib/a64l.c
++++ b/libc/stdlib/a64l.c
+@@ -55,6 +55,7 @@ Supporting OS subroutines required: None.
+ #define _DEFAULT_SOURCE
+ #include <stdlib.h>
+ #include <limits.h>
++#include <stdint.h>
+ 
+ long
+ a64l(const char *input)
+@@ -172,5 +173,6 @@ a64l(const char *input)
+         result = (result << 6) + digit;
+     }
+ 
+-    return (long int)result;
++    /* Only the low-order 32 bits are used, sign-extended to long */
++    return (long int)(int32_t)(uint32_t)result;
+ }
+-- 
+2.47.3
+

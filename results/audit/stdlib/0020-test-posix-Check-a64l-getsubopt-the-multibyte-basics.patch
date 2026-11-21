@@ -1,0 +1,572 @@
+From 529dd15a6b6890fc0e9c55f60fcd771cbad84b0b Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:55:42 +0000
+Subject: [PATCH 20/24] test-posix: Check a64l, getsubopt, the multibyte basics
+ and qsort_r
+
+---
+ test/test-posix/test-stdlib/CMakeLists.txt   |   4 +
+ test/test-posix/test-stdlib/meson.build      |   4 +
+ test/test-posix/test-stdlib/test-a64l.c      | 120 ++++++++++++++++
+ test/test-posix/test-stdlib/test-getsubopt.c | 130 +++++++++++++++++
+ test/test-posix/test-stdlib/test-mblen.c     |  91 ++++++++++++
+ test/test-posix/test-stdlib/test-qsort.c     | 141 +++++++++++++++++++
+ 6 files changed, 490 insertions(+)
+ create mode 100644 test/test-posix/test-stdlib/test-a64l.c
+ create mode 100644 test/test-posix/test-stdlib/test-getsubopt.c
+ create mode 100644 test/test-posix/test-stdlib/test-mblen.c
+ create mode 100644 test/test-posix/test-stdlib/test-qsort.c
+
+diff --git a/test/test-posix/test-stdlib/CMakeLists.txt b/test/test-posix/test-stdlib/CMakeLists.txt
+index 65fc487dc8..7bc82c6dea 100644
+--- a/test/test-posix/test-stdlib/CMakeLists.txt
++++ b/test/test-posix/test-stdlib/CMakeLists.txt
+@@ -34,13 +34,17 @@
+ #
+ 
+ set(tests
++  test-a64l
++  test-getsubopt
+   test-grantpt
+   test-initstate
++  test-mblen
+   test-mkdtemp
+   test-mkstemp
+   test-posix_openpt
+   test-ptsname
+   test-ptsname_r
++  test-qsort
+   test-rand48
+   test-random
+   test-random-thread
+diff --git a/test/test-posix/test-stdlib/meson.build b/test/test-posix/test-stdlib/meson.build
+index b37cd2a868..abed42caba 100644
+--- a/test/test-posix/test-stdlib/meson.build
++++ b/test/test-posix/test-stdlib/meson.build
+@@ -34,13 +34,17 @@
+ #
+ 
+ dir_tests = [
++  'test-a64l',
++  'test-getsubopt',
+   'test-grantpt',
+   'test-initstate',
++  'test-mblen',
+   'test-mkdtemp',
+   'test-mkstemp',
+   'test-posix_openpt',
+   'test-ptsname',
+   'test-ptsname_r',
++  'test-qsort',
+   'test-rand48',
+   'test-random',
+   'test-realloc',
+diff --git a/test/test-posix/test-stdlib/test-a64l.c b/test/test-posix/test-stdlib/test-a64l.c
+new file mode 100644
+index 0000000000..ec69893623
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-a64l.c
+@@ -0,0 +1,120 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* a64l and l64a are XSI */
++#define _XOPEN_SOURCE 800
++#include <stdlib.h>
++
++#include <limits.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++/*
++ * a64l and l64a: radix-64 digits, least significant first, at most six
++ * of them, '.' for 0, '/' for 1, '0'-'9', 'A'-'Z' and 'a'-'z' for the
++ * rest. Only the low 32 bits of a long count, and a64l sign-extends.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            return 1;                                  \
++        }                                              \
++    } while (0)
++
++static const char digits[] = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
++
++int
++main(void)
++{
++    char        one[2] = { 0, 0 };
++    const char *s;
++    long        v;
++    long long   vv;
++    int         i;
++
++    /* Each digit */
++    for (i = 1; i < 64; i++) {
++        one[0] = digits[i];
++        check(a64l(one) == i, "a64l of one digit");
++        s = l64a(i);
++        check(s != NULL && strcmp(s, one) == 0, "l64a of one digit");
++    }
++
++    /* Zero is the empty string, both ways */
++    s = l64a(0);
++    check(s != NULL && s[0] == '\0', "l64a(0)");
++    check(a64l("") == 0, "a64l of an empty string");
++
++    /* The first digit is the least significant */
++    check(strcmp(l64a(64), "./") == 0, "l64a(64)");
++    check(a64l("./") == 64, "a64l(\"./\")");
++    check(a64l("/.") == 1, "a64l(\"/.\")");
++    check(strcmp(l64a(65), "//") == 0, "l64a(65)");
++
++    /* Round trips */
++    /* long long, so the steps can't overflow a 32-bit long */
++    for (vv = 1; vv <= 0x7fffffffLL; vv = vv * 3 + 1) {
++        v = (long)vv;
++        s = l64a(v);
++        check(s != NULL && strlen(s) <= 6, "l64a uses at most six digits");
++        check(a64l(s) == v, "round trip");
++    }
++    check(a64l(l64a(0x7fffffffL)) == 0x7fffffffL, "round trip of 2^31 - 1");
++
++    /* Only the first six characters count */
++    check(a64l("zzzzzz") == a64l("zzzzzzzzzz"), "a64l uses the first six characters");
++    check(a64l("A./") == a64l("A./\0zz"), "a64l stops at the null");
++
++#ifndef __GLIBC__
++    /*
++     * The low 32 bits, sign-extended: six z's are 2^36 - 1, so -1.
++     * glibc returns all 36 bits.
++     */
++    check(a64l("zzzzzz") == -1L, "a64l sign-extends the low 32 bits");
++    check(a64l(".....0") == (long)INT32_MIN, "a64l of 2^31");
++#endif
++
++#if LONG_MAX > 0x7fffffffL
++    /* l64a uses only the low 32 bits of a wider long */
++    check(strcmp(l64a(0x100000041L), l64a(0x41L)) == 0, "l64a uses the low 32 bits");
++#endif
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-stdlib/test-getsubopt.c b/test/test-posix/test-stdlib/test-getsubopt.c
+new file mode 100644
+index 0000000000..0ecef9036c
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-getsubopt.c
+@@ -0,0 +1,130 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <stdlib.h>
++
++#include <stdio.h>
++#include <string.h>
++
++/*
++ * getsubopt: commas separate suboptions, the first '=' separates a
++ * token from its value, and nothing else is special. *optionp moves
++ * to the next suboption, or to the terminating null after the last.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            return 1;                                  \
++        }                                              \
++    } while (0)
++
++static char * const tokens[] = { "ro", "rw", "size", "name with blank", "", NULL };
++
++int
++main(void)
++{
++    char  buf[128];
++    char *opt;
++    char *value;
++    char *end;
++    int   r;
++
++    strcpy(buf, "ro,size=10,rw");
++    opt = buf;
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 0 && value == NULL && opt == buf + 3, "a token without a value");
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 2 && value != NULL && strcmp(value, "10") == 0, "a token with a value");
++    check(opt == buf + 11, "optionp moves past the comma");
++    end = buf + strlen("ro,size=10,rw");
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 1 && value == NULL && opt == end && *opt == '\0', "the last suboption");
++
++    /* Subsequent '=' are part of the value */
++    strcpy(buf, "size=a=b");
++    opt = buf;
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 2 && strcmp(value, "a=b") == 0 && *opt == '\0', "'=' in the value");
++
++    /* Blanks are part of the token and the value */
++    strcpy(buf, "name with blank=x y,size= 5 ,ro");
++    opt = buf;
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 3 && strcmp(value, "x y") == 0, "blanks in the token and the value");
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 2 && strcmp(value, " 5 ") == 0, "blanks around the value");
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 0 && value == NULL && *opt == '\0', "after blanks");
++
++    /* A blank before a token makes another token */
++    strcpy(buf, "ro, rw");
++    opt = buf;
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 0, "ro");
++    r = getsubopt(&opt, tokens, &value);
++    check(r == -1 && *opt == '\0', "' rw' isn't 'rw'");
++
++    /* An empty suboption is a suboption */
++    strcpy(buf, "ro,,rw");
++    opt = buf;
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 0 && opt == buf + 3, "ro before an empty suboption");
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 4 && value == NULL && opt == buf + 4, "the empty suboption");
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 1 && *opt == '\0', "rw after an empty suboption");
++
++    /* No match: -1, with the value still found */
++    strcpy(buf, "bogus=7,rw");
++    opt = buf;
++    r = getsubopt(&opt, tokens, &value);
++    check(r == -1 && opt == buf + 8, "an unknown token");
++#ifndef __GLIBC__
++    /* glibc points value at the whole suboption when nothing matches */
++    check(value != NULL && strcmp(value, "7") == 0, "the unknown token's value");
++#endif
++    r = getsubopt(&opt, tokens, &value);
++    check(r == 1, "rw after an unknown token");
++
++    /* The token list isn't changed */
++    check(strcmp(tokens[0], "ro") == 0 && strcmp(tokens[2], "size") == 0 && tokens[5] == NULL,
++          "keylistp unchanged");
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-stdlib/test-mblen.c b/test/test-posix/test-stdlib/test-mblen.c
+new file mode 100644
+index 0000000000..46dc274057
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-mblen.c
+@@ -0,0 +1,91 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* mbstowcs and wcstombs counting without a buffer is XSI */
++#define _XOPEN_SOURCE 800
++#include <stdlib.h>
++
++#include <stdio.h>
++#include <string.h>
++
++/*
++ * The <stdlib.h> multibyte functions in the POSIX locale, where
++ * MB_CUR_MAX is 1 and no encoding has shift states: mblen, mbtowc,
++ * wctomb, mbstowcs and wcstombs on portable characters.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            return 1;                                  \
++        }                                              \
++    } while (0)
++
++int
++main(void)
++{
++    wchar_t wc;
++    wchar_t ws[8];
++    char    mb[8];
++
++    check(MB_CUR_MAX == 1, "MB_CUR_MAX is 1");
++
++    /* A null s asks whether the encoding has shift states: it doesn't */
++    check(mblen(NULL, 0) == 0, "mblen(NULL)");
++    check(mbtowc(NULL, NULL, 0) == 0, "mbtowc(NULL)");
++    check(wctomb(NULL, 0) == 0, "wctomb(NULL)");
++
++    check(mblen("a", 1) == 1, "mblen of a character");
++    check(mblen("", 1) == 0, "mblen of the null character");
++    check(mblen("abc", 3) == 1, "mblen looks at one character");
++
++    wc = L'x';
++    check(mbtowc(&wc, "A", 1) == 1 && wc == L'A', "mbtowc");
++    check(mbtowc(&wc, "", 1) == 0 && wc == 0, "mbtowc of the null character");
++    check(mbtowc(NULL, "A", 1) == 1, "mbtowc without pwc");
++
++    check(wctomb(mb, L'Z') == 1 && mb[0] == 'Z', "wctomb");
++    check(wctomb(mb, 0) == 1 && mb[0] == '\0', "wctomb of the null character");
++
++    check(mbstowcs(ws, "hi!", 8) == 3 && ws[0] == L'h' && ws[2] == L'!' && ws[3] == 0, "mbstowcs");
++    check(mbstowcs(NULL, "hello", 0) == 5, "mbstowcs counts without a buffer");
++    check(wcstombs(mb, L"ok", 8) == 2 && strcmp(mb, "ok") == 0, "wcstombs");
++    check(wcstombs(NULL, L"four", 0) == 4, "wcstombs counts without a buffer");
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-stdlib/test-qsort.c b/test/test-posix/test-stdlib/test-qsort.c
+new file mode 100644
+index 0000000000..8dc2c442d5
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-qsort.c
+@@ -0,0 +1,141 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* glibc declares qsort_r only with _GNU_SOURCE */
++#ifdef TEST_GLIBC
++#define _GNU_SOURCE
++#endif
++#include <stdlib.h>
++
++#include <stdio.h>
++#include <string.h>
++
++/*
++ * qsort, qsort_r and bsearch: ascending order by the comparison
++ * function, no calls for an empty array, qsort_r's argument passed on
++ * as the third argument, and whole elements moved.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            return 1;                                  \
++        }                                              \
++    } while (0)
++
++struct elt {
++    int  key;
++    char tag[13];
++};
++
++static int calls;
++
++static int
++cmp(const void *a, const void *b)
++{
++    const struct elt *x = a, *y = b;
++
++    calls++;
++    return (x->key > y->key) - (x->key < y->key);
++}
++
++static int
++cmp_r(const void *a, const void *b, void *arg)
++{
++    int *sign = arg;
++
++    calls++;
++    return *sign * cmp(a, b);
++}
++
++static int
++check_tags(const struct elt *e, int n)
++{
++    for (int i = 0; i < n; i++) {
++        char want[13];
++
++        snprintf(want, sizeof(want), "tag%d", e[i].key);
++        if (strcmp(e[i].tag, want) != 0)
++            return 0;
++    }
++    return 1;
++}
++
++int
++main(void)
++{
++    struct elt  e[50];
++    struct elt  key;
++    struct elt *found;
++    int         sign;
++    int         i;
++
++    for (i = 0; i < 50; i++) {
++        e[i].key = (i * 37) % 50;
++        snprintf(e[i].tag, sizeof(e[i].tag), "tag%d", e[i].key);
++    }
++
++    calls = 0;
++    qsort(e, 0, sizeof(e[0]), cmp);
++    check(calls == 0, "qsort of no elements calls nothing");
++    sign = 1;
++    qsort_r(e, 0, sizeof(e[0]), cmp_r, &sign);
++    check(calls == 0, "qsort_r of no elements calls nothing");
++
++    qsort(e, 50, sizeof(e[0]), cmp);
++    for (i = 0; i < 50; i++)
++        check(e[i].key == i, "qsort sorts ascending");
++    check(check_tags(e, 50), "qsort moves whole elements");
++
++    key.key = 17;
++    found = bsearch(&key, e, 50, sizeof(e[0]), cmp);
++    check(found == &e[17], "bsearch finds");
++    key.key = 99;
++    check(bsearch(&key, e, 50, sizeof(e[0]), cmp) == NULL, "bsearch misses");
++    calls = 0;
++    check(bsearch(&key, e, 0, sizeof(e[0]), cmp) == NULL && calls == 0, "bsearch of nothing");
++
++    /* qsort_r passes its argument to the comparison function */
++    sign = -1;
++    qsort_r(e, 50, sizeof(e[0]), cmp_r, &sign);
++    for (i = 0; i < 50; i++)
++        check(e[i].key == 49 - i, "qsort_r with the argument reversing the order");
++    check(check_tags(e, 50), "qsort_r moves whole elements");
++
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

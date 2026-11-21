@@ -1,0 +1,107 @@
+From 7cadfb77b954dce8272114945935786dec2d4c9d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:41:06 +0000
+Subject: [PATCH 03/24] stdlib.h: Hide names POSIX.1-2024 doesn't define in
+ strict mode
+
+rand_r was removed in POSIX.1-2024, valloc in POSIX.1-2001 and ecvt,
+fcvt and gcvt in POSIX.1-2008; the _r, float and long double variants
+were never in POSIX. suboptarg is a BSD extension, and alloca isn't
+standard. Keep them for _DEFAULT_SOURCE (and the old standards), as
+glibc does. Add restrict to getsubopt's prototype, as Issue 8 does.
+---
+ libc/include/stdlib.h | 27 ++++++++++++++++++---------
+ 1 file changed, 18 insertions(+), 9 deletions(-)
+
+diff --git a/libc/include/stdlib.h b/libc/include/stdlib.h
+index 6dbb64333b..a270b06958 100644
+--- a/libc/include/stdlib.h
++++ b/libc/include/stdlib.h
+@@ -47,7 +47,7 @@ SUCH DAMAGE.
+ #include <stddef.h>
+ 
+ #include <machine/stdlib.h>
+-#ifndef __STRICT_ANSI__
++#if __MISC_VISIBLE
+ #include <alloca.h>
+ #endif
+ 
+@@ -191,9 +191,11 @@ extern __picolibc_export char **__argv;
+ #if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
+ char *secure_getenv(const char *__string) __picolibc_export;
+ #endif
+-#if __POSIX_VISIBLE >= 200809
++#if __BSD_VISIBLE
+ extern __picolibc_export char *suboptarg; /* getsubopt(3) external variable */
+-int                            getsubopt(char **, char                            *const *, char **) __picolibc_export;
++#endif
++#if __POSIX_VISIBLE >= 200809
++int getsubopt(char ** __restrict, char * const * __restrict, char ** __restrict) __picolibc_export;
+ #endif
+ #if __XSI_VISIBLE >= 500
+ int   grantpt(int fd) __picolibc_export;
+@@ -299,7 +301,8 @@ qsort_r(void *__base, size_t __nmemb, size_t __size, void *__thunk,
+ #endif
+ #endif
+ int rand(void) __picolibc_export;
+-#if __POSIX_VISIBLE
++/* rand_r was removed in POSIX.1-2024 */
++#if __MISC_VISIBLE || (__POSIX_VISIBLE >= 199506 && __POSIX_VISIBLE < 202405)
+ int rand_r(unsigned *__seed) __picolibc_export;
+ #endif
+ #if __SVID_VISIBLE || __XSI_VISIBLE >= 4 || __BSD_VISIBLE
+@@ -404,9 +407,12 @@ int unsetenv(const char *__string) __picolibc_export;
+ #endif
+ size_t wcstombs(char * __restrict, const wchar_t * __restrict, size_t) __picolibc_export;
+ int    wctomb(char *, wchar_t) __picolibc_export;
++/* valloc was removed in POSIX.1-2001 */
++#if __MISC_VISIBLE || (__XSI_VISIBLE >= 4 && __XSI_VISIBLE < 600)
+ void *
+ valloc(size_t)
+ __malloc_like __warn_unused_result __alloc_size(1) __nothrow __picolibc_export;
++#endif
+ #if __SVID_VISIBLE || __XSI_VISIBLE >= 4
+ char *l64a(long __input) __picolibc_export;
+ #endif
+@@ -414,15 +420,19 @@ char *l64a(long __input) __picolibc_export;
+ int on_exit(void (*__func)(int, void *), void *__arg) __picolibc_export;
+ #endif
+ 
+-/* XSI Legacy option group */
+-#if __XSI_VISIBLE >= 4
++/* XSI Legacy option group, removed in POSIX.1-2008 */
++#if __MISC_VISIBLE || (__XSI_VISIBLE >= 4 && __XSI_VISIBLE < 700)
+ char *ecvt(double, int, int *, int *) __picolibc_export;
++char *fcvt(double, int, int *, int *) __picolibc_export;
++char *gcvt(double, int, char *) __picolibc_export;
++#endif
++
++#if __MISC_VISIBLE
+ int   ecvt_r(double, int, int *, int *, char *, size_t) __picolibc_export;
+ 
+ char *ecvtf(float, int, int *, int *) __picolibc_export;
+ int   ecvtf_r(float, int, int *, int *, char *, size_t) __picolibc_export;
+ 
+-char *fcvt(double, int, int *, int *) __picolibc_export;
+ int   fcvt_r(double, int, int *, int *, char *, size_t) __picolibc_export;
+ 
+ char *fcvtf(float, int, int *, int *) __picolibc_export;
+@@ -435,14 +445,13 @@ char *fcvtl(long double, int, int *, int *) __picolibc_export;
+ int   fcvtl_r(long double, int, int *, int *, char *, size_t) __picolibc_export;
+ #endif
+ 
+-char *gcvt(double, int, char *) __picolibc_export;
+ char *gcvtf(float, int, char *) __picolibc_export;
+ 
+ #if defined(__HAVE_LONG_DOUBLE)
+ char *gcvtl(long double, int, char *) __picolibc_export;
+ #endif
+ 
+-#endif /* XSI_VISIBLE >= 4 */
++#endif /* __MISC_VISIBLE */
+ 
+ /* Random newlib APIs */
+ #if __MISC_VISIBLE
+-- 
+2.47.3
+

@@ -1,0 +1,1412 @@
+From 07930ea0212d47ffffe709954f29cd0075950c94 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:43:38 +0000
+Subject: [PATCH 13/19] test-posix: Check <locale.h>, setlocale, newlocale,
+ uselocale and localeconv
+
+Check the header's macros, types and prototypes; the POSIX locale at
+startup and its localeconv values; setlocale's restoring strings, its
+failures and the LC_ALL, LC_* and LANG precedence for ""; newlocale's
+errors, masks and base, duplocale, freelocale and getlocalename_l; and
+uselocale's queries, thread-local locales and the functions that
+follow them. Checks of C.UTF-8 run when picolibc is built with
+multibyte support.
+---
+ test/test-posix/CMakeLists.txt                |   1 +
+ test/test-posix/meson.build                   |   1 +
+ test/test-posix/test-locale/CMakeLists.txt    |  48 +++
+ test/test-posix/test-locale/meson.build       |  46 +++
+ test/test-posix/test-locale/test-locale_h.c   | 158 ++++++++
+ test/test-posix/test-locale/test-localeconv.c | 112 ++++++
+ test/test-posix/test-locale/test-newlocale.c  | 297 +++++++++++++++
+ test/test-posix/test-locale/test-setlocale.c  | 342 ++++++++++++++++++
+ .../test-locale/test-uselocale-thread.c       | 154 ++++++++
+ test/test-posix/test-locale/test-uselocale.c  | 146 ++++++++
+ 10 files changed, 1305 insertions(+)
+ create mode 100644 test/test-posix/test-locale/CMakeLists.txt
+ create mode 100644 test/test-posix/test-locale/meson.build
+ create mode 100644 test/test-posix/test-locale/test-locale_h.c
+ create mode 100644 test/test-posix/test-locale/test-localeconv.c
+ create mode 100644 test/test-posix/test-locale/test-newlocale.c
+ create mode 100644 test/test-posix/test-locale/test-setlocale.c
+ create mode 100644 test/test-posix/test-locale/test-uselocale-thread.c
+ create mode 100644 test/test-posix/test-locale/test-uselocale.c
+
+diff --git a/test/test-posix/CMakeLists.txt b/test/test-posix/CMakeLists.txt
+index 4e8d1ec35a..558ed76855 100644
+--- a/test/test-posix/CMakeLists.txt
++++ b/test/test-posix/CMakeLists.txt
+@@ -45,6 +45,7 @@ add_subdirectory(test-grp)
+ add_subdirectory(test-integration)
+ add_subdirectory(test-libgen)
+ add_subdirectory(test-libintl)
++add_subdirectory(test-locale)
+ add_subdirectory(test-monetary)
+ add_subdirectory(test-mqueue)
+ add_subdirectory(test-net-if)
+diff --git a/test/test-posix/meson.build b/test/test-posix/meson.build
+index 473aed29d6..b049d55e80 100644
+--- a/test/test-posix/meson.build
++++ b/test/test-posix/meson.build
+@@ -50,6 +50,7 @@ posix_test_dirs = [
+   'test-integration',
+   'test-libgen',
+   'test-libintl',
++  'test-locale',
+   'test-monetary',
+   'test-mqueue',
+   'test-net-if',
+diff --git a/test/test-posix/test-locale/CMakeLists.txt b/test/test-posix/test-locale/CMakeLists.txt
+new file mode 100644
+index 0000000000..d897d6829f
+--- /dev/null
++++ b/test/test-posix/test-locale/CMakeLists.txt
+@@ -0,0 +1,48 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# Copyright © 2026 Keith Packard
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++#
++# 1. Redistributions of source code must retain the above copyright
++#    notice, this list of conditions and the following disclaimer.
++#
++# 2. Redistributions in binary form must reproduce the above
++#    copyright notice, this list of conditions and the following
++#    disclaimer in the documentation and/or other materials provided
++#    with the distribution.
++#
++# 3. Neither the name of the copyright holder nor the names of its
++#    contributors may be used to endorse or promote products derived
++#    from this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++# OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++set(tests
++  test-locale_h
++  test-localeconv
++  test-newlocale
++  test-setlocale
++  test-uselocale
++  test-uselocale-thread
++  )
++
++foreach(test IN LISTS tests)
++  picolibc_test(${test})
++  set_tests_properties(${test} PROPERTIES LABELS test-locale)
++endforeach()
+diff --git a/test/test-posix/test-locale/meson.build b/test/test-posix/test-locale/meson.build
+new file mode 100644
+index 0000000000..acab704bec
+--- /dev/null
++++ b/test/test-posix/test-locale/meson.build
+@@ -0,0 +1,46 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# Copyright © 2026 Keith Packard
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++#
++# 1. Redistributions of source code must retain the above copyright
++#    notice, this list of conditions and the following disclaimer.
++#
++# 2. Redistributions in binary form must reproduce the above
++#    copyright notice, this list of conditions and the following
++#    disclaimer in the documentation and/or other materials provided
++#    with the distribution.
++#
++# 3. Neither the name of the copyright holder nor the names of its
++#    contributors may be used to endorse or promote products derived
++#    from this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++# OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++dir_tests = [
++  'test-locale_h',
++  'test-localeconv',
++  'test-newlocale',
++  'test-setlocale',
++  'test-uselocale',
++]
++
++dir_thread_tests = [
++  'test-uselocale-thread',
++]
+diff --git a/test/test-posix/test-locale/test-locale_h.c b/test/test-posix/test-locale/test-locale_h.c
+new file mode 100644
+index 0000000000..9b1c9f2431
+--- /dev/null
++++ b/test/test-posix/test-locale/test-locale_h.c
+@@ -0,0 +1,158 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* The application's own macros, defined before the header */
++#define category +
++#define locale   +
++#define base     +
++#define mask     +
++#include <locale.h>
++#undef category
++#undef locale
++#undef base
++#undef mask
++
++#include <stdio.h>
++#include <stdlib.h>
++
++/* <locale.h> defines its types, macros and prototypes by itself */
++
++#ifndef NULL
++#error NULL
++#endif
++
++/* The categories are macros with distinct values */
++#if !defined(LC_ALL) || !defined(LC_COLLATE) || !defined(LC_CTYPE) || !defined(LC_MESSAGES) \
++    || !defined(LC_MONETARY) || !defined(LC_NUMERIC) || !defined(LC_TIME)
++#error LC_ category macros
++#endif
++
++#if !defined(LC_COLLATE_MASK) || !defined(LC_CTYPE_MASK) || !defined(LC_MESSAGES_MASK)   \
++    || !defined(LC_MONETARY_MASK) || !defined(LC_NUMERIC_MASK) || !defined(LC_TIME_MASK) \
++    || !defined(LC_ALL_MASK) || !defined(LC_GLOBAL_LOCALE)
++#error LC_ mask macros
++#endif
++
++static const int categories[]
++    = { LC_ALL, LC_COLLATE, LC_CTYPE, LC_MESSAGES, LC_MONETARY, LC_NUMERIC, LC_TIME };
++
++static const int masks[] = { LC_COLLATE_MASK,  LC_CTYPE_MASK,   LC_MESSAGES_MASK,
++                             LC_MONETARY_MASK, LC_NUMERIC_MASK, LC_TIME_MASK };
++
++#define NCAT  (sizeof(categories) / sizeof(categories[0]))
++#define NMASK (sizeof(masks) / sizeof(masks[0]))
++
++/* The integer constant expressions can size arrays */
++static char category_constant[LC_TIME + LC_ALL + 1] __attribute__((unused));
++static char mask_constant[LC_ALL_MASK] __attribute__((unused));
++
++/* struct lconv has its members with their types */
++#define is_type(e, t) _Generic((e), t: 1, default: 0)
++
++static struct lconv lc __attribute__((unused));
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++int
++main(void)
++{
++    size_t        i, j;
++
++    /* Prototypes */
++    char         *(*p_setlocale)(int, const char *) = setlocale;
++    struct lconv *(*p_localeconv)(void) = localeconv;
++    locale_t      (*p_newlocale)(int, const char *, locale_t) = newlocale;
++    locale_t      (*p_duplocale)(locale_t) = duplocale;
++    void          (*p_freelocale)(locale_t) = freelocale;
++    locale_t      (*p_uselocale)(locale_t) = uselocale;
++#ifndef __GLIBC__
++    /* glibc 2.43 has no getlocalename_l */
++    const char *(*p_getlocalename_l)(int, locale_t) = getlocalename_l;
++    check(p_getlocalename_l != NULL, "getlocalename_l");
++#endif
++
++    check(p_setlocale && p_localeconv && p_newlocale && p_duplocale && p_freelocale && p_uselocale,
++          "prototypes");
++
++    for (i = 0; i < NCAT; i++)
++        for (j = i + 1; j < NCAT; j++)
++            check(categories[i] != categories[j], "distinct categories");
++
++    /* Each mask is a distinct bit and LC_ALL_MASK has them all */
++    for (i = 0; i < NMASK; i++) {
++        check(masks[i] != 0 && (masks[i] & (masks[i] - 1)) == 0, "one bit per mask");
++        check((LC_ALL_MASK & masks[i]) == masks[i], "LC_ALL_MASK has every mask");
++        for (j = i + 1; j < NMASK; j++)
++            check(masks[i] != masks[j], "distinct masks");
++    }
++
++    check(is_type(LC_GLOBAL_LOCALE, locale_t), "LC_GLOBAL_LOCALE is a locale_t");
++    check(LC_GLOBAL_LOCALE != (locale_t)0, "LC_GLOBAL_LOCALE isn't (locale_t)0");
++
++    check(is_type(lc.currency_symbol, char *), "currency_symbol");
++    check(is_type(lc.decimal_point, char *), "decimal_point");
++    check(is_type(lc.frac_digits, char), "frac_digits");
++    check(is_type(lc.grouping, char *), "grouping");
++    check(is_type(lc.int_curr_symbol, char *), "int_curr_symbol");
++    check(is_type(lc.int_frac_digits, char), "int_frac_digits");
++    check(is_type(lc.int_n_cs_precedes, char), "int_n_cs_precedes");
++    check(is_type(lc.int_n_sep_by_space, char), "int_n_sep_by_space");
++    check(is_type(lc.int_n_sign_posn, char), "int_n_sign_posn");
++    check(is_type(lc.int_p_cs_precedes, char), "int_p_cs_precedes");
++    check(is_type(lc.int_p_sep_by_space, char), "int_p_sep_by_space");
++    check(is_type(lc.int_p_sign_posn, char), "int_p_sign_posn");
++    check(is_type(lc.mon_decimal_point, char *), "mon_decimal_point");
++    check(is_type(lc.mon_grouping, char *), "mon_grouping");
++    check(is_type(lc.mon_thousands_sep, char *), "mon_thousands_sep");
++    check(is_type(lc.negative_sign, char *), "negative_sign");
++    check(is_type(lc.n_cs_precedes, char), "n_cs_precedes");
++    check(is_type(lc.n_sep_by_space, char), "n_sep_by_space");
++    check(is_type(lc.n_sign_posn, char), "n_sign_posn");
++    check(is_type(lc.positive_sign, char *), "positive_sign");
++    check(is_type(lc.p_cs_precedes, char), "p_cs_precedes");
++    check(is_type(lc.p_sep_by_space, char), "p_sep_by_space");
++    check(is_type(lc.p_sign_posn, char), "p_sign_posn");
++    check(is_type(lc.thousands_sep, char *), "thousands_sep");
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-locale/test-localeconv.c b/test/test-posix/test-locale/test-localeconv.c
+new file mode 100644
+index 0000000000..92a8630ecf
+--- /dev/null
++++ b/test/test-posix/test-locale/test-localeconv.c
+@@ -0,0 +1,112 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <limits.h>
++#include <locale.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/* localeconv reports the POSIX locale's values (XBD 7.3.3.1 and 7.3.4.1) */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define empty(s) ((s) != NULL && *(s) == '\0')
++
++static void
++check_posix(const char *where)
++{
++    struct lconv *lc = localeconv();
++
++    printf("%s\n", where);
++    check(lc != NULL, "localeconv");
++
++    /* LC_NUMERIC */
++    check(lc->decimal_point != NULL && strcmp(lc->decimal_point, ".") == 0, "decimal_point");
++    check(empty(lc->thousands_sep), "thousands_sep");
++    check(empty(lc->grouping), "grouping");
++
++    /* LC_MONETARY: nothing is available */
++    check(empty(lc->int_curr_symbol), "int_curr_symbol");
++    check(empty(lc->currency_symbol), "currency_symbol");
++    check(empty(lc->mon_decimal_point), "mon_decimal_point");
++    check(empty(lc->mon_thousands_sep), "mon_thousands_sep");
++    check(empty(lc->mon_grouping), "mon_grouping");
++    check(empty(lc->positive_sign), "positive_sign");
++    check(empty(lc->negative_sign), "negative_sign");
++    check(lc->int_frac_digits == CHAR_MAX, "int_frac_digits");
++    check(lc->frac_digits == CHAR_MAX, "frac_digits");
++    check(lc->p_cs_precedes == CHAR_MAX, "p_cs_precedes");
++    check(lc->p_sep_by_space == CHAR_MAX, "p_sep_by_space");
++    check(lc->n_cs_precedes == CHAR_MAX, "n_cs_precedes");
++    check(lc->n_sep_by_space == CHAR_MAX, "n_sep_by_space");
++    check(lc->p_sign_posn == CHAR_MAX, "p_sign_posn");
++    check(lc->n_sign_posn == CHAR_MAX, "n_sign_posn");
++    check(lc->int_p_cs_precedes == CHAR_MAX, "int_p_cs_precedes");
++    check(lc->int_p_sep_by_space == CHAR_MAX, "int_p_sep_by_space");
++    check(lc->int_n_cs_precedes == CHAR_MAX, "int_n_cs_precedes");
++    check(lc->int_n_sep_by_space == CHAR_MAX, "int_n_sep_by_space");
++    check(lc->int_p_sign_posn == CHAR_MAX, "int_p_sign_posn");
++    check(lc->int_n_sign_posn == CHAR_MAX, "int_n_sign_posn");
++}
++
++int
++main(void)
++{
++    locale_t l;
++
++    /* At startup, after setlocale and with a thread locale */
++    check_posix("startup");
++    check(setlocale(LC_ALL, "POSIX") != NULL, "setlocale POSIX");
++    check_posix("POSIX");
++    check(setlocale(LC_ALL, "C") != NULL, "setlocale C");
++    check_posix("C");
++    l = newlocale(LC_ALL_MASK, "POSIX", (locale_t)0);
++    check(l != (locale_t)0, "newlocale");
++    check(uselocale(l) == LC_GLOBAL_LOCALE, "uselocale");
++    check_posix("thread locale");
++    check(uselocale(LC_GLOBAL_LOCALE) == l, "uselocale");
++    freelocale(l);
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-locale/test-newlocale.c b/test/test-posix/test-locale/test-newlocale.c
+new file mode 100644
+index 0000000000..3eb361b605
+--- /dev/null
++++ b/test/test-posix/test-locale/test-newlocale.c
+@@ -0,0 +1,297 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++#include <ctype.h>
++#include <errno.h>
++#include <locale.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++#include <sys/wait.h>
++#endif
++
++/*
++ * newlocale, duplocale, freelocale and getlocalename_l: their errors,
++ * the base argument, LC_GLOBAL_LOCALE and "" from the environment
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* A name no C library has: an unknown codeset */
++#define BOGUS "xx_XX.NO-SUCH-CODESET"
++
++static const int masks[] = { LC_COLLATE_MASK,  LC_CTYPE_MASK,   LC_MESSAGES_MASK,
++                             LC_MONETARY_MASK, LC_NUMERIC_MASK, LC_TIME_MASK };
++#define NMASK (sizeof(masks) / sizeof(masks[0]))
++
++/* The locale object works: it classifies and can be duplicated */
++static void
++check_usable(locale_t l, const char *message)
++{
++    locale_t d;
++
++    check(isalpha_l('a', l) && !isalpha_l('1', l), message);
++    d = duplocale(l);
++    check(d != (locale_t)0, message);
++    freelocale(d);
++}
++
++#ifndef __GLIBC__
++/* glibc 2.43 has no getlocalename_l */
++static int
++is_posix(const char *name)
++{
++    return name != NULL && (strcmp(name, "C") == 0 || strcmp(name, "POSIX") == 0);
++}
++
++static int
++name_is(int category, locale_t l, const char *name)
++{
++    const char *got = getlocalename_l(category, l);
++
++    return got != NULL && strcmp(got, name) == 0;
++}
++#endif
++
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++
++static const char * const env_names[] = { "LC_ALL",      "LC_COLLATE", "LC_CTYPE", "LC_MESSAGES",
++                                          "LC_MONETARY", "LC_NUMERIC", "LC_TIME",  "LANG" };
++#define NENV (sizeof(env_names) / sizeof(env_names[0]))
++
++/*
++ * In a child with LC_ALL, LC_CTYPE and LANG set to the given values
++ * (NULL for unset), check newlocale(mask, "", 0): it succeeds, or
++ * fails with ENOENT
++ */
++static void
++check_env(const char *lc_all, const char *lc_ctype, const char *lang, int mask, int expect,
++          const char *message)
++{
++    pid_t pid;
++    int   status;
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        locale_t l;
++        size_t   i;
++
++        for (i = 0; i < NENV; i++)
++            check(unsetenv(env_names[i]) == 0, "unsetenv");
++        if (lc_all)
++            check(setenv("LC_ALL", lc_all, 1) == 0, "setenv");
++        if (lc_ctype)
++            check(setenv("LC_CTYPE", lc_ctype, 1) == 0, "setenv");
++        if (lang)
++            check(setenv("LANG", lang, 1) == 0, "setenv");
++        errno = 0;
++        l = newlocale(mask, "", (locale_t)0);
++        if (expect && l == (locale_t)0) {
++            printf("%s: newlocale failed, errno %d\n", message, errno);
++            _exit(1);
++        }
++        if (!expect && (l != (locale_t)0 || errno != ENOENT)) {
++            printf("%s: newlocale didn't fail with ENOENT, errno %d\n", message, errno);
++            _exit(1);
++        }
++#if defined(__PICOLIBC__)
++        /* With C.UTF-8, the environment chooses LC_CTYPE */
++        if (l != (locale_t)0 && lc_ctype && strcmp(lc_ctype, "C.UTF-8") == 0 && !lc_all
++            && (mask & LC_CTYPE_MASK) && !name_is(LC_CTYPE, l, "C.UTF-8")) {
++            printf("%s: LC_CTYPE is %s\n", message, getlocalename_l(LC_CTYPE, l));
++            _exit(1);
++        }
++#endif
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
++        printf("%s: child failed\n", message);
++        exit(1);
++    }
++}
++
++static void
++check_environment(void)
++{
++    check_env(NULL, NULL, NULL, LC_ALL_MASK, 1, "no variables");
++    check_env(NULL, NULL, "C", LC_ALL_MASK, 1, "LANG=C");
++    check_env(NULL, NULL, BOGUS, LC_ALL_MASK, 0, "LANG unknown");
++    check_env(NULL, NULL, BOGUS, LC_NUMERIC_MASK, 0, "LANG unknown, LC_NUMERIC");
++    check_env("C", NULL, BOGUS, LC_ALL_MASK, 1, "LC_ALL over LANG");
++    check_env(BOGUS, "C", "C", LC_CTYPE_MASK, 0, "LC_ALL unknown");
++    check_env(NULL, "C", BOGUS, LC_CTYPE_MASK, 1, "LC_CTYPE over LANG");
++    check_env(NULL, "C", BOGUS, LC_CTYPE_MASK | LC_TIME_MASK, 0, "LANG for LC_TIME");
++    check_env("", "", "C", LC_ALL_MASK, 1, "empty values ignored");
++    check_env("", NULL, BOGUS, LC_ALL_MASK, 0, "empty LC_ALL ignored");
++}
++
++#endif /* __PICOLIBC_POSIX_MULTI_PROCESS */
++
++int
++main(void)
++{
++    locale_t l, b, r, g;
++    size_t   i;
++    int      bad_bit = 0;
++
++    /* "C" and "POSIX" for all categories and for each one */
++    l = newlocale(LC_ALL_MASK, "C", (locale_t)0);
++    check(l != (locale_t)0, "newlocale C");
++    check_usable(l, "C object");
++#ifndef __GLIBC__
++    check(is_posix(getlocalename_l(LC_CTYPE, l)), "name of C");
++    check(is_posix(getlocalename_l(LC_ALL, l)), "LC_ALL name of C");
++    check(getlocalename_l(LC_ALL + LC_COLLATE + LC_CTYPE + LC_MESSAGES + LC_MONETARY + LC_NUMERIC
++                              + LC_TIME + 1000,
++                          l)
++              == NULL,
++          "invalid category");
++#endif
++    errno = 1234;
++    freelocale(l);
++    check(errno == 1234, "freelocale leaves errno alone");
++
++    l = newlocale(LC_ALL_MASK, "POSIX", (locale_t)0);
++    check(l != (locale_t)0, "newlocale POSIX");
++    freelocale(l);
++    for (i = 0; i < NMASK; i++) {
++        l = newlocale(masks[i], "C", (locale_t)0);
++        check(l != (locale_t)0, "newlocale one category");
++        check_usable(l, "one category object");
++        freelocale(l);
++    }
++
++    /* A mask bit that isn't a category */
++    while (bad_bit < 30 && (LC_ALL_MASK & (1 << bad_bit)))
++        bad_bit++;
++    errno = 0;
++    check(newlocale(LC_CTYPE_MASK | (1 << bad_bit), "C", (locale_t)0) == (locale_t)0
++              && errno == EINVAL,
++          "invalid mask bit");
++
++    /* A locale that doesn't exist */
++    errno = 0;
++    check(newlocale(LC_ALL_MASK, BOGUS, (locale_t)0) == (locale_t)0 && errno == ENOENT,
++          "unknown locale is ENOENT");
++    errno = 0;
++    check(newlocale(LC_NUMERIC_MASK, BOGUS, (locale_t)0) == (locale_t)0 && errno == ENOENT,
++          "unknown locale for one category");
++
++    /* A failure leaves base alone; a success may replace it */
++    b = newlocale(LC_ALL_MASK, "C", (locale_t)0);
++    check(b != (locale_t)0, "base");
++    check(newlocale(LC_CTYPE_MASK, BOGUS, b) == (locale_t)0, "failure with base");
++    check_usable(b, "base after failure");
++    r = newlocale(LC_NUMERIC_MASK, "POSIX", b);
++    check(r != (locale_t)0, "modify base");
++    check_usable(r, "modified base");
++#ifndef __GLIBC__
++    check(is_posix(getlocalename_l(LC_NUMERIC, r)), "modified category");
++#endif
++    freelocale(r);
++
++    /* duplocale of LC_GLOBAL_LOCALE copies the global locale */
++    g = duplocale(LC_GLOBAL_LOCALE);
++    check(g != (locale_t)0, "duplocale(LC_GLOBAL_LOCALE)");
++    check_usable(g, "copy of the global locale");
++#ifndef __GLIBC__
++    check(name_is(LC_CTYPE, g, setlocale(LC_CTYPE, NULL)), "copy has the global LC_CTYPE");
++    check(name_is(LC_ALL, LC_GLOBAL_LOCALE, setlocale(LC_ALL, NULL)),
++          "getlocalename_l of LC_GLOBAL_LOCALE");
++    check(setlocale(LC_ALL, getlocalename_l(LC_ALL, g)) != NULL, "its LC_ALL name restores");
++#endif
++    freelocale(g);
++
++#ifdef __PICOLIBC__
++    /* With multibyte support, picolibc has C.UTF-8, whose LC_CTYPE differs */
++    l = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);
++    if (l != (locale_t)0) {
++        check(name_is(LC_CTYPE, l, "C.UTF-8"), "LC_CTYPE_MASK sets LC_CTYPE");
++
++        /* Categories outside the mask come from the POSIX locale */
++        r = newlocale(LC_COLLATE_MASK, "C.UTF-8", (locale_t)0);
++        check(r != (locale_t)0 && name_is(LC_CTYPE, r, "C"), "other masks leave LC_CTYPE");
++        freelocale(r);
++
++        /* ... or from base */
++        r = newlocale(LC_NUMERIC_MASK, "C", l);
++        check(r != (locale_t)0 && name_is(LC_CTYPE, r, "C.UTF-8"), "base keeps LC_CTYPE");
++        l = newlocale(LC_CTYPE_MASK, "C", r);
++        check(l != (locale_t)0 && name_is(LC_CTYPE, l, "C"), "base's LC_CTYPE replaced");
++        freelocale(l);
++
++        /* duplocale(LC_GLOBAL_LOCALE) sees setlocale */
++        check(setlocale(LC_CTYPE, "C.UTF-8") != NULL, "setlocale C.UTF-8");
++        g = duplocale(LC_GLOBAL_LOCALE);
++        check(name_is(LC_CTYPE, g, "C.UTF-8"), "global copy has C.UTF-8");
++        check(setlocale(LC_ALL, "C") != NULL, "setlocale C");
++        check(name_is(LC_CTYPE, g, "C.UTF-8"), "the copy doesn't follow setlocale");
++        freelocale(g);
++    } else {
++        printf("no C.UTF-8 locale, skipping its checks\n");
++    }
++#endif
++
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++    check_environment();
++#ifdef __PICOLIBC__
++    l = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);
++    if (l != (locale_t)0) {
++        freelocale(l);
++        check_env(NULL, "C.UTF-8", "C", LC_CTYPE_MASK, 1, "LC_CTYPE=C.UTF-8");
++        check_env(NULL, "C.UTF-8", "C", LC_ALL_MASK, 1, "LC_CTYPE=C.UTF-8, all");
++    }
++#endif
++#else
++    printf("no fork, skipping the environment checks\n");
++#endif
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-locale/test-setlocale.c b/test/test-posix/test-locale/test-setlocale.c
+new file mode 100644
+index 0000000000..613cc875e7
+--- /dev/null
++++ b/test/test-posix/test-locale/test-setlocale.c
+@@ -0,0 +1,342 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++#include <errno.h>
++#include <locale.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++#include <sys/wait.h>
++#endif
++
++/*
++ * setlocale starts in the POSIX locale, treats "C" and "POSIX" alike,
++ * returns strings that restore the locale, leaves the locale alone
++ * when it fails and takes "" from LC_ALL, LC_* and LANG
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* A name no C library has: an unknown codeset */
++#define BOGUS "xx_XX.NO-SUCH-CODESET"
++
++static const int categories[]
++    = { LC_COLLATE, LC_CTYPE, LC_MESSAGES, LC_MONETARY, LC_NUMERIC, LC_TIME };
++#define NCAT (sizeof(categories) / sizeof(categories[0]))
++
++static int
++is_posix(const char *name)
++{
++    return name != NULL && (strcmp(name, "C") == 0 || strcmp(name, "POSIX") == 0);
++}
++
++static char *
++query(int category)
++{
++    char *name = setlocale(category, NULL);
++
++    check(name != NULL, "query");
++    name = strdup(name);
++    check(name != NULL, "strdup");
++    return name;
++}
++
++#ifdef __PICOLIBC__
++/* picolibc has C.UTF-8 when built with multibyte support */
++static int
++have_utf8(void)
++{
++    locale_t l = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);
++
++    if (l == (locale_t)0)
++        return 0;
++    freelocale(l);
++    return 1;
++}
++#endif
++
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++
++static const char * const env_names[] = { "LC_ALL",      "LC_COLLATE", "LC_CTYPE", "LC_MESSAGES",
++                                          "LC_MONETARY", "LC_NUMERIC", "LC_TIME",  "LANG" };
++#define NENV (sizeof(env_names) / sizeof(env_names[0]))
++
++/* Values for LC_ALL, LC_CTYPE, LC_NUMERIC and LANG; NULL leaves it unset */
++struct env {
++    const char *lc_all, *lc_ctype, *lc_numeric, *lang;
++};
++
++static void
++set_env(const struct env *e)
++{
++    size_t i;
++
++    for (i = 0; i < NENV; i++)
++        check(unsetenv(env_names[i]) == 0, "unsetenv");
++    if (e->lc_all)
++        check(setenv("LC_ALL", e->lc_all, 1) == 0, "setenv");
++    if (e->lc_ctype)
++        check(setenv("LC_CTYPE", e->lc_ctype, 1) == 0, "setenv");
++    if (e->lc_numeric)
++        check(setenv("LC_NUMERIC", e->lc_numeric, 1) == 0, "setenv");
++    if (e->lang)
++        check(setenv("LANG", e->lang, 1) == 0, "setenv");
++}
++
++/*
++ * In a child with the environment e, check whether setlocale(category, "")
++ * succeeds, and that a failure changes nothing
++ */
++static void
++check_env(const struct env *e, int category, int expect, const char *message)
++{
++    pid_t pid;
++    int   status;
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        char *before, *after;
++        char *ret;
++
++        set_env(e);
++        before = query(LC_ALL);
++        ret = setlocale(category, "");
++        if (expect) {
++            if (ret == NULL) {
++                printf("%s: setlocale(%d, \"\") failed\n", message, category);
++                _exit(1);
++            }
++        } else {
++            if (ret != NULL) {
++                printf("%s: setlocale(%d, \"\") gave \"%s\"\n", message, category, ret);
++                _exit(1);
++            }
++            after = query(LC_ALL);
++            if (strcmp(before, after) != 0) {
++                printf("%s: failure changed the locale\n", message);
++                _exit(1);
++            }
++        }
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
++        printf("%s: child failed\n", message);
++        exit(1);
++    }
++}
++
++static void
++check_environment(void)
++{
++    static const struct env none = { NULL, NULL, NULL, NULL };
++    static const struct env lang_c = { NULL, NULL, NULL, "C" };
++    static const struct env lang_posix = { NULL, NULL, NULL, "POSIX" };
++    static const struct env lang_bogus = { NULL, NULL, NULL, BOGUS };
++    static const struct env all_over_lang = { "C", NULL, NULL, BOGUS };
++    static const struct env ctype_over_lang = { NULL, "C", NULL, BOGUS };
++    static const struct env bogus_numeric = { NULL, NULL, BOGUS, "C" };
++    static const struct env bogus_all = { BOGUS, "C", "C", "C" };
++    static const struct env empty_all = { "", NULL, NULL, BOGUS };
++    static const struct env empty_all_ctype = { "", "", NULL, "C" };
++    size_t                  i;
++
++    /* Nothing set: the default locale */
++    check_env(&none, LC_ALL, 1, "no variables");
++
++    /* LANG alone sets every category */
++    check_env(&lang_c, LC_ALL, 1, "LANG=C");
++    check_env(&lang_posix, LC_ALL, 1, "LANG=POSIX");
++    check_env(&lang_bogus, LC_ALL, 0, "LANG unknown");
++    for (i = 0; i < NCAT; i++)
++        check_env(&lang_bogus, categories[i], 0, "LANG unknown, one category");
++
++    /* LC_ALL takes precedence over everything */
++    check_env(&all_over_lang, LC_ALL, 1, "LC_ALL over LANG");
++    for (i = 0; i < NCAT; i++)
++        check_env(&all_over_lang, categories[i], 1, "LC_ALL over LANG, one category");
++    check_env(&bogus_all, LC_ALL, 0, "LC_ALL unknown");
++    check_env(&bogus_all, LC_CTYPE, 0, "LC_ALL unknown over LC_CTYPE");
++
++    /* LC_CTYPE takes precedence over LANG for its category only */
++    check_env(&ctype_over_lang, LC_CTYPE, 1, "LC_CTYPE over LANG");
++    check_env(&ctype_over_lang, LC_NUMERIC, 0, "LANG for LC_NUMERIC");
++    check_env(&ctype_over_lang, LC_ALL, 0, "LC_ALL checks every category");
++
++    /* One unknown category fails LC_ALL as a whole */
++    check_env(&bogus_numeric, LC_NUMERIC, 0, "LC_NUMERIC unknown");
++    check_env(&bogus_numeric, LC_CTYPE, 1, "LC_NUMERIC unknown, LC_CTYPE");
++    check_env(&bogus_numeric, LC_ALL, 0, "LC_NUMERIC unknown, LC_ALL");
++
++    /* Empty values are ignored */
++    check_env(&empty_all, LC_ALL, 0, "empty LC_ALL, LANG unknown");
++    check_env(&empty_all_ctype, LC_ALL, 1, "empty LC_ALL and LC_CTYPE");
++}
++
++#ifdef __PICOLIBC__
++/* With C.UTF-8, check which variable chose LC_CTYPE */
++static void
++check_env_utf8(const struct env *e, int utf8, const char *message)
++{
++    pid_t pid;
++    int   status;
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        set_env(e);
++        if (setlocale(LC_ALL, "") == NULL) {
++            printf("%s: setlocale failed\n", message);
++            _exit(1);
++        }
++        if ((MB_CUR_MAX > 1) != utf8
++            || (strcmp(setlocale(LC_CTYPE, NULL), "C.UTF-8") == 0) != utf8) {
++            printf("%s: LC_CTYPE is %s\n", message, setlocale(LC_CTYPE, NULL));
++            _exit(1);
++        }
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
++        printf("%s: child failed\n", message);
++        exit(1);
++    }
++}
++
++static void
++check_environment_utf8(void)
++{
++    static const struct env lang = { NULL, NULL, NULL, "C.UTF-8" };
++    static const struct env all = { "C", NULL, NULL, "C.UTF-8" };
++    static const struct env ctype = { NULL, "C.UTF-8", NULL, "C" };
++    static const struct env numeric = { NULL, NULL, "C.UTF-8", "C" };
++
++    check_env_utf8(&lang, 1, "LANG=C.UTF-8");
++    check_env_utf8(&all, 0, "LC_ALL=C over LANG");
++    check_env_utf8(&ctype, 1, "LC_CTYPE=C.UTF-8");
++    check_env_utf8(&numeric, 0, "LC_NUMERIC=C.UTF-8");
++}
++#endif
++
++#endif /* __PICOLIBC_POSIX_MULTI_PROCESS */
++
++int
++main(void)
++{
++    char  *saved, *name;
++    size_t i;
++
++    /* The POSIX locale at entry to main */
++    check(is_posix(setlocale(LC_ALL, NULL)), "POSIX locale at startup");
++    for (i = 0; i < NCAT; i++)
++        check(is_posix(setlocale(categories[i], NULL)), "each category starts as POSIX");
++
++    /* "C" and "POSIX" both name the POSIX locale */
++    check(is_posix(setlocale(LC_ALL, "POSIX")), "setlocale POSIX");
++    check(is_posix(setlocale(LC_ALL, "C")), "setlocale C");
++    for (i = 0; i < NCAT; i++) {
++        check(is_posix(setlocale(categories[i], "POSIX")), "category POSIX");
++        check(is_posix(setlocale(categories[i], "C")), "category C");
++    }
++
++    /* A query changes nothing, and its result restores the locale */
++    saved = query(LC_ALL);
++    name = query(LC_ALL);
++    check(strcmp(saved, name) == 0, "query twice");
++    free(name);
++    check(setlocale(LC_ALL, saved) != NULL, "restore LC_ALL");
++    for (i = 0; i < NCAT; i++) {
++        name = query(categories[i]);
++        check(setlocale(categories[i], name) != NULL, "restore a category");
++        free(name);
++    }
++
++    /* An unknown locale fails and changes nothing */
++    check(setlocale(LC_ALL, BOGUS) == NULL, "unknown locale");
++    for (i = 0; i < NCAT; i++)
++        check(setlocale(categories[i], BOGUS) == NULL, "unknown locale for a category");
++    name = query(LC_ALL);
++    check(strcmp(saved, name) == 0, "failure changes nothing");
++    free(name);
++    free(saved);
++
++#ifdef __PICOLIBC__
++    if (have_utf8()) {
++        /* A failure leaves LC_CTYPE alone */
++        check(setlocale(LC_CTYPE, "C.UTF-8") != NULL, "C.UTF-8");
++        check(MB_CUR_MAX > 1, "C.UTF-8 is multibyte");
++        check(setlocale(LC_ALL, BOGUS) == NULL, "unknown locale");
++        check(strcmp(setlocale(LC_CTYPE, NULL), "C.UTF-8") == 0, "LC_CTYPE unchanged");
++
++        /* The LC_ALL string restores LC_CTYPE */
++        saved = query(LC_ALL);
++        check(is_posix(setlocale(LC_ALL, "C")), "back to C");
++        check(MB_CUR_MAX == 1, "C is single byte");
++        check(setlocale(LC_ALL, saved) != NULL, "restore");
++        check(strcmp(setlocale(LC_CTYPE, NULL), "C.UTF-8") == 0, "LC_CTYPE restored");
++        free(saved);
++        check(is_posix(setlocale(LC_ALL, "POSIX")), "back to POSIX");
++    } else {
++        printf("no C.UTF-8 locale, skipping its checks\n");
++    }
++#endif
++
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++    check_environment();
++#ifdef __PICOLIBC__
++    if (have_utf8())
++        check_environment_utf8();
++#endif
++#else
++    printf("no fork, skipping the environment checks\n");
++#endif
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-locale/test-uselocale-thread.c b/test/test-posix/test-locale/test-uselocale-thread.c
+new file mode 100644
+index 0000000000..d019295bdf
+--- /dev/null
++++ b/test/test-posix/test-locale/test-uselocale-thread.c
+@@ -0,0 +1,154 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if _POSIX_THREADS > 0
++
++#include <locale.h>
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * Each thread has its own current locale: a new thread starts with
++ * the global locale, and uselocale in one thread doesn't change
++ * another's
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
++static pthread_cond_t  cond = PTHREAD_COND_INITIALIZER;
++static int             stage;
++static locale_t        main_locale, thread_locale, utf8;
++
++/* Wait until stage reaches want */
++static void
++wait_stage(int want)
++{
++    pthread_mutex_lock(&lock);
++    while (stage < want)
++        pthread_cond_wait(&cond, &lock);
++    pthread_mutex_unlock(&lock);
++}
++
++static void
++set_stage(int now)
++{
++    pthread_mutex_lock(&lock);
++    stage = now;
++    pthread_cond_broadcast(&cond);
++    pthread_mutex_unlock(&lock);
++}
++
++static void *
++thread(void *arg)
++{
++    (void)arg;
++
++    /* The thread-local locale isn't inherited */
++    check(uselocale((locale_t)0) == LC_GLOBAL_LOCALE, "new thread uses the global locale");
++
++    check(uselocale(thread_locale) == LC_GLOBAL_LOCALE, "thread installs its locale");
++    if (utf8 != (locale_t)0)
++        check(MB_CUR_MAX > 1, "thread sees its own C.UTF-8");
++    set_stage(1);
++
++    /* main changes its own locale meanwhile */
++    wait_stage(2);
++    check(uselocale((locale_t)0) == thread_locale, "thread's locale is unchanged");
++    if (utf8 != (locale_t)0)
++        check(MB_CUR_MAX > 1, "thread still sees C.UTF-8");
++    return NULL;
++}
++
++int
++main(void)
++{
++    pthread_t t;
++
++    main_locale = newlocale(LC_ALL_MASK, "C", (locale_t)0);
++    check(main_locale != (locale_t)0, "newlocale");
++#ifdef __PICOLIBC__
++    /* With multibyte support, picolibc's C.UTF-8 shows which locale is in use */
++    utf8 = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);
++#endif
++    thread_locale = utf8 != (locale_t)0 ? utf8 : newlocale(LC_ALL_MASK, "POSIX", (locale_t)0);
++    check(thread_locale != (locale_t)0, "newlocale");
++    if (utf8 == (locale_t)0)
++        printf("no C.UTF-8 locale, only checking uselocale's results\n");
++
++    check(uselocale(main_locale) == LC_GLOBAL_LOCALE, "main installs its locale");
++    check(pthread_create(&t, NULL, thread, NULL) == 0, "pthread_create");
++
++    /* The thread's uselocale doesn't change main's locale */
++    wait_stage(1);
++    check(uselocale((locale_t)0) == main_locale, "main's locale is unchanged");
++    check(MB_CUR_MAX == 1, "main sees C");
++
++    /* Nor does main's change the thread's */
++    check(uselocale(LC_GLOBAL_LOCALE) == main_locale, "main uninstalls its locale");
++    set_stage(2);
++    check(pthread_join(t, NULL) == 0, "pthread_join");
++    check(uselocale((locale_t)0) == LC_GLOBAL_LOCALE, "main uses the global locale");
++
++    freelocale(thread_locale);
++    freelocale(main_locale);
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-locale/test-uselocale.c b/test/test-posix/test-locale/test-uselocale.c
+new file mode 100644
+index 0000000000..ebacc0951d
+--- /dev/null
++++ b/test/test-posix/test-locale/test-uselocale.c
+@@ -0,0 +1,146 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <errno.h>
++#include <langinfo.h>
++#include <locale.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <wchar.h>
++#include <wctype.h>
++
++/*
++ * uselocale installs, reports and removes the calling thread's
++ * locale; (locale_t)0 only asks. Functions without a locale argument
++ * use the thread's locale, or the global one when there is none
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/*
++ * gcc treats the <ctype.h> and <wctype.h> functions as builtins whose
++ * result depends only on the argument, so it reuses results across
++ * uselocale. Read the characters from volatile objects to stop that.
++ */
++#ifdef __PICOLIBC__
++static volatile wint_t e_acute = 0xe9;
++static volatile wint_t E_acute = 0xc9;
++#endif
++
++int
++main(void)
++{
++    locale_t l, m;
++
++    /* No thread locale at first */
++    check(uselocale((locale_t)0) == LC_GLOBAL_LOCALE, "starts with the global locale");
++    check(uselocale((locale_t)0) == LC_GLOBAL_LOCALE, "the query changes nothing");
++
++    l = newlocale(LC_ALL_MASK, "C", (locale_t)0);
++    m = newlocale(LC_ALL_MASK, "POSIX", (locale_t)0);
++    check(l != (locale_t)0 && m != (locale_t)0, "newlocale");
++
++    /* Installing returns what was there before */
++    check(uselocale(l) == LC_GLOBAL_LOCALE, "install");
++    check(uselocale((locale_t)0) == l, "query the installed locale");
++    check(uselocale((locale_t)0) == l, "querying leaves it installed");
++    check(uselocale(m) == l, "replace");
++    check(uselocale((locale_t)0) == m, "replaced");
++
++    /* LC_GLOBAL_LOCALE uninstalls it */
++    check(uselocale(LC_GLOBAL_LOCALE) == m, "uninstall");
++    check(uselocale((locale_t)0) == LC_GLOBAL_LOCALE, "uninstalled");
++    check(uselocale(LC_GLOBAL_LOCALE) == LC_GLOBAL_LOCALE, "uninstall again");
++
++    /* A duplicate of the global locale can be installed */
++    freelocale(m);
++    m = duplocale(LC_GLOBAL_LOCALE);
++    check(m != (locale_t)0, "duplocale");
++    check(uselocale(m) == LC_GLOBAL_LOCALE && uselocale((locale_t)0) == m, "install a copy");
++    check(uselocale(LC_GLOBAL_LOCALE) == m, "uninstall the copy");
++    freelocale(m);
++
++#ifdef __PICOLIBC__
++    /*
++     * picolibc's C.UTF-8 differs from C only in LC_CTYPE, so check
++     * functions that depend on LC_CTYPE
++     */
++    m = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);
++    if (m != (locale_t)0) {
++        static const char utf8_e_acute[] = "\xc3\xa9";
++        mbstate_t         state;
++        wchar_t           wc;
++
++        check(setlocale(LC_ALL, "C") != NULL, "global C");
++        check(MB_CUR_MAX == 1 && !iswalpha(e_acute), "C");
++
++        /* The thread's locale overrides the global one */
++        check(uselocale(m) == LC_GLOBAL_LOCALE, "install C.UTF-8");
++        check(MB_CUR_MAX > 1, "MB_CUR_MAX follows the thread's locale");
++        memset(&state, 0, sizeof(state));
++        check(mbrtowc(&wc, utf8_e_acute, 2, &state) == 2 && wc == (wchar_t)e_acute,
++              "mbrtowc follows it");
++        check(iswalpha(e_acute) && towupper(e_acute) == E_acute, "wctype follows it");
++        check(strcmp(nl_langinfo(CODESET), "UTF-8") == 0, "nl_langinfo follows it");
++
++        /* setlocale doesn't affect a thread with its own locale */
++        check(uselocale(l) == m, "install C");
++        check(setlocale(LC_CTYPE, "C.UTF-8") != NULL, "global C.UTF-8");
++        check(MB_CUR_MAX == 1 && !iswalpha(e_acute), "the thread's C locale stays");
++        check(strcmp(nl_langinfo(CODESET), "UTF-8") != 0, "nl_langinfo stays");
++
++        /* Without a thread locale, the global one is used */
++        check(uselocale(LC_GLOBAL_LOCALE) == l, "uninstall");
++        check(MB_CUR_MAX > 1 && iswalpha(e_acute), "the global C.UTF-8 is used");
++        check(setlocale(LC_ALL, "C") != NULL, "global C");
++        check(MB_CUR_MAX == 1, "and follows setlocale");
++        freelocale(m);
++    } else {
++        printf("no C.UTF-8 locale, skipping its checks\n");
++    }
++#endif
++    freelocale(l);
++
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

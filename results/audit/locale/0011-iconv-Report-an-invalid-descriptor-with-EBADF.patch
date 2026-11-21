@@ -1,0 +1,42 @@
+From 8deadd09d87f3349ece623b292eca44addefc749 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:33:51 +0000
+Subject: [PATCH 11/19] iconv: Report an invalid descriptor with EBADF
+
+iconv and iconv_close gave EINVAL for (iconv_t)-1. POSIX lists EBADF
+for an invalid descriptor; EINVAL from iconv means an incomplete
+character.
+---
+ libc/iconv/iconv.c       | 2 +-
+ libc/iconv/iconv_close.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libc/iconv/iconv.c b/libc/iconv/iconv.c
+index 4e7061d058..ca23a3574b 100644
+--- a/libc/iconv/iconv.c
++++ b/libc/iconv/iconv.c
+@@ -76,7 +76,7 @@ iconv(iconv_t ic, char ** __restrict inbuf, size_t * __restrict inbytesleft,
+     int    err = 0;
+ 
+     if (ic == (iconv_t)-1) {
+-        errno = EINVAL;
++        errno = EBADF;
+         return (size_t)-1;
+     }
+ 
+diff --git a/libc/iconv/iconv_close.c b/libc/iconv/iconv_close.c
+index 62e3ecd53f..b0390ccd61 100644
+--- a/libc/iconv/iconv_close.c
++++ b/libc/iconv/iconv_close.c
+@@ -39,7 +39,7 @@ int
+ iconv_close(iconv_t ic)
+ {
+     if (ic == (iconv_t)-1) {
+-        errno = EINVAL;
++        errno = EBADF;
+         return -1;
+     }
+     free(ic);
+-- 
+2.47.3
+

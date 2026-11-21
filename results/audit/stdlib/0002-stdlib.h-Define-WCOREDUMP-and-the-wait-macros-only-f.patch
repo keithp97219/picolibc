@@ -1,0 +1,58 @@
+From c28592299b1205b71029587728be22934b384086 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:40:57 +0000
+Subject: [PATCH 02/24] stdlib.h: Define WCOREDUMP, and the wait macros only
+ for POSIX
+
+POSIX.1-2024 lists WCOREDUMP among the <sys/wait.h> macros that
+<stdlib.h> defines; it was only in <sys/wait.h>. ISO C doesn't define
+any of them, so leave them out unless POSIX is visible.
+---
+ libc/include/stdlib.h    | 2 ++
+ libc/include/sys/_wait.h | 3 +++
+ libc/include/sys/wait.h  | 2 --
+ 3 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/libc/include/stdlib.h b/libc/include/stdlib.h
+index c92a351077..6dbb64333b 100644
+--- a/libc/include/stdlib.h
++++ b/libc/include/stdlib.h
+@@ -59,7 +59,9 @@ SUCH DAMAGE.
+ 
+ _BEGIN_STD_C
+ 
++#if __POSIX_VISIBLE
+ #include <sys/_wait.h>
++#endif
+ 
+ #if __POSIX_VISIBLE >= 202405
+ /* The open flags for mkostemp, which may make all of <fcntl.h> visible */
+diff --git a/libc/include/sys/_wait.h b/libc/include/sys/_wait.h
+index da65d91e9e..95b5c48ed9 100644
+--- a/libc/include/sys/_wait.h
++++ b/libc/include/sys/_wait.h
+@@ -54,5 +54,8 @@ SUCH DAMAGE.
+ #define WIFSTOPPED(w)      (((w) & 0xff) == 0x7f)
+ #define __W_EXITCODE(e, s) (((e) << 8) | (s))
+ #define __W_COREFLAG       0x80
++#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
++#define WCOREDUMP(w) ((w) & __W_COREFLAG)
++#endif
+ 
+ #endif
+diff --git a/libc/include/sys/wait.h b/libc/include/sys/wait.h
+index 9b0de015cc..d4aa79a5b2 100644
+--- a/libc/include/sys/wait.h
++++ b/libc/include/sys/wait.h
+@@ -36,8 +36,6 @@ _BEGIN_STD_C
+ #include <sys/types.h>
+ #include <sys/_wait.h>
+ 
+-#define WCOREDUMP(w) ((w) & __W_COREFLAG)
+-
+ pid_t wait(int *);
+ pid_t waitpid(pid_t, int *, int);
+ #if __MISC_VISIBLE
+-- 
+2.47.3
+

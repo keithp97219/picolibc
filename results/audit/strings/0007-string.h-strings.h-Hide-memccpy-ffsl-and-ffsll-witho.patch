@@ -1,0 +1,43 @@
+From 177309347886f040435e7e61063e518403df698d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:30:35 +0000
+Subject: [PATCH 07/17] string.h, strings.h: Hide memccpy, ffsl and ffsll
+ without XSI
+
+All three are XSI interfaces in POSIX.1-2024, but memccpy was declared
+for any _POSIX_C_SOURCE and ffsl and ffsll for _POSIX_C_SOURCE 202405L.
+They now need _XOPEN_SOURCE (memccpy is also in C23 and BSD).
+---
+ libc/include/string.h  | 2 +-
+ libc/include/strings.h | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libc/include/string.h b/libc/include/string.h
+index c9013a6225..80a5a978ea 100644
+--- a/libc/include/string.h
++++ b/libc/include/string.h
+@@ -77,7 +77,7 @@ char * __nonnull((1)) basename(const char *) _ASMNAME("__gnu_basename");
+ #endif
+ #endif
+ 
+-#if __MISC_VISIBLE || __POSIX_VISIBLE || __ISO_C_VISIBLE >= 2023
++#if __MISC_VISIBLE || __XSI_VISIBLE || __ISO_C_VISIBLE >= 2023
+ void *memccpy(void * __restrict, const void * __restrict, int, size_t) __picolibc_export;
+ #endif
+ void *memchr(const void *, int, size_t) __picolibc_export;
+diff --git a/libc/include/strings.h b/libc/include/strings.h
+index 152c135d42..c8082d1894 100644
+--- a/libc/include/strings.h
++++ b/libc/include/strings.h
+@@ -64,7 +64,7 @@ void explicit_bzero(void *, size_t) __picolibc_export;
+ #if __MISC_VISIBLE || __POSIX_VISIBLE < 200809 || __XSI_VISIBLE >= 700
+ int ffs(int) __const __picolibc_export;
+ #endif
+-#if __BSD_VISIBLE || __POSIX_VISIBLE >= 202405
++#if __BSD_VISIBLE || __XSI_VISIBLE >= 800
+ int ffsl(long) __const __picolibc_export;
+ int ffsll(long long) __const __picolibc_export;
+ #endif
+-- 
+2.47.3
+

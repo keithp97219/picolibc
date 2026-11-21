@@ -1,0 +1,57 @@
+From 38805fd80f275bf8f86b07d44737f9dc842c08fa Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:31:11 +0000
+Subject: [PATCH 08/19] strfmon: Fail with EINVAL for the '+' flag
+
+POSIX says strfmon shall fail with EINVAL when '+' is given and the
+locale's positive_sign and negative_sign are both empty, as they are
+in the POSIX locale, the only one picolibc's strfmon has. test-strfmon
+expected the glibc behaviour; keep that for glibc only.
+---
+ libc/posix/monetary/vstrfmon.c    | 9 ++++++---
+ test/test-monetary/test-strfmon.c | 7 +++++++
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/libc/posix/monetary/vstrfmon.c b/libc/posix/monetary/vstrfmon.c
+index 20d45c159b..1c27d318a1 100644
+--- a/libc/posix/monetary/vstrfmon.c
++++ b/libc/posix/monetary/vstrfmon.c
+@@ -143,9 +143,12 @@ __vstrfmon(char * __restrict buf, size_t size, const char * __restrict format, v
+                 sign_paren = true;
+                 continue;
+             case '+':
+-                /* Should this return -1/EINVAL? Glibc doesn't */
+-                sign_paren = false;
+-                continue;
++                /*
++                 * The sign strings are both empty in the POSIX locale,
++                 * which POSIX says makes '+' fail
++                 */
++                errno = EINVAL;
++                return -1;
+             case '!':
+                 continue;
+             case '-':
+diff --git a/test/test-monetary/test-strfmon.c b/test/test-monetary/test-strfmon.c
+index c5cebb8367..c3ceb9d0be 100644
+--- a/test/test-monetary/test-strfmon.c
++++ b/test/test-monetary/test-strfmon.c
+@@ -53,8 +53,15 @@ static const struct {
+     { "%i",           1234.56,  "1234.56",      0 },
+     { "%n",           -1234.56, "-1234.56",     0 },
+     { "%i",           -1234.56, "-1234.56",     0 },
++#ifdef __GLIBC__
++    /* glibc accepts '+' here, against POSIX */
+     { "%+n",          1234.56,  "1234.56",      0 },
+     { "%+n",          -1234.56, "-1234.56",     0 },
++#else
++    /* '+' fails when positive_sign and negative_sign are both empty */
++    { "%+n", 1234.56, NULL, EINVAL },
++    { "%+n", -1234.56, NULL, EINVAL },
++#endif
+     { "%!.0n",        0.0,      "0",            0 },
+     { "%!.0n",        10.0,     "10",           0 },
+     { "%!.0n",        120.0,    "120",          0 },
+-- 
+2.47.3
+

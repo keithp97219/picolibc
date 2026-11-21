@@ -1,0 +1,662 @@
+From cc9d0a804f689d0eb1ca516591930766bc6ccfab Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:55:42 +0000
+Subject: [PATCH 19/24] test-posix: Check the rand48 congruence, random's state
+ arrays and threads, and rand
+
+---
+ test/test-posix/test-stdlib/CMakeLists.txt    |   3 +
+ test/test-posix/test-stdlib/meson.build       |   7 +
+ test/test-posix/test-stdlib/test-rand48.c     | 221 ++++++++++++++++++
+ .../test-stdlib/test-random-thread.c          | 153 ++++++++++++
+ test/test-posix/test-stdlib/test-random.c     | 212 +++++++++++++++++
+ 5 files changed, 596 insertions(+)
+ create mode 100644 test/test-posix/test-stdlib/test-rand48.c
+ create mode 100644 test/test-posix/test-stdlib/test-random-thread.c
+ create mode 100644 test/test-posix/test-stdlib/test-random.c
+
+diff --git a/test/test-posix/test-stdlib/CMakeLists.txt b/test/test-posix/test-stdlib/CMakeLists.txt
+index a39982edbd..65fc487dc8 100644
+--- a/test/test-posix/test-stdlib/CMakeLists.txt
++++ b/test/test-posix/test-stdlib/CMakeLists.txt
+@@ -41,6 +41,9 @@ set(tests
+   test-posix_openpt
+   test-ptsname
+   test-ptsname_r
++  test-rand48
++  test-random
++  test-random-thread
+   test-realloc
+   test-realpath
+   test-secure_getenv
+diff --git a/test/test-posix/test-stdlib/meson.build b/test/test-posix/test-stdlib/meson.build
+index 508765fec2..b37cd2a868 100644
+--- a/test/test-posix/test-stdlib/meson.build
++++ b/test/test-posix/test-stdlib/meson.build
+@@ -41,6 +41,8 @@ dir_tests = [
+   'test-posix_openpt',
+   'test-ptsname',
+   'test-ptsname_r',
++  'test-rand48',
++  'test-random',
+   'test-realloc',
+   'test-realpath',
+   'test-secure_getenv',
+@@ -53,5 +55,10 @@ dir_tests = [
+   'test-unlockpt',
+ ]
+ 
++# random is shared by all threads, and atexit runs on the last thread's exit
++dir_thread_tests = [
++  'test-random-thread',
++]
++
+ # glibc's -native build sees _REENTRANT from -pthread, so isn't strict ISO C
+ test_skip_native += ['test-stdlib_h-iso']
+diff --git a/test/test-posix/test-stdlib/test-rand48.c b/test/test-posix/test-stdlib/test-rand48.c
+new file mode 100644
+index 0000000000..6fe9996741
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-rand48.c
+@@ -0,0 +1,221 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* The rand48 family is XSI */
++#define _XOPEN_SOURCE 800
++#include <stdlib.h>
++
++#include <stdint.h>
++#include <stdio.h>
++
++/*
++ * The rand48 family against the congruence POSIX documents:
++ * X(n+1) = (a * X(n) + c) mod 2^48, a = 0x5DEECE66D and c = 0xB unless
++ * lcong48 sets them, with each function's conversion of X.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            return 1;                                  \
++        }                                              \
++    } while (0)
++
++#define MASK48 ((UINT64_C(1) << 48) - 1)
++
++static uint64_t a = UINT64_C(0x5DEECE66D);
++static uint64_t c = 0xB;
++
++static uint64_t
++step(uint64_t x)
++{
++    return (a * x + c) & MASK48;
++}
++
++static uint64_t
++from_array(const unsigned short v[3])
++{
++    return (uint64_t)v[0] | (uint64_t)v[1] << 16 | (uint64_t)v[2] << 32;
++}
++
++static void
++to_array(unsigned short v[3], uint64_t x)
++{
++    v[0] = (unsigned short)x;
++    v[1] = (unsigned short)(x >> 16);
++    v[2] = (unsigned short)(x >> 32);
++}
++
++/* The conversions */
++static double
++as_drand(uint64_t x)
++{
++    return (double)x / (double)(UINT64_C(1) << 48);
++}
++
++static long
++as_lrand(uint64_t x)
++{
++    return (long)(x >> 17);
++}
++
++static long
++as_mrand(uint64_t x)
++{
++    return (long)(int32_t)(uint32_t)(x >> 16);
++}
++
++/* Seeds near the top of the range carry through every 16-bit part */
++static const uint64_t seeds[] = {
++    0,
++    1,
++    UINT64_C(0x1234ABCD330E),
++    UINT64_C(0xFFFFFFFFFFFF),
++    UINT64_C(0xFFFF0000FFFF),
++    UINT64_C(0x8000FFFF8000),
++};
++
++#define NSEEDS (sizeof(seeds) / sizeof(seeds[0]))
++
++int
++main(void)
++{
++    unsigned short  xs[3], ys[3];
++    unsigned short *prev;
++    uint64_t        x, y;
++    double          d;
++    long            l;
++    size_t          s;
++    int             i;
++
++    /* Without an initializer, drand48 still works, from a constant state */
++    d = drand48();
++    check(d >= 0.0 && d < 1.0, "drand48 without initialization");
++
++    for (s = 0; s < NSEEDS; s++) {
++        /* erand48, nrand48 and jrand48 step the caller's array */
++        x = seeds[s];
++        to_array(xs, x);
++        for (i = 0; i < 20; i++) {
++            x = step(x);
++            d = erand48(xs);
++            check(from_array(xs) == x, "erand48 steps X");
++            check(d == as_drand(x) && d >= 0.0 && d < 1.0, "erand48 is 2^-48 X");
++        }
++        for (i = 0; i < 20; i++) {
++            x = step(x);
++            l = nrand48(xs);
++            check(from_array(xs) == x, "nrand48 steps X");
++            check(l == as_lrand(x) && l >= 0 && (unsigned long)l <= 0x7fffffffUL,
++                  "nrand48 is X >> 17");
++        }
++        for (i = 0; i < 20; i++) {
++            x = step(x);
++            l = jrand48(xs);
++            check(from_array(xs) == x, "jrand48 steps X");
++            check(l == as_mrand(x), "jrand48 is X >> 16, signed");
++        }
++
++        /* seed48 sets X and returns the previous one */
++        to_array(xs, seeds[s]);
++        prev = seed48(xs);
++        check(prev != NULL, "seed48");
++        x = seeds[s];
++        for (i = 0; i < 10; i++) {
++            x = step(x);
++            check(drand48() == as_drand(x), "drand48 after seed48");
++            x = step(x);
++            check(lrand48() == as_lrand(x), "lrand48 after seed48");
++            x = step(x);
++            check(mrand48() == as_mrand(x), "mrand48 after seed48");
++        }
++        to_array(ys, UINT64_C(0x5555AAAA5555));
++        prev = seed48(ys);
++        check(from_array(prev) == x, "seed48 returns the last X");
++    }
++
++    /* srand48: the high 32 bits from the seed, the low 16 bits 0x330E */
++    srand48(0x12345678L);
++    x = UINT64_C(0x12345678330E);
++    check(lrand48() == as_lrand(step(x)), "srand48");
++    srand48((long)0xFEDCBA98UL);
++    x = UINT64_C(0xFEDCBA98330E);
++    for (i = 0; i < 10; i++) {
++        x = step(x);
++        check(mrand48() == as_mrand(x), "srand48 of a large seed");
++    }
++
++    /* lcong48 sets X, a and c, for every function */
++    {
++        unsigned short param[7] = { 0x1111, 0x2222, 0x3333, 0xFFFF, 0xFFFF, 0xFFFF, 0x7777 };
++
++        lcong48(param);
++        a = MASK48;
++        c = 0x7777;
++        x = UINT64_C(0x333322221111);
++        for (i = 0; i < 10; i++) {
++            x = step(x);
++            check(lrand48() == as_lrand(x), "lrand48 after lcong48");
++        }
++        y = UINT64_C(0xFFFFFFFFFFFF);
++        to_array(ys, y);
++        y = step(y);
++        check(nrand48(ys) == as_lrand(y), "nrand48 uses lcong48's a and c");
++
++        /* srand48 and seed48 restore the standard a and c */
++        a = UINT64_C(0x5DEECE66D);
++        c = 0xB;
++        srand48(1);
++        check(lrand48() == as_lrand(step(UINT64_C(0x00000001330E))), "srand48 after lcong48");
++        lcong48(param);
++        to_array(xs, 42);
++        (void)seed48(xs);
++        check(lrand48() == as_lrand(step(42)), "seed48 after lcong48");
++    }
++
++    /* Separate arrays are separate streams */
++    to_array(xs, 1000);
++    to_array(ys, 1000);
++    (void)nrand48(xs);
++    (void)nrand48(xs);
++    (void)drand48();
++    x = step(1000);
++    check(nrand48(ys) == as_lrand(x), "one array doesn't depend on another");
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-stdlib/test-random-thread.c b/test/test-posix/test-stdlib/test-random-thread.c
+new file mode 100644
+index 0000000000..47cfa9f87a
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-random-thread.c
+@@ -0,0 +1,153 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* random and srandom are XSI */
++#define _XOPEN_SOURCE 800
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if _POSIX_THREADS > 0
++
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/*
++ * random, srandom, initstate and setstate must be thread-safe, with one
++ * sequence for the process: a thread continues what another seeded,
++ * and threads drawing at once share out the values of one sequence.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define N        8
++#define NTHREADS 4
++#define DRAWS    4000
++
++static long got[N];
++static long drawn[NTHREADS][DRAWS];
++
++static void *
++draw_some(void *arg)
++{
++    (void)arg;
++    for (int i = 0; i < N; i++)
++        got[i] = random();
++    return NULL;
++}
++
++static void *
++draw_many(void *arg)
++{
++    long *out = arg;
++
++    for (int i = 0; i < DRAWS; i++)
++        out[i] = random();
++    return NULL;
++}
++
++static int
++cmp_long(const void *a, const void *b)
++{
++    long x = *(const long *)a, y = *(const long *)b;
++
++    return (x > y) - (x < y);
++}
++
++int
++main(void)
++{
++    static long all[NTHREADS * DRAWS], expect[NTHREADS * DRAWS];
++    static char state[256];
++    long        want[N];
++    pthread_t   t[NTHREADS];
++    int         i;
++
++    /* Seeded in this thread, continued in another */
++    srandom(5);
++    for (i = 0; i < N; i++)
++        want[i] = random();
++    srandom(5);
++    check(pthread_create(&t[0], NULL, draw_some, NULL) == 0, "pthread_create");
++    check(pthread_join(t[0], NULL) == 0, "pthread_join");
++    check(memcmp(want, got, sizeof(want)) == 0, "a thread uses the process's seed");
++
++    /* The same for an initstate array */
++    check(initstate(6, state, sizeof(state)) != NULL, "initstate");
++    for (i = 0; i < N; i++)
++        want[i] = random();
++    srandom(6);
++    check(pthread_create(&t[0], NULL, draw_some, NULL) == 0, "pthread_create");
++    check(pthread_join(t[0], NULL) == 0, "pthread_join");
++    check(memcmp(want, got, sizeof(want)) == 0, "a thread uses the initstate array");
++
++    /* Threads drawing at once get the values of one sequence between them */
++    srandom(7);
++    for (i = 0; i < NTHREADS * DRAWS; i++)
++        expect[i] = random();
++    srandom(7);
++    for (i = 0; i < NTHREADS; i++)
++        check(pthread_create(&t[i], NULL, draw_many, drawn[i]) == 0, "pthread_create");
++    for (i = 0; i < NTHREADS; i++)
++        check(pthread_join(t[i], NULL) == 0, "pthread_join");
++    memcpy(all, drawn, sizeof(all));
++    qsort(all, NTHREADS * DRAWS, sizeof(long), cmp_long);
++    qsort(expect, NTHREADS * DRAWS, sizeof(long), cmp_long);
++    check(memcmp(all, expect, sizeof(all)) == 0, "concurrent random");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-stdlib/test-random.c b/test/test-posix/test-stdlib/test-random.c
+new file mode 100644
+index 0000000000..40bbb35126
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-random.c
+@@ -0,0 +1,212 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* random, srandom, initstate and setstate are XSI */
++#define _XOPEN_SOURCE 800
++#include "../posix-groups.h"
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++
++/*
++ * random and rand: the default sequences are those of seed 1 (for
++ * random, of initstate(1, state, 128)), the sizes initstate rounds to,
++ * switching state arrays, the ranges, and rand's sequence staying
++ * apart from random's.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define N 16
++
++static void
++sequence(long *v, int n)
++{
++    int i;
++
++    for (i = 0; i < n; i++)
++        v[i] = random();
++}
++
++/* The sequences from initstate(seed) with two sizes are the same */
++static void
++same_size(unsigned seed, size_t s1, size_t s2, const char *message)
++{
++    static char b1[512], b2[512];
++    long        v1[N], v2[N];
++
++    check(initstate(seed, b1, s1) != NULL, message);
++    sequence(v1, N);
++    check(initstate(seed, b2, s2) != NULL, message);
++    sequence(v2, N);
++    check(memcmp(v1, v2, sizeof(v1)) == 0, message);
++}
++
++#ifdef __PICOLIBC_POSIX_MULTI_PROCESS
++/* In a fresh child, rand's default sequence is that of srand(1) */
++static void
++rand_default(void)
++{
++    pid_t pid;
++    int   status;
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        int r[N], i;
++
++        for (i = 0; i < N; i++)
++            r[i] = rand();
++        srand(1);
++        for (i = 0; i < N; i++)
++            check(rand() == r[i], "rand's default sequence is srand(1)'s");
++        fflush(stdout);
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
++          "rand_default");
++}
++#endif
++
++int
++main(void)
++{
++    long  d[N], v[N], w[N];
++    char  state[128], other[128];
++    char  raw[260];
++    char *prev;
++    int   r[N];
++    int   i;
++
++#ifdef __PICOLIBC_POSIX_MULTI_PROCESS
++    /* Before anything here calls rand */
++    rand_default();
++#endif
++
++    /* Before any initialization */
++    sequence(d, N);
++
++    srandom(1);
++    sequence(v, N);
++    check(memcmp(d, v, sizeof(d)) == 0, "the default sequence is srandom(1)'s");
++
++    prev = initstate(1, state, sizeof(state));
++    check(prev != NULL, "initstate returns the previous state");
++    sequence(v, N);
++    check(memcmp(d, v, sizeof(d)) == 0, "the default is initstate(1, state, 128)");
++
++    /* The range */
++    for (i = 0; i < 10000; i++) {
++        long x = random();
++        check(x >= 0 && x <= 0x7fffffffL, "random's range");
++    }
++
++    /* Sizes round down to 8, 32, 64, 128 or 256 */
++    same_size(5, 8, 31, "8 to 31 bytes");
++    same_size(5, 32, 63, "32 to 63 bytes");
++    same_size(5, 64, 100, "64 to 127 bytes");
++    same_size(5, 128, 255, "128 to 255 bytes");
++    same_size(5, 256, 500, "256 bytes and more");
++
++    /* Too small */
++    check(initstate(1, raw, 7) == NULL, "initstate with less than 8 bytes");
++
++    /* srandom reseeds whichever array is in use */
++    {
++        static char small[8];
++
++        check(initstate(5, small, sizeof(small)) != NULL, "initstate with 8 bytes");
++        sequence(v, N);
++        srandom(5);
++        sequence(w, N);
++        check(memcmp(v, w, sizeof(v)) == 0, "srandom on an 8-byte state");
++    }
++
++    /* The state array needn't be aligned */
++    check(initstate(3, raw + 1, 128) != NULL, "initstate of an unaligned array");
++    sequence(v, N);
++    check(initstate(3, state, 128) != NULL, "initstate of an aligned array");
++    sequence(w, N);
++    check(memcmp(v, w, sizeof(v)) == 0, "unaligned arrays work the same");
++
++    /* setstate switches arrays, and each keeps its position */
++    check(initstate(9, state, sizeof(state)) != NULL, "initstate A");
++    v[0] = random();
++    prev = initstate(9, other, sizeof(other));
++    check(prev == state, "initstate returns the previous array");
++    w[0] = random();
++    w[1] = random();
++    check(w[0] == v[0], "same seed, same start");
++    check(setstate(state) == other, "setstate returns the previous array");
++    check(random() == w[1], "the first array resumes where it was");
++    check(setstate(prev) == state, "setstate back");
++
++    /* rand: same seed, same sequence, in range */
++    srand(77);
++    for (i = 0; i < N; i++) {
++        r[i] = rand();
++        check(r[i] >= 0 && r[i] <= RAND_MAX, "rand's range");
++    }
++    srand(77);
++    for (i = 0; i < N; i++)
++        check(rand() == r[i], "srand repeats the sequence");
++
++#ifndef __GLIBC__
++    /*
++     * POSIX: as if no function calls rand or srand. glibc's rand is
++     * random, so srandom and random move it there.
++     */
++    srand(77);
++    srandom(12);
++    (void)random();
++    check(initstate(4, other, sizeof(other)) != NULL, "initstate");
++    (void)random();
++    for (i = 0; i < N; i++)
++        check(rand() == r[i], "random and srandom leave rand's sequence alone");
++#endif
++
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

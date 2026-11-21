@@ -1,0 +1,686 @@
+From 1d852ca6df284be13574d39b902aa94e559cd103 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:55:42 +0000
+Subject: [PATCH 22/24] test-posix: Check abort's status and the exit
+ functions' order
+
+---
+ test/test-posix/test-stdlib/CMakeLists.txt    |   3 +
+ test/test-posix/test-stdlib/meson.build       |   3 +
+ .../test-stdlib/test-abort-status.c           | 181 +++++++++++
+ .../test-stdlib/test-atexit-thread.c          | 136 ++++++++
+ test/test-posix/test-stdlib/test-exit.c       | 296 ++++++++++++++++++
+ 5 files changed, 619 insertions(+)
+ create mode 100644 test/test-posix/test-stdlib/test-abort-status.c
+ create mode 100644 test/test-posix/test-stdlib/test-atexit-thread.c
+ create mode 100644 test/test-posix/test-stdlib/test-exit.c
+
+diff --git a/test/test-posix/test-stdlib/CMakeLists.txt b/test/test-posix/test-stdlib/CMakeLists.txt
+index a4c3d3e964..f395898ebd 100644
+--- a/test/test-posix/test-stdlib/CMakeLists.txt
++++ b/test/test-posix/test-stdlib/CMakeLists.txt
+@@ -35,6 +35,9 @@
+ 
+ set(tests
+   test-a64l
++  test-abort-status
++  test-atexit-thread
++  test-exit
+   test-getsubopt
+   test-grantpt
+   test-initstate
+diff --git a/test/test-posix/test-stdlib/meson.build b/test/test-posix/test-stdlib/meson.build
+index 9e12626f50..10d2b65fa7 100644
+--- a/test/test-posix/test-stdlib/meson.build
++++ b/test/test-posix/test-stdlib/meson.build
+@@ -35,6 +35,8 @@
+ 
+ dir_tests = [
+   'test-a64l',
++  'test-abort-status',
++  'test-exit',
+   'test-getsubopt',
+   'test-grantpt',
+   'test-initstate',
+@@ -62,6 +64,7 @@ dir_tests = [
+ 
+ # random is shared by all threads, and atexit runs on the last thread's exit
+ dir_thread_tests = [
++  'test-atexit-thread',
+   'test-random-thread',
+ ]
+ 
+diff --git a/test/test-posix/test-stdlib/test-abort-status.c b/test/test-posix/test-stdlib/test-abort-status.c
+new file mode 100644
+index 0000000000..aff9fab7e7
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-abort-status.c
+@@ -0,0 +1,181 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS) \
++    && defined(__PICOLIBC_POSIX_PIPE)
++
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
++
++/*
++ * abort, in children: the status is that of termination by SIGABRT even
++ * when SIGABRT is blocked, ignored, or caught by a handler that
++ * returns; a handler that doesn't return keeps the process alive.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++enum how { PLAIN, BLOCKED, IGNORED, RETURNS, EXITS };
++
++static int report[2];
++
++static void
++handler_returns(int sig)
++{
++    char c = 'h';
++
++    (void)sig;
++    if (write(report[1], &c, 1) != 1)
++        _exit(3);
++}
++
++static void
++handler_exits(int sig)
++{
++    (void)sig;
++    _exit(42);
++}
++
++/* Abort in a child set up as 'how'; return its status and the handler calls */
++static int
++abort_child(enum how how, int *calls)
++{
++    pid_t pid;
++    int   status;
++    char  buf[8];
++
++    check(pipe(report) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct rlimit    rl;
++        struct sigaction sa = { 0 };
++        sigset_t         set;
++
++        /* No core file */
++        if (getrlimit(RLIMIT_CORE, &rl) == 0) {
++            rl.rlim_cur = 0;
++            (void)setrlimit(RLIMIT_CORE, &rl);
++        }
++        close(report[0]);
++        sigemptyset(&sa.sa_mask);
++        switch (how) {
++        case PLAIN:
++            break;
++        case BLOCKED:
++            sigemptyset(&set);
++            sigaddset(&set, SIGABRT);
++            if (sigprocmask(SIG_BLOCK, &set, NULL) != 0)
++                _exit(2);
++            break;
++        case IGNORED:
++            sa.sa_handler = SIG_IGN;
++            if (sigaction(SIGABRT, &sa, NULL) != 0)
++                _exit(2);
++            break;
++        case RETURNS:
++            sa.sa_handler = handler_returns;
++            if (sigaction(SIGABRT, &sa, NULL) != 0)
++                _exit(2);
++            break;
++        case EXITS:
++            sa.sa_handler = handler_exits;
++            if (sigaction(SIGABRT, &sa, NULL) != 0)
++                _exit(2);
++            break;
++        }
++        abort();
++    }
++    close(report[1]);
++    *calls = 0;
++    while (read(report[0], buf, 1) == 1)
++        ++*calls;
++    close(report[0]);
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    return status;
++}
++
++int
++main(void)
++{
++    int status;
++    int calls;
++
++    status = abort_child(PLAIN, &calls);
++    check(WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT, "abort");
++
++    status = abort_child(BLOCKED, &calls);
++    check(WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT, "abort with SIGABRT blocked");
++
++    status = abort_child(IGNORED, &calls);
++    check(WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT, "abort with SIGABRT ignored");
++
++    status = abort_child(RETURNS, &calls);
++    check(WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT,
++          "abort with a SIGABRT handler that returns");
++    check(calls >= 1, "the handler was called");
++
++    status = abort_child(EXITS, &calls);
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 42, "a handler that doesn't return");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-stdlib/test-atexit-thread.c b/test/test-posix/test-stdlib/test-atexit-thread.c
+new file mode 100644
+index 0000000000..604ce7d6e3
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-atexit-thread.c
+@@ -0,0 +1,136 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE)
++
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++
++/*
++ * atexit functions also run on the last thread's termination: in a
++ * child, the initial thread calls pthread_exit while another thread
++ * runs; when that one returns too, the process exits with status 0
++ * and the atexit function reports.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static int report[2];
++static int go[2];
++
++static void
++at_end(void)
++{
++    char c = 'A';
++
++    if (write(report[1], &c, 1) != 1)
++        _exit(3);
++}
++
++static void *
++last(void *arg)
++{
++    char c;
++
++    (void)arg;
++    /* Wait until the initial thread has gone */
++    if (read(go[0], &c, 1) != 0)
++        _exit(4);
++    return NULL;
++}
++
++int
++main(void)
++{
++    pid_t pid;
++    int   status;
++    char  buf[8];
++    int   n = 0;
++
++    check(pipe(report) == 0 && pipe(go) == 0, "pipe");
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        pthread_t t;
++
++        close(report[0]);
++        if (atexit(at_end) != 0)
++            _exit(5);
++        if (pthread_create(&t, NULL, last, NULL) != 0)
++            _exit(6);
++        /* The other thread sees end of file once this one's copy is closed */
++        close(go[1]);
++        pthread_exit(NULL);
++    }
++    close(report[1]);
++    close(go[0]);
++    close(go[1]);
++    while (read(report[0], buf, 1) == 1)
++        n++;
++    close(report[0]);
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "the last thread's return exits with 0");
++    check(n == 1, "the atexit function ran once");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-stdlib/test-exit.c b/test/test-posix/test-stdlib/test-exit.c
+new file mode 100644
+index 0000000000..971ae89ea8
+--- /dev/null
++++ b/test/test-posix/test-stdlib/test-exit.c
+@@ -0,0 +1,296 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE)
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++
++/*
++ * exit, quick_exit and _Exit, in children that report through a pipe:
++ * the order of the atexit and at_quick_exit functions (including one
++ * registered while they run), repeated registrations, 32 of them, a
++ * function that doesn't return, which functions each one calls, stdio
++ * flushing, and the status & 0377 seen by waitpid.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static int out[2];
++
++static void
++put(char c)
++{
++    if (write(out[1], &c, 1) != 1)
++        _exit(99);
++}
++
++static void
++f_a(void)
++{
++    put('a');
++}
++
++static void
++f_b(void)
++{
++    put('b');
++}
++
++static void
++f_c(void)
++{
++    put('c');
++}
++
++/* Registered while the exit functions run */
++static void
++f_late(void)
++{
++    put('L');
++}
++
++static void
++f_registers(void)
++{
++    put('r');
++    if (atexit(f_late) != 0)
++        put('!');
++}
++
++static void
++q_registers(void)
++{
++    put('r');
++    if (at_quick_exit(f_late) != 0)
++        put('!');
++}
++
++static void
++f_exits(void)
++{
++    put('x');
++    _exit(7);
++}
++
++static void
++f_count(void)
++{
++    put('.');
++}
++
++enum test {
++    ORDER,
++    LATE,
++    TWICE,
++    MANY,
++    NO_RETURN,
++    QUICK_ORDER,
++    QUICK_LATE,
++    EXIT_ONLY_ATEXIT,
++    QUICK_ONLY_AT_QUICK_EXIT,
++    UNDERSCORE_EXIT,
++    STATUS,
++    QUICK_STDIO,
++};
++
++/* Run a test in a child; return its status and what it wrote */
++static int
++run(enum test test, char *buf, size_t size)
++{
++    pid_t   pid;
++    int     status;
++    size_t  len = 0;
++    ssize_t n;
++    int     i;
++
++    fflush(stdout);
++    check(pipe(out) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        close(out[0]);
++        switch (test) {
++        case ORDER:
++            atexit(f_a);
++            atexit(f_b);
++            atexit(f_c);
++            exit(0);
++        case LATE:
++            atexit(f_a);
++            atexit(f_registers);
++            atexit(f_c);
++            exit(0);
++        case TWICE:
++            atexit(f_a);
++            atexit(f_b);
++            atexit(f_a);
++            exit(0);
++        case MANY:
++            for (i = 0; i < 32; i++)
++                if (atexit(f_count) != 0)
++                    put('!');
++            exit(0);
++        case NO_RETURN:
++            atexit(f_a);
++            atexit(f_exits);
++            atexit(f_c);
++            exit(0);
++        case QUICK_ORDER:
++            at_quick_exit(f_a);
++            at_quick_exit(f_b);
++            at_quick_exit(f_c);
++            quick_exit(0);
++        case QUICK_LATE:
++            at_quick_exit(f_a);
++            at_quick_exit(q_registers);
++            at_quick_exit(f_c);
++            quick_exit(0);
++        case EXIT_ONLY_ATEXIT:
++            atexit(f_a);
++            at_quick_exit(f_b);
++            exit(3);
++        case QUICK_ONLY_AT_QUICK_EXIT:
++            atexit(f_a);
++            at_quick_exit(f_b);
++            quick_exit(4);
++        case UNDERSCORE_EXIT:
++            atexit(f_a);
++            at_quick_exit(f_b);
++            _Exit(5);
++        case STATUS:
++            exit(0x1234);
++        case QUICK_STDIO: {
++            /* quick_exit ends as _Exit does: stdout isn't flushed */
++            static char vbuf[256];
++
++            if (dup2(out[1], 1) != 1)
++                _exit(98);
++            if (setvbuf(stdout, vbuf, _IOFBF, sizeof(vbuf)) != 0)
++                _exit(97);
++            printf("unflushed");
++            quick_exit(6);
++        }
++        }
++        _exit(100);
++    }
++    close(out[1]);
++    while (len + 1 < size && (n = read(out[0], buf + len, size - 1 - len)) > 0)
++        len += (size_t)n;
++    buf[len] = '\0';
++    close(out[0]);
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    return status;
++}
++
++static int
++exited(int status, int code)
++{
++    return WIFEXITED(status) && WEXITSTATUS(status) == code;
++}
++
++int
++main(void)
++{
++    char buf[128];
++    int  status;
++
++    status = run(ORDER, buf, sizeof(buf));
++    check(exited(status, 0) && strcmp(buf, "cba") == 0, "atexit functions in reverse order");
++
++    status = run(LATE, buf, sizeof(buf));
++    check(exited(status, 0) && strcmp(buf, "crLa") == 0, "a function registered during exit");
++
++    status = run(TWICE, buf, sizeof(buf));
++    check(exited(status, 0) && strcmp(buf, "aba") == 0, "a function registered twice");
++
++    status = run(MANY, buf, sizeof(buf));
++    check(exited(status, 0) && strcmp(buf, "................................") == 0,
++          "32 atexit functions");
++
++    status = run(NO_RETURN, buf, sizeof(buf));
++    check(exited(status, 7) && strcmp(buf, "cx") == 0,
++          "a function that doesn't return ends the processing");
++
++    status = run(QUICK_ORDER, buf, sizeof(buf));
++    check(exited(status, 0) && strcmp(buf, "cba") == 0, "at_quick_exit functions in reverse order");
++
++    status = run(QUICK_LATE, buf, sizeof(buf));
++    check(exited(status, 0) && strcmp(buf, "crLa") == 0, "a function registered during quick_exit");
++
++    status = run(EXIT_ONLY_ATEXIT, buf, sizeof(buf));
++    check(exited(status, 3) && strcmp(buf, "a") == 0, "exit calls only the atexit functions");
++
++    status = run(QUICK_ONLY_AT_QUICK_EXIT, buf, sizeof(buf));
++    check(exited(status, 4) && strcmp(buf, "b") == 0,
++          "quick_exit calls only the at_quick_exit functions");
++
++    status = run(UNDERSCORE_EXIT, buf, sizeof(buf));
++    check(exited(status, 5) && strcmp(buf, "") == 0, "_Exit calls no functions");
++
++    status = run(STATUS, buf, sizeof(buf));
++    check(exited(status, 0x34), "waitpid sees status & 0377");
++
++    status = run(QUICK_STDIO, buf, sizeof(buf));
++    check(exited(status, 6) && strcmp(buf, "") == 0, "quick_exit doesn't flush streams");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

@@ -1,0 +1,61 @@
+From f9316158602abc02b9bb41855c28a5006618bf43 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:55:48 +0000
+Subject: [PATCH 24/24] test-posix: Check realpath's EINVAL, EACCES and
+ ENAMETOOLONG, and slashes and '..'
+
+---
+ test/test-posix/test-stdlib/test-realpath.c | 37 +++++++++++++++++++++
+ 1 file changed, 37 insertions(+)
+
+diff --git a/test/test-posix/test-stdlib/test-realpath.c b/test/test-posix/test-stdlib/test-realpath.c
+index c44e695176..cc0789be6f 100644
+--- a/test/test-posix/test-stdlib/test-realpath.c
++++ b/test/test-posix/test-stdlib/test-realpath.c
+@@ -156,6 +156,43 @@ main(void)
+     fails("loop", ELOOP);
+     errno = 0;
+     check(realpath("", got) == NULL && errno == ENOENT, "empty path");
++    {
++        /* Through a volatile object, as glibc declares the argument non-null */
++        const char * volatile nullp = NULL;
++
++        errno = 0;
++        check(realpath(nullp, got) == NULL && errno == EINVAL, "null path");
++    }
++
++    /* Trailing slashes after directories, and '..' after links and the root */
++    resolves("d/", "d");
++    resolves("rel/", "d");
++    resolves("rel/./f", "d/f");
++    fails("rel/f/", ENOTDIR);
++    check(realpath("/..", got) == got && strcmp(got, "/") == 0, "/.. is the root");
++    snprintf(path, sizeof(path), "%s/abs/..", base);
++    check(realpath(path, got) == got && strcmp(got, top) == 0, "abs/.. is the test directory");
++
++    /* A component longer than NAME_MAX */
++    {
++        char long_name[NAME_MAX + 2];
++
++        memset(long_name, 'n', sizeof(long_name) - 1);
++        long_name[sizeof(long_name) - 1] = '\0';
++        fails(long_name, ENAMETOOLONG);
++    }
++
++    /* No search permission for a directory on the way */
++    if (geteuid() != 0) {
++        snprintf(path, sizeof(path), "%s/d", base);
++        check(chmod(path, 0) == 0, "chmod");
++        snprintf(path, sizeof(path), "%s/d/f", base);
++        errno = 0;
++        alloc = realpath(path, got);
++        snprintf(path, sizeof(path), "%s/d", base);
++        check(chmod(path, 0700) == 0, "chmod back");
++        check(alloc == NULL && errno == EACCES, "no search permission");
++    }
+ 
+     /* Without a buffer, the result is allocated */
+     snprintf(path, sizeof(path), "%s/rel/f", base);
+-- 
+2.47.3
+

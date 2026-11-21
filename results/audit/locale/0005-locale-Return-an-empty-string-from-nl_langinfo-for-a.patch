@@ -1,0 +1,30 @@
+From e92678387e1af8c712e6fb3678224a3ea36e1a42 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:29:45 +0000
+Subject: [PATCH 05/19] locale: Return an empty string from nl_langinfo for an
+ invalid item
+
+nl_langinfo and nl_langinfo_l returned a null pointer for items they
+don't know, including YESSTR and NOSTR; POSIX requires a pointer to an
+empty string.
+---
+ libc/locale/nl_langinfo.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libc/locale/nl_langinfo.c b/libc/locale/nl_langinfo.c
+index 6f5dc82fdd..cb00e952c6 100644
+--- a/libc/locale/nl_langinfo.c
++++ b/libc/locale/nl_langinfo.c
+@@ -145,7 +145,8 @@ nl_langinfo_l(nl_item item, locale_t locale)
+     case CRNCYSTR:
+         return "";
+     default:
+-        return NULL;
++        /* An invalid item gives an empty string */
++        return "";
+     }
+ }
+ 
+-- 
+2.47.3
+

@@ -1,0 +1,28 @@
+From 94ba2ff44126eb90f033c2c29eb9485e60062cb2 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:25:55 +0000
+Subject: [PATCH 04/17] strsep: Return the empty last field
+
+strsep("a:") gave "a" and then NULL; BSD and glibc give "a", "" and
+then NULL, and strsep("") gives "".
+---
+ libc/string/strtok_r.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libc/string/strtok_r.c b/libc/string/strtok_r.c
+index 4a83ab84c2..50b8d1932b 100644
+--- a/libc/string/strtok_r.c
++++ b/libc/string/strtok_r.c
+@@ -60,7 +60,8 @@ cont:
+ 
+     if (c == 0) { /* no non-delimiter characters */
+         *lasts = NULL;
+-        return (NULL);
++        /* strsep returns the empty last field */
++        return skip_leading_delim ? NULL : s - 1;
+     }
+     tok = s - 1;
+ 
+-- 
+2.47.3
+

@@ -731,3 +731,104 @@ Until those are fixed, units on this host use the full clang native build and tr
 - **For the stdlib unit:** mkstemp/mktemp/tmpnam draw names from random(), so they change the sequence an application seeded with srandom (POSIX doesn't forbid it for random, but it is surprising).
 - **glibc 2.43 stdio gaps** (tests guard them with `__GLIBC__`): fdopen ignores 'e' and seeks to the end for 'a'; fmemopen "w" doesn't write the initial null and writes one past max_size; fseek after fflush doesn't call lseek when the position looks unchanged; getline/getdelim don't check every null pointer and return the partial count after a read error; 32-bit fseek past LONG_MAX succeeds; popen returns NULL when the shell can't be executed; asprintf needs `_GNU_SOURCE`; P_tmpdir is still defined for XSI.
 - **Test-writing notes:** tests that take the address of every `<stdio.h>` function pull popen (fork, pipe2, execve) into bare-metal links; use `_Generic` on the function designator instead. On bare-metal semihosting stdin, stdout and stderr may be the same FILE. The CMake bare-metal runs are slow under qemu-system, and is_qemu() doesn't detect them.
+
+## From stdlib (arm64 host)
+
+- **The POSIX locale has only 128 characters in picolibc.** XBD 6.2: "The POSIX locale
+  shall contain 256 single-byte characters". `__ascii_mbtowc` and `__ascii_wctomb`
+  (libc/stdlib/mbtowc_r.c, wctomb_r.c) reject bytes and wide characters from 0x80 up with
+  EILSEQ, so `mblen("\x80", 1)`, `mbtowc` and `mbstowcs` fail in the C locale, and
+  `wctomb(buf, 0x80)` fails. For the locale and wide units (charset design); read in the
+  source and seen through mbstowcs, not changed here.
+- **`<stdlib.h>`'s mkostemp flags now come from `<sys/_open_flags.h>`**, split out of
+  `<sys/_default_fcntl.h>` (the `_F*` bits and the `O_*` names). `<stdlib.h>` includes it for
+  `__POSIX_VISIBLE >= 202405`. libc/machine/cris/sys/fcntl.h is a separate copy (cris has no
+  meson.build, so it was left alone). O_CLOFORK is still missing (the files unit's
+  close-on-fork item); `<stdlib.h>` must define it too.
+- **`<stdlib.h>` no longer includes `<sys/_wait.h>` in strict ISO C**, and WCOREDUMP moved
+  to `<sys/_wait.h>` (POSIX.1-2024 or `_DEFAULT_SOURCE`). `<sys/wait.h>` therefore no longer
+  defines WCOREDUMP for `_POSIX_C_SOURCE` below 202405 (it is new in Issue 8).
+- **`<stdlib.h>` hides rand_r, valloc, ecvt/fcvt/gcvt (and their `_r`, float and long double
+  variants), suboptarg and alloca unless `_DEFAULT_SOURCE` (or the older standard that had
+  them) is in effect.** Code in other units compiled with only `_POSIX_C_SOURCE` that used
+  them would need `_DEFAULT_SOURCE`; the full builds found none.
+- **rand and random no longer share state; random is the BSD additive generator under the
+  libc lock.** rand() keeps its old sequence. random()'s values change (any test or program
+  that recorded random() output from picolibc will see different numbers), and srandom no
+  longer affects rand. mkstemp, mkdtemp, mktemp and tmpnam use a private generator, so they
+  move neither sequence (this answers the stdio unit's note).
+- **putenv keeps the caller's string** (it used to copy it), and setenv keeps track of the
+  entries and array it allocated; it no longer frees an environ array the application
+  assigned. unsetenv now frees setenv's entries. Anything that relied on putenv copying (a
+  stack buffer passed to putenv) is now broken, as POSIX says.
+- **The generic libc/stdlib/system.c and abort.c are left as they were.** Linux now has its
+  own system and abort in libos/linux. The generic system still lacks "--", system(NULL)
+  and the EINTR retry; nothing on this host runs it (native builds skip the POSIX tests, and
+  hexagon has its own), so the change couldn't be proved and was dropped.
+- **`<inttypes.h>` defines PRIB* in strict C17 mode.** C17 reserves only `PRI`/`SCN`
+  followed by a lowercase letter or X, so the C23 `PRIB8` and so on are application names
+  there. Not changed (cosmetic, 14 scattered lines). Also `wcstoimax_l` and `wcstoumax_l`
+  are declared with a parameter spelled `_restrict` (a name, not the qualifier).
+- **`__dorand48` looked like it lost carries but doesn't.** The 32-bit accumulator does
+  overflow, but only by 2^48, which the 48-bit result discards; test-rand48 checks the
+  congruence against 64-bit arithmetic for seeds and multipliers at the top of the range.
+- **Process-wide state kept per thread.** The rand48 state (`_rand48`, with seed48's
+  buffer), rand's state and l64a's buffer are `__THREAD_LOCAL`, so srand48 or srand in one
+  thread doesn't seed another thread's drand48 or rand. POSIX allows drand48, lrand48,
+  mrand48 and rand not to be thread-safe, so this isn't a deviation, but programs that seed
+  once in main see the default sequence in other threads. random is now shared (it must be
+  thread-safe).
+- **glibc 2.43 gaps met here** (the tests guard them with `__GLIBC__`):
+  - `<stdlib.h>` has neither WCOREDUMP nor the open flags for mkostemp.
+  - mkostemp, qsort_r, reallocarray, realpath and secure_getenv need `_GNU_SOURCE` (or
+    `_DEFAULT_SOURCE`); rand_r is still declared for `_POSIX_C_SOURCE 202405L`.
+  - `<inttypes.h>` doesn't define wchar_t (it uses `__gwchar_t`).
+  - realloc(ptr, 0) frees and returns NULL without setting errno.
+  - a64l doesn't truncate to 32 bits, so a64l("zzzzzz") is 2^36 - 1 on LP64.
+  - rand() is random(), so srandom and random move rand's sequence.
+  - getsubopt sets *valuep to the whole suboption when no token matches.
+
+## From strings (arm64 host)
+
+- **The default build type hides the aarch64 string assembly.** `buildtype=minsize` defines `__OPTIMIZE_SIZE__`, and every `libc/machine/aarch64/*-stub.c` then uses the generic C, so the aarch64 `.S` files are never built in the default configuration or in any `do-*-configure` run without `--buildtype=release`. On armhf, minsize still uses strcmp.S, strcpy.S, memchr.S and strlen.S, but not memcpy.S or memset.S. To test the assembly, build with `--buildtype=release` (as scripts/test-picolibc does) and check with `nm` which object defines the symbol. The new test-memchr-pages and test-strnlen-pages passed on Graviton2 for both targets and both build types.
+- **`__malloc_like` now names `__builtin_free`** (sys/cdefs.h), so `<string.h>` no longer declares free. `<wchar.h>` still declares `free` for wcsdup (libc/include/wchar.h:194), the same leak as `<string.h>` had; that is for the wide unit. `<malloc.h>` and `<stdlib.h>` declare it legitimately.
+- **Plain names under `_FORTIFY_SOURCE`.** `<ssp/string.h>` and `<ssp/ssp.h>` are fixed here. The other ssp headers (`ssp/stdio.h`, `ssp/stdlib.h`, `ssp/unistd.h`, `ssp/wchar.h`) and the `__ssp_redirect` macros take their parameter names from each call site and weren't swept. `set_fortify_handler` is itself a non-reserved name that every fortified header declares, even in strict mode.
+- **libos/linux maps nine Linux error numbers to EINVAL** (`__errno_map` in `libos/linux/machine/*/linux/linux-errno.h`): EUCLEAN (117), ENOTNAM (118), ENAVAIL (119), EREMOTEIO (121), EMEDIUMTYPE (124), ENOKEY (126), ERFKILL (132), and the unused 41 and 58. EREMOTEIO, ENOKEY and EMEDIUMTYPE do come back from real system calls, so a program sees EINVAL with a misleading strerror. picolibc has no names for them.
+- **picolibc's EDEADLOCK (56) differs from EDEADLK (45)**; on Linux they are the same number, and the errno map never produces 56. Harmless, but a program that compares against EDEADLOCK never matches.
+- **Internal helper for "as if no function calls X" rules.** strsignal now has `__strsignal_r(sig, buf)` (libc/string/string_private.h), used by psignal. Any other function that formats through a function with a static or per-thread buffer that POSIX says no function calls (strerror, strsignal, strtok, getenv and so on) should get the same treatment. perror's use of strerror is fine because all of picolibc's error strings are constants.
+- **glibc 2.43 in strict `_POSIX_C_SOURCE 202405L` mode** (tests guard with `__GLIBC__` or `TEST_GLIBC`): memmem, strlcpy, strlcat, ffsl and ffsll are declared only with `_DEFAULT_SOURCE` or `_GNU_SOURCE`. Its psignal calls real-time signals "Unknown signal N" while its strsignal says "Real-time signal N", which isn't "the same set of messages".
+- **Test-writing notes.** gcc removes a `malloc` whose result is only compared with NULL, assuming it succeeds, so `while (malloc(n) != NULL);` never ends; call malloc through a volatile function pointer to exhaust memory. And call string functions through volatile pointers in tests of the library versions: otherwise gcc folds or inlines them (and `_FORTIFY_SOURCE` redirects them to `__*_chk`).
+
+## From locale (arm64 host)
+
+- **setlocale(LC_ALL, "") now reads LC_ALL, LC_* and LANG** (XBD 8.2). Without mb-capable, picolibc has only
+  the C locale, so an environment naming a UTF-8 locale (the Debian chroot sets `LANG=en_US.UTF-8`) makes
+  `setlocale(LC_ALL, "")` and `newlocale(mask, "", 0)` fail, as POSIX requires for an unsupported locale.
+  Before, "" always meant C. Programs that ignore the result keep the C locale. Tests that call
+  setlocale(..., "") should unset LC_* and LANG in a child first.
+- **gcc treats the `<ctype.h>` and `<wctype.h>` functions as builtins whose result depends only on the
+  argument.** With a constant argument it reuses `toupper(0xe9)` across a `uselocale` call (seen in the
+  aarch64 mb build: the second call was folded to the first result). Tests that compare classifications
+  before and after uselocale or setlocale must read the character from a volatile object. Application code
+  that switches locales between identical constant calls has the same exposure; `-fno-builtin` avoids it.
+- **The POSIX locale has 256 single-byte characters (XBD 6.2, new in Issue 8)**, but picolibc's C locale
+  (`__ascii_mbtowc`, libc/stdlib/mbtowc_r.c) gives EILSEQ for bytes 0x80-0xff, so mbtowc, mbrtowc and btowc
+  fail on them. For the wide unit. iconv's "ASCII" codeset and nl_langinfo(CODESET) ("ASCII") follow the same
+  model.
+- **UCS-2 and UCS-4 mbtowc return -1, not -2, for a truncated character**, so iconv reports EILSEQ rather than
+  EINVAL when UCS-2/UCS-4 input ends mid-character. For the wide unit.
+- **nl_item is `__int32_t`** (sys/_types.h) while the `<langinfo.h>` constants are int enumerators; on targets
+  where int32_t is long (32-bit ARM EABI) the constants don't have type nl_item. Changing nl_item to int would
+  change its size on 16-bit-int targets. Left for a decision.
+- **locale_t is an int naming only the LC_CTYPE charset**, so in mb-capable builds every category reports the
+  LC_CTYPE locale's name (setlocale(cat, NULL), getlocalename_l). An ABI decision; recorded in the report.
+- **No ABI-rule violations** (`_POSIX_*`, `__PICOLIBC_POSIX_*` or profile macros) in libc/locale, libc/iconv,
+  libc/ctype, libc/posix/monetary or their headers.
+- **glibc 2.43 gaps met here** (tests guard them with `__GLIBC__`): no getlocalename_l, no ABALTMON_ items,
+  ALTMON_ only with `_GNU_SOURCE`, no gettext `_l` functions; strfmon accepts '+' with empty sign strings and
+  doesn't pad positives to match '('; catopen of a non-catalog file fails without setting errno; iconv
+  //IGNORE ends with EILSEQ, a character missing from the output codeset is EILSEQ without a suffix, and
+  //NON_IDENTICAL_DISCARD is accepted but doesn't discard.
+- **Merge notes:** this unit adds directories to test/test-posix/meson.build and CMakeLists.txt
+  (test-ctype, test-iconv, test-langinfo, test-locale, test-wctype), which other units may also extend, and
+  edits doc/build.md's internationalization section (stdio edited its option tables in the same file).

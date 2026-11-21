@@ -1,0 +1,96 @@
+From f82975b2a3620e4c5de3d8c39c95ccb46a8dbcf6 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 06:31:29 +0000
+Subject: [PATCH 09/19] strfmon: Pad positive values to the width of
+ parenthesised negatives
+
+With a left precision, POSIX pads the characters around the number so
+that positive and negative values have the same length. With '(' a
+negative value gets both parentheses, but a positive one got only the
+leading space; add the trailing one. test-strfmon expected the glibc
+output; keep that for glibc only.
+---
+ libc/posix/monetary/vstrfmon.c    | 13 +++++++++----
+ test/test-monetary/test-strfmon.c | 15 +++++++++++++++
+ 2 files changed, 24 insertions(+), 4 deletions(-)
+
+diff --git a/libc/posix/monetary/vstrfmon.c b/libc/posix/monetary/vstrfmon.c
+index 1c27d318a1..efe2ab7f6b 100644
+--- a/libc/posix/monetary/vstrfmon.c
++++ b/libc/posix/monetary/vstrfmon.c
+@@ -230,14 +230,17 @@ __vstrfmon(char * __restrict buf, size_t size, const char * __restrict format, v
+             /* Compute total width of value */
+             total_width = val_width;
+ 
+-            /* Add sign character */
+-            if (negative) {
++            /*
++             * Add sign characters. With a left precision, positive
++             * values get spaces in their place so that positive and
++             * negative values line up
++             */
++            if (negative || left_precision >= 0) {
+                 if (sign_paren)
+                     total_width += 2;
+                 else
+                     total_width += 1;
+-            } else if (left_precision >= 0)
+-                total_width += 1;
++            }
+ 
+             /* Add left precision pad */
+             if (left_precision > left_width)
+@@ -281,6 +284,8 @@ __vstrfmon(char * __restrict buf, size_t size, const char * __restrict format, v
+             if (sign_paren) {
+                 if (negative)
+                     output(')');
++                else if (left_precision >= 0)
++                    output(' ');
+             }
+ 
+             /* Pad field on right */
+diff --git a/test/test-monetary/test-strfmon.c b/test/test-monetary/test-strfmon.c
+index c3ceb9d0be..b9611feaf0 100644
+--- a/test/test-monetary/test-strfmon.c
++++ b/test/test-monetary/test-strfmon.c
+@@ -68,13 +68,22 @@ static const struct {
+     { "%!.4n",        123.45,   "123.4500",     0 },
+     { "%=*#5.2n",     1234.56,  " *1234.56",    0 },
+     { "%=*#5.2n",     -1234.56, "-*1234.56",    0 },
++#ifdef __GLIBC__
++    /* glibc doesn't pad positive values to match the parentheses */
+     { "%(=*#5.2n",    1234.56,  " *1234.56",    0 },
++#else
++    { "%(=*#5.2n", 1234.56, " *1234.56 ", 0 },
++#endif
+     { "%(=*#5.2n",    -1234.56, "(*1234.56)",   0 },
+     { "%=*12#5.2n",   1234.56,  "    *1234.56", 0 },
+     { "%=*12#5.2n",   -1234.56, "   -*1234.56", 0 },
+     { "%=*-12#5.2n",  1234.56,  " *1234.56   ", 0 },
+     { "%=*-12#5.2n",  -1234.56, "-*1234.56   ", 0 },
++#ifdef __GLIBC__
+     { "%(=*12#5.2n",  1234.56,  "    *1234.56", 0 },
++#else
++    { "%(=*12#5.2n", 1234.56, "   *1234.56 ", 0 },
++#endif
+     { "%(=*12#5.2n",  -1234.56, "  (*1234.56)", 0 },
+     { "%(=*-12#5.2n", 1234.56,  " *1234.56   ", 0 },
+     { "%(=*-12#5.2n", -1234.56, "(*1234.56)  ", 0 },
+@@ -236,8 +245,14 @@ static const struct test_data data[] = {
+     STRFMON_TC_OK_DECL(DISABLE_GROUPING, "   123.45", "-  123.45", "  3456.78"),
+     STRFMON_TC_OK_DECL(ROUND_WHOLE, "   123", "-  123", "  3457"),
+     STRFMON_TC_OK_DECL(INCREASE_PRECISION, "   123.4500", "-  123.4500", "  3456.7810"),
++#ifdef __GLIBC__
++    /* glibc doesn't pad positive values to match the parentheses */
+     STRFMON_TC_OK_DECL(ALTERNATE_POS_NEG, "   123.45", "(  123.45)", "  3456.78"),
+     STRFMON_TC_OK_DECL(NO_CURRENCY_SYMBOL, "   123.45", "(  123.45)", "  3456.78"),
++#else
++    STRFMON_TC_OK_DECL(ALTERNATE_POS_NEG, "   123.45 ", "(  123.45)", "  3456.78 "),
++    STRFMON_TC_OK_DECL(NO_CURRENCY_SYMBOL, "   123.45 ", "(  123.45)", "  3456.78 "),
++#endif
+     STRFMON_TC_OK_DECL(LEFT_JUSTIFY, "   123.4500   ", "-  123.4500   ", "  3456.7810   "),
+     STRFMON_TC_OK_DECL(RIGHT_JUSTIFY, "      123.4500", "   -  123.4500", "     3456.7810"),
+ #elif defined(CONFIG_TEST_LOCALE_CHOICE_EN_US_UTF8)
+-- 
+2.47.3
+
