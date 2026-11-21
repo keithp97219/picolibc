@@ -49,6 +49,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -190,6 +191,30 @@ connect_to(const struct sockaddr_in *sin)
     return fd;
 }
 
+/*
+ * accept or accept4 on the non-blocking listener for a connection just
+ * made. connect can return before the listener has the connection
+ * queued (FreeBSD finishes the handshake on loopback in another
+ * thread), so give it a while to arrive
+ */
+static int
+accept_queued(int listener, struct sockaddr *addr, socklen_t *len, int flags, bool four)
+{
+    socklen_t size = len ? *len : 0;
+    int       fd;
+
+    for (int tries = 0;; tries++) {
+        struct timespec ts = { 0, 1000 * 1000 };
+
+        if (len)
+            *len = size;
+        fd = four ? accept4(listener, addr, len, flags) : accept(listener, addr, len);
+        if (fd >= 0 || (errno != EAGAIN && errno != EWOULDBLOCK) || tries == 5000)
+            return fd;
+        nanosleep(&ts, NULL);
+    }
+}
+
 static int
 int_option(int fd, int name)
 {
@@ -218,7 +243,8 @@ main(void)
           "accept with nothing waiting");
     client = connect_to(&sin);
     len = sizeof(peer);
-    server = accept4(listener, (struct sockaddr *)&peer, &len, SOCK_CLOEXEC | SOCK_NONBLOCK);
+    server = accept_queued(listener, (struct sockaddr *)&peer, &len, SOCK_CLOEXEC | SOCK_NONBLOCK,
+                           true);
     check(server >= 0, "accept4");
     check(len == sizeof(peer) && peer.sin_family == AF_INET, "peer address");
     /* The peer address is the client's own name */
@@ -233,7 +259,7 @@ main(void)
     /* accept4 without flags: neither flag, whatever the listener has */
     check(fcntl(listener, F_SETFD, FD_CLOEXEC) == 0, "FD_CLOEXEC on the listener");
     client = connect_to(&sin);
-    server = accept4(listener, NULL, NULL, 0);
+    server = accept_queued(listener, NULL, NULL, 0, true);
     check(server >= 0, "accept4 without flags");
     check((fcntl(server, F_GETFD) & FD_CLOEXEC) == 0, "no FD_CLOEXEC from accept4");
     check((fcntl(server, F_GETFL) & O_NONBLOCK) == 0, "no O_NONBLOCK from accept4");
@@ -241,7 +267,7 @@ main(void)
 
     /* accept clears FD_CLOEXEC; the socket matches the listener's type */
     client = connect_to(&sin);
-    server = accept(listener, NULL, NULL);
+    server = accept_queued(listener, NULL, NULL, 0, false);
     check(server >= 0, "accept");
     check((fcntl(server, F_GETFD) & FD_CLOEXEC) == 0, "no FD_CLOEXEC from accept");
     check(int_option(server, SO_TYPE) == SOCK_STREAM, "same type");
@@ -253,7 +279,7 @@ main(void)
     check(accept(server, NULL, NULL) == -1 && errno == EINVAL, "accepted socket can't accept");
     check(close(server) == 0 && close(client) == 0, "close");
     client = connect_to(&sin);
-    other = accept(listener, NULL, NULL);
+    other = accept_queued(listener, NULL, NULL, 0, false);
     check(other >= 0, "the listener accepts more");
     check(close(other) == 0 && close(client) == 0, "close");
 
@@ -261,7 +287,7 @@ main(void)
     client = connect_to(&sin);
     memset(small, 0xa5, sizeof(small));
     len = 4;
-    server = accept(listener, (struct sockaddr *)small, &len);
+    server = accept_queued(listener, (struct sockaddr *)small, &len, 0, false);
     check(server >= 0, "accept with a short buffer");
     check(len == sizeof(struct sockaddr_in), "actual length");
     check(small[4] == 0xa5 && small[sizeof(small) - 1] == 0xa5, "truncated");
