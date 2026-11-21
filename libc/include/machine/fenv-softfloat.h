@@ -51,39 +51,42 @@
  */
 #include <errno.h>
 
-__declare_fenv_inline(int) feclearexcept(int excepts)
+__declare_fenv_inline(int) feclearexcept(int __excepts)
 {
-    (void)excepts;
+    (void)__excepts;
     return (0);
 }
 
-__declare_fenv_inline(int) fegetexceptflag(fexcept_t *flagp, int excepts)
+__declare_fenv_inline(int) fegetexceptflag(fexcept_t *__flagp, int __excepts)
 {
-    (void)excepts;
-    (void)flagp;
+    (void)__excepts;
+    (void)__flagp;
     return (0);
 }
 
-__declare_fenv_inline(int) fesetexceptflag(const fexcept_t *flagp, int excepts)
+__declare_fenv_inline(int) fesetexceptflag(const fexcept_t *__flagp, int __excepts)
 {
-    (void)excepts;
-    (void)flagp;
+    (void)__excepts;
+    (void)__flagp;
     return (0);
 }
 
-__declare_fenv_inline(int) feraiseexcept(int excepts)
+__declare_fenv_inline(int) feraiseexcept(int __excepts)
 {
-    return (excepts != 0);
+    return (__excepts != 0);
 }
 
-__declare_fenv_inline(int) fesetexcept(int excepts)
+/* C23; libm/fenv/fenv.c defines it for every version */
+#if __ISO_C_VISIBLE >= 2023 || defined(__PICOLIBC_FENV_ALL)
+__declare_fenv_inline(int) fesetexcept(int __excepts)
 {
-    return (excepts != 0);
+    return (__excepts != 0);
 }
+#endif
 
-__declare_fenv_inline(int) fetestexcept(int excepts)
+__declare_fenv_inline(int) fetestexcept(int __excepts)
 {
-    (void)excepts;
+    (void)__excepts;
     return (0);
 }
 
@@ -92,44 +95,45 @@ __declare_fenv_inline(int) fegetround(void)
     return FE_TONEAREST;
 }
 
-__declare_fenv_inline(int) fesetround(int rounding_mode)
+__declare_fenv_inline(int) fesetround(int __round)
 {
-    if (rounding_mode == FE_TONEAREST)
+    if (__round == FE_TONEAREST)
         return 0;
     return 1;
 }
 
-__declare_fenv_inline(int) fegetenv(fenv_t *envp)
+__declare_fenv_inline(int) fegetenv(fenv_t *__envp)
 {
-    (void)envp;
+    (void)__envp;
     return (0);
 }
 
-__declare_fenv_inline(int) feholdexcept(fenv_t *envp)
+__declare_fenv_inline(int) feholdexcept(fenv_t *__envp)
 {
-    (void)envp;
+    (void)__envp;
     return (0);
 }
 
-__declare_fenv_inline(int) fesetenv(const fenv_t *envp)
+__declare_fenv_inline(int) fesetenv(const fenv_t *__envp)
 {
-    (void)envp;
+    (void)__envp;
     return (0);
 }
 
-__declare_fenv_inline(int) feupdateenv(const fenv_t *envp)
+__declare_fenv_inline(int) feupdateenv(const fenv_t *__envp)
 {
-    (void)envp;
+    (void)__envp;
 
 #if defined FE_NOMASK_ENV && FE_ALL_EXCEPT != 0
-    if (envp == FE_NOMASK_ENV)
+    if (__envp == FE_NOMASK_ENV)
         return 1;
 #endif
 
     return (0);
 }
 
-#if __BSD_VISIBLE
+/* GNU extensions; libm/fenv/fenv.c defines them for every version */
+#if __GNU_VISIBLE || defined(__PICOLIBC_FENV_ALL)
 
 __declare_fenv_inline(int) feenableexcept(int __mask)
 {
@@ -149,4 +153,4 @@ __declare_fenv_inline(int) fegetexcept(void)
     return (0);
 }
 
-#endif /* __BSD_VISIBLE */
+#endif /* __GNU_VISIBLE */

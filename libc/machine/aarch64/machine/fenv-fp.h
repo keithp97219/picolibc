@@ -66,10 +66,13 @@ __declare_fenv_inline(int) feraiseexcept(int __excepts)
     return (0);
 }
 
-__declare_fenv_inline(int) fesetexcept(int excepts)
+/* C23; libm/fenv/fenv.c defines it for every version */
+#if __ISO_C_VISIBLE >= 2023 || defined(__PICOLIBC_FENV_ALL)
+__declare_fenv_inline(int) fesetexcept(int __excepts)
 {
-    return feraiseexcept(excepts);
+    return feraiseexcept(__excepts);
 }
+#endif
 
 __declare_fenv_inline(int) fetestexcept(int __excepts)
 {
@@ -138,6 +141,8 @@ __declare_fenv_inline(int) feupdateenv(const fenv_t *__envp)
     return (0);
 }
 
+/* GNU extensions; libm/fenv/fenv.c defines them for every version */
+#if __GNU_VISIBLE || defined(__PICOLIBC_FENV_ALL)
 __declare_fenv_inline(int) feenableexcept(int __mask)
 {
     fenv_t __old_r, __new_r, __test_r;
@@ -168,3 +173,4 @@ __declare_fenv_inline(int) fegetexcept(void)
     __mrs_fpcr(__r);
     return ((__r & _ENABLE_MASK) >> _FPUSW_SHIFT);
 }
+#endif /* __GNU_VISIBLE */
