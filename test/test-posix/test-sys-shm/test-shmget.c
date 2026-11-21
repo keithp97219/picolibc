@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* System V IPC is XSI */
 #define _XOPEN_SOURCE 800
-#include <unistd.h>
+#include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__) || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0)
+#if defined(__PICOLIBC_XSI_IPC)
 
 #include <errno.h>
 #include <signal.h>

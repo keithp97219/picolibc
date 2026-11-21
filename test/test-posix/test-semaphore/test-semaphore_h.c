@@ -58,7 +58,7 @@
 #undef lock
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__) || (defined(_POSIX_SEMAPHORES) && _POSIX_SEMAPHORES > 0)
+#if _POSIX_SEMAPHORES > 0
 
 /* The <semaphore.h> header: types, constants and prototypes */
 

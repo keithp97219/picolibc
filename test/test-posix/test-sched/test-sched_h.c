@@ -75,8 +75,7 @@ _Static_assert(SCHED_SPORADIC != SCHED_FIFO && SCHED_SPORADIC != SCHED_RR
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                     \
-    || (defined(_POSIX_PRIORITY_SCHEDULING) && _POSIX_PRIORITY_SCHEDULING > 0)
+#if _POSIX_PRIORITY_SCHEDULING > 0
 
 static int (* const p_sched_get_priority_max)(int) = sched_get_priority_max;
 static int (* const p_sched_get_priority_min)(int) = sched_get_priority_min;

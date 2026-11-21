@@ -41,11 +41,7 @@
 #include <unistd.h>
 
 /* Without the system support this test needs, it is skipped */
-#if !defined(__PICOLIBC__)                                                  \
-    || ((defined(_POSIX_SEMAPHORES) && _POSIX_SEMAPHORES > 0)               \
-        && (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                  \
-        && (defined(_POSIX_TIMEOUTS) && _POSIX_TIMEOUTS > 0)                \
-        && (defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK > 0))
+#if _POSIX_SEMAPHORES > 0 && _POSIX_THREADS > 0 && _POSIX_TIMEOUTS > 0 && _POSIX_MONOTONIC_CLOCK > 0
 
 #include <errno.h>
 #include <pthread.h>
