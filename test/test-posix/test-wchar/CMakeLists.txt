@@ -39,6 +39,7 @@ set(tests
   test-mbrtowc
   test-mbsrtowcs
   test-open_wmemstream
+  test-towctrans
   test-wchar_h
   test-wcsnlen
   test-wcwidth
