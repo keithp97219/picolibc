@@ -101,6 +101,7 @@ dir_tests = [
   'test-ttyname_r',
   'test-unistd_h-names',
   'test-unistd_h-process',
+  'test-unlink',
   'test-unlinkat',
   'test-write',
 ]
