@@ -271,6 +271,7 @@ if fs.is_dir(machine_dir)
     'symlink.c',
     'symlinkat.c',
     'sync.c',
+    'system.c',
     '_syscall.c',
     '_syscall_errno.c',
     'sysconf.c',
