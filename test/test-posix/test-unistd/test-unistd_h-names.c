@@ -63,12 +63,18 @@ static int getresgid;
 static int getresuid;
 static int setresgid;
 static int setresuid;
+static int crypt;
+static int encrypt;
+static int gethostid;
+static int swab;
 
 /* Removed interfaces */
 static int setpgrp;
 static int ualarm;
 static int usleep;
 static int vfork;
+static int getpagesize;
+static int getpass;
 
 /* Extensions */
 static int execvpe;
@@ -76,6 +82,7 @@ static int execlpe;
 static int setgroups;
 static int issetugid;
 static int daemon;
+static int optreset;
 
 #if defined(F_LOCK) || defined(F_TEST) || defined(F_TLOCK) || defined(F_ULOCK)
 #error lockf constants without XSI
@@ -93,15 +100,22 @@ main(void)
     (void)getresuid;
     (void)setresgid;
     (void)setresuid;
+    (void)crypt;
+    (void)encrypt;
+    (void)gethostid;
+    (void)swab;
     (void)setpgrp;
     (void)ualarm;
     (void)usleep;
     (void)vfork;
+    (void)getpagesize;
+    (void)getpass;
     (void)execvpe;
     (void)execlpe;
     (void)setgroups;
     (void)issetugid;
     (void)daemon;
+    (void)optreset;
     printf("success\n");
     return 0;
 }
