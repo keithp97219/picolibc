@@ -497,14 +497,18 @@ endif
 if tests_enable_posix_io
   test_flags += ['-DTESTS_ENABLE_POSIX_IO']
 endif
-# picolibc has its own sanitizer handlers (libc/ubsan); don't let the
-# compiler link its runtime, which expects the host's C library
-if c_sanitize_flags != []
-  test_flags += cc.get_supported_link_arguments('-fno-sanitize-link-runtime')
-endif
 test_c_args += test_flags
 if have_cplusplus
   test_cpp_args += test_flags
+endif
+# picolibc has its own sanitizer handlers (libc/ubsan); don't let the
+# compilers link their runtimes, which expect the host's C library.
+# Ask each compiler, as C and C++ may come from different vendors
+if c_sanitize_flags != []
+  test_c_args += cc.get_supported_link_arguments('-fno-sanitize-link-runtime')
+  if have_cplusplus
+    test_cpp_args += meson.get_compiler('cpp').get_supported_link_arguments('-fno-sanitize-link-runtime')
+  endif
 endif
 
 # All done computing C compiler arguments
