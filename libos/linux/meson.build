@@ -96,6 +96,7 @@ if fs.is_dir(machine_dir)
     'fstat.c',
     'ftruncate.c',
     'futimens.c',
+    'getauxval.c',
     'getcwd.c',
     'getegid.c',
     'getentropy.c',

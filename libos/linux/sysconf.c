@@ -35,8 +35,11 @@
 
 #include "local-linux.h"
 #include <limits.h>
+#include <sys/auxv.h>
 #include <sys/resource.h>
 #include <unistd.h>
+
+#define LINUX_AT_PAGESZ 6
 
 /* The soft limit of 'resource', or -1 when there isn't one */
 static long
@@ -85,6 +88,10 @@ sysconf(int name)
     case _SC_MQ_PRIO_MAX:
         /* The kernel's MQ_PRIO_MAX */
         return 32768;
+    case _SC_PAGESIZE:
+        /* Pages need not be 4096 bytes; the kernel says how big they are */
+        value = (long)getauxval(LINUX_AT_PAGESZ);
+        return value > 0 ? value : 4096;
     default:
         return __fallback_sysconf(name);
     }
