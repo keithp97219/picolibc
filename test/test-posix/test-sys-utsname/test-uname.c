@@ -41,9 +41,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/utsname.h>
 
-/* uname fills in the system's names */
+/*
+ * uname fills in the system's names, each terminated within its
+ * array. The values are the host's own, so only their form and their
+ * agreement with other interfaces are checked, and nothing is printed.
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -53,13 +58,38 @@
         }                                              \
     } while (0)
 
+#define terminated(field) (memchr((field), '\0', sizeof(field)) != NULL)
+#define same(field)       (strcmp(name.field, again.field) == 0)
+
 int
 main(void)
 {
-    struct utsname name;
+    struct utsname name, again;
+    char           host[256];
 
-    check(uname(&name) == 0, "uname");
-    check(name.sysname[0] && name.release[0] && name.machine[0], "uname fields");
+    /* Every byte starts non-zero, so a missing terminator shows */
+    memset(&name, 0xa5, sizeof(name));
+    check(uname(&name) >= 0, "uname");
+    check(terminated(name.sysname) && terminated(name.nodename) && terminated(name.release)
+              && terminated(name.version) && terminated(name.machine),
+          "null-terminated fields");
+    check(name.sysname[0] && name.release[0] && name.version[0] && name.machine[0], "uname fields");
+
+    /* The same system gives the same names */
+    memset(&again, 0, sizeof(again));
+    check(uname(&again) >= 0, "uname again");
+    check(same(sysname) && same(nodename) && same(release) && same(version) && same(machine),
+          "same names twice");
+
+#ifdef __linux__
+    /* On Linux both come from the same kernel name; gethostname gives the node name */
+    check(strcmp(name.sysname, "Linux") == 0, "Linux sysname");
+    memset(host, 0, sizeof(host));
+    check(gethostname(host, sizeof(host) - 1) == 0, "gethostname");
+    check(strcmp(host, name.nodename) == 0, "nodename matches gethostname");
+#else
+    (void)host;
+#endif
 
     printf("success\n");
     return 0;
