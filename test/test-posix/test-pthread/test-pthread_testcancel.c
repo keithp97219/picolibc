@@ -39,8 +39,10 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && _POSIX_SEMAPHORES > 0 && defined(__PICOLIBC_POSIX_PIPE) \
-    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if _POSIX_THREADS > 0 && _POSIX_SEMAPHORES > 0 && defined(__PICOLIBC_POSIX_PIPE)      \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_NETWORKING) \
+    && defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && defined(__PICOLIBC_XSI_IPC)        \
+    && _POSIX_MAPPED_FILES > 0
 
 #include <errno.h>
 #include <fcntl.h>

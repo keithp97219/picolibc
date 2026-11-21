@@ -187,12 +187,15 @@ main(void)
 
 #ifndef __GLIBC__
     /* glibc reports a stack it can't map as EAGAIN, so thrd_error */
-    if (!is_qemu()) {
+    if (is_qemu()) {
+        printf("qemu ignores RLIMIT_AS, thrd_nomem check skipped\n");
+    } else if (vm_size() == 0) {
+        /* Measuring the address space needs Linux's /proc */
+        printf("no address space size, thrd_nomem check skipped\n");
+    } else {
         res = limited_create(RLIMIT_AS);
         printf("thrd_create with no address space left: %d\n", res);
         check(res == thrd_nomem, "thrd_create without memory");
-    } else {
-        printf("qemu ignores RLIMIT_AS, thrd_nomem check skipped\n");
     }
 #endif
 
