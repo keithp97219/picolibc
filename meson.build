@@ -245,6 +245,17 @@ if runtime_lib == [false]
   endforeach
 endif
 
+# compiler-rt's soft-float routines raise no exceptions, libgcc's do;
+# note which one the build uses for the fenv.h headers. Ask the
+# compiler when the run-time library wasn't named
+if runtime_lib != []
+  _rtlib_name = ' '.join(runtime_lib)
+else
+  _rtlib_name = run_command(cc.cmd_array() + get_option('c_args') + ['-print-libgcc-file-name'],
+                            check : false).stdout().strip()
+endif
+runtime_compiler_rt = _rtlib_name.contains('clang_rt')
+
 # Add run-time library for use in future linking tests
 
 link_test_args += runtime_lib
@@ -1611,6 +1622,7 @@ conf_data.set('__THREAD_LOCAL_STORAGE_RP2040', get_option('tls-rp2040'),
 conf_data.set('__THREAD_LOCAL_STORAGE_STACK_GUARD', tls_stack_guard, description: 'use thread local storage for stack protection canary')
 conf_data.set('__HAVE_BITFIELDS_IN_PACKED_STRUCTS', have_bitfields_in_packed_structs, description: 'Use bitfields in packed structs')
 conf_data.set('__HAVE_COMPLEX', have_complex, description: 'Compiler supports _Complex')
+conf_data.set('__RUNTIME_COMPILER_RT', runtime_compiler_rt, description: 'Run-time library is compiler-rt')
 conf_data.set('__PICOLIBC_EXPORT', get_option('picolibc-export'),
               description: 'Annotate public picolibc APIs with default (exported) visibility')
 

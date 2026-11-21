@@ -159,6 +159,16 @@ picolibc_flag(__HAVE_COMPLEX)
 # Compiler supports __builtin_complex
 picolibc_flag(__HAVE_BUILTIN_COMPLEX)
 
+# compiler-rt's soft-float routines raise no exceptions, libgcc's do
+separate_arguments(_rtlib_flags NATIVE_COMMAND "${CMAKE_C_FLAGS}")
+execute_process(COMMAND ${CMAKE_C_COMPILER} ${_rtlib_flags} -print-libgcc-file-name
+  OUTPUT_VARIABLE _rtlib_name ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(_rtlib_name MATCHES "clang_rt")
+  set(__RUNTIME_COMPILER_RT 1)
+else()
+  set(__RUNTIME_COMPILER_RT 0)
+endif()
+
 set(__HAVE_FCNTL 0)
 
 # IEEE fp funcs available
