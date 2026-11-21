@@ -77,9 +77,30 @@ struct if_stat {
     struct if_timespec st_ctim; /* Last status change */
 };
 
+/*
+ * The host's struct statvfs is larger than picolibc's (glibc adds
+ * spare words), so the host writes into this instead
+ */
+struct if_statvfs {
+    __uint64_t f_bsize;
+    __uint64_t f_frsize;
+    __uint64_t f_blocks;
+    __uint64_t f_bfree;
+    __uint64_t f_bavail;
+    __uint64_t f_files;
+    __uint64_t f_ffree;
+    __uint64_t f_favail;
+    __uint64_t f_fsid;
+    __uint64_t f_namemax;
+    __uint32_t f_rdonly;
+    __uint32_t f_nosuid;
+};
+
 int __fstat_host(int fd, struct if_stat *if_stat);
 int __lstat_host(const char *path, struct if_stat *if_stat);
 int __stat_host(const char *path, struct if_stat *if_stat);
+int __statvfs_host(const char *path, struct if_statvfs *if_statvfs);
+int __fstatvfs_host(int fd, struct if_statvfs *if_statvfs);
 
 #define TIME_FROM_HOST(ti, th)       \
     do {                             \
@@ -127,6 +148,37 @@ int __stat_host(const char *path, struct if_stat *if_stat);
         TIME_FROM_IF((p)->st_atim, (i)->st_atim);                          \
         TIME_FROM_IF((p)->st_mtim, (i)->st_mtim);                          \
         TIME_FROM_IF((p)->st_ctim, (i)->st_ctim);                          \
+    } while (0)
+
+#define STATVFS_FROM_HOST(i, h)                      \
+    do {                                             \
+        (i)->f_bsize = (h)->f_bsize;                 \
+        (i)->f_frsize = (h)->f_frsize;               \
+        (i)->f_blocks = (h)->f_blocks;               \
+        (i)->f_bfree = (h)->f_bfree;                 \
+        (i)->f_bavail = (h)->f_bavail;               \
+        (i)->f_files = (h)->f_files;                 \
+        (i)->f_ffree = (h)->f_ffree;                 \
+        (i)->f_favail = (h)->f_favail;               \
+        (i)->f_fsid = (h)->f_fsid;                   \
+        (i)->f_namemax = (h)->f_namemax;             \
+        (i)->f_rdonly = !!((h)->f_flag & ST_RDONLY); \
+        (i)->f_nosuid = !!((h)->f_flag & ST_NOSUID); \
+    } while (0)
+
+#define STATVFS_FROM_IF(p, i)                                                            \
+    do {                                                                                 \
+        (p)->f_bsize = (i)->f_bsize;                                                     \
+        (p)->f_frsize = (i)->f_frsize;                                                   \
+        (p)->f_blocks = (i)->f_blocks;                                                   \
+        (p)->f_bfree = (i)->f_bfree;                                                     \
+        (p)->f_bavail = (i)->f_bavail;                                                   \
+        (p)->f_files = (i)->f_files;                                                     \
+        (p)->f_ffree = (i)->f_ffree;                                                     \
+        (p)->f_favail = (i)->f_favail;                                                   \
+        (p)->f_fsid = (i)->f_fsid;                                                       \
+        (p)->f_namemax = (i)->f_namemax;                                                 \
+        (p)->f_flag = ((i)->f_rdonly ? ST_RDONLY : 0) | ((i)->f_nosuid ? ST_NOSUID : 0); \
     } while (0)
 
 #endif /* _IF_NATIVE_H_ */
