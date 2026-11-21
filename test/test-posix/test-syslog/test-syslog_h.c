@@ -127,6 +127,12 @@ main(void)
 
     (void)check_distinct(0);
 
+    /* <stdarg.h> names aren't reserved for <syslog.h> */
+#if defined(va_start) || defined(va_arg) || defined(va_end) || defined(va_copy)
+    printf("<syslog.h> defines the <stdarg.h> macros\n");
+    ret = 1;
+#endif
+
     /*
      * LOG_UPTO(pri) holds the mask of every severity from LOG_EMERG
      * through pri in the order listed, and no other
