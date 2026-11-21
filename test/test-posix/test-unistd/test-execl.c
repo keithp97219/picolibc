@@ -108,7 +108,9 @@ helper(int argc, char **argv)
         if (!v || strcmp(v, "inherit") != 0)
             return 11;
     } else if (!environ || !environ[0] || strcmp(environ[0], "PICOLIBC_EXEC=envp") != 0
-               || environ[1] != NULL) {
+               || (environ[1] != NULL
+                   && (strncmp(environ[1], "UBSAN_OPTIONS=", 14) != 0 || environ[2] != NULL))) {
+        /* envp may carry the sanitizer runtime's options along */
         return 11;
     }
     if (getpid() != pid)
@@ -174,7 +176,13 @@ static void
 run_child(enum how how)
 {
     char             info[128];
-    char * const     envp[] = { "PICOLIBC_EXEC=envp", NULL };
+    /*
+     * The sanitizer runtime in the -native tests reads its options from
+     * the environment, so hand them on even with an explicit envp
+     */
+    static char      ubsan[256];
+    const char      *ubsan_options = getenv("UBSAN_OPTIONS");
+    char            *envp[] = { "PICOLIBC_EXEC=envp", NULL, NULL };
     const char      *envmode = "inherit";
     char             path[PATH_MAX + 32];
     int              fd, cloexec_fd, efd = -1, prio;
@@ -183,6 +191,11 @@ run_child(enum how how)
     sigset_t         set;
     static char      altstack[65536];
     stack_t          ss;
+
+    if (ubsan_options
+        && (size_t)snprintf(ubsan, sizeof(ubsan), "UBSAN_OPTIONS=%s", ubsan_options)
+            < sizeof(ubsan))
+        envp[1] = ubsan;
 
     if (chdir(dir) != 0)
         _exit(2);
