@@ -35,6 +35,7 @@
 
 set(tests
   test-getpwent
+  test-getpwnam
   test-getpwnam_r
   test-getpwuid_r
   test-pwd_h

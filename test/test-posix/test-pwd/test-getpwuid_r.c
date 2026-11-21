@@ -37,7 +37,7 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if defined(__PICOLIBC_POSIX_USER_GROUPS)
 
 #include <errno.h>
 #include <pwd.h>
@@ -45,7 +45,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* getpwuid_r finds an entry by id, reporting a buffer too small */
+/*
+ * getpwuid_r finds an entry by id in the buffer it is given, reporting
+ * ERANGE only when that entry doesn't fit
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -55,21 +58,75 @@
         }                                              \
     } while (0)
 
+/* ':' separates the fields of the user database, so no name holds one */
+#define NO_NAME "no:such:user"
+
+/* The string lies within the first size bytes of buf */
+static int
+in_buffer(const char *s, const char *buf, size_t size)
+{
+    return s >= buf && s < buf + size && s + strlen(s) < buf + size;
+}
+
 int
 main(void)
 {
     struct passwd ent, *result;
-    char          buf[1024], small[1];
+    char          buf[4096], small[1];
+    size_t        need;
+    long          suggested;
+    int           ret;
 
+    /* Every system has root */
     check(getpwuid_r(0, &ent, buf, sizeof(buf), &result) == 0, "getpwuid_r");
     if (!result) {
-        printf("no entry for id 0, skipping\n");
+        printf("no root entry, skipping\n");
         return 77;
     }
-    check(result == &ent && ent.pw_uid == 0, "id 0");
-    check(getpwuid_r((uid_t)123456789, &ent, buf, sizeof(buf), &result) == 0 && result == NULL,
-          "missing");
+    check(result == &ent && strcmp(ent.pw_name, "root") == 0 && ent.pw_uid == 0, "root");
+
+    /* Not finding an entry isn't an error */
+    result = &ent;
+    check(getpwuid_r((uid_t)-2, &ent, buf, sizeof(buf), &result) == 0 && result == NULL, "missing");
+
+    /* A buffer too small: ERANGE and a null result */
+    result = &ent;
     check(getpwuid_r(0, &ent, small, sizeof(small), &result) == ERANGE && result == NULL, "ERANGE");
+
+    /*
+     * Grow the buffer a byte at a time: each one too small gives
+     * ERANGE, and the first that is big enough holds every string
+     */
+    for (need = 1;; need++) {
+        check(need <= sizeof(buf), "root's entry fits in 4096 bytes");
+        result = &ent;
+        ret = getpwuid_r(0, &ent, buf, need, &result);
+        if (ret == 0)
+            break;
+        check(ret == ERANGE && result == NULL, "ERANGE below the size needed");
+    }
+    check(result == &ent && strcmp(ent.pw_name, "root") == 0 && ent.pw_uid == 0, "root again");
+    check(in_buffer(ent.pw_name, buf, need) && in_buffer(ent.pw_dir, buf, need)
+              && in_buffer(ent.pw_shell, buf, need),
+          "strings in the buffer");
+
+#ifndef __GLIBC__
+    /*
+     * The size of the buffer only matters for the entry found: a
+     * missing entry is still not an error with a small buffer (glibc
+     * reports ERANGE for any line of the file that doesn't fit)
+     */
+    result = &ent;
+    check(getpwuid_r((uid_t)-2, &ent, small, sizeof(small), &result) == 0 && result == NULL,
+          "missing, small buffer");
+#endif
+
+    /* sysconf suggests a size, or returns -1 without changing errno */
+    errno = 0;
+    suggested = sysconf(_SC_GETPW_R_SIZE_MAX);
+    check(suggested > 0 || (suggested == -1 && errno == 0), "sysconf(_SC_GETPW_R_SIZE_MAX)");
+    printf("sysconf(_SC_GETPW_R_SIZE_MAX) %ld, root needs %zu\n", suggested, need);
+
     printf("success\n");
     return 0;
 }
