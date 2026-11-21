@@ -92,14 +92,14 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #if (defined(__arm__) || defined(__thumb__)) && !defined(__MAVERICK__)
 /* arm with hard fp and soft dp cannot use new float code */
-#if (__ARM_FP & 4) && !(__ARM_FP & 8)
+#if defined(__ARM_FP) && (__ARM_FP & 4) && !(__ARM_FP & 8)
 #define __OBSOLETE_MATH_DEFAULT_FLOAT 1
 #endif
 /* ARM traditionally used big-endian words; and within those words the
    byte ordering was big or little endian depending upon the target.
    Modern floating-point formats are naturally ordered; in this case
    __VFP_FP__ will be defined, even if soft-float.  */
-#if defined(__VFP_FP__) || __ARM_FP == 0
+#if defined(__VFP_FP__) || !defined(__ARM_FP) || __ARM_FP == 0
 #ifdef __ARMEL__
 #define __IEEE_LITTLE_ENDIAN
 #else
@@ -111,7 +111,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 #define __IEEE_BYTES_LITTLE_ENDIAN
 #endif
 #endif
-#if __ARM_FP != 0
+#if defined(__ARM_FP) && __ARM_FP != 0
 #define _SUPPORTS_ERREXCEPT
 #endif
 /* As per ISO/IEC TS 18661 '__FLT_EVAL_METHOD__' will be defined to 16
@@ -129,7 +129,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 #else
 #define __IEEE_BIG_ENDIAN
 #endif
-#if __ARM_FP != 0
+#if defined(__ARM_FP) && __ARM_FP != 0
 #define _SUPPORTS_ERREXCEPT
 #else
 #ifdef __clang__

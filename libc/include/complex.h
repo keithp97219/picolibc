@@ -112,7 +112,7 @@ double         creal(double complex) __picolibc_export;
 float          crealf(float complex) __picolibc_export;
 
 #if __ISO_C_VISIBLE >= 2011
-#if __HAVE_BUILTIN_COMPLEX
+#ifdef __HAVE_BUILTIN_COMPLEX
 #define CMPLX(r, i)  __builtin_complex((double)(r), (double)(i))
 #define CMPLXF(r, i) __builtin_complex((float)(r), (float)(i))
 #define CMPLXL(r, i) __builtin_complex((long double)(r), (long double)(i))

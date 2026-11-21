@@ -346,7 +346,7 @@ extern "C" {
 #define __ISO_C_VISIBLE 1990
 #endif
 
-#if defined(_LARGEFILE_SOURCE) || (_XOPEN_SOURCE - 0) >= 500
+#if defined(_LARGEFILE_SOURCE) || (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 500)
 #define __LARGEFILE_VISIBLE 1
 #else
 #define __LARGEFILE_VISIBLE 0
@@ -382,13 +382,13 @@ extern "C" {
 #define __SVID_VISIBLE 0
 #endif
 
-#if (_XOPEN_SOURCE - 0) >= 800
+#if (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 800)
 #define __XSI_VISIBLE 800
-#elif (_XOPEN_SOURCE - 0) >= 700
+#elif (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 700)
 #define __XSI_VISIBLE 700
-#elif (_XOPEN_SOURCE - 0) >= 600
+#elif (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 600)
 #define __XSI_VISIBLE 600
-#elif (_XOPEN_SOURCE - 0) >= 500
+#elif (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 500)
 #define __XSI_VISIBLE 500
 #elif defined(_XOPEN_SOURCE) && defined(_XOPEN_SOURCE_EXTENDED)
 #define __XSI_VISIBLE 4
@@ -398,7 +398,7 @@ extern "C" {
 #define __XSI_VISIBLE 0
 #endif
 
-#if _FORTIFY_SOURCE > 0 && !defined(__cplusplus) && !defined(__lint__)                      \
+#if defined(_FORTIFY_SOURCE) && _FORTIFY_SOURCE > 0 && !defined(__cplusplus) && !defined(__lint__) \
     && (__OPTIMIZE__ > 0 || defined(__clang__)) && __GNUC_PREREQ__(4, 1) && !defined(_LIBC)
 #if _FORTIFY_SOURCE > 2 && defined(__has_builtin)
 #if __has_builtin(__builtin_dynamic_object_size)

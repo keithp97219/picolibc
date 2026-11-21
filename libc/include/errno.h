@@ -35,7 +35,7 @@ SUCH DAMAGE.
 
 #include <sys/cdefs.h>
 
-#if __STDC_WANT_LIB_EXT1__ == 1
+#if defined(__STDC_WANT_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__ == 1
 #ifndef __STDC_LIB_EXT1__
 #define __STDC_LIB_EXT1__ 1
 #endif
