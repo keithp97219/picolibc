@@ -177,8 +177,9 @@ ynf(int n, float x)
     GET_FLOAT_WORD(hx, x);
     ix = 0x7fffffff & hx;
 
+    /* Y(n,0) is -inf, but +inf for negative odd n as Y(-n,x) = (-1)^n Y(n,x) */
     if (ix == 0)
-        return __math_divzerof(1);
+        return __math_divzerof(!(n < 0 && (n & 1)));
 
     if (ix > 0x7f800000)
         return x + x;
