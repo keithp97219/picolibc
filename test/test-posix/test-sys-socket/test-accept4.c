@@ -41,7 +41,9 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_NETWORKING)
+#if defined(__PICOLIBC_POSIX_NETWORKING) && defined(__PICOLIBC_POSIX_FD_MGMT)    \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE) \
+    && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <arpa/inet.h>
 #include <errno.h>

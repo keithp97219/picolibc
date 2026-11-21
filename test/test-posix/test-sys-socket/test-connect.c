@@ -37,7 +37,9 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_NETWORKING)
+#if defined(__PICOLIBC_POSIX_NETWORKING) && defined(__PICOLIBC_POSIX_DEVICE_IO) \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_PIPE)  \
+    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)
 
 #include <arpa/inet.h>
 #include <errno.h>
