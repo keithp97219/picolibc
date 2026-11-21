@@ -47,10 +47,16 @@ uselocale(locale_t locale)
     if (current == 0)
         current = LC_GLOBAL_LOCALE;
 
-    if (locale == LC_GLOBAL_LOCALE)
-        locale = 0;
-
-    _locale = locale;
+    /* (locale_t)0 only asks for the current locale */
+    if (locale == LC_GLOBAL_LOCALE) {
+        _locale = 0;
+    } else if (locale != (locale_t)0) {
+        if (locale < locale_BASE || locale >= locale_END) {
+            errno = EINVAL;
+            return (locale_t)0;
+        }
+        _locale = locale;
+    }
 
     return current;
 }
