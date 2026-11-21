@@ -35,6 +35,7 @@
 
 set(tests
   test-open_wmemstream
+  test-wchar_h
   )
 
 foreach(test IN LISTS tests)

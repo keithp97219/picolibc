@@ -35,4 +35,5 @@
 
 dir_tests = [
   'test-open_wmemstream',
+  'test-wchar_h',
 ]
