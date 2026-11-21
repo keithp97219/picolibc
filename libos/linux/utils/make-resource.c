@@ -50,10 +50,15 @@ main(void)
     printf("#define LINUX_RLIMIT_AS %d\n", RLIMIT_AS);
     printf("#define LINUX_RLIMIT_NPROC %d\n", RLIMIT_NPROC);
     printf("#define LINUX_RLIMIT_SIGPENDING %d\n", RLIMIT_SIGPENDING);
-    printf("#define LINUX_RLIM_INFINITY %lluU\n", (rlim_t)RLIM_INFINITY);
-    printf("#define LINUX_RLIM64_INFINITY %lluU\n", (rlim_t)RLIM64_INFINITY);
-    printf("#define LINUX_RLIM_SAVED_MAX %lluU\n", (rlim_t)RLIM_SAVED_MAX);
-    printf("#define LINUX_RLIM_SAVED_CUR %lluU\n", (rlim_t)RLIM_SAVED_CUR);
+    /*
+     * The kernel's struct rlimit holds unsigned longs and struct
+     * rlimit64 unsigned long longs; the C library's rlim_t may be
+     * either size, so don't print through it
+     */
+    printf("#define LINUX_RLIM_INFINITY %luUL\n", (unsigned long)RLIM_INFINITY);
+    printf("#define LINUX_RLIM64_INFINITY %lluULL\n", (unsigned long long)RLIM64_INFINITY);
+    printf("#define LINUX_RLIM_SAVED_MAX %luUL\n", (unsigned long)RLIM_SAVED_MAX);
+    printf("#define LINUX_RLIM_SAVED_CUR %luUL\n", (unsigned long)RLIM_SAVED_CUR);
     printf("\n");
     printf("static inline int\n"
            "_rlimit_to_linux(int resource)\n"
