@@ -1,0 +1,68 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#include "local-mqueue.h"
+#include <stdarg.h>
+#include <string.h>
+
+mqd_t
+mq_open(const char *name, int oflag, ...)
+{
+    struct __freebsd_mq_attr kattr, *pkattr = NULL;
+    int                      mode = 0;
+
+    if (_mq_name(name) < 0)
+        return (mqd_t)-1;
+    if (oflag & ~(O_ACCMODE | O_CREAT | O_EXCL | O_NONBLOCK | O_CLOEXEC)) {
+        errno = EINVAL;
+        return (mqd_t)-1;
+    }
+    if (oflag & O_CREAT) {
+        struct mq_attr *attr;
+        va_list         ap;
+
+        va_start(ap, oflag);
+        mode = va_arg(ap, int);
+        attr = va_arg(ap, struct mq_attr *);
+        va_end(ap);
+        if (attr) {
+            memset(&kattr, 0, sizeof(kattr));
+            kattr.mq_maxmsg = attr->mq_maxmsg;
+            kattr.mq_msgsize = attr->mq_msgsize;
+            pkattr = &kattr;
+        }
+    }
+    return (mqd_t)_syscall(FREEBSD_SYS_kmq_open, name, _open_flags_to_freebsd(oflag), mode, pkattr);
+}

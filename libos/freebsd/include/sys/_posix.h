@@ -48,7 +48,10 @@
 /* A terminal special character of 0xff is turned off */
 #define __PICOLIBC_OS_VDISABLE 0xff
 
-/* Options */
+/*
+ * Options. Message passing (mq_*) is there too, but FreeBSD needs the
+ * mqueuefs module loaded for it
+ */
 #define __PICOLIBC_OS_MAPPED_FILES          202405L
 #define __PICOLIBC_OS_MEMLOCK               202405L
 #define __PICOLIBC_OS_MEMLOCK_RANGE         202405L
@@ -62,7 +65,12 @@
  */
 #define __PICOLIBC_OS_DEVICE_SPECIFIC_R 202405L
 
-/* XSI option groups */
+/*
+ * XSI option groups. The System V IPC functions are there, but
+ * FreeBSD rounds shared memory segments to pages in shm_segsz and
+ * doesn't check permissions when shmget finds a segment, so XSI_IPC
+ * isn't claimed
+ */
 #define __PICOLIBC_OS_XSI_DEVICE_SPECIFIC    202405L
 #define __PICOLIBC_OS_XSI_GENERAL_TERMINAL_R 202405L
 
