@@ -35,6 +35,7 @@
 
 set(tests
   test-ctermid
+  test-dprintf
   test-fdopen
   test-fflush
   test-fgetc
