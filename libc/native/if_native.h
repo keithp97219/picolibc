@@ -122,7 +122,7 @@ int __fstatvfs_host(int fd, struct if_statvfs *if_statvfs);
         (i)->st_mode = (h)->stx_mode;                 \
         (i)->st_nlink = (h)->stx_nlink;               \
         (i)->st_uid = (h)->stx_uid;                   \
-        (i)->st_gid = (h)->stx_uid;                   \
+        (i)->st_gid = (h)->stx_gid;                   \
         (i)->st_rdev_major = (h)->stx_rdev_major;     \
         (i)->st_rdev_minor = (h)->stx_rdev_minor;     \
         (i)->st_size = (h)->stx_size;                 \
