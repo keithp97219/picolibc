@@ -39,5 +39,30 @@
 int
 tcsetpgrp(int fd, pid_t pgrp)
 {
-    return _syscall(LINUX_SYS_ioctl, fd, LINUX_TIOCSPGRP, &pgrp);
+    int          cur;
+    unsigned int ptn;
+    long         ret = _syscall_raw(LINUX_SYS_ioctl, fd, LINUX_TIOCSPGRP, &pgrp);
+
+    if (ret >= 0)
+        return 0;
+    ret = _syscall_errno(ret);
+    switch (ret) {
+    case ESRCH:
+        /* Linux reports a group that doesn't exist with ESRCH */
+        ret = EPERM;
+        break;
+    case ENOTTY:
+        /*
+         * Linux turns the EIO for an orphaned background group into
+         * ENOTTY. When the descriptor is the caller's controlling
+         * terminal (TIOCGPGRP works on it and it isn't a pty manager),
+         * that is what happened.
+         */
+        if (_syscall_raw(LINUX_SYS_ioctl, fd, LINUX_TIOCGPGRP, &cur) >= 0
+            && _syscall_raw(LINUX_SYS_ioctl, fd, LINUX_TIOCGPTN, &ptn) < 0)
+            ret = EIO;
+        break;
+    }
+    errno = (int)ret;
+    return -1;
 }
