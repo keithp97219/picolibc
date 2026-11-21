@@ -34,6 +34,7 @@
 #
 
 srcs_os_freebsd_machine = [
+  '_syscall_err.S',
   '_syscall_raw.S',
 ]
 

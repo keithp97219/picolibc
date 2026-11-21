@@ -45,8 +45,16 @@
 
 /* clang-format off */
 
+/* Options POSIX.1-2024 requires, provided by the kernel */
+#define __PICOLIBC_OS_JOB_CONTROL                  1
+
 /* Option groups */
+#define __PICOLIBC_OS_MULTI_PROCESS      202405L
+#define __PICOLIBC_OS_MULTI_PROCESS_FD   202405L
 #define __PICOLIBC_OS_SINGLE_PROCESS     202405L
+
+/* XSI option groups */
+#define __PICOLIBC_OS_XSI_MULTI_PROCESS        202405L
 
 /*
  * FreeBSD delivers 62 real-time signals; picolibc numbers 31, so
