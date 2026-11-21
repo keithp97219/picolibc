@@ -35,6 +35,8 @@
 
 set(tests
   test-wordexp
+  test-wordexp-expand
+  test-wordexp_h
   )
 
 foreach(test IN LISTS tests)

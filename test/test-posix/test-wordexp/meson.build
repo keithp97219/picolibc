@@ -35,4 +35,6 @@
 
 dir_tests = [
   'test-wordexp',
+  'test-wordexp-expand',
+  'test-wordexp_h',
 ]

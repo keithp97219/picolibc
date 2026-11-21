@@ -1,0 +1,584 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+#include "../posix-groups.h"
+
+/* Without the system support this test needs, it is skipped */
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
+    && defined(__PICOLIBC_POSIX_USER_GROUPS)
+
+#include <errno.h>
+#include <fcntl.h>
+#include <pwd.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <wordexp.h>
+#if _POSIX_THREADS > 0
+#include <pthread.h>
+#endif
+
+/*
+ * The expansions wordexp performs (XCU 2.6) and the flags and errors
+ * it reports. The expansions come from the shell, so these check the
+ * library's side: what reaches the shell, how the fields come back and
+ * what each error leaves in the wordexp_t.
+ */
+
+static int errors;
+
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            errors++;                                  \
+        }                                              \
+    } while (0)
+
+/* Whether we holds exactly the count words given, then a null pointer */
+static int
+words(const wordexp_t *we, size_t count, ...)
+{
+    va_list ap;
+    size_t  i;
+    int     ok = 1;
+
+    if (we->we_wordc != count) {
+        printf("    %zu words, not %zu:", we->we_wordc, count);
+        for (i = 0; i < we->we_wordc; i++)
+            printf(" [%s]", we->we_wordv[we->we_offs + i]);
+        printf("\n");
+        return 0;
+    }
+    va_start(ap, count);
+    for (i = 0; i < count; i++) {
+        const char *w = va_arg(ap, const char *);
+
+        if (strcmp(we->we_wordv[we->we_offs + i], w) != 0) {
+            printf("    word %zu is [%s], not [%s]\n", i, we->we_wordv[we->we_offs + i], w);
+            ok = 0;
+        }
+    }
+    va_end(ap);
+    return ok && we->we_wordv[we->we_offs + count] == NULL;
+}
+
+/* Expands s, checking for the words given */
+#define expect(s, flags, ...)                                 \
+    do {                                                      \
+        wordexp_t we_;                                        \
+        int       r_ = wordexp((s), &we_, (flags));           \
+        if (r_ != 0) {                                        \
+            printf("\"%s\": wordexp returned %d\n", (s), r_); \
+            errors++;                                         \
+        } else {                                              \
+            if (!words(&we_, __VA_ARGS__)) {                  \
+                printf("\"%s\": wrong words\n", (s));         \
+                errors++;                                     \
+            }                                                 \
+            wordfree(&we_);                                   \
+        }                                                     \
+    } while (0)
+
+/* Expands s, checking for the error given */
+static void
+expect_error(const char *s, int flags, int error)
+{
+    wordexp_t we;
+    int       r;
+
+    memset(&we, 0, sizeof(we));
+    r = wordexp(s, &we, flags);
+    if (r != error) {
+        printf("\"%s\": wordexp returned %d, not %d\n", s, r, error);
+        errors++;
+    }
+    if (r == 0 || r == WRDE_NOSPACE)
+        wordfree(&we);
+}
+
+static void
+tilde(void)
+{
+    const char    *home = getenv("HOME");
+    struct passwd *pw = getpwuid(getuid());
+    char           buf[1024];
+
+    /* ~ is $HOME (XCU 2.6.1); only the string is compared */
+    if (home) {
+        expect("~", 0, 1, home);
+        snprintf(buf, sizeof(buf), "%s/x", home);
+        expect("~/x", 0, 1, buf);
+    }
+    check(setenv("HOME", "/nonexistent/wordexp-home", 1) == 0, "setenv HOME");
+    expect("~ ~/a x~ '~' \"~\" \\~", 0, 6, "/nonexistent/wordexp-home",
+           "/nonexistent/wordexp-home/a", "x~", "~", "~", "~");
+    if (home)
+        check(setenv("HOME", home, 1) == 0, "restore HOME");
+    else
+        check(unsetenv("HOME") == 0, "restore HOME");
+
+    /* ~login is that user's home directory */
+    if (pw && pw->pw_name && pw->pw_dir) {
+        char dir[1024];
+
+        snprintf(dir, sizeof(dir), "%s", pw->pw_dir);
+        snprintf(buf, sizeof(buf), "~%s", pw->pw_name);
+        expect(buf, 0, 1, dir);
+    } else {
+        printf("no passwd entry, skipping ~login\n");
+    }
+}
+
+static void
+parameters(void)
+{
+    check(setenv("WE_V", "one two", 1) == 0, "setenv");
+    check(setenv("WE_N", "41", 1) == 0, "setenv");
+    check(unsetenv("WE_UNSET") == 0, "unsetenv");
+
+    /* XCU 2.6.2 */
+    expect("$WE_V", 0, 2, "one", "two");
+    expect("\"$WE_V\"", 0, 1, "one two");
+    expect("${WE_V}x", 0, 2, "one", "twox");
+    expect("${WE_UNSET:-dflt} ${WE_UNSET-a b}", 0, 3, "dflt", "a", "b");
+    expect("${WE_V:+set} ${WE_UNSET:+set}", 0, 1, "set");
+    expect("${#WE_V} ${WE_V#one } ${WE_V%% two}", 0, 3, "7", "two", "one");
+    expect("$WE_UNSET", 0, 0);
+    expect("\"$WE_UNSET\"", 0, 1, "");
+
+    /* WRDE_UNDEF */
+    expect_error("$WE_UNSET", WRDE_UNDEF, WRDE_BADVAL);
+    expect_error("${WE_UNSET}", WRDE_UNDEF, WRDE_BADVAL);
+    /* glibc 2.43 reports WRDE_BADVAL for a default value of an unset variable */
+#ifndef __GLIBC__
+    expect("${WE_UNSET:-x} ${WE_UNSET-y}", WRDE_UNDEF, 2, "x", "y");
+#endif
+    expect("$WE_V", WRDE_UNDEF, 2, "one", "two");
+    /* A syntax error isn't an undefined variable */
+    expect_error("$((1+))", 0, WRDE_SYNTAX);
+    expect_error("$((1+))", WRDE_UNDEF, WRDE_SYNTAX);
+
+    /*
+     * The caller's positional parameters aren't set: wordexp expands
+     * words as the arguments of a command line, so $1 and $# have no
+     * value of the library's making
+     */
+    expect("$1 $2", 0, 0);
+    expect_error("$1", WRDE_UNDEF, WRDE_BADVAL);
+}
+
+static void
+arithmetic(void)
+{
+    /* XCU 2.6.4 */
+    expect("$((2+3*4)) $((7/2)) $((0x10)) $((010))", WRDE_NOCMD, 4, "14", "3", "16", "8");
+    /* glibc 2.43 gets some of these wrong, and rejects others */
+#ifndef __GLIBC__
+    expect("$(( (2+3)*4 )) $((WE_N+1)) $((-7%3)) $((3>2)) $((1?5:6))", 0, 5, "20", "42", "-1", "1",
+           "5");
+#endif
+}
+
+static void
+commands(void)
+{
+    /* XCU 2.6.3: trailing newlines go, and the result is split */
+    expect("$(printf 'a b\\n\\n')", 0, 2, "a", "b");
+    expect("\"$(printf 'a b\\n')\"", 0, 1, "a b");
+    expect("x`echo y`z", 0, 1, "xyz");
+    expect("$(echo \"a;b\")", 0, 1, "a;b");
+    expect("$(echo a | tr a b)", 0, 1, "b");
+
+    /* WRDE_NOCMD, wherever the substitution is */
+    expect_error("\"$(echo a)\"", WRDE_NOCMD, WRDE_CMDSUB);
+    expect_error("x`echo a`", WRDE_NOCMD, WRDE_CMDSUB);
+    expect_error("${WE_UNSET:-$(echo a)}", WRDE_NOCMD, WRDE_CMDSUB);
+    expect("'$(echo a)' '`echo a`' \\`x\\`", WRDE_NOCMD, 3, "$(echo a)", "`echo a`", "`x`");
+}
+
+static void
+splitting(void)
+{
+    char *ifs = getenv("IFS");
+    char *save = ifs ? strdup(ifs) : NULL;
+
+    /* XCU 2.6.5 with the default IFS */
+    check(setenv("WE_S", "  a \t b\nc  ", 1) == 0, "setenv");
+    expect("$WE_S", 0, 3, "a", "b", "c");
+    /* glibc 2.43 joins the first and last fields to the text around them, and fails on an empty
+     * field */
+#ifndef __GLIBC__
+    expect("x${WE_S}y", 0, 5, "x", "a", "b", "c", "y");
+    check(setenv("WE_E", "", 1) == 0, "setenv");
+    expect("$WE_E a \"$WE_E\"", 0, 2, "a", "");
+#endif
+
+    /* Fields from IFS in the environment */
+    check(setenv("IFS", ":", 1) == 0, "setenv IFS");
+    check(setenv("WE_C", "a:b::c", 1) == 0, "setenv");
+    {
+        wordexp_t we;
+
+        check(wordexp("$WE_C", &we, 0) == 0, "wordexp IFS");
+        /*
+         * XCU 2.5.3 lets a shell ignore IFS from the environment, but
+         * picolibc passes it to the shell
+         */
+#ifndef __PICOLIBC__
+        if (we.we_wordc == 1) {
+            printf("the shell ignores IFS from the environment, skipping\n");
+        } else
+#endif
+        {
+            check(words(&we, 4, "a", "b", "", "c"), "IFS=:");
+        }
+        wordfree(&we);
+    }
+    if (save) {
+        check(setenv("IFS", save, 1) == 0, "restore IFS");
+        free(save);
+    } else {
+        check(unsetenv("IFS") == 0, "restore IFS");
+    }
+}
+
+static void
+quoting(void)
+{
+    /* XCU 2.2 and 2.6.7 */
+    expect("\"a\"'b'\\c", 0, 1, "abc");
+    expect("'' \"\" a''", 0, 3, "", "", "a");
+    expect("'a\"b' \"a'b\" \"a\\\"b\" \"a\\$b\" \"a\\\\b\" \"a\\b\"", 0, 6, "a\"b", "a'b", "a\"b",
+           "a$b", "a\\b", "a\\b");
+    expect("'$WE_V' \"\\$WE_V\"", 0, 2, "$WE_V", "$WE_V");
+
+    /* The special characters, quoted or in a substitution, are fine */
+    expect("'|&;<>(){}' \"|&;<>(){}\" \\|\\&\\;\\<\\>\\(\\)\\{\\}", 0, 3, "|&;<>(){}", "|&;<>(){}",
+           "|&;<>(){}");
+    expect("'\n' \"\n\"", 0, 2, "\n", "\n");
+    expect("${WE_UNSET:-a;b|c}", 0, 1, "a;b|c");
+}
+
+static void
+badchar(void)
+{
+    static const char special[] = "\n|&;<>(){}";
+    const char       *c;
+
+    /* Each special character, unquoted, is WRDE_BADCHAR */
+    for (c = special; *c; c++) {
+        char s[8];
+
+        snprintf(s, sizeof(s), "a%cb", *c);
+        expect_error(s, 0, WRDE_BADCHAR);
+        snprintf(s, sizeof(s), "a %c", *c);
+        expect_error(s, 0, WRDE_BADCHAR);
+    }
+    expect_error("a &", 0, WRDE_BADCHAR);
+    expect_error("a 2>/dev/null", 0, WRDE_BADCHAR);
+
+    /* Unterminated quotes and substitutions are WRDE_SYNTAX */
+    expect_error("'abc", 0, WRDE_SYNTAX);
+    expect_error("\"abc", 0, WRDE_SYNTAX);
+    expect_error("`abc", 0, WRDE_SYNTAX);
+    expect_error("${WE_V", 0, WRDE_SYNTAX);
+    expect_error("$(echo", 0, WRDE_SYNTAX);
+    expect_error("$((1+2)", 0, WRDE_SYNTAX);
+    expect_error("${WE_V/}", 0, WRDE_SYNTAX);
+
+    /* After WRDE_BADCHAR, no words (wordexp: "the number of expanded words shall be 0") */
+    /* glibc 2.43 leaves we_wordc alone */
+#ifndef __GLIBC__
+    {
+        wordexp_t we;
+
+        memset(&we, 0x5a, sizeof(we));
+        check(wordexp("a|b", &we, 0) == WRDE_BADCHAR, "WRDE_BADCHAR");
+        check(we.we_wordc == 0, "no words after WRDE_BADCHAR");
+    }
+#endif
+}
+
+/* Pathname expansion in a fresh directory, in a child so its chdir doesn't leak */
+static void
+pathnames(void)
+{
+    char  dir[] = "/tmp/wordexp-XXXXXX";
+    char  path[64];
+    pid_t pid;
+    int   status;
+
+    if (!mkdtemp(dir)) {
+        printf("mkdtemp: %s\n", strerror(errno));
+        errors++;
+        return;
+    }
+    static const char * const files[] = { "a1", "a2", "b c", ".ah" };
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
+        int fd;
+
+        snprintf(path, sizeof(path), "%s/%s", dir, files[i]);
+        fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0600);
+        check(fd >= 0, "create");
+        if (fd >= 0)
+            close(fd);
+    }
+    snprintf(path, sizeof(path), "%s/d", dir);
+    check(mkdir(path, 0700) == 0, "mkdir");
+    fflush(stdout);
+    pid = fork();
+    if (pid == 0) {
+        errors = 0;
+        if (chdir(dir) != 0)
+            _exit(2);
+        /* XCU 2.6.6: sorted, one word per name, and the pattern itself without a match */
+        expect("a*", 0, 2, "a1", "a2");
+        expect("a? b*", 0, 3, "a1", "a2", "b c");
+        expect("[ab][!2]*", 0, 2, "a1", "b c");
+        expect("x* 'a*' \"a*\" a\\*", 0, 4, "x*", "a*", "a*", "a*");
+        expect("*/", 0, 1, "d/");
+        expect(".a*", 0, 1, ".ah");
+        /* glibc 2.43 doesn't expand pathnames in the result of a parameter expansion */
+#ifndef __GLIBC__
+        check(setenv("WE_P", "a*", 1) == 0, "setenv");
+        expect("$WE_P \"$WE_P\"", 0, 3, "a1", "a2", "a*");
+#endif
+        fflush(stdout);
+        _exit(errors ? 1 : 0);
+    }
+    check(pid > 0, "fork");
+    if (pid > 0) {
+        check(waitpid(pid, &status, 0) == pid, "waitpid");
+        check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "pathname expansion");
+    }
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
+        snprintf(path, sizeof(path), "%s/%s", dir, files[i]);
+        unlink(path);
+    }
+    snprintf(path, sizeof(path), "%s/d", dir);
+    rmdir(path);
+    rmdir(dir);
+}
+
+static void
+flags(void)
+{
+    wordexp_t we;
+    char    **wordv;
+
+    /* WRDE_DOOFFS: we_offs null pointers first */
+    we.we_offs = 3;
+    check(wordexp("a b", &we, WRDE_DOOFFS) == 0, "WRDE_DOOFFS");
+    check(we.we_wordv[0] == NULL && we.we_wordv[1] == NULL && we.we_wordv[2] == NULL,
+          "WRDE_DOOFFS nulls");
+    check(words(&we, 2, "a", "b"), "WRDE_DOOFFS words");
+
+    /* WRDE_APPEND keeps the earlier words, and the offsets */
+    check(wordexp("c 'd e'", &we, WRDE_DOOFFS | WRDE_APPEND) == 0, "WRDE_APPEND");
+    check(we.we_wordv[0] == NULL && we.we_wordv[2] == NULL, "WRDE_APPEND nulls");
+    check(words(&we, 4, "a", "b", "c", "d e"), "WRDE_APPEND words");
+
+    /* An error other than WRDE_NOSPACE leaves an appended list alone */
+    wordv = we.we_wordv;
+    check(wordexp("x|y", &we, WRDE_DOOFFS | WRDE_APPEND) == WRDE_BADCHAR, "append WRDE_BADCHAR");
+    check(we.we_wordv == wordv && words(&we, 4, "a", "b", "c", "d e"), "append error unchanged");
+    check(wordexp("'x", &we, WRDE_DOOFFS | WRDE_APPEND) == WRDE_SYNTAX, "append WRDE_SYNTAX");
+    check(we.we_wordv == wordv && words(&we, 4, "a", "b", "c", "d e"), "append error unchanged");
+    check(wordexp("$((1+))", &we, WRDE_DOOFFS | WRDE_APPEND) == WRDE_SYNTAX,
+          "append shell WRDE_SYNTAX");
+    check(we.we_wordv == wordv && words(&we, 4, "a", "b", "c", "d e"), "append error unchanged");
+    check(wordexp("$WE_UNSET", &we, WRDE_DOOFFS | WRDE_APPEND | WRDE_UNDEF) == WRDE_BADVAL,
+          "append WRDE_BADVAL");
+    check(we.we_wordv == wordv && words(&we, 4, "a", "b", "c", "d e"), "append error unchanged");
+    check(wordexp("$(x)", &we, WRDE_DOOFFS | WRDE_APPEND | WRDE_NOCMD) == WRDE_CMDSUB,
+          "append WRDE_CMDSUB");
+    check(we.we_wordv == wordv && words(&we, 4, "a", "b", "c", "d e"), "append error unchanged");
+
+    /* Appending nothing */
+    check(wordexp("", &we, WRDE_DOOFFS | WRDE_APPEND) == 0 && words(&we, 4, "a", "b", "c", "d e"),
+          "append nothing");
+
+    /* WRDE_REUSE is wordfree, then wordexp */
+    check(wordexp("f", &we, WRDE_DOOFFS | WRDE_REUSE) == 0, "WRDE_REUSE");
+    check(we.we_wordv[0] == NULL && words(&we, 1, "f"), "WRDE_REUSE words");
+    wordfree(&we);
+
+    /* Without WRDE_DOOFFS, no null pointers first */
+    we.we_offs = 5;
+    check(wordexp("g h", &we, 0) == 0, "no WRDE_DOOFFS");
+    check(we.we_wordc == 2 && strcmp(we.we_wordv[0], "g") == 0 && strcmp(we.we_wordv[1], "h") == 0
+              && we.we_wordv[2] == NULL,
+          "no WRDE_DOOFFS words");
+    check(wordexp("i", &we, WRDE_APPEND) == 0, "append without WRDE_DOOFFS");
+    check(we.we_wordc == 3 && strcmp(we.we_wordv[2], "i") == 0 && we.we_wordv[3] == NULL,
+          "append without WRDE_DOOFFS words");
+
+    /* WRDE_REUSE then an error: the old words are gone, and none are left */
+    check(wordexp("j|k", &we, WRDE_REUSE) == WRDE_BADCHAR, "WRDE_REUSE WRDE_BADCHAR");
+    check(we.we_wordc == 0, "WRDE_REUSE error words");
+
+    /* wordfree doesn't change errno */
+    check(wordexp("l m", &we, 0) == 0, "wordexp");
+    errno = 1234;
+    wordfree(&we);
+    check(errno == 1234, "wordfree errno");
+}
+
+/* What a command substitution's stderr looks like, with and without WRDE_SHOWERR */
+static void
+showerr(void)
+{
+    char      name[] = "/tmp/wordexp-err-XXXXXX";
+    char      buf[64];
+    int       fd, saved;
+    ssize_t   n;
+    wordexp_t we;
+
+    fd = mkstemp(name);
+    check(fd >= 0, "mkstemp");
+    if (fd < 0)
+        return;
+    unlink(name);
+    fflush(stderr);
+    saved = dup(2);
+    check(saved >= 0 && dup2(fd, 2) == 2, "dup2");
+
+    check(wordexp("$(echo hidden >&2; echo a)", &we, 0) == 0 && words(&we, 1, "a"),
+          "stderr hidden");
+    wordfree(&we);
+    check(wordexp("$(echo shown >&2; echo b)", &we, WRDE_SHOWERR) == 0 && words(&we, 1, "b"),
+          "WRDE_SHOWERR");
+    wordfree(&we);
+
+    dup2(saved, 2);
+    close(saved);
+    n = pread(fd, buf, sizeof(buf) - 1, 0);
+    close(fd);
+    check(n >= 0, "pread");
+    if (n >= 0) {
+        buf[n] = '\0';
+        check(strcmp(buf, "shown\n") == 0, "only WRDE_SHOWERR output on stderr");
+    }
+}
+
+#if _POSIX_THREADS > 0
+static int thread_ret = -1;
+
+static void *
+cancelled(void *arg)
+{
+    wordexp_t we;
+
+    (void)arg;
+    /* A pending request may act in wordexp, but mustn't break it */
+    pthread_cancel(pthread_self());
+    thread_ret = wordexp("a b", &we, 0);
+    if (thread_ret == 0) {
+        if (!words(&we, 2, "a", "b"))
+            thread_ret = -2;
+        wordfree(&we);
+    }
+    pthread_testcancel();
+    return NULL;
+}
+
+static void
+cancel(void)
+{
+    pthread_t thread;
+    void     *ret;
+    int       status;
+
+    check(pthread_create(&thread, NULL, cancelled, NULL) == 0, "pthread_create");
+    check(pthread_join(thread, &ret) == 0 && ret == PTHREAD_CANCELED, "pthread_join");
+    /* wordexp may be a cancellation point; picolibc's isn't */
+#ifdef __PICOLIBC__
+    check(thread_ret == 0, "wordexp with a cancellation request pending");
+#else
+    if (thread_ret == -1)
+        printf("wordexp acted on the cancellation request\n");
+    else
+        check(thread_ret == 0, "wordexp with a cancellation request pending");
+#endif
+    /* No child is left behind */
+    check(waitpid(-1, &status, WNOHANG) < 0 && errno == ECHILD, "no child left");
+}
+#endif
+
+int
+main(void)
+{
+    if (access("/bin/sh", X_OK) != 0) {
+        printf("no /bin/sh, skipping\n");
+        return 77;
+    }
+    tilde();
+    parameters();
+    arithmetic();
+    commands();
+    splitting();
+    quoting();
+    badchar();
+    pathnames();
+    flags();
+    showerr();
+#if _POSIX_THREADS > 0
+    cancel();
+#endif
+    if (errors) {
+        printf("%d errors\n", errors);
+        return 1;
+    }
+    printf("success\n");
+    return 0;
+}
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif
