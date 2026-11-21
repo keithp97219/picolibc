@@ -48,6 +48,7 @@ picocrt_machines = [
 ]
 
 has_crt0_linux = false
+has_crt0_freebsd = false
 machine_dir = 'machine' / host_cpu_family
 picocrt_march_add=''
 if fs.is_dir(machine_dir)
@@ -149,6 +150,15 @@ if has_crt0_linux and get_option('os-linux')
     'name': 'linux',
     'suffix': '-linux',
     'c_args': ['-DINIT_TLS', '-DNO_FLASH', '-DCRT0_EXIT', '-DCRT0_LINUX'],
+    'src': src_picocrt,
+  }
+endif
+
+if has_crt0_freebsd and get_option('os-freebsd')
+  picocrt_variants += {
+    'name': 'freebsd',
+    'suffix': '-freebsd',
+    'c_args': ['-DINIT_TLS', '-DNO_FLASH', '-DCRT0_EXIT', '-DCRT0_FREEBSD'],
     'src': src_picocrt,
   }
 endif

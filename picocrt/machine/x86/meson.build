@@ -34,3 +34,4 @@
 #
 src_picocrt += files('crt0.S', 'traps.c', 'traps.S')
 has_crt0_linux = true
+has_crt0_freebsd = true

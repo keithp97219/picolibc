@@ -642,9 +642,11 @@ printf_percent_n = get_option('printf-percent-n')
 minimal_io_long_long = get_option('minimal-io-long-long')
 fast_bufio = get_option('fast-bufio')
 io_wchar = get_option('io-wchar')
-# Linux builds get the POSIX stream behaviour: a lock for each stream
+# Linux and FreeBSD builds get the POSIX stream behaviour: a lock for each stream
 # (XSH 2.5) and every stream flushed at exit (ISO C exit)
-stdio_posix_streams = get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
+os_freebsd = get_option('os-freebsd') and fs.is_dir('libos/freebsd/machine' / host_cpu_family)
+stdio_posix_streams = ((get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family))
+                       or os_freebsd)
 stdio_locking = ((get_option('stdio-locking') or stdio_posix_streams)
                  and not get_option('single-thread'))
 stdio_exit_flush = get_option('stdio-exit-flush') or stdio_posix_streams
@@ -1838,6 +1840,11 @@ if get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
   inc_dirs = ['libos/linux/include'] + inc_dirs
 endif
 
+# As does libos/freebsd
+if os_freebsd
+  inc_dirs = ['libos/freebsd/include'] + inc_dirs
+endif
+
 inc = include_directories(inc_dirs)
 
 inc_args = []
@@ -1862,6 +1869,9 @@ has_os_library = false
 
 # libos/linux support
 has_os_linux = false
+
+# libos/freebsd support
+has_os_freebsd = false
 
 # any POSIX support
 has_os_posix = false
@@ -1914,7 +1924,7 @@ if enable_libdl
   subdir('libdl')
 endif
 
-if use_stdlib or has_os_linux or has_os_fallback
+if use_stdlib or has_os_linux or has_os_freebsd or has_os_fallback
   has_os_library = true
 endif
 
@@ -1983,6 +1993,17 @@ elif has_os_linux
   if oslib_test_variant == ''
     oslib_test_variant = 'linux'
   endif
+  if linkerscript_test_variant == ''
+    linkerscript_test_variant = 'linux'
+  endif
+elif has_os_freebsd
+  if crt0_test_variant == ''
+    crt0_test_variant = 'freebsd'
+  endif
+  if oslib_test_variant == ''
+    oslib_test_variant = 'freebsd'
+  endif
+  # FreeBSD runs the same static, flash-less images as Linux
   if linkerscript_test_variant == ''
     linkerscript_test_variant = 'linux'
   endif

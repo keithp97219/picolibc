@@ -134,6 +134,8 @@ option('semihost', type: 'boolean', value: true,
        description: 'Include semihost bits. Disable when doing native testing.')
 option('os-linux', type: 'boolean', value: false,
        description: 'Include libos/linux bits. Enable for native Linux OS support.')
+option('os-freebsd', type: 'boolean', value: false,
+       description: 'Include libos/freebsd bits. Enable for FreeBSD OS support.')
 option('fake-semihost', type: 'boolean', value: true,
        description: 'create fake semihost library to link tests [ignored]')
 option('crt0-test', type: 'string', value: '',

@@ -1,7 +1,9 @@
 #include <picolibc.h>
 
 #ifdef __x86_64
-#ifdef CRT0_LINUX
+#if defined(CRT0_FREEBSD)
+#include "crt0-64-freebsd.S"
+#elif defined(CRT0_LINUX)
 #include "crt0-64-linux.S"
 #else
 #include "crt0-64.S"

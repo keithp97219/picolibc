@@ -44,8 +44,12 @@ if get_option('os-linux')
   subdir('linux')
 endif
 
+if get_option('os-freebsd')
+  subdir('freebsd')
+endif
+
 if os_fallback_option == 'auto'
-  has_os_fallback = has_os_linux or use_stdlib
+  has_os_fallback = has_os_linux or has_os_freebsd or use_stdlib
 endif
 
 subdir('fallback')
