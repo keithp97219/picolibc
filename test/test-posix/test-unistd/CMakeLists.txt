@@ -96,6 +96,7 @@ set(tests
   test-setuid
   test-sleep
   test-setuid-thread
+  test-symlink
   test-symlinkat
   test-sync
   test-sysconf

@@ -93,6 +93,7 @@ dir_tests = [
   'test-setsid',
   'test-setuid',
   'test-sleep',
+  'test-symlink',
   'test-symlinkat',
   'test-sync',
   'test-sysconf',
