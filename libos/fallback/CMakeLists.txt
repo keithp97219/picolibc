@@ -48,6 +48,7 @@ if(DEFINED OS_FALLBACK)
     pathconf.c
     raise.c
     sbrk.c
+    sigaction.c
     signal.c
     sigprocmask.c
     sysconf.c
@@ -62,6 +63,7 @@ else()
     pathconf.c
     raise.c
     sbrk.c
+    sigaction.c
     signal.c
     sigprocmask.c
     sysconf.c

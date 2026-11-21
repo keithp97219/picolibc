@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <string.h>
 
 #define HANDLER_NOT_CALLED  0
 #define HANDLER_SUCCESS     1
@@ -181,6 +182,41 @@ main(void)
                        prev_func);
                 fail = 1;
             }
+        }
+    }
+
+    /* A signal raised while blocked waits, and arrives once unblocked */
+    {
+        sigset_t         set;
+        struct sigaction sa, old;
+
+        sigemptyset(&set);
+        sigaddset(&set, SIGTERM);
+        memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = signal_handler;
+        sigemptyset(&sa.sa_mask);
+        if (sigaction(SIGTERM, &sa, &old) != 0 || old.sa_handler != SIG_DFL) {
+            printf("sigaction: %d, old handler %p\n", errno, (void *)old.sa_handler);
+            fail = 1;
+        }
+        handler_result = HANDLER_NOT_CALLED;
+        handler_sig_expect = SIGTERM;
+        handler_sig_count = HANDLER_RECURSE;
+        if (sigprocmask(SIG_BLOCK, &set, NULL) != 0 || raise(SIGTERM) != 0) {
+            printf("sigprocmask/raise failed: %d\n", errno);
+            fail = 1;
+        }
+        if (handler_result != HANDLER_NOT_CALLED) {
+            printf("blocked SIGTERM was delivered\n");
+            fail = 1;
+        }
+        if (sigprocmask(SIG_UNBLOCK, &set, NULL) != 0 || handler_result != HANDLER_SUCCESS) {
+            printf("unblocked SIGTERM wasn't delivered: %d\n", (int)handler_result);
+            fail = 1;
+        }
+        if (sigaction(SIGTERM, &old, &sa) != 0 || sa.sa_handler != signal_handler) {
+            printf("sigaction didn't report the handler\n");
+            fail = 1;
         }
     }
     exit(fail);

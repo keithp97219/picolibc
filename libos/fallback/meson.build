@@ -41,6 +41,7 @@ srcs_os_fallback = [
   'pathconf.c',
   'raise.c',
   'sbrk.c',
+  'sigaction.c',
   'signal.c',
   'sigprocmask.c',
   'sysconf.c',

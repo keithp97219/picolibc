@@ -35,6 +35,10 @@
 
 #include "local-signal.h"
 
+#ifndef __weak_reference
+#define __fallback_raise raise
+#endif
+
 int
 __fallback_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 {
@@ -58,6 +62,10 @@ __fallback_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
         errno = EINVAL;
         return -1;
     }
+    /* Signals raised while blocked are delivered once unblocked */
+    for (int sig = 1; sig < _NSIG; sig++)
+        if (sigismember(&_sig_pending, sig) && !sigismember(&_sig_mask, sig))
+            (void)__fallback_raise(sig);
     return 0;
 }
 

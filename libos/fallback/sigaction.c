@@ -33,35 +33,39 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _POSIX_C_SOURCE 202405L
-#include <signal.h>
-#include <stdlib.h>
-#include <unistd.h>
-
 /*
- * POSIX: abort overrides blocking or ignoring SIGABRT, and the status
- * is that of a process killed by SIGABRT. A handler that returns gets
- * the signal once; then the default action is restored and the signal
- * sent again.
+ * sigaction over the in-process signal table signal and raise use.
+ * Only the handler is kept: a handler runs with its own signal
+ * blocked, whatever sa_mask says, and the flags have no effect, so
+ * oldact reports an empty mask and no flags. SA_SIGINFO handlers
+ * aren't supported, as raise doesn't build a siginfo.
  */
-void
-abort(void)
+#include "local-signal.h"
+
+#ifndef __weak_reference
+#define __fallback_sigaction sigaction
+#endif
+
+int
+__fallback_sigaction(int sig, const struct sigaction * restrict act,
+                     struct sigaction * restrict oldact)
 {
-    sigset_t         abrt;
-    struct sigaction dfl = { .sa_handler = SIG_DFL };
-
-    sigemptyset(&abrt);
-    sigaddset(&abrt, SIGABRT);
-
-    (void)sigprocmask(SIG_UNBLOCK, &abrt, NULL);
-    (void)raise(SIGABRT);
-
-    /* SIGABRT is ignored, or its handler returned */
-    sigemptyset(&dfl.sa_mask);
-    (void)sigaction(SIGABRT, &dfl, NULL);
-    (void)sigprocmask(SIG_UNBLOCK, &abrt, NULL);
-    (void)raise(SIGABRT);
-
-    for (;;)
-        _exit(127);
+    /* SIGKILL and SIGSTOP may be asked about, but not changed */
+    if (sig <= 0 || sig >= _SIG_FUNC_COUNT
+        || (act != NULL && (sig == SIGKILL || sig == SIGSTOP || (act->sa_flags & SA_SIGINFO)))) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (oldact != NULL) {
+        oldact->sa_handler = _sig_func[sig];
+        sigemptyset(&oldact->sa_mask);
+        oldact->sa_flags = 0;
+    }
+    if (act != NULL)
+        _sig_func[sig] = act->sa_handler;
+    return 0;
 }
+
+#ifdef __weak_reference
+__weak_reference(__fallback_sigaction, sigaction);
+#endif

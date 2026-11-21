@@ -335,6 +335,8 @@ int sig2str(int, char *) __picolibc_export;
 #if __POSIX_VISIBLE
 int sigaction(int, const struct sigaction * __restrict, struct sigaction * __restrict)
     __picolibc_export;
+int __fallback_sigaction(int, const struct sigaction * __restrict, struct sigaction * __restrict)
+    __picolibc_export;
 
 int sigaddset(sigset_t *, const int) __picolibc_export;
 
