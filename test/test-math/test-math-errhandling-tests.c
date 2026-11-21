@@ -1624,11 +1624,13 @@ makemathname(test_llogb_neginf)(void)
     return makemathname(llogb)(-makemathname(infval));
 }
 
+#ifndef SKIP_SNAN_CLASSIFY
 static long long
 makemathname(test_fpclassify_snan)(void)
 {
     return fpclassify(makemathname(snanval));
 }
+#endif
 static long long
 makemathname(test_fpclassify_nan)(void)
 {
@@ -1828,11 +1830,13 @@ makemathname(test_isnan_negtwo)(void)
     return !!isnan(-makemathname(two));
 }
 
+#ifndef SKIP_SNAN_CLASSIFY
 static long long
 makemathname(test_isinf_snan)(void)
 {
     return !!isinf(makemathname(snanval));
 }
+#endif
 static long long
 makemathname(test_isinf_nan)(void)
 {
@@ -4938,7 +4942,9 @@ static TEST_CONST struct {
     int       errno_expect;
     int       flags;
 } makemathname(itests)[] = {
+#ifndef SKIP_SNAN_CLASSIFY
     TEST(fpclassify_snan, FP_NAN, 0, 0),
+#endif
     TEST(fpclassify_nan, FP_NAN, 0, 0),
     TEST(fpclassify_inf, FP_INFINITE, 0, 0),
     TEST(fpclassify_neginf, FP_INFINITE, 0, 0),
@@ -4982,7 +4988,9 @@ static TEST_CONST struct {
     TEST(isnan_two, 0, 0, 0),
     TEST(isnan_negtwo, 0, 0, 0),
 
+#ifndef SKIP_SNAN_CLASSIFY
     TEST(isinf_snan, 0, 0, 0),
+#endif
     TEST(isinf_nan, 0, 0, 0),
     TEST(isinf_inf, 1, 0, 0),
     TEST(isinf_neginf, 1, 0, 0),
