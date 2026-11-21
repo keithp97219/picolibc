@@ -170,6 +170,57 @@ enum {
     CRNCYSTR, /* currency symbol */
 #define CRNCYSTR CRNCYSTR
 
+    /* month names used without a day (%OB) */
+    ALTMON_1,
+#define ALTMON_1 ALTMON_1
+    ALTMON_2,
+#define ALTMON_2 ALTMON_2
+    ALTMON_3,
+#define ALTMON_3 ALTMON_3
+    ALTMON_4,
+#define ALTMON_4 ALTMON_4
+    ALTMON_5,
+#define ALTMON_5 ALTMON_5
+    ALTMON_6,
+#define ALTMON_6 ALTMON_6
+    ALTMON_7,
+#define ALTMON_7 ALTMON_7
+    ALTMON_8,
+#define ALTMON_8 ALTMON_8
+    ALTMON_9,
+#define ALTMON_9 ALTMON_9
+    ALTMON_10,
+#define ALTMON_10 ALTMON_10
+    ALTMON_11,
+#define ALTMON_11 ALTMON_11
+    ALTMON_12,
+#define ALTMON_12 ALTMON_12
+
+    /* abbreviated month names used without a day (%Ob) */
+    ABALTMON_1,
+#define ABALTMON_1 ABALTMON_1
+    ABALTMON_2,
+#define ABALTMON_2 ABALTMON_2
+    ABALTMON_3,
+#define ABALTMON_3 ABALTMON_3
+    ABALTMON_4,
+#define ABALTMON_4 ABALTMON_4
+    ABALTMON_5,
+#define ABALTMON_5 ABALTMON_5
+    ABALTMON_6,
+#define ABALTMON_6 ABALTMON_6
+    ABALTMON_7,
+#define ABALTMON_7 ABALTMON_7
+    ABALTMON_8,
+#define ABALTMON_8 ABALTMON_8
+    ABALTMON_9,
+#define ABALTMON_9 ABALTMON_9
+    ABALTMON_10,
+#define ABALTMON_10 ABALTMON_10
+    ABALTMON_11,
+#define ABALTMON_11 ABALTMON_11
+    ABALTMON_12,
+#define ABALTMON_12 ABALTMON_12
 };
 
 _BEGIN_STD_C

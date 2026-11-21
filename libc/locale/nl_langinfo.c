@@ -97,6 +97,33 @@ nl_langinfo_l(nl_item item, locale_t locale)
     case ABMON_11:
     case ABMON_12:
         return (char *)TIME_MON[item - ABMON_1];
+    /* The POSIX locale has no alternative month names; use the usual ones */
+    case ALTMON_1:
+    case ALTMON_2:
+    case ALTMON_3:
+    case ALTMON_4:
+    case ALTMON_5:
+    case ALTMON_6:
+    case ALTMON_7:
+    case ALTMON_8:
+    case ALTMON_9:
+    case ALTMON_10:
+    case ALTMON_11:
+    case ALTMON_12:
+        return (char *)TIME_MONTH[item - ALTMON_1];
+    case ABALTMON_1:
+    case ABALTMON_2:
+    case ABALTMON_3:
+    case ABALTMON_4:
+    case ABALTMON_5:
+    case ABALTMON_6:
+    case ABALTMON_7:
+    case ABALTMON_8:
+    case ABALTMON_9:
+    case ABALTMON_10:
+    case ABALTMON_11:
+    case ABALTMON_12:
+        return (char *)TIME_MON[item - ABALTMON_1];
     case ERA:
         return TIME_ERA;
     case ERA_D_FMT:
