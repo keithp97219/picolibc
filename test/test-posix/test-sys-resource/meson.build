@@ -39,4 +39,8 @@ dir_tests = [
   'test-getrusage',
   'test-setpriority',
   'test-setrlimit',
+  'test-setrlimit-enforce',
+  'test-sys_resource_h',
+  'test-sys_resource_h-names',
 ]
+
