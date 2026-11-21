@@ -42,6 +42,7 @@ dir_tests = [
   'test-fopen',
   'test-fseek',
   'test-getdelim',
+  'test-getline',
   'test-pclose',
   'test-popen',
   'test-rename',
