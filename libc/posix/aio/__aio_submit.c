@@ -216,7 +216,9 @@ __aio_submit(struct aiocb *cb, int op, struct __aio_list *list)
     sigset_t          old;
     int               ret;
 
-    if (cb->aio_reqprio < 0 || cb->aio_reqprio > AIO_PRIO_DELTA_MAX)
+    /* aio_fsync ignores every member but aio_fildes and aio_sigevent */
+    if (op != __AIO_FSYNC && op != __AIO_FDATASYNC
+        && (cb->aio_reqprio < 0 || cb->aio_reqprio > AIO_PRIO_DELTA_MAX))
         ret = EINVAL;
     else
         ret = __aio_check_sigevent(&cb->aio_sigevent);
