@@ -34,24 +34,37 @@
  */
 
 #include "local-aio.h"
+#include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-pthread_mutex_t __aio_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t  __aio_done = PTHREAD_COND_INITIALIZER;
-struct aiocb   *__aio_running;
+pthread_mutex_t   __aio_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t    __aio_done = PTHREAD_COND_INITIALIZER;
+struct __aio_req *__aio_running;
+
+/* Takes a request off the running list; the lock is held */
+static void
+__aio_unlink(struct __aio_req *req)
+{
+    struct __aio_req **prev;
+
+    for (prev = &__aio_running; *prev; prev = &(*prev)->next)
+        if (*prev == req) {
+            *prev = req->next;
+            break;
+        }
+}
 
 /* Run one request; each runs in its own thread */
 static void *
 __aio_run(void *arg)
 {
-    struct aiocb      *cb = arg;
-    struct sigevent    sigevent = cb->aio_sigevent;
-    struct __aio_list *list = cb->__aio_list;
+    struct __aio_req  *req = arg;
+    struct aiocb      *cb = req->cb;
+    struct __aio_list *list = req->list;
     bool               notify_list = false;
-    struct aiocb     **prev;
     ssize_t            ret;
     int                error = 0;
 
@@ -59,33 +72,30 @@ __aio_run(void *arg)
      * Pipes, sockets and terminals can't seek, so there the offset
      * doesn't apply and the transfer is a plain read or write
      */
-    switch (cb->__aio_op) {
+    switch (req->op) {
     case LIO_READ:
-        ret = pread(cb->aio_fildes, (void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
+        ret = pread(req->fd, (void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
         if (ret < 0 && errno == ESPIPE)
-            ret = read(cb->aio_fildes, (void *)cb->aio_buf, cb->aio_nbytes);
+            ret = read(req->fd, (void *)cb->aio_buf, cb->aio_nbytes);
         break;
     case LIO_WRITE:
-        ret = pwrite(cb->aio_fildes, (const void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
+        ret = pwrite(req->fd, (const void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
         if (ret < 0 && errno == ESPIPE)
-            ret = write(cb->aio_fildes, (const void *)cb->aio_buf, cb->aio_nbytes);
+            ret = write(req->fd, (const void *)cb->aio_buf, cb->aio_nbytes);
         break;
     case __AIO_FDATASYNC:
-        ret = fdatasync(cb->aio_fildes);
+        ret = fdatasync(req->fd);
         break;
     default:
-        ret = fsync(cb->aio_fildes);
+        ret = fsync(req->fd);
         break;
     }
     if (ret < 0)
         error = errno;
+    close(req->fd);
 
     pthread_mutex_lock(&__aio_lock);
-    for (prev = &__aio_running; *prev; prev = &(*prev)->__aio_next)
-        if (*prev == cb) {
-            *prev = cb->__aio_next;
-            break;
-        }
+    __aio_unlink(req);
     __aio_set_status(cb, ret, error);
     if (list) {
         if (error)
@@ -97,11 +107,12 @@ __aio_run(void *arg)
     pthread_mutex_unlock(&__aio_lock);
 
     /* The caller may reuse cb as soon as the status is visible */
-    __aio_notify(&sigevent);
+    __aio_notify(&req->sigevent);
     if (notify_list) {
         __aio_notify(&list->sigevent);
         free(list);
     }
+    free(req);
     return NULL;
 }
 
@@ -141,23 +152,43 @@ __aio_check_sigevent(const struct sigevent *sev)
 int
 __aio_submit(struct aiocb *cb, int op, struct __aio_list *list)
 {
-    pthread_attr_t attr;
-    pthread_t      thread;
-    sigset_t       old;
-    int            ret;
+    struct __aio_req *req = NULL;
+    pthread_attr_t    attr;
+    pthread_t         thread;
+    sigset_t          old;
+    int               ret;
 
     if (cb->aio_reqprio < 0 || cb->aio_reqprio > AIO_PRIO_DELTA_MAX)
         ret = EINVAL;
     else
         ret = __aio_check_sigevent(&cb->aio_sigevent);
+    if (ret == 0) {
+        req = calloc(1, sizeof(*req));
+        if (!req)
+            ret = EAGAIN;
+    }
+    if (ret == 0) {
+        /*
+         * The request uses its own descriptor, so it completes as if a
+         * close of the application's descriptor came after it
+         */
+        req->fd = fcntl(cb->aio_fildes, F_DUPFD_CLOEXEC, 0);
+        if (req->fd < 0) {
+            ret = errno == EBADF ? EBADF : EAGAIN;
+            free(req);
+        }
+    }
     if (ret) {
         /* Don't leave an earlier request's status behind */
         __aio_set_status(cb, -1, ret);
         return ret;
     }
 
-    cb->__aio_op = op;
-    cb->__aio_list = list;
+    req->cb = cb;
+    req->list = list;
+    req->sigevent = cb->aio_sigevent;
+    req->op = op;
+    req->fildes = cb->aio_fildes;
 
     /*
      * Signals stay blocked while the lock is held, and in the new
@@ -165,8 +196,8 @@ __aio_submit(struct aiocb *cb, int op, struct __aio_list *list)
      */
     __aio_lock_nosig(&old);
     __aio_set_status(cb, -1, EINPROGRESS);
-    cb->__aio_next = __aio_running;
-    __aio_running = cb;
+    req->next = __aio_running;
+    __aio_running = req;
     if (list)
         list->count++;
     pthread_mutex_unlock(&__aio_lock);
@@ -174,23 +205,19 @@ __aio_submit(struct aiocb *cb, int op, struct __aio_list *list)
     ret = pthread_attr_init(&attr);
     if (ret == 0) {
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-        ret = pthread_create(&thread, &attr, __aio_run, cb);
+        ret = pthread_create(&thread, &attr, __aio_run, req);
         pthread_attr_destroy(&attr);
     }
 
     if (ret) {
-        struct aiocb **prev;
-
         pthread_mutex_lock(&__aio_lock);
-        for (prev = &__aio_running; *prev; prev = &(*prev)->__aio_next)
-            if (*prev == cb) {
-                *prev = cb->__aio_next;
-                break;
-            }
+        __aio_unlink(req);
         __aio_set_status(cb, -1, EAGAIN);
         if (list)
             list->count--;
         pthread_mutex_unlock(&__aio_lock);
+        close(req->fd);
+        free(req);
     }
     pthread_sigmask(SIG_SETMASK, &old, NULL);
     return ret ? EAGAIN : 0;

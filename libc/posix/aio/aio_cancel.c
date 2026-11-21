@@ -40,9 +40,9 @@
 int
 aio_cancel(int fd, struct aiocb *cb)
 {
-    struct aiocb *r;
-    sigset_t      old;
-    int           ret = AIO_ALLDONE;
+    struct __aio_req *r;
+    sigset_t          old;
+    int               ret = AIO_ALLDONE;
 
     if (fcntl(fd, F_GETFD) < 0)
         return -1;
@@ -51,8 +51,8 @@ aio_cancel(int fd, struct aiocb *cb)
         return -1;
     }
     __aio_lock_nosig(&old);
-    for (r = __aio_running; r; r = r->__aio_next)
-        if (r->aio_fildes == fd && (!cb || r == cb)) {
+    for (r = __aio_running; r; r = r->next)
+        if (r->fildes == fd && (!cb || r->cb == cb)) {
             ret = AIO_NOTCANCELED;
             break;
         }

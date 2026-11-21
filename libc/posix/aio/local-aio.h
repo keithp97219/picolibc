@@ -59,20 +59,35 @@ struct __aio_list {
 };
 
 /*
+ * A queued request. It holds what the request needs once its status
+ * is set, when the application may reuse the aiocb.
+ */
+struct __aio_req {
+    struct __aio_req  *next;
+    struct aiocb      *cb;
+    struct __aio_list *list;
+    struct sigevent    sigevent;
+    int                op;
+    /* The application's descriptor, and a duplicate the request uses */
+    int                fildes;
+    int                fd;
+};
+
+/*
  * Guards the list of running requests and the lio_listio counts. A
  * request's status, __aio_error, is also read without it, as aio_error
  * and aio_return must work in signal handlers: __aio_return is set
  * first and __aio_error stored last, with release ordering.
  */
-extern pthread_mutex_t __aio_lock;
+extern pthread_mutex_t   __aio_lock;
 /* Broadcast whenever a request completes */
-extern pthread_cond_t  __aio_done;
-/* The running requests */
-extern struct aiocb   *__aio_running;
+extern pthread_cond_t    __aio_done;
+/* The running requests, newest first */
+extern struct __aio_req *__aio_running;
 
 /* Take __aio_lock with signals blocked, so no handler runs while it's held */
-void                   __aio_lock_nosig(sigset_t *old);
-void                   __aio_unlock_nosig(const sigset_t *old);
+void                     __aio_lock_nosig(sigset_t *old);
+void                     __aio_unlock_nosig(const sigset_t *old);
 
 /* Records a request's final status */
 static inline void

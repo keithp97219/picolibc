@@ -53,11 +53,8 @@ struct aiocb {
     int             aio_lio_opcode; /* Operation to be performed */
 
     /* Private to the implementation */
-    int           __aio_op;
-    int           __aio_error;
-    ssize_t       __aio_return;
-    struct aiocb *__aio_next;
-    void         *__aio_list;
+    int             __aio_error;
+    ssize_t         __aio_return;
 };
 
 /* aio_cancel results */
