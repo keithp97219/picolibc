@@ -119,7 +119,7 @@ main(void)
 {
     struct pollfd pfd[3], *many;
     struct rlimit rl, low;
-    int           fds[2], fd;
+    int           fds[2], fd, rw;
     int           status;
     pid_t         pid, interrupter;
     char          c;
@@ -180,17 +180,21 @@ main(void)
     pfd[0].fd = fds[0];
     pfd[0].events = POLLIN;
     check(poll(pfd, 1, 0) == 1 && pfd[0].revents == POLLNVAL, "POLLNVAL");
-    /* POLLERR for a pipe nobody reads; POLLWRNORM is POLLOUT */
+    /* POLLERR (or POLLHUP) for a pipe nobody reads; POLLWRNORM is POLLOUT */
     check(pipe(fds) == 0, "pipe");
     pfd[0].fd = fds[1];
     pfd[0].events = POLLWRNORM;
     pfd[1].fd = fds[0];
     pfd[1].events = POLLOUT;
-    check(poll(pfd, 2, 0) == 1 && pfd[0].revents == POLLWRNORM && pfd[1].revents == 0,
+    /* The read end may be open for writing too (FreeBSD's is) */
+    rw = (fcntl(fds[0], F_GETFL) & O_ACCMODE) == O_RDWR;
+    check(poll(pfd, 2, 0) == 1 + rw && pfd[0].revents == POLLWRNORM
+              && pfd[1].revents == (rw ? POLLOUT : 0),
           "POLLWRNORM");
     check(close(fds[0]) == 0, "close read end");
     pfd[0].events = POLLOUT;
-    check(poll(pfd, 1, 0) == 1 && (pfd[0].revents & POLLERR), "POLLERR");
+    /* POSIX names no event for this; Linux reports POLLERR, FreeBSD POLLHUP */
+    check(poll(pfd, 1, 0) == 1 && (pfd[0].revents & (POLLERR | POLLHUP)), "POLLERR");
     /* O_NONBLOCK doesn't change poll, which still waits */
     check(close(fds[1]) == 0 && pipe(fds) == 0, "pipe");
     check(fcntl(fds[0], F_SETFL, O_NONBLOCK) == 0, "O_NONBLOCK");

@@ -145,7 +145,14 @@ run(const char *verb, enum err err, long classification, const char *label, int 
             setenv("MSGVERB", verb, 1);
         else
             unsetenv("MSGVERB");
-        check(dup2(err == ERR_OK ? fds[1] : fds[0], 2) == 2, "redirect");
+        if (err == ERR_OK) {
+            check(dup2(fds[1], 2) == 2, "redirect");
+        } else {
+            /* Not the pipe's read end, which may be open for writing too */
+            int ro = open("/dev/null", O_RDONLY);
+
+            check(ro > 2 && dup2(ro, 2) == 2 && close(ro) == 0, "redirect");
+        }
         close(fds[0]);
         close(fds[1]);
         /* Descriptors 0, 1 and 2 are all that's left */

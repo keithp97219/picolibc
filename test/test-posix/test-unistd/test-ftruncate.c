@@ -158,13 +158,19 @@ main(void)
     check_err(truncate("file", -1), EINVAL, "truncate to a negative length");
     check(size_of("file") == 3, "unchanged after EINVAL");
 
-    /* EFBIG or EINVAL: more than the maximum file size */
+    /*
+     * EFBIG or EINVAL: more than the maximum file size, if 2^62 bytes
+     * is (some file systems, like ZFS, take files that large)
+     */
     errno = 0;
-    check(ftruncate(fd, (off_t)1 << 62) == -1 && (errno == EFBIG || errno == EINVAL),
-          "ftruncate past the maximum file size");
-    errno = 0;
-    check(truncate("file", (off_t)1 << 62) == -1 && (errno == EFBIG || errno == EINVAL),
-          "truncate past the maximum file size");
+    if (ftruncate(fd, (off_t)1 << 62) == 0) {
+        check(size_of("file") == (off_t)1 << 62 && ftruncate(fd, 3) == 0, "a huge file");
+    } else {
+        check(errno == EFBIG || errno == EINVAL, "ftruncate past the maximum file size");
+        errno = 0;
+        check(truncate("file", (off_t)1 << 62) == -1 && (errno == EFBIG || errno == EINVAL),
+              "truncate past the maximum file size");
+    }
     check(size_of("file") == 3, "unchanged after EFBIG");
 
     /* Not open for writing: EBADF or EINVAL */

@@ -224,6 +224,8 @@ main(void)
         check(fd3 >= 0 && close(fd3) == 0, "openat through an O_SEARCH descriptor");
     }
     check(close(fd2) == 0, "close");
+    /* Opening for execution takes execute permission */
+    check(chmod(name("file"), 0700) == 0, "chmod");
     fd2 = open(name("file"), O_EXEC);
     errno = 0;
     check(fd2 >= 0 && read(fd2, buf, 1) == -1 && errno == EBADF, "O_EXEC can't read");
