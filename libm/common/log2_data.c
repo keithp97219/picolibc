@@ -160,7 +160,7 @@ that logc + poly(z/c - 1) has small error, however near x == 1 when
 {0x1.767dcf99eff8cp-1, 0x1.ce0a43dbf4000p-2},
 #endif
 },
-#if !__HAVE_FAST_FMA
+#ifndef __HAVE_FAST_FMA
 .tab2 = {
 #if N == 64
 {0x1.6200012b90a8ep-1, 0x1.904ab0644b605p-55},

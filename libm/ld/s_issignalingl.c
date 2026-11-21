@@ -35,7 +35,7 @@
 
 #include "math_ld.h"
 
-#if defined(_NEED_FLOAT_HUGE) && !__HAVE_BUILTIN_ISSIGNALING
+#if defined(_NEED_FLOAT_HUGE) && !defined(__HAVE_BUILTIN_ISSIGNALING)
 
 #include "common/s_issignalingl.c"
 

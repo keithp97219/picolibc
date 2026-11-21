@@ -35,8 +35,7 @@
 
 #include "fdlibm.h"
 
-#if __HAVE_FAST_FMA
-
+#ifdef __HAVE_FAST_FMA
 __float64
 fma64(__float64 x, __float64 y, __float64 z)
 {

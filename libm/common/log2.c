@@ -72,7 +72,7 @@ double(log2)(double x)
             return 0;
 #endif
         r = x - 1.0;
-#if __HAVE_FAST_FMA
+#ifdef __HAVE_FAST_FMA
         hi = r * InvLn2hi;
         lo = r * InvLn2lo + fma(r, InvLn2hi, -hi);
 #else
@@ -123,7 +123,7 @@ double(log2)(double x)
 
     /* log2(x) = log2(z/c) + log2(c) + k.  */
     /* r ~= z/c - 1, |r| < 1/(2*N).  */
-#if __HAVE_FAST_FMA
+#ifdef __HAVE_FAST_FMA
     /* rounding error: 0x1p-55/N.  */
     r = fma(z, invc, -1.0);
     t1 = r * InvLn2hi;

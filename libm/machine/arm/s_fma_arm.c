@@ -36,8 +36,7 @@
 #include <math.h>
 #include "math_config.h"
 
-#if __HAVE_FAST_FMA
-
+#ifdef __HAVE_FAST_FMA
 double
 fma(double x, double y, double z)
 {

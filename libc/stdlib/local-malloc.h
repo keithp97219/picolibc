@@ -77,7 +77,7 @@
 static inline unsigned int
 up_pot(size_t x)
 {
-#if __HAVE_BUILTIN_CONSTANT_P
+#ifdef __HAVE_BUILTIN_CONSTANT_P
     if (__builtin_constant_p(x))
         return UP_POT(x);
 #endif

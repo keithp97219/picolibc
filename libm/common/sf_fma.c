@@ -6,8 +6,7 @@
 
 #include "fdlibm.h"
 
-#if !__HAVE_FAST_FMAF
-
+#ifndef __HAVE_FAST_FMAF
 #if __FLT_EVAL_METHOD__ == 2 && defined(__HAVE_LONG_DOUBLE)
 
 float

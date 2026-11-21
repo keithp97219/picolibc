@@ -1465,7 +1465,7 @@ extern const struct log_data {
     struct {
         double invc, logc;
     } tab[1 << LOG_TABLE_BITS];
-#if !__HAVE_FAST_FMA
+#ifndef __HAVE_FAST_FMA
     struct {
         double chi, clo;
     } tab2[1 << LOG_TABLE_BITS];
@@ -1483,7 +1483,7 @@ extern const struct log2_data {
     struct {
         double invc, logc;
     } tab[1 << LOG2_TABLE_BITS];
-#if !__HAVE_FAST_FMA
+#ifndef __HAVE_FAST_FMA
     struct {
         double chi, clo;
     } tab2[1 << LOG2_TABLE_BITS];
