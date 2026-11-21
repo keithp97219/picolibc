@@ -36,6 +36,7 @@
 dir_tests = [
   'test-ctermid',
   'test-fdopen',
+  'test-fgetc',
   'test-fopen',
   'test-fseek',
   'test-getdelim',
