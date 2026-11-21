@@ -42,3 +42,7 @@ dir_tests = [
   'test-strsignal',
   'test-strtok_r',
 ]
+
+# Test the library's strndup, not the compiler's folding of it, which
+# clang gets wrong for arrays without a null
+test_extra_c_args += {'test-strndup': ['-fno-builtin']}
