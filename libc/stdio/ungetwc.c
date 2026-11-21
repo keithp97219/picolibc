@@ -41,6 +41,8 @@ __STDIO_UNLOCKED(ungetwc)(wint_t c, FILE *stream)
      *
      * ungetwc(WEOF, ...) causes an error per definition.
      */
+    __stdio_orient_wide(stream);
+
     if ((stream->flags & __SRD) == 0 || c == WEOF)
         return WEOF;
 

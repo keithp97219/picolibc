@@ -43,6 +43,8 @@ __STDIO_UNLOCKED(ungetc)(int c, FILE *stream)
      *
      * ungetc(EOF, ...) causes an error per definitionem.
      */
+    __stdio_orient_byte(stream);
+
     if ((stream->flags & __SRD) == 0 || c == EOF)
         return EOF;
 

@@ -45,6 +45,7 @@ fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
     if (size == 0 || nmemb == 0)
         __funlock_return(stream, 0);
 
+    __stdio_orient_byte(stream);
     if ((stream->flags & __SWR) == 0) {
         __stdio_bad_dir(stream);
         __funlock_return(stream, 0);

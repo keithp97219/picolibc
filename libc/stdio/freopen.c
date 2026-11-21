@@ -76,7 +76,7 @@ freopen(const char *pathname, const char *mode, FILE *stream)
     }
 
     /* Errors and end-of-file are cleared, as is the orientation */
-    stream->flags &= ~(__SRD | __SWR | __SERR | __SEOF | __SWIDE);
+    stream->flags &= ~(__SRD | __SWR | __SERR | __SEOF | __SWIDE | __SBYTE);
     __atomic_store_ungetc(&stream->unget, 0);
     pf->ptr = (void *)(intptr_t)(fd);
     pf->dir = 0;

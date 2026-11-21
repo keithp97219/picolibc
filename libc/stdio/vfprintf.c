@@ -705,6 +705,12 @@ vfprintf(FILE *stream, const CHAR *fmt, va_list ap_orig)
 
     __flockfile(stream);
 
+#ifdef WIDE_CHARS
+    __stdio_orient_wide(stream);
+#else
+    __stdio_orient_byte(stream);
+#endif
+
     if ((stream->flags & __SWR) == 0) {
         __stdio_bad_dir(stream);
         __funlock_return(stream, EOF);

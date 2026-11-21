@@ -43,7 +43,7 @@ __STDIO_UNLOCKED(putwc)(wchar_t c, FILE *stream)
     char  *out = mb;
     size_t len, i;
 
-    stream->flags |= __SWIDE;
+    __stdio_orient_wide(stream);
 
     if ((stream->flags & __SWR) == 0) {
         __stdio_bad_dir(stream);

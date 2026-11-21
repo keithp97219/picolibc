@@ -40,6 +40,7 @@ __STDIO_UNLOCKED(getc)(FILE *stream)
     int        rv;
     __ungetc_t unget;
 
+    __stdio_orient_byte(stream);
     if ((stream->flags & __SRD) == 0) {
         __stdio_bad_dir(stream);
         return EOF;

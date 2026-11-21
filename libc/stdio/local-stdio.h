@@ -586,6 +586,25 @@ void       __picolibc_non_atomic_store_ungetc(__ungetc_t *p, __ungetc_t v);
 #endif /* __ATOMIC_UNGETC */
 
 /*
+ * The first byte or wide-character input/output function applied to
+ * a stream without orientation makes it byte- or wide-oriented (XSH
+ * 2.5.2). Only fwide and freopen change it after that.
+ */
+static inline void
+__stdio_orient_byte(FILE *stream)
+{
+    if ((stream->flags & (__SWIDE | __SBYTE)) == 0)
+        stream->flags |= __SBYTE;
+}
+
+static inline void
+__stdio_orient_wide(FILE *stream)
+{
+    if ((stream->flags & (__SWIDE | __SBYTE)) == 0)
+        stream->flags |= __SWIDE;
+}
+
+/*
  * Reading a stream not open for reading, or writing one not open for
  * writing, sets the error indicator and fails with EBADF
  */
