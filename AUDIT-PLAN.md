@@ -180,6 +180,11 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   flags with the `MAP_*` macros; error-number functions use
 >   `_syscall_raw`/`_syscall_errno`. No master/slave terminology.
 > - **Robust tests:** use unique file names and avoid timing assumptions.
+> - **clang:** CI also builds with clang (hexagon), whose -Werror catches
+>   what gcc doesn't. In `_Static_assert`, write flag constants as
+>   `FLAG != 0`, not bare operands of `&&`; mark statics used only by
+>   `_Generic` or `sizeof` `__attribute__((unused))`; don't use gcc-only
+>   attributes such as `noclone` without `#ifndef __clang__`.
 > - **Never use `git stash`:** the stash is shared by every worktree, and
 >   parallel units have swapped changes through it. To prove a fix, reverse
 >   it with `git show <fix> -- libc libos | git apply -R`, test, then
@@ -212,7 +217,11 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   `"../is-qemu.h"` (don't copy it into the test), and print what was
 >   skipped. qemu also doesn't check that mprotect, msync, munlock and
 >   madvise ranges are mapped, places guest mappings itself, drops unknown
->   mlockall flags, and misplaces 32-bit ARM's IPC structure fields.
+>   mlockall flags, and misplaces 32-bit ARM's IPC structure fields. It
+>   runs fexecve through `/proc/self/fd/N`, so a close-on-exec descriptor
+>   fails with ENOENT, and an orphaned process group's member can die in
+>   tcsetpgrp. qemu-hexagon has 64KiB pages, so a file mapping's last
+>   page doesn't fault past the end of the file, and it maps pipes.
 > - **Cross-cutting issues:** record them in `cross-cutting.md` and don't
 >   fix them.
 >
