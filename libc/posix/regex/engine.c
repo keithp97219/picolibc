@@ -305,6 +305,16 @@ matcher(struct re_guts *g, char *string, size_t nmatch, regmatch_t pmatch[], int
         assert(start <= stop);
     }
 
+    /*
+     * The back-reference matcher can leave a contained subexpression's
+     * match from an earlier pass through the one containing it; that
+     * one didn't take part in the reported match
+     */
+    if (nmatch > 1 && (g->backrefs || (m->eflags & REG_BACKR)))
+        for (i = 1; i < NBPARENT && i <= m->g->nsub; i++)
+            if (!backvalid(m->g, m->pmatch, i))
+                m->pmatch[i].rm_so = m->pmatch[i].rm_eo = -1;
+
     /* fill in the details if requested */
     if (nmatch > 0) {
         pmatch[0].rm_so = m->coldp - m->offp;
@@ -616,7 +626,7 @@ backref(struct match *m, char *start, char *stop, sopno startst, sopno stopst,
     case OBACK_: /* the vilest depths */
         i = OPND(s);
         assert(0 < i && i <= m->g->nsub);
-        if (m->pmatch[i].rm_eo == -1)
+        if (!backvalid(m->g, m->pmatch, i))
             return (NULL);
         assert(m->pmatch[i].rm_so != -1);
         len = m->pmatch[i].rm_eo - m->pmatch[i].rm_so;

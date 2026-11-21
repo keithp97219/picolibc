@@ -86,6 +86,7 @@ static int   p_count(struct parse *p);
 static void  p_bracket(struct parse *p);
 static void  p_b_term(struct parse *p, cset *cs);
 static void  p_b_range(struct parse *p, cset *cs, char start);
+static void  findparents(struct re_guts *g);
 static void  p_b_cclass(struct parse *p, cset *cs);
 static void  p_b_eclass(struct parse *p, cset *cs);
 static char  p_b_symbol(struct parse *p);
@@ -273,6 +274,8 @@ regcomp(regex_t * __restrict preg, const char * __restrict pattern, int cflags)
         }
     }
     g->nplus = pluscount(p, g);
+    if (p->error == 0)
+        findparents(g);
     g->magic = MAGIC2;
     preg->re_nsub = g->nsub;
     preg->re_g = g;
@@ -1963,6 +1966,46 @@ computematchjumps(struct parse *p, struct re_guts *g)
     }
 
     free(pmatches);
+}
+
+/*
+ - findparents - note which subexpression contains each of 1 to 9
+ == static void findparents(struct re_guts *g);
+ *
+ * A back-reference to a subexpression inside another one only refers
+ * to a match within the containing subexpression's last match (XBD
+ * 9.3.6), so the matcher needs to know the nesting. Subexpressions past
+ * 9 can't contain those, so they are skipped.
+ */
+static void
+findparents(struct re_guts *g)
+{
+    sopno ss;
+    sop   s;
+    int   open = 0, i;
+
+    memset(g->bparent, 0, sizeof(g->bparent));
+    for (ss = g->firststate; ss < g->laststate; ss++) {
+        s = g->strip[ss];
+        i = (int)OPND(s);
+        switch (OP(s)) {
+        case OLPAREN:
+            if (i < NBPARENT) {
+                g->bparent[i] = (unsigned char)open;
+                open = i;
+            }
+            break;
+        case ORPAREN:
+            if (i < NBPARENT)
+                open = g->bparent[i];
+            break;
+        case OBACK_:
+            /* skip the copy of the subexpression */
+            while (ss < g->laststate && g->strip[ss] != (sop)SOP(O_BACK, i))
+                ss++;
+            break;
+        }
+    }
 }
 
 /*

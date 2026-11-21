@@ -78,6 +78,24 @@ backcmp(const struct re_guts *g, const char *a, const char *b, size_t len)
     return 0;
 }
 
+/*
+ * Whether subexpression i (1 to 9) matched within the last match of
+ * every subexpression containing it. A match left over from an earlier
+ * pass through a containing subexpression doesn't count (XBD 9.3.6).
+ */
+static int
+backvalid(const struct re_guts *g, const regmatch_t *pmatch, size_t i)
+{
+    size_t p;
+
+    if (pmatch[i].rm_eo == -1)
+        return 0;
+    for (p = g->bparent[i]; p != 0; p = g->bparent[p])
+        if (pmatch[p].rm_so == -1 || pmatch[i].rm_so < pmatch[p].rm_so)
+            return 0;
+    return 1;
+}
+
 /* macros for manipulating states, small version */
 #define states           long
 #define states1          states /* for later use in regexec() decision */

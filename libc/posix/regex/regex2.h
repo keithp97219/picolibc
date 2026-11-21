@@ -133,6 +133,9 @@ typedef struct {
 /* stuff for character categories */
 typedef unsigned char cat_t;
 
+/* subexpressions back-references can name, plus the unused 0 */
+#define NBPARENT 10
+
 /*
  * main compiled-expression structure
  */
@@ -164,6 +167,8 @@ struct re_guts {
     size_t nsub;        /* copy of re_nsub */
     int    backrefs;    /* does it use back references? */
     sopno  nplus;       /* how deep does it nest +s? */
+    /* the innermost subexpression around each of \1 to \9 */
+    uch    bparent[NBPARENT];
     /* catspace must be last */
     cat_t  catspace[NC]; /* categories */
 };
