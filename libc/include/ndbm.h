@@ -64,8 +64,8 @@
 #define DBM_SUFFIX ".db"
 
 typedef struct {
-    void *dptr;
-    int   dsize; /* XXX Should be size_t according to 1003.1-2008. */
+    void  *dptr;
+    size_t dsize;
 } datum;
 
 struct __db;            /* Forward-declaration */
