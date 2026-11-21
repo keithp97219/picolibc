@@ -35,11 +35,22 @@
 
 #include <sys/times.h>
 #include <sys/time.h>
+#include <time.h>
 #include "semihost.h"
 
+/*
+ * The host counts in its own ticks; report them in CLOCKS_PER_SEC
+ * units, which picolibc's sysconf(_SC_CLK_TCK) gives
+ */
 clock_t
 times(struct tms *buf)
 {
+    uint64_t  ticks = sys_semihost_elapsed();
+    uintptr_t freq = sys_semihost_tickfreq();
+    uint64_t  t = ticks;
+
+    if (freq != 0 && freq != (uintptr_t)-1)
+        t = ticks / freq * CLOCKS_PER_SEC + ticks % freq * CLOCKS_PER_SEC / freq;
     buf->tms_stime = buf->tms_cstime = buf->tms_cutime = 0;
-    return buf->tms_utime = (clock_t)sys_semihost_elapsed();
+    return buf->tms_utime = (clock_t)t;
 }

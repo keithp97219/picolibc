@@ -45,7 +45,6 @@ target_sources(semihost PRIVATE
   open.c
   read.c
   rename.c
-  sysconf.c
   times.c
   unlink.c
   write.c
