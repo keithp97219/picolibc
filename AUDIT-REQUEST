@@ -1,1 +1,1 @@
-claude/posix-spec-audit memory-sched sysv-ipc threads-c11
+claude/posix-spec-audit unistd-process aio regex-wordexp

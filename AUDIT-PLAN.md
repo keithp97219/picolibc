@@ -161,7 +161,18 @@ touch the same directory (for example 3, 4 and 5) side by side.
 > - **Gating:** tests compile everywhere and gate at run time. Copy the
 >   preamble from a neighbouring test, including the comment
 >   `/* Without the system support this test needs, it is skipped */`, and
->   return 77 when skipping.
+>   return 77 when skipping. Include `"../posix-groups.h"` in place of
+>   `<unistd.h>`: it defines the `__PICOLIBC_POSIX_<group>` and
+>   `__PICOLIBC_XSI_<group>` macros for other C libraries from the
+>   standard symbols. Test groups with `defined(__PICOLIBC_POSIX_PIPE)`
+>   and options with `_POSIX_THREADS > 0`, and never add a
+>   `!defined(__PICOLIBC__) ||` escape. An option defined as 0 means "ask
+>   sysconf": compile when `defined(_POSIX_X) && _POSIX_X >= 0`, then skip
+>   only if `sysconf(_SC_X) <= 0` (see test-clock_gettime).
+> - **Installed headers:** keep `defined(X) &&` before testing a value in
+>   `#if`; every header is checked with `-Wundef -Werror=undef`
+>   (`check-wundef-*` in the headers suite). Macros defined as 1 or not at
+>   all (`__HAVE_*`) are tested with `#ifdef`.
 > - **glibc:** each test also builds against glibc as `-native`. Keep tests
 >   portable, and guard checks where glibc is wrong as described above.
 > - **Style:** `clang-format`, and match the surrounding idiom. libos/linux
@@ -197,9 +208,11 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   ignores SA_NOCLDSTOP and SA_NOCLDWAIT, passes its own timer ids as the
 >   default timer si_value, keeps the top real-time signals,
 >   and lacks robust futex lists. Where a check depends on such a kernel
->   detail, relax it only under qemu, detected with the `is_qemu()` helper in
->   `test-signal/test-sigaction.c` (BogoMIPS 100.00 in /proc/cpuinfo), and
->   print what was skipped.
+>   detail, relax it only under qemu, detected with `is_qemu()` from
+>   `"../is-qemu.h"` (don't copy it into the test), and print what was
+>   skipped. qemu also doesn't check that mprotect, msync, munlock and
+>   madvise ranges are mapped, places guest mappings itself, drops unknown
+>   mlockall flags, and misplaces 32-bit ARM's IPC structure fields.
 > - **Cross-cutting issues:** record them in `cross-cutting.md` and don't
 >   fix them.
 >
