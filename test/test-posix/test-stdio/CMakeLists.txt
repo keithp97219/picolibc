@@ -37,6 +37,7 @@ set(tests
   test-ctermid
   test-fdopen
   test-fgetc
+  test-fileno
   test-fopen
   test-fseek
   test-getdelim
