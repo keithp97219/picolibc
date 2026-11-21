@@ -34,13 +34,17 @@
 #
 
 dir_tests = [
+  'test-a64l',
+  'test-getsubopt',
   'test-grantpt',
   'test-initstate',
+  'test-mblen',
   'test-mkdtemp',
   'test-mkstemp',
   'test-posix_openpt',
   'test-ptsname',
   'test-ptsname_r',
+  'test-qsort',
   'test-rand48',
   'test-random',
   'test-realloc',
