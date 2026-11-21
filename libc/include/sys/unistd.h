@@ -107,7 +107,7 @@ int daemon(int nochdir, int noclose) __picolibc_export;
 int dup(int __fildes) __picolibc_export;
 int dup2(int __fildes, int __fildes2) __picolibc_export;
 #if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
-int dup3(int __fildes, int __fildes2, int flags) __picolibc_export;
+int dup3(int __fildes, int __fildes2, int __flag) __picolibc_export;
 #endif
 #if __GNU_VISIBLE
 int eaccess(const char *__path, int __mode) __picolibc_export;
@@ -238,7 +238,7 @@ int pthread_atfork(void (*)(void), void (*)(void), void (*)(void)) __picolibc_ex
 #endif
 int pipe(int __fildes[2]) __picolibc_export;
 #if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
-int pipe2(int __fildes[2], int flags) __picolibc_export;
+int pipe2(int __fildes[2], int __flag) __picolibc_export;
 #endif
 #if __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 500
 ssize_t pread(int __fd, void *__buf, size_t __nbytes, off_t __offset) __picolibc_export;
@@ -365,6 +365,16 @@ ssize_t readlinkat(int    __dirfd1, const char    *__restrict __path, char    *_
                    size_t __buflen) __picolibc_export;
 int     symlinkat(const char *, int, const char *) __picolibc_export;
 int     unlinkat(int, const char *, int) __picolibc_export;
+#endif
+
+/* As in <fcntl.h>, for dup3 and pipe2 */
+#if __POSIX_VISIBLE >= 202405
+#ifndef _FNOINHERIT
+#define _FNOINHERIT 0x40000
+#endif
+#ifndef O_CLOEXEC
+#define O_CLOEXEC _FNOINHERIT
+#endif
 #endif
 
 #define F_OK     0
