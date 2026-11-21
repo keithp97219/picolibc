@@ -450,3 +450,15 @@ Append yours under a heading naming the unit.
   ECHILD. wordexp then reports WRDE_SYNTAX although the child succeeded (read,
   not run). system() and popen()/pclose() have the same exposure; the stdio and
   unistd-process units may want to check how those handle it.
+
+## From the arm64 coordinator: clang native build of the base (d14119a43a)
+
+`CC=clang scripts/do-native-configure -Dwerror=true` then `ninja -k 0` on aarch64 (Debian clang 21.1.8, glibc 2.43) fails at the audit base, before any batch-6 change:
+
+- `libc/native/stat_host.c:42-43`: `_Static_assert` with no message is a C23 extension (`-Werror,-Wc23-extensions`). The native library doesn't build, so about 645 test links fail after it.
+- `test/test-stdbit/test-stdc-leading-ones.c`: shift count >= width of type (`-Wshift-count-overflow`), 7 places.
+- `test/test-posix/test-fnmatch/test-fnmatch.c:76`: `!FNM_PATHNAME` etc. on glibc's `(1 << n)` macros gives `-Wtautological-constant-compare` (3 places, `-native` entry). Write these as `FNM_X != 0`, as the plan's clang rule says.
+- `test/test-math/test-iseqsig.c`: implicit float to double/long double promotion (`-Wdouble-promotion`), 6 places.
+- `test/test-math/test-tgmath.c`: against glibc, `dadd`, `dsub`, `dmul`, `ddiv`, `dfma` and `dsqrt` are undeclared and `__STDC_VERSION_TGMATH_H__` has the wrong value. clang 21 also crashes in the aarch64 backend at test-tgmath.c:294 ("Cannot select: i32 = setcc ... Constant:i128<0>"), which is a clang bug, so the test may need to avoid that expression on aarch64 clang.
+
+Until those are fixed, the arm64 units check their own new or changed files with `/tmp/arm64run/clang-check` (clang `-fsyntax-only -Werror` with meson's gcc flags, for the picolibc and `-native` entries) rather than a full clang build.
