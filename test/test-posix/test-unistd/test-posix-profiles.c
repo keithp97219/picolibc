@@ -36,8 +36,9 @@
 /*
  * A system claiming a realtime profile gets the profiles below it and
  * the options and option groups the profile requires. Claim the
- * largest one here, as an OS would in <sys/_posix.h>, where picolibc
- * can back it; the profile macros are picolibc's to check.
+ * largest one here, with the macro an OS would define in
+ * <sys/_posix.h>, where picolibc can back it; the profile macros are
+ * picolibc's to check.
  */
 
 #define _POSIX_C_SOURCE 202405L
@@ -49,8 +50,8 @@
 #endif
 #endif
 #if defined(__PICOLIBC_PTHREADS) && !defined(__SINGLE_THREAD)
-#define CLAIM                     1
-#define _POSIX_AEP_REALTIME_MULTI 200312L
+#define CLAIM                            1
+#define __PICOLIBC_OS_AEP_REALTIME_MULTI 200312L
 #endif
 #include <stdio.h>
 #include <stdlib.h>

@@ -675,12 +675,19 @@ int     unlinkat(int, const char *, int) __picolibc_export;
  * The POSIX options and option groups the system provides, and the
  * _POSIX_VERSION they add up to.
  *
- * The OS describes itself in <sys/_posix.h>: the POSIX option macros
- * for the options it supports, and __PICOLIBC_POSIX_<GROUP> for the
- * OS-level parts of each POSIX.1-2024 option group no option macro
- * covers, with the version of the standard they meet. Anything it
- * leaves undefined isn't provided. picolibc installs that header only
- * for its own OS layers.
+ * The OS describes itself in <sys/_posix.h> with __PICOLIBC_OS_ macros
+ * only: __PICOLIBC_OS_<OPTION> for each POSIX option it supports (named
+ * as the option without _POSIX_), __PICOLIBC_OS_<GROUP> and
+ * __PICOLIBC_OS_XSI_<GROUP> for the OS's part of each option group,
+ * each with the version of the standard met, __PICOLIBC_OS_AEP_REALTIME_<P>
+ * for a realtime profile, and __PICOLIBC_OS_<CONSTANT> for the constants
+ * (CHOWN_RESTRICTED, JOB_CONTROL, NO_TRUNC, SAVED_IDS, SHELL, VDISABLE).
+ * Anything it leaves undefined isn't provided. This header combines
+ * those with picolibc's own share to define every public name: the
+ * _POSIX_ options and constants, the profiles, __PICOLIBC_POSIX_<GROUP>
+ * and __PICOLIBC_XSI_<GROUP>, and the edition. doc/os.md says what each
+ * __PICOLIBC_OS_ macro requires of the OS. picolibc installs
+ * <sys/_posix.h> only for its own OS layers.
  *
  * picolibc's ABI doesn't depend on <sys/_posix.h>: no type, structure
  * layout or library code may change with what it defines, so the
@@ -696,231 +703,620 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #endif
 #endif
 
-/*
- * The edition and subprofile depend on picolibc's share as well as the
- * OS's, so only this header can work them out
- */
-#if defined(_POSIX_VERSION) || defined(_POSIX2_VERSION) || defined(_POSIX_SUBPROFILE)
+/* Every public name below is this header's to define */
+#if defined(_POSIX_VERSION) || defined(_POSIX2_VERSION) || defined(_POSIX_SUBPROFILE) \
+    || defined(_POSIX_AEP_REALTIME_MINIMAL)
 #error \
-    "_POSIX_VERSION, _POSIX2_VERSION and _POSIX_SUBPROFILE are computed by <unistd.h>; the OS must not define them"
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_AEP_REALTIME_CONTROLLER) || defined(_POSIX_AEP_REALTIME_DEDICATED) \
+    || defined(_POSIX_AEP_REALTIME_MULTI) || defined(_POSIX_ADVISORY_INFO)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_BARRIERS) || defined(_POSIX_CLOCK_SELECTION) || defined(_POSIX_CPUTIME) \
+    || defined(_POSIX_DEVICE_CONTROL)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_FSYNC) || defined(_POSIX_IPV6) || defined(_POSIX_MAPPED_FILES) \
+    || defined(_POSIX_MEMLOCK)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_MEMLOCK_RANGE) || defined(_POSIX_MEMORY_PROTECTION)    \
+    || defined(_POSIX_MESSAGE_PASSING) || defined(_POSIX_MONOTONIC_CLOCK)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_PRIORITIZED_IO) || defined(_POSIX_PRIORITY_SCHEDULING) \
+    || defined(_POSIX_RAW_SOCKETS) || defined(_POSIX_READER_WRITER_LOCKS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_REALTIME_SIGNALS) || defined(_POSIX_SEMAPHORES)         \
+    || defined(_POSIX_SHARED_MEMORY_OBJECTS) || defined(_POSIX_SPIN_LOCKS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_SPORADIC_SERVER) || defined(_POSIX_SYNCHRONIZED_IO)                \
+    || defined(_POSIX_THREAD_ATTR_STACKADDR) || defined(_POSIX_THREAD_ATTR_STACKSIZE)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_THREAD_CPUTIME) || defined(_POSIX_THREAD_PRIO_INHERIT)                \
+    || defined(_POSIX_THREAD_PRIO_PROTECT) || defined(_POSIX_THREAD_PRIORITY_SCHEDULING)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_THREAD_PROCESS_SHARED) || defined(_POSIX_THREAD_ROBUST_PRIO_INHERIT)     \
+    || defined(_POSIX_THREAD_ROBUST_PRIO_PROTECT) || defined(_POSIX_THREAD_SPORADIC_SERVER)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_THREADS) || defined(_POSIX_TIMEOUTS) || defined(_POSIX_TIMERS) \
+    || defined(_POSIX_TYPED_MEMORY_OBJECTS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_CHOWN_RESTRICTED) || defined(_POSIX_JOB_CONTROL) || defined(_POSIX_NO_TRUNC) \
+    || defined(_POSIX_SAVED_IDS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_SHELL) || defined(_POSIX_VDISABLE) || defined(_POSIX_ASYNCHRONOUS_IO) \
+    || defined(_POSIX_SPAWN)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(_POSIX_REGEXP) || defined(_POSIX_THREAD_SAFE_FUNCTIONS)             \
+    || defined(__PICOLIBC_POSIX_CLOFORK) || defined(__PICOLIBC_POSIX_DEVICE_IO)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) || defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC_R) \
+    || defined(__PICOLIBC_POSIX_DYNAMIC_LINKING) || defined(__PICOLIBC_POSIX_FD_MGMT)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_FIFO) || defined(__PICOLIBC_POSIX_FIFO_FD)                          \
+    || defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES) || defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES_FD)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) || defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)     \
+    || defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) || defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS_FD) || defined(__PICOLIBC_POSIX_NETWORKING) \
+    || defined(__PICOLIBC_POSIX_PIPE) || defined(__PICOLIBC_POSIX_SIGNALS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_SINGLE_PROCESS) || defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)    \
+    || defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS_FD) || defined(__PICOLIBC_POSIX_USER_GROUPS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_C_LANG_JUMP) || defined(__PICOLIBC_POSIX_C_LANG_MATH)            \
+    || defined(__PICOLIBC_POSIX_C_LANG_SUPPORT) || defined(__PICOLIBC_POSIX_C_LANG_SUPPORT_R)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_C_LANG_WIDE_CHAR) || defined(__PICOLIBC_POSIX_C_LIB_EXT) \
+    || defined(__PICOLIBC_POSIX_FILE_LOCKING) || defined(__PICOLIBC_POSIX_REGEXP)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_FILE_SYSTEM_GLOB) || defined(__PICOLIBC_POSIX_FILE_SYSTEM_R) \
+    || defined(__PICOLIBC_POSIX_SIGNAL_JUMP) || defined(__PICOLIBC_POSIX_SYSTEM_DATABASE)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_SYSTEM_DATABASE_R) || defined(__PICOLIBC_POSIX_USER_GROUPS_R) \
+    || defined(__PICOLIBC_POSIX_WIDE_CHAR_DEVICE_IO) || defined(__PICOLIBC_XSI_DEVICE_IO)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_XSI_DEVICE_SPECIFIC) || defined(__PICOLIBC_XSI_FILE_SYSTEM) \
+    || defined(__PICOLIBC_XSI_GENERAL_TERMINAL_R) || defined(__PICOLIBC_XSI_IPC)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_XSI_MULTI_PROCESS) || defined(__PICOLIBC_XSI_SIGNALS)            \
+    || defined(__PICOLIBC_XSI_SINGLE_PROCESS) || defined(__PICOLIBC_XSI_SYSTEM_LOGGING)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_XSI_USER_GROUPS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
 
 /*
- * Realtime profiles (IEEE 1003.13-2003). The OS may claim one by
- * defining _POSIX_AEP_REALTIME_<PROFILE>, as shorthand for the
- * profiles below it and for what the profile requires of the OS: the
- * options in its option table, and its units of functionality, as the
- * option groups or option macros that stand for them. Each the OS
- * leaves undefined takes the profile macro's value, or 1 for the
- * constants. Units that are library code alone (the C language
- * functions, file locking, regular expressions, ...) need nothing
- * from the OS. POSIX.1-2024 removed the trace options PSE52 and up
- * require; _POSIX_VDISABLE (PSE54) is the OS's terminal driver's, and
- * _POSIX_REGEXP and _POSIX_THREAD_SAFE_FUNCTIONS are picolibc's own.
+ * Realtime profiles (IEEE 1003.13-2003). The OS may claim one with
+ * __PICOLIBC_OS_AEP_REALTIME_<PROFILE>, as shorthand for the profiles
+ * below it and for what the profile requires of the OS: the options in
+ * its option table, and its units of functionality, as the option
+ * groups or options that stand for them. Each the OS leaves undefined
+ * takes the profile's value, or 1 for the constants. Units that are
+ * library code alone (the C language functions, file locking, regular
+ * expressions, ...) need nothing from the OS. POSIX.1-2024 removed the
+ * trace options PSE52 and up require; _POSIX_VDISABLE (PSE54) is the
+ * OS's terminal driver's, and _POSIX_REGEXP and
+ * _POSIX_THREAD_SAFE_FUNCTIONS are picolibc's own.
  */
-#if defined(_POSIX_AEP_REALTIME_MULTI) && !defined(_POSIX_AEP_REALTIME_DEDICATED)
-#define _POSIX_AEP_REALTIME_DEDICATED _POSIX_AEP_REALTIME_MULTI
+#if defined(__PICOLIBC_OS_AEP_REALTIME_MULTI) && !defined(__PICOLIBC_OS_AEP_REALTIME_DEDICATED)
+#define __PICOLIBC_OS_AEP_REALTIME_DEDICATED __PICOLIBC_OS_AEP_REALTIME_MULTI
 #endif
-#if defined(_POSIX_AEP_REALTIME_DEDICATED) && !defined(_POSIX_AEP_REALTIME_CONTROLLER)
-#define _POSIX_AEP_REALTIME_CONTROLLER _POSIX_AEP_REALTIME_DEDICATED
+#if defined(__PICOLIBC_OS_AEP_REALTIME_DEDICATED) && !defined(__PICOLIBC_OS_AEP_REALTIME_CONTROLLER)
+#define __PICOLIBC_OS_AEP_REALTIME_CONTROLLER __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#if defined(_POSIX_AEP_REALTIME_CONTROLLER) && !defined(_POSIX_AEP_REALTIME_MINIMAL)
-#define _POSIX_AEP_REALTIME_MINIMAL _POSIX_AEP_REALTIME_CONTROLLER
+#if defined(__PICOLIBC_OS_AEP_REALTIME_CONTROLLER) && !defined(__PICOLIBC_OS_AEP_REALTIME_MINIMAL)
+#define __PICOLIBC_OS_AEP_REALTIME_MINIMAL __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
 #endif
 
 /* PSE51, the minimal realtime system profile */
-#ifdef _POSIX_AEP_REALTIME_MINIMAL
-#ifndef _POSIX_CLOCK_SELECTION
-#define _POSIX_CLOCK_SELECTION _POSIX_AEP_REALTIME_MINIMAL
+#ifdef __PICOLIBC_OS_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_CLOCK_SELECTION
+#define __PICOLIBC_OS_CLOCK_SELECTION __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_FSYNC
-#define _POSIX_FSYNC _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_FSYNC
+#define __PICOLIBC_OS_FSYNC __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_MEMLOCK
-#define _POSIX_MEMLOCK _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_MEMLOCK
+#define __PICOLIBC_OS_MEMLOCK __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_MEMLOCK_RANGE
-#define _POSIX_MEMLOCK_RANGE _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_MEMLOCK_RANGE
+#define __PICOLIBC_OS_MEMLOCK_RANGE __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_MONOTONIC_CLOCK
-#define _POSIX_MONOTONIC_CLOCK _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_MONOTONIC_CLOCK
+#define __PICOLIBC_OS_MONOTONIC_CLOCK __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_REALTIME_SIGNALS
-#define _POSIX_REALTIME_SIGNALS _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_REALTIME_SIGNALS
+#define __PICOLIBC_OS_REALTIME_SIGNALS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_SEMAPHORES
-#define _POSIX_SEMAPHORES _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_SEMAPHORES
+#define __PICOLIBC_OS_SEMAPHORES __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_SHARED_MEMORY_OBJECTS
-#define _POSIX_SHARED_MEMORY_OBJECTS _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_SHARED_MEMORY_OBJECTS
+#define __PICOLIBC_OS_SHARED_MEMORY_OBJECTS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_SYNCHRONIZED_IO
-#define _POSIX_SYNCHRONIZED_IO _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_SYNCHRONIZED_IO
+#define __PICOLIBC_OS_SYNCHRONIZED_IO __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_THREAD_ATTR_STACKADDR
-#define _POSIX_THREAD_ATTR_STACKADDR _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_THREAD_ATTR_STACKADDR
+#define __PICOLIBC_OS_THREAD_ATTR_STACKADDR __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_THREAD_ATTR_STACKSIZE
-#define _POSIX_THREAD_ATTR_STACKSIZE _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_THREAD_ATTR_STACKSIZE
+#define __PICOLIBC_OS_THREAD_ATTR_STACKSIZE __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_THREAD_CPUTIME
-#define _POSIX_THREAD_CPUTIME _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_THREAD_CPUTIME
+#define __PICOLIBC_OS_THREAD_CPUTIME __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_THREAD_PRIO_INHERIT
-#define _POSIX_THREAD_PRIO_INHERIT _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_THREAD_PRIO_INHERIT
+#define __PICOLIBC_OS_THREAD_PRIO_INHERIT __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_THREAD_PRIO_PROTECT
-#define _POSIX_THREAD_PRIO_PROTECT _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_THREAD_PRIO_PROTECT
+#define __PICOLIBC_OS_THREAD_PRIO_PROTECT __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_THREAD_PRIORITY_SCHEDULING
-#define _POSIX_THREAD_PRIORITY_SCHEDULING _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING
+#define __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_THREAD_SPORADIC_SERVER
-#define _POSIX_THREAD_SPORADIC_SERVER _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_THREAD_SPORADIC_SERVER
+#define __PICOLIBC_OS_THREAD_SPORADIC_SERVER __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_THREADS
-#define _POSIX_THREADS _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_THREADS
+#define __PICOLIBC_OS_THREADS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_TIMEOUTS
-#define _POSIX_TIMEOUTS _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_TIMEOUTS
+#define __PICOLIBC_OS_TIMEOUTS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_TIMERS
-#define _POSIX_TIMERS _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_TIMERS
+#define __PICOLIBC_OS_TIMERS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef __PICOLIBC_POSIX_C_LIB_EXT
-#define __PICOLIBC_POSIX_C_LIB_EXT _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_DEVICE_IO
+#define __PICOLIBC_OS_DEVICE_IO __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef __PICOLIBC_POSIX_DEVICE_IO
-#define __PICOLIBC_POSIX_DEVICE_IO _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_SIGNALS
+#define __PICOLIBC_OS_SIGNALS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef __PICOLIBC_POSIX_SIGNALS
-#define __PICOLIBC_POSIX_SIGNALS _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_SINGLE_PROCESS
+#define __PICOLIBC_OS_SINGLE_PROCESS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
 #endif
-#ifndef __PICOLIBC_POSIX_SINGLE_PROCESS
-#define __PICOLIBC_POSIX_SINGLE_PROCESS _POSIX_AEP_REALTIME_MINIMAL
+#ifndef __PICOLIBC_OS_NO_TRUNC
+#define __PICOLIBC_OS_NO_TRUNC 1
 #endif
-#ifndef _POSIX_NO_TRUNC
-#define _POSIX_NO_TRUNC 1
-#endif
-#endif /* _POSIX_AEP_REALTIME_MINIMAL */
+#define _POSIX_AEP_REALTIME_MINIMAL __PICOLIBC_OS_AEP_REALTIME_MINIMAL
+#endif /* __PICOLIBC_OS_AEP_REALTIME_MINIMAL */
 
 /* PSE52, the realtime controller system profile */
-#ifdef _POSIX_AEP_REALTIME_CONTROLLER
-#ifndef _POSIX_MAPPED_FILES
-#define _POSIX_MAPPED_FILES _POSIX_AEP_REALTIME_CONTROLLER
+#ifdef __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
+#ifndef __PICOLIBC_OS_MAPPED_FILES
+#define __PICOLIBC_OS_MAPPED_FILES __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
 #endif
-#ifndef _POSIX_MESSAGE_PASSING
-#define _POSIX_MESSAGE_PASSING _POSIX_AEP_REALTIME_CONTROLLER
+#ifndef __PICOLIBC_OS_MESSAGE_PASSING
+#define __PICOLIBC_OS_MESSAGE_PASSING __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
 #endif
-#ifndef __PICOLIBC_POSIX_FD_MGMT
-#define __PICOLIBC_POSIX_FD_MGMT _POSIX_AEP_REALTIME_CONTROLLER
+#ifndef __PICOLIBC_OS_FD_MGMT
+#define __PICOLIBC_OS_FD_MGMT __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
 #endif
-#ifndef __PICOLIBC_POSIX_FILE_SYSTEM
-#define __PICOLIBC_POSIX_FILE_SYSTEM _POSIX_AEP_REALTIME_CONTROLLER
+#ifndef __PICOLIBC_OS_FILE_SYSTEM
+#define __PICOLIBC_OS_FILE_SYSTEM __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
 #endif
-#endif /* _POSIX_AEP_REALTIME_CONTROLLER */
+#define _POSIX_AEP_REALTIME_CONTROLLER __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
+#endif /* __PICOLIBC_OS_AEP_REALTIME_CONTROLLER */
 
 /* PSE53, the dedicated realtime system profile */
-#ifdef _POSIX_AEP_REALTIME_DEDICATED
-#ifndef _POSIX_ASYNCHRONOUS_IO
-#define _POSIX_ASYNCHRONOUS_IO _POSIX_AEP_REALTIME_DEDICATED
+#ifdef __PICOLIBC_OS_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_ASYNCHRONOUS_IO
+#define __PICOLIBC_OS_ASYNCHRONOUS_IO __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef _POSIX_CPUTIME
-#define _POSIX_CPUTIME _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_CPUTIME
+#define __PICOLIBC_OS_CPUTIME __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef _POSIX_MEMORY_PROTECTION
-#define _POSIX_MEMORY_PROTECTION _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_MEMORY_PROTECTION
+#define __PICOLIBC_OS_MEMORY_PROTECTION __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef _POSIX_PRIORITIZED_IO
-#define _POSIX_PRIORITIZED_IO _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_PRIORITIZED_IO
+#define __PICOLIBC_OS_PRIORITIZED_IO __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef _POSIX_PRIORITY_SCHEDULING
-#define _POSIX_PRIORITY_SCHEDULING _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_PRIORITY_SCHEDULING
+#define __PICOLIBC_OS_PRIORITY_SCHEDULING __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef _POSIX_RAW_SOCKETS
-#define _POSIX_RAW_SOCKETS _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_RAW_SOCKETS
+#define __PICOLIBC_OS_RAW_SOCKETS __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef _POSIX_SPAWN
-#define _POSIX_SPAWN _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_SPAWN
+#define __PICOLIBC_OS_SPAWN __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef _POSIX_SPORADIC_SERVER
-#define _POSIX_SPORADIC_SERVER _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_SPORADIC_SERVER
+#define __PICOLIBC_OS_SPORADIC_SERVER __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef _POSIX_THREAD_PROCESS_SHARED
-#define _POSIX_THREAD_PROCESS_SHARED _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_THREAD_PROCESS_SHARED
+#define __PICOLIBC_OS_THREAD_PROCESS_SHARED __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef __PICOLIBC_POSIX_MULTI_PROCESS
-#define __PICOLIBC_POSIX_MULTI_PROCESS _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_MULTI_PROCESS
+#define __PICOLIBC_OS_MULTI_PROCESS __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef __PICOLIBC_POSIX_NETWORKING
-#define __PICOLIBC_POSIX_NETWORKING _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_NETWORKING
+#define __PICOLIBC_OS_NETWORKING __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#ifndef __PICOLIBC_POSIX_PIPE
-#define __PICOLIBC_POSIX_PIPE _POSIX_AEP_REALTIME_DEDICATED
+#ifndef __PICOLIBC_OS_PIPE
+#define __PICOLIBC_OS_PIPE __PICOLIBC_OS_AEP_REALTIME_DEDICATED
 #endif
-#endif /* _POSIX_AEP_REALTIME_DEDICATED */
+#define _POSIX_AEP_REALTIME_DEDICATED __PICOLIBC_OS_AEP_REALTIME_DEDICATED
+#endif /* __PICOLIBC_OS_AEP_REALTIME_DEDICATED */
 
 /* PSE54, the multi-purpose realtime system profile */
-#ifdef _POSIX_AEP_REALTIME_MULTI
-#ifndef _POSIX_ADVISORY_INFO
-#define _POSIX_ADVISORY_INFO _POSIX_AEP_REALTIME_MULTI
+#ifdef __PICOLIBC_OS_AEP_REALTIME_MULTI
+#ifndef __PICOLIBC_OS_ADVISORY_INFO
+#define __PICOLIBC_OS_ADVISORY_INFO __PICOLIBC_OS_AEP_REALTIME_MULTI
 #endif
-#ifndef __PICOLIBC_POSIX_DEVICE_SPECIFIC
-#define __PICOLIBC_POSIX_DEVICE_SPECIFIC _POSIX_AEP_REALTIME_MULTI
+#ifndef __PICOLIBC_OS_DEVICE_SPECIFIC
+#define __PICOLIBC_OS_DEVICE_SPECIFIC __PICOLIBC_OS_AEP_REALTIME_MULTI
 #endif
-#ifndef __PICOLIBC_POSIX_DYNAMIC_LINKING
-#define __PICOLIBC_POSIX_DYNAMIC_LINKING _POSIX_AEP_REALTIME_MULTI
+#ifndef __PICOLIBC_OS_DYNAMIC_LINKING
+#define __PICOLIBC_OS_DYNAMIC_LINKING __PICOLIBC_OS_AEP_REALTIME_MULTI
 #endif
-#ifndef __PICOLIBC_POSIX_FIFO
-#define __PICOLIBC_POSIX_FIFO _POSIX_AEP_REALTIME_MULTI
+#ifndef __PICOLIBC_OS_FIFO
+#define __PICOLIBC_OS_FIFO __PICOLIBC_OS_AEP_REALTIME_MULTI
 #endif
-#ifndef __PICOLIBC_POSIX_FILE_ATTRIBUTES
-#define __PICOLIBC_POSIX_FILE_ATTRIBUTES _POSIX_AEP_REALTIME_MULTI
+#ifndef __PICOLIBC_OS_FILE_ATTRIBUTES
+#define __PICOLIBC_OS_FILE_ATTRIBUTES __PICOLIBC_OS_AEP_REALTIME_MULTI
 #endif
-#ifndef __PICOLIBC_POSIX_FILE_SYSTEM_EXT
-#define __PICOLIBC_POSIX_FILE_SYSTEM_EXT _POSIX_AEP_REALTIME_MULTI
+#ifndef __PICOLIBC_OS_FILE_SYSTEM_EXT
+#define __PICOLIBC_OS_FILE_SYSTEM_EXT __PICOLIBC_OS_AEP_REALTIME_MULTI
 #endif
-#ifndef __PICOLIBC_POSIX_SYMBOLIC_LINKS
-#define __PICOLIBC_POSIX_SYMBOLIC_LINKS _POSIX_AEP_REALTIME_MULTI
+#ifndef __PICOLIBC_OS_SYMBOLIC_LINKS
+#define __PICOLIBC_OS_SYMBOLIC_LINKS __PICOLIBC_OS_AEP_REALTIME_MULTI
 #endif
-#ifndef __PICOLIBC_POSIX_USER_GROUPS
-#define __PICOLIBC_POSIX_USER_GROUPS _POSIX_AEP_REALTIME_MULTI
+#ifndef __PICOLIBC_OS_USER_GROUPS
+#define __PICOLIBC_OS_USER_GROUPS __PICOLIBC_OS_AEP_REALTIME_MULTI
 #endif
-#ifndef _POSIX_CHOWN_RESTRICTED
-#define _POSIX_CHOWN_RESTRICTED 1
+#ifndef __PICOLIBC_OS_CHOWN_RESTRICTED
+#define __PICOLIBC_OS_CHOWN_RESTRICTED 1
 #endif
-#ifndef _POSIX_JOB_CONTROL
-#define _POSIX_JOB_CONTROL 1
+#ifndef __PICOLIBC_OS_JOB_CONTROL
+#define __PICOLIBC_OS_JOB_CONTROL 1
 #endif
-#ifndef _POSIX_SAVED_IDS
-#define _POSIX_SAVED_IDS 1
+#ifndef __PICOLIBC_OS_SAVED_IDS
+#define __PICOLIBC_OS_SAVED_IDS 1
 #endif
-#ifndef _POSIX_SHELL
-#define _POSIX_SHELL 1
+#ifndef __PICOLIBC_OS_SHELL
+#define __PICOLIBC_OS_SHELL 1
 #endif
-#endif /* _POSIX_AEP_REALTIME_MULTI */
+#define _POSIX_AEP_REALTIME_MULTI __PICOLIBC_OS_AEP_REALTIME_MULTI
+#endif /* __PICOLIBC_OS_AEP_REALTIME_MULTI */
 
-/* Options picolibc provides itself */
-#ifndef _POSIX_REGEXP
-#define _POSIX_REGEXP 1
+/* The options and constants the OS provides */
+#ifdef __PICOLIBC_OS_ADVISORY_INFO
+#define _POSIX_ADVISORY_INFO __PICOLIBC_OS_ADVISORY_INFO
 #endif
-#ifndef _POSIX2_C_BIND
-#define _POSIX2_C_BIND 202405L
+#ifdef __PICOLIBC_OS_BARRIERS
+#define _POSIX_BARRIERS __PICOLIBC_OS_BARRIERS
+#endif
+#ifdef __PICOLIBC_OS_CLOCK_SELECTION
+#define _POSIX_CLOCK_SELECTION __PICOLIBC_OS_CLOCK_SELECTION
+#endif
+#ifdef __PICOLIBC_OS_CPUTIME
+#define _POSIX_CPUTIME __PICOLIBC_OS_CPUTIME
+#endif
+#ifdef __PICOLIBC_OS_DEVICE_CONTROL
+#define _POSIX_DEVICE_CONTROL __PICOLIBC_OS_DEVICE_CONTROL
+#endif
+#ifdef __PICOLIBC_OS_FSYNC
+#define _POSIX_FSYNC __PICOLIBC_OS_FSYNC
+#endif
+#ifdef __PICOLIBC_OS_IPV6
+#define _POSIX_IPV6 __PICOLIBC_OS_IPV6
+#endif
+#ifdef __PICOLIBC_OS_MAPPED_FILES
+#define _POSIX_MAPPED_FILES __PICOLIBC_OS_MAPPED_FILES
+#endif
+#ifdef __PICOLIBC_OS_MEMLOCK
+#define _POSIX_MEMLOCK __PICOLIBC_OS_MEMLOCK
+#endif
+#ifdef __PICOLIBC_OS_MEMLOCK_RANGE
+#define _POSIX_MEMLOCK_RANGE __PICOLIBC_OS_MEMLOCK_RANGE
+#endif
+#ifdef __PICOLIBC_OS_MEMORY_PROTECTION
+#define _POSIX_MEMORY_PROTECTION __PICOLIBC_OS_MEMORY_PROTECTION
+#endif
+#ifdef __PICOLIBC_OS_MESSAGE_PASSING
+#define _POSIX_MESSAGE_PASSING __PICOLIBC_OS_MESSAGE_PASSING
+#endif
+#ifdef __PICOLIBC_OS_MONOTONIC_CLOCK
+#define _POSIX_MONOTONIC_CLOCK __PICOLIBC_OS_MONOTONIC_CLOCK
+#endif
+#ifdef __PICOLIBC_OS_PRIORITIZED_IO
+#define _POSIX_PRIORITIZED_IO __PICOLIBC_OS_PRIORITIZED_IO
+#endif
+#ifdef __PICOLIBC_OS_PRIORITY_SCHEDULING
+#define _POSIX_PRIORITY_SCHEDULING __PICOLIBC_OS_PRIORITY_SCHEDULING
+#endif
+#ifdef __PICOLIBC_OS_RAW_SOCKETS
+#define _POSIX_RAW_SOCKETS __PICOLIBC_OS_RAW_SOCKETS
+#endif
+#ifdef __PICOLIBC_OS_READER_WRITER_LOCKS
+#define _POSIX_READER_WRITER_LOCKS __PICOLIBC_OS_READER_WRITER_LOCKS
+#endif
+#ifdef __PICOLIBC_OS_REALTIME_SIGNALS
+#define _POSIX_REALTIME_SIGNALS __PICOLIBC_OS_REALTIME_SIGNALS
+#endif
+#ifdef __PICOLIBC_OS_SEMAPHORES
+#define _POSIX_SEMAPHORES __PICOLIBC_OS_SEMAPHORES
+#endif
+#ifdef __PICOLIBC_OS_SHARED_MEMORY_OBJECTS
+#define _POSIX_SHARED_MEMORY_OBJECTS __PICOLIBC_OS_SHARED_MEMORY_OBJECTS
+#endif
+#ifdef __PICOLIBC_OS_SPIN_LOCKS
+#define _POSIX_SPIN_LOCKS __PICOLIBC_OS_SPIN_LOCKS
+#endif
+#ifdef __PICOLIBC_OS_SPORADIC_SERVER
+#define _POSIX_SPORADIC_SERVER __PICOLIBC_OS_SPORADIC_SERVER
+#endif
+#ifdef __PICOLIBC_OS_SYNCHRONIZED_IO
+#define _POSIX_SYNCHRONIZED_IO __PICOLIBC_OS_SYNCHRONIZED_IO
+#endif
+#ifdef __PICOLIBC_OS_THREAD_ATTR_STACKADDR
+#define _POSIX_THREAD_ATTR_STACKADDR __PICOLIBC_OS_THREAD_ATTR_STACKADDR
+#endif
+#ifdef __PICOLIBC_OS_THREAD_ATTR_STACKSIZE
+#define _POSIX_THREAD_ATTR_STACKSIZE __PICOLIBC_OS_THREAD_ATTR_STACKSIZE
+#endif
+#ifdef __PICOLIBC_OS_THREAD_CPUTIME
+#define _POSIX_THREAD_CPUTIME __PICOLIBC_OS_THREAD_CPUTIME
+#endif
+#ifdef __PICOLIBC_OS_THREAD_PRIO_INHERIT
+#define _POSIX_THREAD_PRIO_INHERIT __PICOLIBC_OS_THREAD_PRIO_INHERIT
+#endif
+#ifdef __PICOLIBC_OS_THREAD_PRIO_PROTECT
+#define _POSIX_THREAD_PRIO_PROTECT __PICOLIBC_OS_THREAD_PRIO_PROTECT
+#endif
+#ifdef __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING
+#define _POSIX_THREAD_PRIORITY_SCHEDULING __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING
+#endif
+#ifdef __PICOLIBC_OS_THREAD_PROCESS_SHARED
+#define _POSIX_THREAD_PROCESS_SHARED __PICOLIBC_OS_THREAD_PROCESS_SHARED
+#endif
+#ifdef __PICOLIBC_OS_THREAD_ROBUST_PRIO_INHERIT
+#define _POSIX_THREAD_ROBUST_PRIO_INHERIT __PICOLIBC_OS_THREAD_ROBUST_PRIO_INHERIT
+#endif
+#ifdef __PICOLIBC_OS_THREAD_ROBUST_PRIO_PROTECT
+#define _POSIX_THREAD_ROBUST_PRIO_PROTECT __PICOLIBC_OS_THREAD_ROBUST_PRIO_PROTECT
+#endif
+#ifdef __PICOLIBC_OS_THREAD_SPORADIC_SERVER
+#define _POSIX_THREAD_SPORADIC_SERVER __PICOLIBC_OS_THREAD_SPORADIC_SERVER
+#endif
+#ifdef __PICOLIBC_OS_THREADS
+#define _POSIX_THREADS __PICOLIBC_OS_THREADS
+#endif
+#ifdef __PICOLIBC_OS_TIMEOUTS
+#define _POSIX_TIMEOUTS __PICOLIBC_OS_TIMEOUTS
+#endif
+#ifdef __PICOLIBC_OS_TIMERS
+#define _POSIX_TIMERS __PICOLIBC_OS_TIMERS
+#endif
+#ifdef __PICOLIBC_OS_TYPED_MEMORY_OBJECTS
+#define _POSIX_TYPED_MEMORY_OBJECTS __PICOLIBC_OS_TYPED_MEMORY_OBJECTS
+#endif
+#ifdef __PICOLIBC_OS_CHOWN_RESTRICTED
+#define _POSIX_CHOWN_RESTRICTED __PICOLIBC_OS_CHOWN_RESTRICTED
+#endif
+#ifdef __PICOLIBC_OS_JOB_CONTROL
+#define _POSIX_JOB_CONTROL __PICOLIBC_OS_JOB_CONTROL
+#endif
+#ifdef __PICOLIBC_OS_NO_TRUNC
+#define _POSIX_NO_TRUNC __PICOLIBC_OS_NO_TRUNC
+#endif
+#ifdef __PICOLIBC_OS_SAVED_IDS
+#define _POSIX_SAVED_IDS __PICOLIBC_OS_SAVED_IDS
+#endif
+#ifdef __PICOLIBC_OS_SHELL
+#define _POSIX_SHELL __PICOLIBC_OS_SHELL
+#endif
+#ifdef __PICOLIBC_OS_VDISABLE
+#define _POSIX_VDISABLE __PICOLIBC_OS_VDISABLE
 #endif
 
-/* Options picolibc builds on what the system provides */
-#if defined(__PICOLIBC_PTHREADS) && !defined(_POSIX_ASYNCHRONOUS_IO)
+/* The option groups the OS provides */
+#ifdef __PICOLIBC_OS_CLOFORK
+#define __PICOLIBC_POSIX_CLOFORK __PICOLIBC_OS_CLOFORK
+#endif
+#ifdef __PICOLIBC_OS_DEVICE_IO
+#define __PICOLIBC_POSIX_DEVICE_IO __PICOLIBC_OS_DEVICE_IO
+#endif
+#ifdef __PICOLIBC_OS_DEVICE_SPECIFIC
+#define __PICOLIBC_POSIX_DEVICE_SPECIFIC __PICOLIBC_OS_DEVICE_SPECIFIC
+#endif
+#ifdef __PICOLIBC_OS_DEVICE_SPECIFIC_R
+#define __PICOLIBC_POSIX_DEVICE_SPECIFIC_R __PICOLIBC_OS_DEVICE_SPECIFIC_R
+#endif
+#ifdef __PICOLIBC_OS_DYNAMIC_LINKING
+#define __PICOLIBC_POSIX_DYNAMIC_LINKING __PICOLIBC_OS_DYNAMIC_LINKING
+#endif
+#ifdef __PICOLIBC_OS_FD_MGMT
+#define __PICOLIBC_POSIX_FD_MGMT __PICOLIBC_OS_FD_MGMT
+#endif
+#ifdef __PICOLIBC_OS_FIFO
+#define __PICOLIBC_POSIX_FIFO __PICOLIBC_OS_FIFO
+#endif
+#ifdef __PICOLIBC_OS_FIFO_FD
+#define __PICOLIBC_POSIX_FIFO_FD __PICOLIBC_OS_FIFO_FD
+#endif
+#ifdef __PICOLIBC_OS_FILE_ATTRIBUTES
+#define __PICOLIBC_POSIX_FILE_ATTRIBUTES __PICOLIBC_OS_FILE_ATTRIBUTES
+#endif
+#ifdef __PICOLIBC_OS_FILE_ATTRIBUTES_FD
+#define __PICOLIBC_POSIX_FILE_ATTRIBUTES_FD __PICOLIBC_OS_FILE_ATTRIBUTES_FD
+#endif
+#ifdef __PICOLIBC_OS_FILE_SYSTEM
+#define __PICOLIBC_POSIX_FILE_SYSTEM __PICOLIBC_OS_FILE_SYSTEM
+#endif
+#ifdef __PICOLIBC_OS_FILE_SYSTEM_EXT
+#define __PICOLIBC_POSIX_FILE_SYSTEM_EXT __PICOLIBC_OS_FILE_SYSTEM_EXT
+#endif
+#ifdef __PICOLIBC_OS_FILE_SYSTEM_FD
+#define __PICOLIBC_POSIX_FILE_SYSTEM_FD __PICOLIBC_OS_FILE_SYSTEM_FD
+#endif
+#ifdef __PICOLIBC_OS_MULTI_PROCESS
+#define __PICOLIBC_POSIX_MULTI_PROCESS __PICOLIBC_OS_MULTI_PROCESS
+#endif
+#ifdef __PICOLIBC_OS_MULTI_PROCESS_FD
+#define __PICOLIBC_POSIX_MULTI_PROCESS_FD __PICOLIBC_OS_MULTI_PROCESS_FD
+#endif
+#ifdef __PICOLIBC_OS_NETWORKING
+#define __PICOLIBC_POSIX_NETWORKING __PICOLIBC_OS_NETWORKING
+#endif
+#ifdef __PICOLIBC_OS_PIPE
+#define __PICOLIBC_POSIX_PIPE __PICOLIBC_OS_PIPE
+#endif
+#ifdef __PICOLIBC_OS_SIGNALS
+#define __PICOLIBC_POSIX_SIGNALS __PICOLIBC_OS_SIGNALS
+#endif
+#ifdef __PICOLIBC_OS_SINGLE_PROCESS
+#define __PICOLIBC_POSIX_SINGLE_PROCESS __PICOLIBC_OS_SINGLE_PROCESS
+#endif
+#ifdef __PICOLIBC_OS_SYMBOLIC_LINKS
+#define __PICOLIBC_POSIX_SYMBOLIC_LINKS __PICOLIBC_OS_SYMBOLIC_LINKS
+#endif
+#ifdef __PICOLIBC_OS_SYMBOLIC_LINKS_FD
+#define __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD __PICOLIBC_OS_SYMBOLIC_LINKS_FD
+#endif
+#ifdef __PICOLIBC_OS_USER_GROUPS
+#define __PICOLIBC_POSIX_USER_GROUPS __PICOLIBC_OS_USER_GROUPS
+#endif
+#ifdef __PICOLIBC_OS_XSI_DEVICE_IO
+#define __PICOLIBC_XSI_DEVICE_IO __PICOLIBC_OS_XSI_DEVICE_IO
+#endif
+#ifdef __PICOLIBC_OS_XSI_DEVICE_SPECIFIC
+#define __PICOLIBC_XSI_DEVICE_SPECIFIC __PICOLIBC_OS_XSI_DEVICE_SPECIFIC
+#endif
+#ifdef __PICOLIBC_OS_XSI_FILE_SYSTEM
+#define __PICOLIBC_XSI_FILE_SYSTEM __PICOLIBC_OS_XSI_FILE_SYSTEM
+#endif
+#ifdef __PICOLIBC_OS_XSI_GENERAL_TERMINAL_R
+#define __PICOLIBC_XSI_GENERAL_TERMINAL_R __PICOLIBC_OS_XSI_GENERAL_TERMINAL_R
+#endif
+#ifdef __PICOLIBC_OS_XSI_IPC
+#define __PICOLIBC_XSI_IPC __PICOLIBC_OS_XSI_IPC
+#endif
+#ifdef __PICOLIBC_OS_XSI_MULTI_PROCESS
+#define __PICOLIBC_XSI_MULTI_PROCESS __PICOLIBC_OS_XSI_MULTI_PROCESS
+#endif
+#ifdef __PICOLIBC_OS_XSI_SIGNALS
+#define __PICOLIBC_XSI_SIGNALS __PICOLIBC_OS_XSI_SIGNALS
+#endif
+#ifdef __PICOLIBC_OS_XSI_SINGLE_PROCESS
+#define __PICOLIBC_XSI_SINGLE_PROCESS __PICOLIBC_OS_XSI_SINGLE_PROCESS
+#endif
+#ifdef __PICOLIBC_OS_XSI_SYSTEM_LOGGING
+#define __PICOLIBC_XSI_SYSTEM_LOGGING __PICOLIBC_OS_XSI_SYSTEM_LOGGING
+#endif
+#ifdef __PICOLIBC_OS_XSI_USER_GROUPS
+#define __PICOLIBC_XSI_USER_GROUPS __PICOLIBC_OS_XSI_USER_GROUPS
+#endif
+
+/* Options and option groups picolibc provides itself */
+#define _POSIX_REGEXP                     1
+#define _POSIX2_C_BIND                    202405L
+#define __PICOLIBC_POSIX_C_LANG_JUMP      202405L
+#define __PICOLIBC_POSIX_C_LANG_MATH      202405L
+#define __PICOLIBC_POSIX_C_LANG_SUPPORT   202405L
+#define __PICOLIBC_POSIX_C_LANG_SUPPORT_R 202405L
+#define __PICOLIBC_POSIX_C_LANG_WIDE_CHAR 202405L
+#define __PICOLIBC_POSIX_C_LIB_EXT        202405L
+#define __PICOLIBC_POSIX_FILE_LOCKING     202405L
+#define __PICOLIBC_POSIX_REGEXP           202405L
+
+/* Options picolibc provides, or builds on what the system provides */
+#if defined(__PICOLIBC_OS_ASYNCHRONOUS_IO)
+#define _POSIX_ASYNCHRONOUS_IO __PICOLIBC_OS_ASYNCHRONOUS_IO
+#elif defined(__PICOLIBC_PTHREADS)
 /* picolibc's asynchronous I/O runs each request in one of its threads */
 #define _POSIX_ASYNCHRONOUS_IO 202405L
 #endif
-#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0 && !defined(__SINGLE_THREAD) \
-    && !defined(_POSIX_THREAD_SAFE_FUNCTIONS)
+#if defined(__PICOLIBC_OS_SPAWN)
+#define _POSIX_SPAWN __PICOLIBC_OS_SPAWN
+#elif defined(__PICOLIBC_OS_MULTI_PROCESS)
+/* picolibc's posix_spawn uses fork and exec */
+#define _POSIX_SPAWN 202405L
+#endif
+#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0 && !defined(__SINGLE_THREAD)
 /* picolibc's functions are thread-safe when it was built with locking */
 #define _POSIX_THREAD_SAFE_FUNCTIONS 202405L
 #endif
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && !defined(_POSIX_SPAWN)
-/* posix_spawn uses fork and exec */
-#define _POSIX_SPAWN 202405L
+
+/* Option groups of picolibc's code over the OS groups it needs */
+#if defined(__PICOLIBC_OS_FILE_SYSTEM)
+/* Glob reads directories */
+#define __PICOLIBC_POSIX_FILE_SYSTEM_GLOB __PICOLIBC_OS_FILE_SYSTEM
+#endif
+#if defined(__PICOLIBC_OS_FILE_SYSTEM)
+/* Readdir_r is built on readdir */
+#define __PICOLIBC_POSIX_FILE_SYSTEM_R __PICOLIBC_OS_FILE_SYSTEM
+#endif
+#if defined(__PICOLIBC_OS_SIGNALS)
+/* Sigsetjmp saves the signal mask */
+#define __PICOLIBC_POSIX_SIGNAL_JUMP __PICOLIBC_OS_SIGNALS
+#endif
+#if defined(__PICOLIBC_OS_FILE_SYSTEM)
+/* The user and group databases are files */
+#define __PICOLIBC_POSIX_SYSTEM_DATABASE __PICOLIBC_OS_FILE_SYSTEM
+#endif
+#if defined(__PICOLIBC_OS_FILE_SYSTEM)
+/* The user and group databases are files */
+#define __PICOLIBC_POSIX_SYSTEM_DATABASE_R __PICOLIBC_OS_FILE_SYSTEM
+#endif
+#if defined(__PICOLIBC_OS_FILE_SYSTEM)
+/* The user and group databases are files */
+#define __PICOLIBC_POSIX_USER_GROUPS_R __PICOLIBC_OS_FILE_SYSTEM
+#endif
+#if defined(__PICOLIBC_OS_DEVICE_IO)
+/* Wide streams are built on the OS's I/O */
+#define __PICOLIBC_POSIX_WIDE_CHAR_DEVICE_IO __PICOLIBC_OS_DEVICE_IO
 #endif
 
 /*

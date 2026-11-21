@@ -47,7 +47,7 @@
 #if defined(__has_include)
 #if !__has_include(<sys/_posix.h>)
 #define CLAIM
-#define _POSIX_AEP_REALTIME_MINIMAL 200312L
+#define __PICOLIBC_OS_AEP_REALTIME_MINIMAL 200312L
 #endif
 #endif
 #include <stdio.h>
@@ -89,11 +89,14 @@ main(void)
     REQUIRED(_POSIX_THREADS);
     REQUIRED(_POSIX_TIMEOUTS);
     REQUIRED(_POSIX_TIMERS);
-    REQUIRED(__PICOLIBC_POSIX_C_LIB_EXT);
     REQUIRED(__PICOLIBC_POSIX_DEVICE_IO);
     REQUIRED(__PICOLIBC_POSIX_SIGNALS);
     REQUIRED(__PICOLIBC_POSIX_SINGLE_PROCESS);
     check(_POSIX_NO_TRUNC == 1, "PSE51 requires _POSIX_NO_TRUNC");
+    check(_POSIX_AEP_REALTIME_MINIMAL == 200312L, "the profile itself");
+
+    /* picolibc's own parts of the profile */
+    check(__PICOLIBC_POSIX_C_LIB_EXT == 202405L, "picolibc's C_LIB_EXT");
 
     /* Not required by PSE51, so not claimed for it */
 #if defined(_POSIX_BARRIERS) || defined(_POSIX_MAPPED_FILES) || defined(_POSIX_MEMORY_PROTECTION) \

@@ -34,8 +34,9 @@
  */
 
 /*
- * POSIX options and option groups provided by libos/linux, included
- * at the end of <unistd.h>. Only what is complete is defined;
+ * The POSIX options, option groups and constants libos/linux provides,
+ * as __PICOLIBC_OS_ macros for <unistd.h>, which defines the public
+ * names from them (see doc/os.md). Only what is complete is defined;
  * anything undefined is not provided. Nothing here may change
  * picolibc's ABI; see <sys/unistd.h>.
  */
@@ -46,29 +47,29 @@
 /* clang-format off */
 
 /* Options POSIX.1-2024 requires, provided by the kernel */
-#define _POSIX_CHOWN_RESTRICTED             1
-#define _POSIX_JOB_CONTROL                  1
-#define _POSIX_NO_TRUNC                     1
-#define _POSIX_SAVED_IDS                    1
-#define _POSIX_SHELL                        1
+#define __PICOLIBC_OS_CHOWN_RESTRICTED             1
+#define __PICOLIBC_OS_JOB_CONTROL                  1
+#define __PICOLIBC_OS_NO_TRUNC                     1
+#define __PICOLIBC_OS_SAVED_IDS                    1
+#define __PICOLIBC_OS_SHELL                        1
 /* 0 rather than '\0', which is unsigned in #if where char is */
-#define _POSIX_VDISABLE                     0
+#define __PICOLIBC_OS_VDISABLE                     0
 
 /* Options */
-#define _POSIX_ADVISORY_INFO                202405L
-#define _POSIX_CPUTIME                      202405L
-#define _POSIX_FSYNC                        202405L
-#define _POSIX_MAPPED_FILES                 202405L
-#define _POSIX_MEMLOCK                      202405L
-#define _POSIX_MEMLOCK_RANGE                202405L
-#define _POSIX_MEMORY_PROTECTION            202405L
-#define _POSIX_MESSAGE_PASSING              202405L
-#define _POSIX_MONOTONIC_CLOCK              202405L
-#define _POSIX_PRIORITY_SCHEDULING          202405L
-#define _POSIX_REALTIME_SIGNALS             202405L
-#define _POSIX_SHARED_MEMORY_OBJECTS        202405L
-#define _POSIX_SYNCHRONIZED_IO              202405L
-#define _POSIX_TIMERS                       202405L
+#define __PICOLIBC_OS_ADVISORY_INFO                202405L
+#define __PICOLIBC_OS_CPUTIME                      202405L
+#define __PICOLIBC_OS_FSYNC                        202405L
+#define __PICOLIBC_OS_MAPPED_FILES                 202405L
+#define __PICOLIBC_OS_MEMLOCK                      202405L
+#define __PICOLIBC_OS_MEMLOCK_RANGE                202405L
+#define __PICOLIBC_OS_MEMORY_PROTECTION            202405L
+#define __PICOLIBC_OS_MESSAGE_PASSING              202405L
+#define __PICOLIBC_OS_MONOTONIC_CLOCK              202405L
+#define __PICOLIBC_OS_PRIORITY_SCHEDULING          202405L
+#define __PICOLIBC_OS_REALTIME_SIGNALS             202405L
+#define __PICOLIBC_OS_SHARED_MEMORY_OBJECTS        202405L
+#define __PICOLIBC_OS_SYNCHRONIZED_IO              202405L
+#define __PICOLIBC_OS_TIMERS                       202405L
 
 /*
  * Options built on the libos/linux threads. Clock selection and
@@ -76,69 +77,68 @@
  * they need the threads too
  */
 #ifdef __PICOLIBC_PTHREADS
-#define _POSIX_BARRIERS                     202405L
-#define _POSIX_CLOCK_SELECTION              202405L
-#define _POSIX_READER_WRITER_LOCKS          202405L
-#define _POSIX_SEMAPHORES                   202405L
-#define _POSIX_SPIN_LOCKS                   202405L
-#define _POSIX_THREADS                      202405L
-#define _POSIX_THREAD_ATTR_STACKADDR        202405L
-#define _POSIX_THREAD_ATTR_STACKSIZE        202405L
-#define _POSIX_THREAD_CPUTIME               202405L
-#define _POSIX_THREAD_PRIO_INHERIT          202405L
-#define _POSIX_THREAD_PRIO_PROTECT          202405L
-#define _POSIX_THREAD_PRIORITY_SCHEDULING   202405L
-#define _POSIX_THREAD_PROCESS_SHARED        202405L
-#define _POSIX_THREAD_ROBUST_PRIO_INHERIT   202405L
-#define _POSIX_THREAD_ROBUST_PRIO_PROTECT   202405L
-#define _POSIX_TIMEOUTS                     202405L
+#define __PICOLIBC_OS_BARRIERS                     202405L
+#define __PICOLIBC_OS_CLOCK_SELECTION              202405L
+#define __PICOLIBC_OS_READER_WRITER_LOCKS          202405L
+#define __PICOLIBC_OS_SEMAPHORES                   202405L
+#define __PICOLIBC_OS_SPIN_LOCKS                   202405L
+#define __PICOLIBC_OS_THREADS                      202405L
+#define __PICOLIBC_OS_THREAD_ATTR_STACKADDR        202405L
+#define __PICOLIBC_OS_THREAD_ATTR_STACKSIZE        202405L
+#define __PICOLIBC_OS_THREAD_CPUTIME               202405L
+#define __PICOLIBC_OS_THREAD_PRIO_INHERIT          202405L
+#define __PICOLIBC_OS_THREAD_PRIO_PROTECT          202405L
+#define __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING   202405L
+#define __PICOLIBC_OS_THREAD_PROCESS_SHARED        202405L
+#define __PICOLIBC_OS_THREAD_ROBUST_PRIO_INHERIT   202405L
+#define __PICOLIBC_OS_THREAD_ROBUST_PRIO_PROTECT   202405L
+#define __PICOLIBC_OS_TIMEOUTS                     202405L
 #endif
 
 /* Option groups; POSIX_DYNAMIC_LINKING is missing */
-#define __PICOLIBC_POSIX_C_LIB_EXT          202405L
-#define __PICOLIBC_POSIX_DEVICE_IO          202405L
-#define __PICOLIBC_POSIX_DEVICE_SPECIFIC    202405L
-#define __PICOLIBC_POSIX_DEVICE_SPECIFIC_R  202405L
-#define __PICOLIBC_POSIX_FD_MGMT            202405L
-#define __PICOLIBC_POSIX_FIFO               202405L
-#define __PICOLIBC_POSIX_FIFO_FD            202405L
-#define __PICOLIBC_POSIX_FILE_ATTRIBUTES    202405L
-#define __PICOLIBC_POSIX_FILE_ATTRIBUTES_FD 202405L
-#define __PICOLIBC_POSIX_FILE_SYSTEM        202405L
-#define __PICOLIBC_POSIX_FILE_SYSTEM_EXT    202405L
-#define __PICOLIBC_POSIX_FILE_SYSTEM_FD     202405L
-#define __PICOLIBC_POSIX_MULTI_PROCESS      202405L
-#define __PICOLIBC_POSIX_MULTI_PROCESS_FD   202405L
-#define __PICOLIBC_POSIX_PIPE               202405L
-#define __PICOLIBC_POSIX_SIGNALS            202405L
-#define __PICOLIBC_POSIX_SINGLE_PROCESS     202405L
-#define __PICOLIBC_POSIX_SYMBOLIC_LINKS     202405L
-#define __PICOLIBC_POSIX_SYMBOLIC_LINKS_FD  202405L
-#define __PICOLIBC_POSIX_USER_GROUPS        202405L
+#define __PICOLIBC_OS_DEVICE_IO          202405L
+#define __PICOLIBC_OS_DEVICE_SPECIFIC    202405L
+#define __PICOLIBC_OS_DEVICE_SPECIFIC_R  202405L
+#define __PICOLIBC_OS_FD_MGMT            202405L
+#define __PICOLIBC_OS_FIFO               202405L
+#define __PICOLIBC_OS_FIFO_FD            202405L
+#define __PICOLIBC_OS_FILE_ATTRIBUTES    202405L
+#define __PICOLIBC_OS_FILE_ATTRIBUTES_FD 202405L
+#define __PICOLIBC_OS_FILE_SYSTEM        202405L
+#define __PICOLIBC_OS_FILE_SYSTEM_EXT    202405L
+#define __PICOLIBC_OS_FILE_SYSTEM_FD     202405L
+#define __PICOLIBC_OS_MULTI_PROCESS      202405L
+#define __PICOLIBC_OS_MULTI_PROCESS_FD   202405L
+#define __PICOLIBC_OS_PIPE               202405L
+#define __PICOLIBC_OS_SIGNALS            202405L
+#define __PICOLIBC_OS_SINGLE_PROCESS     202405L
+#define __PICOLIBC_OS_SYMBOLIC_LINKS     202405L
+#define __PICOLIBC_OS_SYMBOLIC_LINKS_FD  202405L
+#define __PICOLIBC_OS_USER_GROUPS        202405L
 
 /*
  * Linux has no close-on-fork (O_CLOFORK, FD_CLOFORK, SOCK_CLOFORK), so
- * __PICOLIBC_POSIX_CLOFORK stays undefined and Linux can reach
+ * __PICOLIBC_OS_CLOFORK stays undefined and Linux can reach
  * POSIX.1-2008 at most.
  */
 
 /* XSI option groups */
-#define __PICOLIBC_XSI_DEVICE_IO            202405L
-#define __PICOLIBC_XSI_DEVICE_SPECIFIC      202405L
-#define __PICOLIBC_XSI_FILE_SYSTEM          202405L
-#define __PICOLIBC_XSI_GENERAL_TERMINAL_R   202405L
-#define __PICOLIBC_XSI_IPC                  202405L
-#define __PICOLIBC_XSI_MULTI_PROCESS        202405L
-#define __PICOLIBC_XSI_SIGNALS              202405L
-#define __PICOLIBC_XSI_SINGLE_PROCESS       202405L
-#define __PICOLIBC_XSI_SYSTEM_LOGGING       202405L
-#define __PICOLIBC_XSI_USER_GROUPS          202405L
+#define __PICOLIBC_OS_XSI_DEVICE_IO            202405L
+#define __PICOLIBC_OS_XSI_DEVICE_SPECIFIC      202405L
+#define __PICOLIBC_OS_XSI_FILE_SYSTEM          202405L
+#define __PICOLIBC_OS_XSI_GENERAL_TERMINAL_R   202405L
+#define __PICOLIBC_OS_XSI_IPC                  202405L
+#define __PICOLIBC_OS_XSI_MULTI_PROCESS        202405L
+#define __PICOLIBC_OS_XSI_SIGNALS              202405L
+#define __PICOLIBC_OS_XSI_SINGLE_PROCESS       202405L
+#define __PICOLIBC_OS_XSI_SYSTEM_LOGGING       202405L
+#define __PICOLIBC_OS_XSI_USER_GROUPS          202405L
 
 /* Sockets, with picolibc built for the Linux network interfaces */
 #ifdef __PICOLIBC_NETWORK_LINUX
-#define _POSIX_IPV6                         202405L
-#define _POSIX_RAW_SOCKETS                  202405L
-#define __PICOLIBC_POSIX_NETWORKING         202405L
+#define __PICOLIBC_OS_IPV6                         202405L
+#define __PICOLIBC_OS_RAW_SOCKETS                  202405L
+#define __PICOLIBC_OS_NETWORKING         202405L
 #endif
 
 /* clang-format on */

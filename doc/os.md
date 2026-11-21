@@ -358,52 +358,94 @@ only with the OS layer that provides them.
 
 ### `<sys/_posix.h>`: POSIX options and option groups
 
-`<unistd.h>` includes this header when it exists. It defines only what
-the OS provides; anything left undefined is not provided.
+`<unistd.h>` includes this header when it exists. It contains no public
+POSIX names, only `__PICOLIBC_OS_` macros, each defined only for what
+the OS provides; anything left undefined is not provided. `<unistd.h>`
+combines them with picolibc's own share to define the public names,
+and stops with an error if the header defines one of those itself.
 
- * **Option macros** (`_POSIX_TIMERS`, `_POSIX_THREADS`,
-   `_POSIX_SEMAPHORES` and the other `_POSIX_` options) with the
-   version of the standard the OS meets, such as `200809L` or
-   `202405L`. picolibc adds the options it implements itself:
-   `_POSIX_REGEXP` and `_POSIX2_C_BIND`; `_POSIX_ASYNCHRONOUS_IO` when
-   picolibc was built with its own POSIX threads;
-   `_POSIX_THREAD_SAFE_FUNCTIONS` when it was built with locking and
-   the OS has threads; and `_POSIX_SPAWN` when the OS has processes.
+ * **Options:** `__PICOLIBC_OS_<OPTION>` for each POSIX option the OS
+   supports, named as the option without `_POSIX_`
+   (`__PICOLIBC_OS_TIMERS`, `__PICOLIBC_OS_THREAD_PRIO_INHERIT`, ...),
+   with the version of the standard met, such as `200809L` or
+   `202405L`. The OS provides every interface POSIX puts under that
+   option. `<unistd.h>` defines `_POSIX_<OPTION>` from it. picolibc
+   adds the options it implements itself: `_POSIX_REGEXP` and
+   `_POSIX2_C_BIND`; `_POSIX_ASYNCHRONOUS_IO` when picolibc was built
+   with its own POSIX threads, unless the OS provides it;
+   `_POSIX_THREAD_SAFE_FUNCTIONS` when picolibc was built with locking
+   and the OS has threads; and `_POSIX_SPAWN` when the OS has
+   processes, unless the OS provides it.
 
- * **Option group macros** `__PICOLIBC_POSIX_<GROUP>` for the OS-level
-   parts of the POSIX.1-2024 option groups that no option macro covers,
-   with the version met: `C_LIB_EXT`, `DEVICE_IO`, `DEVICE_SPECIFIC`,
-   `DEVICE_SPECIFIC_R`, `DYNAMIC_LINKING`, `FD_MGMT`, `FIFO`,
-   `FIFO_FD`, `FILE_ATTRIBUTES`, `FILE_ATTRIBUTES_FD`, `FILE_SYSTEM`,
-   `FILE_SYSTEM_EXT`, `FILE_SYSTEM_FD`, `MULTI_PROCESS`,
-   `MULTI_PROCESS_FD`, `NETWORKING`, `PIPE`, `SIGNALS`,
-   `SINGLE_PROCESS`, `SYMBOLIC_LINKS`, `SYMBOLIC_LINKS_FD`,
-   `USER_GROUPS`, and `CLOFORK` for the POSIX.1-2024 close-on-fork
-   flags.
+ * **Constants:** `__PICOLIBC_OS_CHOWN_RESTRICTED`,
+   `__PICOLIBC_OS_NO_TRUNC` and `__PICOLIBC_OS_VDISABLE`, which POSIX
+   requires, and `__PICOLIBC_OS_JOB_CONTROL`,
+   `__PICOLIBC_OS_SAVED_IDS` and `__PICOLIBC_OS_SHELL` where provided,
+   with the values `<unistd.h>` publishes as `_POSIX_CHOWN_RESTRICTED`
+   and the rest.
 
- * **Realtime profiles** (IEEE 1003.13-2003): `_POSIX_AEP_REALTIME_MINIMAL`
-   (PSE51), `_CONTROLLER` (PSE52), `_DEDICATED` (PSE53) or `_MULTI`
-   (PSE54). A profile claim implies the smaller profiles and supplies
-   what the profile's tables require of the OS and the header left
-   undefined: its options, with the profile's value (1 for the
-   constants), and its units of functionality, as the option groups
-   or option macros that stand for them. It claims nothing a profile
-   doesn't require, such as `_POSIX_MEMORY_PROTECTION` for PSE51.
+ * **Option groups:** `__PICOLIBC_OS_<GROUP>` for the OS's part of each
+   POSIX.1-2024 option group, with the version met; `<unistd.h>`
+   defines `__PICOLIBC_POSIX_<GROUP>` from it. Groups picolibc
+   implements entirely (`C_LANG_JUMP`, `C_LANG_MATH`, `C_LANG_SUPPORT`,
+   `C_LANG_SUPPORT_R`, `C_LANG_WIDE_CHAR`, `C_LIB_EXT`, `FILE_LOCKING`,
+   `REGEXP`) are always defined, and groups of picolibc code over OS
+   groups follow those (`FILE_SYSTEM_GLOB`, `FILE_SYSTEM_R`,
+   `SYSTEM_DATABASE`, `SYSTEM_DATABASE_R` and `USER_GROUPS_R` follow
+   `FILE_SYSTEM`; `SIGNAL_JUMP` follows `SIGNALS`;
+   `WIDE_CHAR_DEVICE_IO` follows `DEVICE_IO`). The OS's part of each
+   group is the group's interfaces that picolibc doesn't implement:
 
- * **Constants** POSIX requires: `_POSIX_CHOWN_RESTRICTED`,
-   `_POSIX_NO_TRUNC` and `_POSIX_VDISABLE`, and `_POSIX_JOB_CONTROL`,
-   `_POSIX_SAVED_IDS` and `_POSIX_SHELL` where provided.
+   | Group | The OS provides |
+   |---|---|
+| `CLOFORK` | O_CLOFORK, FD_CLOFORK and SOCK_CLOFORK in open, fcntl, dup3, pipe2, accept4 and socket |
+| `DEVICE_IO` | `close`, `poll`, `ppoll`, `pread`, `pselect`, `pwrite`, `read`, `select`, `write` |
+| `DEVICE_SPECIFIC` | `cfgetispeed`, `cfgetospeed`, `cfsetispeed`, `cfsetospeed`, `isatty`, `tcdrain`, `tcflow`, `tcflush`, `tcgetattr`, `tcgetwinsize`, `tcsendbreak`, `tcsetattr`, `tcsetwinsize`, `ttyname` |
+| `DEVICE_SPECIFIC_R` | `ttyname_r` |
+| `DYNAMIC_LINKING` | `dladdr`, `dlclose`, `dlerror`, `dlopen`, `dlsym` |
+| `FD_MGMT` | `dup`, `dup2`, `dup3`, `fcntl`, `ftruncate`, `lseek` |
+| `FIFO` | `mkfifo` |
+| `FIFO_FD` | `mkfifoat`, `mknodat` |
+| `FILE_ATTRIBUTES` | `chmod`, `chown`, `fchmod`, `fchown`, `umask` |
+| `FILE_ATTRIBUTES_FD` | `fchmodat`, `fchownat` |
+| `FILE_SYSTEM` | `access`, `chdir`, `closedir`, `fchdir`, `fpathconf`, `futimens`, `getcwd`, `link`, `mkdir`, `opendir`, `pathconf`, `posix_getdents`, `readdir`, `rename`, `rewinddir`, `rmdir`, `truncate`, `unlink`; stat, lstat and fstat |
+| `FILE_SYSTEM_EXT` | the file system functions glob, nftw and the like rely on, from FILE_SYSTEM |
+| `FILE_SYSTEM_FD` | `faccessat`, `fdopendir`, `fstatat`, `linkat`, `mkdirat`, `openat`, `renameat`, `unlinkat`, `utimensat` |
+| `MULTI_PROCESS` | `_Fork`, `_exit`, `execve`, `fork`, `getpgid`, `getpgrp`, `getpid`, `getppid`, `getrlimit`, `getsid`, `setrlimit`, `setsid`, `times`, `waitid`, `waitpid` |
+| `MULTI_PROCESS_FD` | `fexecve` |
+| `NETWORKING` | `accept`, `accept4`, `bind`, `connect`, `gethostname`, `getpeername`, `getsockname`, `getsockopt`, `if_freenameindex`, `if_indextoname`, `if_nameindex`, `if_nametoindex`, `listen`, `recv`, `recvfrom`, `recvmsg`, `send`, `sendmsg`, `sendto`, `setsockopt`, `shutdown`, `sockatmark`, `socket`, `socketpair` |
+| `PIPE` | `pipe`, `pipe2` |
+| `SIGNALS` | `alarm`, `kill`, `pause`, `raise`, `sigaction`, `signal`, `sigpending`, `sigprocmask`, `sigsuspend`, `sigwait` |
+| `SINGLE_PROCESS` | `sysconf`, `uname` |
+| `SYMBOLIC_LINKS` | `lchown`, `readlink`, `symlink` |
+| `SYMBOLIC_LINKS_FD` | `readlinkat`, `symlinkat` |
+| `USER_GROUPS` | `getegid`, `geteuid`, `getgid`, `getgroups`, `getuid`, `setegid`, `seteuid`, `setgid`, `setuid` |
+
+   `__PICOLIBC_OS_XSI_<GROUP>` likewise describes the OS's part of an
+   XSI option group (`DEVICE_IO`, `DEVICE_SPECIFIC`, `FILE_SYSTEM`,
+   `GENERAL_TERMINAL_R`, `IPC`, `MULTI_PROCESS`, `SIGNALS`,
+   `SINGLE_PROCESS`, `SYSTEM_LOGGING`, `USER_GROUPS`), and
+   `<unistd.h>` defines `__PICOLIBC_XSI_<GROUP>` from it.
+
+ * **Realtime profiles** (IEEE 1003.13-2003):
+   `__PICOLIBC_OS_AEP_REALTIME_MINIMAL` (PSE51), `_CONTROLLER` (PSE52),
+   `_DEDICATED` (PSE53) or `_MULTI` (PSE54). A profile claim implies the
+   smaller profiles and supplies what the profile's tables require of
+   the OS and the header left undefined: its options, with the
+   profile's value (1 for the constants), and its units of
+   functionality, as the option groups or options that stand for them.
+   It claims nothing a profile doesn't require, such as
+   `__PICOLIBC_OS_MEMORY_PROTECTION` for PSE51. `<unistd.h>` defines
+   `_POSIX_AEP_REALTIME_<PROFILE>` from it.
 
 `<unistd.h>` then sets `_POSIX_VERSION` to the newest edition whose
 required options and groups are all present. A system claiming a
 profile without meeting a whole edition implements a subprofile
 (POSIX.1-2024 XBD 2.1.5.1): `<unistd.h>` defines `_POSIX_SUBPROFILE`,
 sets `_POSIX_VERSION` to `202405L`, the edition it profiles, and leaves
-`_POSIX2_VERSION` undefined. These depend on picolibc's share as well as
-the OS's, so the OS must not define `_POSIX_VERSION`, `_POSIX2_VERSION`
-or `_POSIX_SUBPROFILE`; `<unistd.h>` stops with an error if it does. The header may be included in any compilation unit, so
-it uses only macros visible there (Zephyr's, for instance, tests its
-Kconfig `CONFIG_` symbols).
+`_POSIX2_VERSION` undefined. The header may be included in any
+compilation unit, so it uses only macros visible there (Zephyr's, for
+instance, tests its Kconfig `CONFIG_` symbols).
 
 ### `<sys/_pthread.h>`: threads
 
