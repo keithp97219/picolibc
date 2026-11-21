@@ -54,7 +54,7 @@ jn64(int n, __float64 x)
     __float64 z, w;
 
     if (isnan(x))
-        return x + x;
+        return opt_barrier_float(x + x);
 
     if (isinf(x))
         return _F_64(0.0);
@@ -246,7 +246,7 @@ _MATH_ALIAS_d_id(jn)
         return __math_divzero(!(n < 0 && (n & 1)));
 
     if (isnan(x))
-        return x + x;
+        return opt_barrier_float(x + x);
 
     if (hx < 0)
         return __math_invalid(x);
