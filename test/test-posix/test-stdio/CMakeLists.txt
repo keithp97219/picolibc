@@ -42,6 +42,7 @@ set(tests
   test-flockfile
   test-fmemopen
   test-fopen
+  test-freopen
   test-fseek
   test-getdelim
   test-getline
