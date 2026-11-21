@@ -40,6 +40,7 @@ set(tests
   test-chown
   test-confstr
   test-dup3
+  test-execl
   test-execle
   test-execvp
   test-faccessat
