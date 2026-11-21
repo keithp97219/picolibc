@@ -265,7 +265,7 @@
 #endif
 
 /* For interfaces that C23 deprecates but earlier versions of C don't */
-#if (__STDC_VERSION__ - 0) > 201710L
+#if (defined(__STDC_VERSION__) && __STDC_VERSION__ > 201710L)
 #define __deprecated_c23 __deprecated
 #else
 #define __deprecated_c23

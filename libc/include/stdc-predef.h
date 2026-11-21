@@ -44,7 +44,7 @@
 #undef __STDC_IEC_559__
 #undef __STDC_IEC_60559_BFP__
 
-#if __GCC_IEC_559 > 0
+#if defined(__GCC_IEC_559) && __GCC_IEC_559 > 0
 #define __STDC_IEC_559__       1
 #define __STDC_IEC_60559_BFP__ 202311L
 #endif
@@ -52,7 +52,7 @@
 #undef __STDC_IEC_559_COMPLEX__
 #undef __STDC_IEC_60559_COMPLEX__
 
-#if __GCC_IEC_559_COMPLEX > 0
+#if defined(__GCC_IEC_559_COMPLEX) && __GCC_IEC_559_COMPLEX > 0
 #define __STDC_IEC_559_COMPLEX__   1
 #define __STDC_IEC_60559_COMPLEX__ 202311L
 #endif

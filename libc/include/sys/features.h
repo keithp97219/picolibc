@@ -176,18 +176,19 @@ extern "C" {
 #define _POSIX_C_SOURCE 202405L
 #endif
 
-#if !defined(_POSIX_SOURCE) && !defined(_POSIX_C_SOURCE)                                     \
-    && ((!defined(__STRICT_ANSI__) && !defined(_ANSI_SOURCE)) || (_XOPEN_SOURCE - 0) >= 500)
+#if !defined(_POSIX_SOURCE) && !defined(_POSIX_C_SOURCE)           \
+    && ((!defined(__STRICT_ANSI__) && !defined(_ANSI_SOURCE))      \
+        || (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 500))
 #define _POSIX_SOURCE 1
-#if (_XOPEN_SOURCE - 0) >= 800
+#if (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 800)
 #define _POSIX_C_SOURCE 202405L
-#elif !defined(_XOPEN_SOURCE) || (_XOPEN_SOURCE - 0) >= 700
+#elif !defined(_XOPEN_SOURCE) || (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 700)
 #define _POSIX_C_SOURCE 200809L
-#elif (_XOPEN_SOURCE - 0) >= 600
+#elif (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 600)
 #define _POSIX_C_SOURCE 200112L
-#elif (_XOPEN_SOURCE - 0) >= 500
+#elif (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) >= 500)
 #define _POSIX_C_SOURCE 199506L
-#elif (_XOPEN_SOURCE - 0) < 500
+#elif (defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE - 0) < 500)
 #define _POSIX_C_SOURCE 2
 #endif
 #endif
@@ -335,12 +336,14 @@ extern "C" {
 #define _ISOC23_SOURCE 1
 #endif
 
-#if defined(_ISOC23_SOURCE) || (__STDC_VERSION__ - 0) > 201710L || (__cplusplus - 0) >= 202002L
+#if defined(_ISOC23_SOURCE) || (defined(__STDC_VERSION__) && __STDC_VERSION__ > 201710L) \
+    || (defined(__cplusplus) && __cplusplus >= 202002L)
 #define __ISO_C_VISIBLE 2023
-#elif defined(_ISOC11_SOURCE) || (__STDC_VERSION__ - 0) >= 201112L || (__cplusplus - 0) >= 201103L
+#elif defined(_ISOC11_SOURCE) || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L) \
+    || (defined(__cplusplus) && __cplusplus >= 201103L)
 #define __ISO_C_VISIBLE 2011
-#elif defined(_ISOC99_SOURCE) || (_POSIX_C_SOURCE - 0) >= 200112L \
-    || (__STDC_VERSION__ - 0) >= 199901L || defined(__cplusplus)
+#elif defined(_ISOC99_SOURCE) || (defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE - 0) >= 200112L) \
+    || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L) || defined(__cplusplus)
 #define __ISO_C_VISIBLE 1999
 #else
 #define __ISO_C_VISIBLE 1990
@@ -358,17 +361,17 @@ extern "C" {
 #define __MISC_VISIBLE 0
 #endif
 
-#if (_POSIX_C_SOURCE - 0) >= 202405L
+#if (defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE - 0) >= 202405L)
 #define __POSIX_VISIBLE 202405
-#elif (_POSIX_C_SOURCE - 0) >= 200809L
+#elif (defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE - 0) >= 200809L)
 #define __POSIX_VISIBLE 200809
-#elif (_POSIX_C_SOURCE - 0) >= 200112L
+#elif (defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE - 0) >= 200112L)
 #define __POSIX_VISIBLE 200112
-#elif (_POSIX_C_SOURCE - 0) >= 199506L
+#elif (defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE - 0) >= 199506L)
 #define __POSIX_VISIBLE 199506
-#elif (_POSIX_C_SOURCE - 0) >= 199309L
+#elif (defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE - 0) >= 199309L)
 #define __POSIX_VISIBLE 199309
-#elif (_POSIX_C_SOURCE - 0) >= 2 || defined(_XOPEN_SOURCE)
+#elif (defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE - 0) >= 2) || defined(_XOPEN_SOURCE)
 #define __POSIX_VISIBLE 199209
 #elif defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE)
 #define __POSIX_VISIBLE 199009
