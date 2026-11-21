@@ -104,7 +104,6 @@ main(void)
     check((st.st_mode & 0777) == 0644, "mode less the umask");
     check(st.st_uid == geteuid(), "owner");
     check(ftruncate(fd, 4096) == 0, "ftruncate");
-    check(pwrite(fd, "data", 4, 0) == 4, "pwrite");
 
     /* Each open has its own open file description */
     fd2 = shm_open(name, O_RDWR, 0);
@@ -136,7 +135,7 @@ main(void)
     check(fstat(fd2, &st) == 0 && st.st_size == 0 && (st.st_mode & 0777) == 0644,
           "truncated, mode kept");
     check(close(fd2) == 0, "close");
-    check(pwrite(fd, "data", 4, 0) == 4, "pwrite");
+    check(ftruncate(fd, 4096) == 0, "ftruncate");
 
     /* Permissions: only when they apply to this process */
     if (geteuid() != 0) {
@@ -155,6 +154,8 @@ main(void)
     /* Unlinking removes the name at once; the object lives while referenced */
     map = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     check(map != MAP_FAILED, "mmap");
+    /* write on a shared memory object is unspecified; store through the mapping */
+    memcpy(map, "data", 4);
     check(close(fd) == 0, "close");
     check(shm_unlink(name) == 0, "shm_unlink");
     errno = 0;

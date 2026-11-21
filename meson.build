@@ -1654,12 +1654,21 @@ conf_data.set('__PICOLIBC_PTHREADS', posix_threads, description: 'POSIX threads 
 network = get_option('network')
 network_linux_possible = get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
 if network == 'auto'
-  network = network_linux_possible ? 'linux' : 'none'
+  if network_linux_possible
+    network = 'linux'
+  elif os_freebsd
+    network = 'freebsd'
+  else
+    network = 'none'
+  endif
 elif network == 'linux' and not network_linux_possible
   error('network=linux requires the linux OS layer')
+elif network == 'freebsd' and not os_freebsd
+  error('network=freebsd requires the freebsd OS layer')
 endif
 conf_data.set('__PICOLIBC_NETWORK', network != 'none', description: 'Networking interfaces are available')
 conf_data.set('__PICOLIBC_NETWORK_LINUX', network == 'linux', description: 'Networking uses the Linux API and ABI')
+conf_data.set('__PICOLIBC_NETWORK_FREEBSD', network == 'freebsd', description: 'Networking uses the FreeBSD API and ABI')
 
 # The DNS resolver used when the hosts database has no answer
 network_dns = get_option('network-dns')

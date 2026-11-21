@@ -33,22 +33,39 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
-#include <sys/mman.h>
+#include "local-mman.h"
+#include <freebsd/freebsd-errno.h>
 
 void *
 mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-    int  kprot = 0;
     int  kflags = 0;
     long ret;
 
-    if (prot & PROT_READ)
-        kprot |= FREEBSD_PROT_READ;
-    if (prot & PROT_WRITE)
-        kprot |= FREEBSD_PROT_WRITE;
-    if (prot & PROT_EXEC)
-        kprot |= FREEBSD_PROT_EXEC;
+    /*
+     * FreeBSD maps at the page holding an unaligned offset, and takes
+     * an anonymous mapping that is neither shared nor private as
+     * private; POSIX wants EINVAL for those and for no length
+     */
+    if (length == 0 || (offset & FREEBSD_PAGE_MASK)
+        || ((flags & MAP_FIXED) && ((uintptr_t)addr & FREEBSD_PAGE_MASK))
+        || ((flags & (MAP_SHARED | MAP_PRIVATE)) != MAP_SHARED
+            && (flags & (MAP_SHARED | MAP_PRIVATE)) != MAP_PRIVATE)) {
+        errno = EINVAL;
+        return MAP_FAILED;
+    }
+    /*
+     * POSIX wants a descriptor open for reading whatever the
+     * protection; FreeBSD maps a write-only one for writing
+     */
+    if (!(flags & MAP_ANONYMOUS)) {
+        long fl = _syscall_raw(FREEBSD_SYS_fcntl, fd, FREEBSD_F_GETFL);
+
+        if (fl >= 0 && ((fl & FREEBSD_O_ACCMODE) == FREEBSD_O_WRONLY || (fl & FREEBSD_O_EXEC))) {
+            errno = EACCES;
+            return MAP_FAILED;
+        }
+    }
     if (flags & MAP_SHARED)
         kflags |= FREEBSD_MAP_SHARED;
     if (flags & MAP_PRIVATE)
@@ -57,8 +74,19 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
         kflags |= FREEBSD_MAP_FIXED;
     if (flags & MAP_ANONYMOUS)
         kflags |= FREEBSD_MAP_ANON;
-    ret = _syscall(FREEBSD_SYS_mmap, addr, length, kprot, kflags, fd, offset);
-    if (ret == -1)
+    ret = _syscall_raw(FREEBSD_SYS_mmap, addr, length, _prot_to_freebsd(prot), kflags, fd, offset);
+    if (ret < 0 && ret > -4096) {
+        /*
+         * A fixed range past the end of the address space is EINVAL to
+         * FreeBSD and ENOMEM to POSIX. User space is the lower half
+         */
+        if (ret == _FREEBSD_ERR(FREEBSD_EINVAL) && (flags & MAP_FIXED)
+            && ((uintptr_t)addr + length < (uintptr_t)addr
+                || (intptr_t)((uintptr_t)addr + length - 1) < 0))
+            errno = ENOMEM;
+        else
+            errno = _syscall_errno(ret);
         return MAP_FAILED;
+    }
     return (void *)ret;
 }

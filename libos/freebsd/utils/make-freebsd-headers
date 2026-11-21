@@ -131,6 +131,18 @@ PROBE_HEADERS = [
     "sys/unistd.h",
     "sys/rtprio.h",
     "sys/aio.h",
+    # Networking, terminals, IPC and message queues
+    "sys/un.h",
+    "sys/sockio.h",
+    "netinet/in.h",
+    "netinet/tcp.h",
+    "net/if.h",
+    "sys/ipc.h",
+    "sys/msg.h",
+    "sys/sem.h",
+    "sys/shm.h",
+    "sys/mqueue.h",
+    "sys/param.h",
 ]
 
 # Constant groups: output name, the header whose '#define NAME' lines
@@ -144,7 +156,7 @@ CONSTANTS = [
     ("wait", ["sys/wait.h"], r"(W[A-Z]+|P_[A-Z]+)", True),
     ("poll", ["sys/poll.h"], r"POLL[A-Z0-9]+", True),
     ("ioctl", ["sys/ttycom.h", "sys/filio.h"], r"(TIOC[A-Z0-9_]+|FIO[A-Z0-9_]+)", True),
-    ("termios", ["sys/_termios.h"], r"(V[A-Z0-9]+|NCCS|[IOCL][A-Z0-9]+|B[0-9]+|EXTA|EXTB|TCSA[A-Z]+|TC[IO]?[A-Z]+)", True),
+    ("termios", ["sys/_termios.h"], r"(V[A-Z0-9]+|NCCS|[IOCL][A-Z0-9]+|B[0-9]+|BRKINT|EXTA|EXTB|TCSA[A-Z]+|TC[IO]?[A-Z]+|ECHO[A-Z]*|NOFLSH|TOSTOP|PAR[A-Z]+|HUPCL|TAB[A-Z0-9]+|PENDIN|FLUSHO|EXTPROC|NOKERNINFO|ALTWERASE)", True),
     ("resource", ["sys/resource.h"], r"(RLIMIT_[A-Z0-9_]+|RLIM_INFINITY|RLIM_NLIMITS|PRIO_[A-Z]+|RUSAGE_[A-Z]+)", False),
     ("thr", ["sys/thr.h", "sys/umtx.h", "sys/_umtx.h"], r"(THR_[A-Z_]+|UMTX_[A-Z0-9_]+)", False),
     ("sysarch", ["x86/sysarch.h"], r"(AMD64|I386)_[A-Z_]+", False),
@@ -152,6 +164,14 @@ CONSTANTS = [
     ("sched", ["sys/sched.h"], r"SCHED_(FIFO|OTHER|RR)", False),
     ("mount", ["sys/mount.h"], r"MNT_(RDONLY|NOSUID|WAIT|NOWAIT)", True),
     ("rtprio", ["sys/rtprio.h"], r"RTP_[A-Z_]+", False),
+    ("socket", ["sys/socket.h"], r"(SOCK_(STREAM|DGRAM|RAW|RDM|SEQPACKET|MAXADDRLEN)|SOL_SOCKET|SO_[A-Z_]+|AF_[A-Z0-9_]+|PF_[A-Z0-9_]+|SHUT_[A-Z]+|SCM_[A-Z_]+|SOMAXCONN)", False),
+    ("socket-flags", ["sys/socket.h"], r"(SOCK_(CLOEXEC|CLOFORK|NONBLOCK)|MSG_[A-Z_]+)", True),
+    ("in", ["netinet/in.h", "netinet6/in6.h"], r"(IPPROTO_[A-Z0-9]+|IPV6_[A-Z0-9_]+|IP_[A-Z0-9_]+|INADDR_[A-Z_]+|INET6?_ADDRSTRLEN)", False),
+    ("tcp", ["netinet/tcp.h"], r"TCP_[A-Z_]+", False),
+    ("if", ["net/if.h", "sys/sockio.h"], r"(IF_NAMESIZE|IFNAMSIZ|SIOC[A-Z0-9]+)", True),
+    ("ipc", ["sys/ipc.h", "sys/msg.h", "sys/sem.h", "sys/shm.h"], r"(IPC_[A-Z]+|MSG_NOERROR|SEM_[A-Z]+|GET(PID|VAL|ALL|NCNT|ZCNT)|SET(VAL|ALL)|SHM_[A-Z]+|SHMLBA)", False),
+    ("fflags", ["sys/fcntl.h"], r"F(READ|WRITE)", True),
+    ("param", ["machine/param.h"], r"PAGE_(SIZE|SHIFT|MASK)", False),
     ("sysctl", ["sys/sysctl.h"], r"(CTL_(KERN|HW)|KERN_(OSTYPE|OSRELEASE|VERSION|HOSTNAME|ARND)|HW_(MACHINE|PAGESIZE|NCPU))", False),
     ("fadvise", ["sys/fcntl.h"], r"POSIX_FADV_[A-Z]+", False),
     ("pathconf", ["sys/unistd.h"], r"_PC_[A-Z0-9_]+", False),
@@ -229,6 +249,76 @@ STRUCTS = [
         ("aio_fildes", "int"), ("aio_offset", "__int64_t"), ("aio_buf", "void *"),
         ("aio_nbytes", "__size_t"), ("aio_sigevent", "struct __freebsd_sigevent"),
     ]),
+    # Networking
+    ("sockaddr", "struct sockaddr", [
+        ("sa_len", "__uint8_t"), ("sa_family", "__uint8_t"), ("sa_data", "char[14]"),
+    ]),
+    ("sockaddr_storage", "struct sockaddr_storage", [
+        ("ss_len", "__uint8_t"), ("ss_family", "__uint8_t"),
+    ]),
+    ("sockaddr_in", "struct sockaddr_in", [
+        ("sin_len", "__uint8_t"), ("sin_family", "__uint8_t"), ("sin_port", "__uint16_t"),
+        ("sin_addr", "__uint32_t"), ("sin_zero", "char[8]"),
+    ]),
+    ("sockaddr_in6", "struct sockaddr_in6", [
+        ("sin6_len", "__uint8_t"), ("sin6_family", "__uint8_t"), ("sin6_port", "__uint16_t"),
+        ("sin6_flowinfo", "__uint32_t"), ("sin6_addr", "__uint8_t[16]"),
+        ("sin6_scope_id", "__uint32_t"),
+    ]),
+    ("sockaddr_un", "struct sockaddr_un", [
+        ("sun_len", "__uint8_t"), ("sun_family", "__uint8_t"), ("sun_path", "char[104]"),
+    ]),
+    ("msghdr", "struct msghdr", [
+        ("msg_name", "void *"), ("msg_namelen", "__uint32_t"), ("msg_iov", "void *"),
+        ("msg_iovlen", "int"), ("msg_control", "void *"), ("msg_controllen", "__uint32_t"),
+        ("msg_flags", "int"),
+    ]),
+    ("cmsghdr", "struct cmsghdr", [
+        ("cmsg_len", "__uint32_t"), ("cmsg_level", "int"), ("cmsg_type", "int"),
+    ]),
+    ("linger", "struct linger", [("l_onoff", "int"), ("l_linger", "int")]),
+    ("ipv6_mreq", "struct ipv6_mreq", [
+        ("ipv6mr_multiaddr", "__uint8_t[16]"), ("ipv6mr_interface", "unsigned int"),
+    ]),
+    ("ifreq", "struct ifreq", [
+        ("ifr_name", "char[16]"), ("ifr_index", "short", "ifr_ifru.ifru_index"),
+    ]),
+    ("ifconf", "struct ifconf", [
+        ("ifc_len", "int"), ("ifc_buf", "void *", "ifc_ifcu.ifcu_buf"),
+    ]),
+    # System V IPC and message queues
+    ("ipc_perm", "struct ipc_perm", [
+        ("cuid", "__uint32_t"), ("cgid", "__uint32_t"), ("uid", "__uint32_t"),
+        ("gid", "__uint32_t"), ("mode", "__uint16_t"), ("seq", "__uint16_t"),
+        ("key", "long"),
+    ]),
+    ("msqid_ds", "struct msqid_ds", [
+        ("msg_perm", "struct __freebsd_ipc_perm"), ("msg_cbytes", "unsigned long"),
+        ("msg_qnum", "unsigned long"), ("msg_qbytes", "unsigned long"),
+        ("msg_lspid", "int"), ("msg_lrpid", "int"), ("msg_stime", "__int64_t"),
+        ("msg_rtime", "__int64_t"), ("msg_ctime", "__int64_t"),
+    ]),
+    ("semid_ds", "struct semid_ds", [
+        ("sem_perm", "struct __freebsd_ipc_perm"), ("sem_nsems", "unsigned short"),
+        ("sem_otime", "__int64_t"), ("sem_ctime", "__int64_t"),
+    ]),
+    ("sembuf", "struct sembuf", [
+        ("sem_num", "unsigned short"), ("sem_op", "short"), ("sem_flg", "short"),
+    ]),
+    ("shmid_ds", "struct shmid_ds", [
+        ("shm_perm", "struct __freebsd_ipc_perm"), ("shm_segsz", "__size_t"),
+        ("shm_lpid", "int"), ("shm_cpid", "int"), ("shm_nattch", "unsigned int"),
+        ("shm_atime", "__int64_t"), ("shm_dtime", "__int64_t"), ("shm_ctime", "__int64_t"),
+    ]),
+    ("mq_attr", "struct mq_attr", [
+        ("mq_flags", "long"), ("mq_maxmsg", "long"), ("mq_msgsize", "long"),
+        ("mq_curmsgs", "long"),
+    ]),
+    ("mq_sigevent", "struct sigevent", [
+        ("sigev_notify", "int"), ("sigev_signo", "int"), ("sigev_value", "void *"),
+    ]),
+    # Terminal names
+    ("fiodgname_arg", "struct fiodgname_arg", [("len", "int"), ("buf", "void *")]),
     ("umtx_time", "struct _umtx_time", [
         ("_timeout", "struct __freebsd_timespec"), ("_flags", "__uint32_t"),
         ("_clockid", "__uint32_t"),

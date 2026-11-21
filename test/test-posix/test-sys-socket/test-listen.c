@@ -37,7 +37,8 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_NETWORKING)
+#if defined(__PICOLIBC_POSIX_NETWORKING) && defined(__PICOLIBC_POSIX_DEVICE_IO) \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_PIPE)
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -134,7 +135,10 @@ queue_length(const char *name, int backlog)
     for (n = 0; n < MAX_QUEUE; n++) {
         clients[n] = make_socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK);
         if (connect(clients[n], (struct sockaddr *)&sun, sizeof(sun)) != 0) {
-            check(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINPROGRESS, "queue full");
+            /* A full queue may also refuse the connection, as FreeBSD's does */
+            check(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINPROGRESS
+                      || errno == ECONNREFUSED,
+                  "queue full");
             check(close(clients[n]) == 0, "close");
             break;
         }

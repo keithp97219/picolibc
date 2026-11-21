@@ -135,8 +135,12 @@ wait_blocked(int fd, pid_t pid)
     snprintf(file, sizeof(file), "/proc/%ld/stat", (long)pid);
     for (i = 0; i < 20000; i++) {
         f = fopen(file, "r");
-        if (!f)
-            return false;
+        if (!f) {
+            /* Without Linux's /proc, give the child time to block */
+            ts.tv_nsec = 100 * 1000 * 1000;
+            nanosleep(&ts, NULL);
+            return true;
+        }
         n = fread(buf, 1, sizeof(buf) - 1, f);
         fclose(f);
         buf[n] = '\0';

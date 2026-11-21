@@ -37,7 +37,9 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_NETWORKING)
+#if defined(__PICOLIBC_POSIX_NETWORKING) && defined(__PICOLIBC_POSIX_DEVICE_IO)     \
+    && defined(__PICOLIBC_POSIX_FD_MGMT) && defined(__PICOLIBC_POSIX_MULTI_PROCESS) \
+    && defined(__PICOLIBC_POSIX_PIPE) && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -238,8 +240,14 @@ main(void)
     pfd.fd = client;
     pfd.events = POLLIN;
     check(poll(&pfd, 1, -1) == 1, "reset arrived");
+    /*
+     * POSIX gives ECONNRESET for a connection closed by the peer, and
+     * EPIPE for one no longer connected; a reset is both (FreeBSD says
+     * EPIPE, Linux ECONNRESET)
+     */
     errno = 0;
-    check(send(client, "x", 1, MSG_NOSIGNAL) == -1 && errno == ECONNRESET, "ECONNRESET");
+    check(send(client, "x", 1, MSG_NOSIGNAL) == -1 && (errno == ECONNRESET || errno == EPIPE),
+          "ECONNRESET");
     check(close(client) == 0, "close");
 
     /* Datagrams need a peer, and must fit */

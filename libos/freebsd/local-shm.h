@@ -74,4 +74,30 @@ _shm_path(char *path, const char *prefix, const char *name)
     return 0;
 }
 
+/*
+ * Build the kernel's name for a shared memory object or message
+ * queue: one '/' and the name. Portable names start with '/' and
+ * contain no other; as libos/linux does, the leading '/' is optional.
+ * Returns 0 or an errno value.
+ */
+static inline int
+_shm_kernel_name(char *path, const char *name)
+{
+    size_t name_len;
+
+    while (name[0] == '/')
+        name++;
+    name_len = strlen(name);
+    if (name_len == 0 || strchr(name, '/') != NULL)
+        return EINVAL;
+    /* As on Linux, where they would name directories */
+    if (name[0] == '.' && (name_len == 1 || (name_len == 2 && name[1] == '.')))
+        return EINVAL;
+    if (name_len > NAME_MAX)
+        return ENAMETOOLONG;
+    path[0] = '/';
+    memcpy(path + 1, name, name_len + 1);
+    return 0;
+}
+
 #endif /* _LOCAL_SHM_H_ */

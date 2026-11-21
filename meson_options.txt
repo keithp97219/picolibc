@@ -249,8 +249,8 @@ option('single-thread', type: 'boolean', value: false,
        description: 'disable support for multiple threads')
 option('posix-threads', type: 'combo', choices: ['auto', 'true', 'false'], value: 'auto',
        description: 'Provide POSIX threads and install pthread.h. "auto" enables them for the linux OS layer on machines with thread support')
-option('network', type: 'combo', choices: ['auto', 'none', 'linux'], value: 'auto',
-       description: 'Networking API and ABI. "linux" uses the linux OS layer\'s sockets; "auto" selects it when that layer is built, and "none" otherwise')
+option('network', type: 'combo', choices: ['auto', 'none', 'linux', 'freebsd'], value: 'auto',
+       description: 'Networking API and ABI. "linux" and "freebsd" use that OS layer\'s sockets; "auto" selects the one being built, and "none" otherwise')
 option('network-dns', type: 'combo', choices: ['auto', 'true', 'false'], value: 'auto',
        description: 'Look up host names missing from /etc/hosts with DNS. "auto" enables it with network=linux')
 

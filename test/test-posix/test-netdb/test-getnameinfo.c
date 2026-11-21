@@ -218,7 +218,8 @@ main(void)
                   == 0
               && strcmp(host, "::1") == 0,
           "IPv6");
-    sin6.sin6_family = 12345;
+    /* sa_family_t may have just eight bits; no system assigns 250 */
+    sin6.sin6_family = 250;
     check(getnameinfo((struct sockaddr *)&sin6, sizeof(sin6), host, sizeof(host), NULL, 0, 0)
               == EAI_FAMILY,
           "EAI_FAMILY");
