@@ -38,10 +38,10 @@
 #include <stdint.h>
 
 /*
- * The kernel's robust list links the __robust_next members of the
+ * The kernel's robust list links the __list_next members of the
  * mutexes a thread holds. Bit 0 of each link marks the entry as a
  * priority inheritance futex.
- * __robust_prev points back at the link naming the mutex so that
+ * __list_prev points back at the link naming the mutex so that
  * unlocking needn't search the list; the kernel ignores it.
  */
 #define ROBUST_PI 1
@@ -55,7 +55,7 @@ robust_pi(pthread_mutex_t *mutex)
 static void *
 robust_node(pthread_mutex_t *mutex)
 {
-    return (void *)((uintptr_t)&mutex->__robust_next | (robust_pi(mutex) ? ROBUST_PI : 0));
+    return (void *)((uintptr_t)&mutex->__list_next | (robust_pi(mutex) ? ROBUST_PI : 0));
 }
 
 static void
@@ -65,7 +65,7 @@ robust_register(struct __pthread *self)
         return;
     self->os.robust.list = &self->os.robust.list;
     self->os.robust.futex_offset
-        = (long)offsetof(pthread_mutex_t, __state) - (long)offsetof(pthread_mutex_t, __robust_next);
+        = (long)offsetof(pthread_mutex_t, __state) - (long)offsetof(pthread_mutex_t, __list_next);
     self->os.robust.list_op_pending = NULL;
     if (_syscall_raw(LINUX_SYS_set_robust_list, &self->os.robust, sizeof(self->os.robust)) == 0)
         self->os.robust_registered = true;
@@ -102,7 +102,7 @@ robust_entry(void *link, struct __pthread *self)
 
     if (next == &self->os.robust.list)
         return NULL;
-    return (pthread_mutex_t *)((char *)next - offsetof(pthread_mutex_t, __robust_next));
+    return (pthread_mutex_t *)((char *)next - offsetof(pthread_mutex_t, __list_next));
 }
 
 /* Add the mutex to the front of the thread's list */
@@ -111,10 +111,10 @@ robust_link(pthread_mutex_t *mutex, struct __pthread *self)
 {
     pthread_mutex_t *first = robust_entry(self->os.robust.list, self);
 
-    mutex->__robust_next = self->os.robust.list;
-    mutex->__robust_prev = &self->os.robust.list;
+    mutex->__list_next = self->os.robust.list;
+    mutex->__list_prev = &self->os.robust.list;
     if (first)
-        first->__robust_prev = &mutex->__robust_next;
+        first->__list_prev = &mutex->__list_next;
     /* The kernel may walk the list should the thread die; publish the mutex last */
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
     self->os.robust.list = robust_node(mutex);
@@ -195,12 +195,12 @@ static void
 robust_release(pthread_mutex_t *mutex, struct __pthread *self)
 {
     unsigned int     state = (unsigned int)self->tid;
-    pthread_mutex_t *next = robust_entry(mutex->__robust_next, self);
+    pthread_mutex_t *next = robust_entry(mutex->__list_next, self);
 
     /* Unlink the mutex from the thread's list */
     if (next)
-        next->__robust_prev = mutex->__robust_prev;
-    *(void **)mutex->__robust_prev = mutex->__robust_next;
+        next->__list_prev = mutex->__list_prev;
+    *(void **)mutex->__list_prev = mutex->__list_next;
     if (robust_pi(mutex)) {
         /* With waiters, or the owner-died bit, the kernel hands the lock on */
         if (!__atomic_compare_exchange_n(&mutex->__state, &state, 0, false, __ATOMIC_RELEASE,
@@ -256,4 +256,19 @@ _pthread_robust_unlock(pthread_mutex_t *mutex, struct __pthread *self)
     robust_release(mutex, self);
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
     self->os.robust.list_op_pending = NULL;
+}
+
+int
+_pthread_robust_ceiling(struct __pthread *self)
+{
+    int              max = _PTHREAD_TPP_NONE;
+    pthread_mutex_t *m;
+
+    /* The list exists once the thread has locked a robust mutex */
+    if (!self->os.robust.list)
+        return max;
+    for (m = robust_entry(self->os.robust.list, self); m; m = robust_entry(m->__list_next, self))
+        if (m->__protocol == PTHREAD_PRIO_PROTECT && m->__prioceiling > max)
+            max = m->__prioceiling;
+    return max;
 }

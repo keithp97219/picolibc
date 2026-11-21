@@ -164,6 +164,9 @@ typedef char _pthread_sigset_t;
 #define _PTHREAD_PRIO_MAX 0
 #endif
 
+/* No PTHREAD_PRIO_PROTECT mutex held, below every priority */
+#define _PTHREAD_TPP_NONE INT16_MIN
+
 #if !defined(_PTHREAD_HAVE_PI) && !defined(_PTHREAD_HAVE_ROBUST)
 #define _PTHREAD_FUTEX_TID_MASK   UINT_MAX
 #define _PTHREAD_FUTEX_OWNER_DIED 0U
@@ -220,10 +223,15 @@ struct __pthread {
     unsigned int               start_wait;
     int                        start_error;
 
-    /* Ceilings of the PTHREAD_PRIO_PROTECT mutexes held, and the priority without them */
-    unsigned short             tpp_count[_PTHREAD_PRIO_MAX + 1];
-    unsigned int               tpp_held;
-    int                        tpp_base;
+    /*
+     * The PTHREAD_PRIO_PROTECT mutexes held (other than robust ones,
+     * which are on the robust list), the highest of their ceilings
+     * (_PTHREAD_TPP_NONE when none is held) and the priority without
+     * them
+     */
+    pthread_mutex_t           *tpp_list;
+    int16_t                    tpp_max;
+    int16_t                    tpp_base;
 
     /* Cancellation */
     struct __pthread_cleanup  *cleanup;
@@ -328,6 +336,8 @@ int  _pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clocki
 void _pthread_robust_unlock(pthread_mutex_t *mutex, struct __pthread *self);
 void _pthread_robust_reset(struct __pthread *self);
 bool _pthread_robust_available(void);
+/* The highest ceiling of the PTHREAD_PRIO_PROTECT robust mutexes held */
+int  _pthread_robust_ceiling(struct __pthread *self);
 #else
 static inline int
 _pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t clock,
@@ -358,6 +368,13 @@ static inline bool
 _pthread_robust_available(void)
 {
     return false;
+}
+
+static inline int
+_pthread_robust_ceiling(struct __pthread *self)
+{
+    (void)self;
+    return _PTHREAD_TPP_NONE;
 }
 #endif
 
@@ -402,11 +419,21 @@ _pthread_cond_pshared(pthread_cond_t *cond)
 }
 
 /*
- * Priority protection: count the ceilings of the PTHREAD_PRIO_PROTECT
- * mutexes a thread holds and run a real-time thread at the highest.
+ * Priority protection: a real-time thread runs at the highest ceiling
+ * of the PTHREAD_PRIO_PROTECT mutexes it holds. raise lifts the thread
+ * to a ceiling before it takes the mutex; link and unlink keep the
+ * held list while it owns the mutex (a mutex another thread holds is
+ * on that thread's list; unlink takes the ceiling it was linked with,
+ * which pthread_mutex_setprioceiling may since have changed); lower
+ * sets the priority from what is held, after unlocking or a failed
+ * attempt.
  */
+_Static_assert(_PTHREAD_PRIO_MIN > INT16_MIN && _PTHREAD_PRIO_MAX <= INT16_MAX,
+               "priorities fit in int16_t");
 int  _pthread_tpp_raise(struct __pthread *self, int ceiling);
-void _pthread_tpp_lower(struct __pthread *self, int ceiling);
+void _pthread_tpp_link(struct __pthread *self, pthread_mutex_t *mutex);
+void _pthread_tpp_unlink(struct __pthread *self, pthread_mutex_t *mutex, int ceiling);
+void _pthread_tpp_lower(struct __pthread *self);
 
 /* Unlock, lowering the thread's priority from ceiling for PTHREAD_PRIO_PROTECT */
 int  _pthread_mutex_unlock_ceiling(pthread_mutex_t *mutex, int ceiling);

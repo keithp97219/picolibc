@@ -60,7 +60,7 @@ pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t
     mutex->__count = 0;
     mutex->__robust = attr ? attr->__robust : PTHREAD_MUTEX_STALLED;
     mutex->__robust_state = _PTHREAD_ROBUST_CONSISTENT;
-    mutex->__robust_next = NULL;
-    mutex->__robust_prev = NULL;
+    mutex->__list_next = NULL;
+    mutex->__list_prev = NULL;
     return 0;
 }

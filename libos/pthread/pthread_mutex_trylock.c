@@ -63,17 +63,23 @@ pthread_mutex_trylock(pthread_mutex_t *mutex)
     }
     if (mutex->__robust) {
         ret = _pthread_robust_lock(mutex, self, CLOCK_REALTIME, NULL, true);
-        if (ret && ret != EOWNERDEAD && protocol == PTHREAD_PRIO_PROTECT)
-            _pthread_tpp_lower(self, ceiling);
+        if (protocol == PTHREAD_PRIO_PROTECT) {
+            if (ret == 0 || ret == EOWNERDEAD)
+                _pthread_tpp_link(self, mutex);
+            else
+                _pthread_tpp_lower(self);
+        }
         return ret;
     }
     if (!__atomic_compare_exchange_n(&mutex->__state, &state,
                                      protocol == PTHREAD_PRIO_INHERIT ? (unsigned int)tid : 1,
                                      false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
         if (protocol == PTHREAD_PRIO_PROTECT)
-            _pthread_tpp_lower(self, ceiling);
+            _pthread_tpp_lower(self);
         return EBUSY;
     }
+    if (protocol == PTHREAD_PRIO_PROTECT)
+        _pthread_tpp_link(self, mutex);
     if (mutex->__type != PTHREAD_MUTEX_NORMAL && protocol != PTHREAD_PRIO_INHERIT)
         __atomic_store_n(&mutex->__owner, tid, __ATOMIC_RELAXED);
     return 0;

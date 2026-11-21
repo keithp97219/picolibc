@@ -36,6 +36,7 @@
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
 
+/* Before taking a mutex: run at its ceiling if that's higher */
 int
 _pthread_tpp_raise(struct __pthread *self, int ceiling)
 {
@@ -46,8 +47,8 @@ _pthread_tpp_raise(struct __pthread *self, int ceiling)
     if (ret)
         return ret;
     realtime = policy == SCHED_FIFO || policy == SCHED_RR;
-    if (self->tpp_held == 0)
-        self->tpp_base = priority;
+    if (self->tpp_max == _PTHREAD_TPP_NONE)
+        self->tpp_base = (int16_t)priority;
     if (realtime && self->tpp_base > ceiling)
         return EINVAL;
     if (realtime && ceiling > priority) {
@@ -55,7 +56,23 @@ _pthread_tpp_raise(struct __pthread *self, int ceiling)
         if (ret)
             return ret;
     }
-    self->tpp_count[ceiling]++;
-    self->tpp_held++;
     return 0;
+}
+
+/* Once the mutex is held: add it to the thread's list */
+void
+_pthread_tpp_link(struct __pthread *self, pthread_mutex_t *mutex)
+{
+    int ceiling = mutex->__prioceiling;
+
+    /* Robust mutexes are on the robust list already */
+    if (!mutex->__robust) {
+        mutex->__list_next = self->tpp_list;
+        mutex->__list_prev = &self->tpp_list;
+        if (self->tpp_list)
+            self->tpp_list->__list_prev = &mutex->__list_next;
+        self->tpp_list = mutex;
+    }
+    if (ceiling > self->tpp_max)
+        self->tpp_max = (int16_t)ceiling;
 }

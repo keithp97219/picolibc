@@ -38,7 +38,7 @@
 
 __thread struct __pthread *_pthread_current;
 
-struct __pthread           _pthread_main;
+struct __pthread           _pthread_main = { .tpp_max = _PTHREAD_TPP_NONE };
 
 /* Number of running threads; the last one to call pthread_exit ends the process */
 int                        _pthread_count = 1;

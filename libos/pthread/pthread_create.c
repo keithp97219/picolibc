@@ -112,6 +112,7 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
 
     t = (struct __pthread *)round_down(top - layout.desc_size, layout.align);
     memset(t, 0, layout.desc_size);
+    t->tpp_max = _PTHREAD_TPP_NONE;
     t->specific = (struct __pthread_specific *)(t + 1);
     tls = (char *)round_down((uintptr_t)t - layout.tls_size, layout.align);
     _init_tls(tls);

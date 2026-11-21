@@ -94,8 +94,12 @@ typedef struct {
     unsigned int __count; /* recursion depth beyond the first lock */
     int          __robust;
     int          __robust_state; /* consistent, inconsistent or not recoverable */
-    void        *__robust_next;  /* the owner's list of robust mutexes, for the kernel */
-    void        *__robust_prev;  /* the list link pointing at this mutex */
+    /*
+     * The owner's list of the mutexes it must track: robust ones, for
+     * the kernel, or else PTHREAD_PRIO_PROTECT ones, for their ceilings
+     */
+    void        *__list_next;
+    void        *__list_prev; /* the list link pointing at this mutex */
 } pthread_mutex_t;
 
 typedef struct {

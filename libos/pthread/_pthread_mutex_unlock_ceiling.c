@@ -57,8 +57,13 @@ _pthread_mutex_unlock_ceiling(pthread_mutex_t *mutex, int ceiling)
             __atomic_store_n(&mutex->__owner, 0, __ATOMIC_RELAXED);
     }
 
+    /* Off the held list while still owning it; robust ones once off the robust list */
+    if (protocol == PTHREAD_PRIO_PROTECT && !mutex->__robust)
+        _pthread_tpp_unlink(self, mutex, ceiling);
     if (mutex->__robust) {
         _pthread_robust_unlock(mutex, self);
+        if (protocol == PTHREAD_PRIO_PROTECT)
+            _pthread_tpp_unlink(self, mutex, ceiling);
     } else if (protocol == PTHREAD_PRIO_INHERIT) {
         unsigned int state = (unsigned int)self->tid;
 
@@ -71,6 +76,6 @@ _pthread_mutex_unlock_ceiling(pthread_mutex_t *mutex, int ceiling)
     }
 
     if (protocol == PTHREAD_PRIO_PROTECT)
-        _pthread_tpp_lower(self, ceiling);
+        _pthread_tpp_lower(self);
     return 0;
 }
