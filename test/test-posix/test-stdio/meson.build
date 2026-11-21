@@ -54,6 +54,7 @@ dir_tests = [
   'test-stdio_h',
   'test-stdio_h-names',
   'test-stdio_h-xsi',
+  'test-tmpnam',
 ]
 
 # These need threads; they use the library's own locks
