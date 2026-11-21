@@ -44,11 +44,17 @@ pread(int fd, void *buf, size_t count, off_t offset)
     void *cancel;
     long  ret;
 
+    cancel = _cancel_enter();
+    /*
+     * Linux reports EINVAL for any negative offset, but a file that
+     * can't seek gives ESPIPE, as lseek reports it
+     */
     if (offset < 0) {
-        errno = EINVAL;
+        if (lseek(fd, 0, SEEK_CUR) >= 0)
+            errno = EINVAL;
+        _cancel_leave(cancel);
         return -1;
     }
-    cancel = _cancel_enter();
 #if __SIZEOF_LONG__ == 8
     ret = _syscall(LINUX_SYS_pread64, fd, buf, count, offset);
 #else
