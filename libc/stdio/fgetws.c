@@ -35,7 +35,11 @@ __STDIO_UNLOCKED(fgetws)(wchar_t *str, int size, FILE *stream)
     wchar_t *cp;
     wint_t   c;
 
-    if ((stream->flags & __SRD) == 0 || size <= 0)
+    if ((stream->flags & __SRD) == 0) {
+        __stdio_bad_dir(stream);
+        return NULL;
+    }
+    if (size <= 0)
         return NULL;
 
     size--;

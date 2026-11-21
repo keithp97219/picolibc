@@ -41,8 +41,10 @@ puts(const char *str)
 
     __flockfile(out);
 
-    if ((out->flags & __SWR) == 0)
+    if ((out->flags & __SWR) == 0) {
+        __stdio_bad_dir(out);
         goto exit;
+    }
 
     put = out->put;
     while ((c = *str++) != '\0')

@@ -38,7 +38,11 @@ fgets(char *str, int size, FILE *stream)
     int   c;
 
     __flockfile(stream);
-    if ((stream->flags & __SRD) == 0 || size <= 0)
+    if ((stream->flags & __SRD) == 0) {
+        __stdio_bad_dir(stream);
+        __funlock_return(stream, NULL);
+    }
+    if (size <= 0)
         __funlock_return(stream, NULL);
 
     size--;

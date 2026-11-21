@@ -37,8 +37,10 @@
 int
 __STDIO_UNLOCKED(putc)(int c, FILE *stream)
 {
-    if ((stream->flags & __SWR) == 0)
+    if ((stream->flags & __SWR) == 0) {
+        __stdio_bad_dir(stream);
         return EOF;
+    }
 
     if (stream->put(c, stream) < 0) {
         stream->flags |= __SERR;

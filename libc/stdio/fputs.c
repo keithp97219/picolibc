@@ -39,8 +39,10 @@ fputs(const char *str, FILE *stream)
     int  ret = EOF;
 
     __flockfile(stream);
-    if ((stream->flags & __SWR) == 0)
+    if ((stream->flags & __SWR) == 0) {
+        __stdio_bad_dir(stream);
         goto fail;
+    }
 
     put = stream->put;
 

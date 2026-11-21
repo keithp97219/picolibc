@@ -582,6 +582,17 @@ void       __picolibc_non_atomic_store_ungetc(__ungetc_t *p, __ungetc_t v);
 
 #endif /* __ATOMIC_UNGETC */
 
+/*
+ * Reading a stream not open for reading, or writing one not open for
+ * writing, sets the error indicator and fails with EBADF
+ */
+static inline void
+__stdio_bad_dir(FILE *stream)
+{
+    stream->flags |= __SERR;
+    errno = EBADF;
+}
+
 static inline int
 __fflush_locked(FILE *stream)
 {

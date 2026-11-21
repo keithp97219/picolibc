@@ -38,8 +38,10 @@ fputws(const wchar_t *str, FILE *stream)
     int     rv = 0;
 
     __flockfile(stream);
-    if ((stream->flags & __SWR) == 0)
+    if ((stream->flags & __SWR) == 0) {
+        __stdio_bad_dir(stream);
         __funlock_return(stream, EOF);
+    }
 
     while ((c = *str++) != L'\0')
         if (putwc_unlocked(c, stream) == WEOF)
