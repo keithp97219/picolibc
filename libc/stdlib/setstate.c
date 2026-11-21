@@ -35,13 +35,25 @@
 
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
+#include <errno.h>
+#include <sys/lock.h>
 #include "local.h"
 
+/* Switch to a state array from initstate, keeping its position */
 char *
 setstate(char *state)
 {
-    char *prev = __random_state ? __random_state : __random_builtin;
+    char *prev;
 
-    __random_state = state == __random_builtin ? NULL : state;
+    __LIBC_LOCK();
+    __random_init();
+    if (__random_type(state) < 0) {
+        __LIBC_UNLOCK();
+        errno = EINVAL;
+        return NULL;
+    }
+    prev = __random_state;
+    __random_state = state;
+    __LIBC_UNLOCK();
     return prev;
 }

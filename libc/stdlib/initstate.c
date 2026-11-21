@@ -36,26 +36,40 @@
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
 #include <errno.h>
-#include <string.h>
+#include <sys/lock.h>
 #include "local.h"
 
-/* Stands for the built-in state when initstate or setstate returns it */
-char __random_builtin[8];
-
 /*
- * random keeps 64 bits of state, so any array of at least 8 bytes
- * holds all of it.
+ * The size picks the generator: 8 to 31 bytes give the linear
+ * congruential one, and 32, 64, 128 and 256 bytes (sizes in between
+ * round down) additive feedback generators of 7, 15, 31 and 63 words.
  */
 char *
 initstate(unsigned seed, char *state, size_t size)
 {
-    char *prev = __random_state ? __random_state : __random_builtin;
+    char *prev;
+    int   type;
 
     if (size < 8) {
         errno = EINVAL;
         return NULL;
     }
+    if (size < 32)
+        type = 0;
+    else if (size < 64)
+        type = 1;
+    else if (size < 128)
+        type = 2;
+    else if (size < 256)
+        type = 3;
+    else
+        type = 4;
+
+    __LIBC_LOCK();
+    __random_init();
+    prev = __random_state;
+    __random_seed(state, type, seed);
     __random_state = state;
-    srandom(seed);
+    __LIBC_UNLOCK();
     return prev;
 }

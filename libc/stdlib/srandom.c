@@ -54,16 +54,14 @@ algorithm as <<rand>>.
 
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
-#include <string.h>
+#include <sys/lock.h>
 #include "local.h"
 
 void
 srandom(unsigned int seed)
 {
-    uint64_t next = seed;
-
-    if (__random_state)
-        memcpy(__random_state, &next, sizeof(next));
-    else
-        _rand_next = next;
+    __LIBC_LOCK();
+    __random_init();
+    __random_seed(__random_state, __random_type(__random_state), seed);
+    __LIBC_UNLOCK();
 }

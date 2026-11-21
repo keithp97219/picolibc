@@ -59,9 +59,21 @@ on two different systems.
 
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
+#include "local.h"
+
+/*
+ * rand keeps a sequence of its own: POSIX says implementations behave
+ * as if no other function calls rand() or srand(), so random() and
+ * srandom() mustn't move it.
+ */
+__THREAD_LOCAL uint64_t _rand_next = 1;
 
 int
 rand(void)
 {
-    return (int)(random() & RAND_MAX);
+    /* This multiplier was obtained from Knuth, D.E., "The Art of
+       Computer Programming," Vol 2, Seminumerical Algorithms, Third
+       Edition, Addison-Wesley, 1998, p. 106 (line 26) & p. 108 */
+    _rand_next = _rand_next * 6364136223846793005ULL + 1;
+    return (int)((_rand_next >> 32) & RAND_MAX);
 }

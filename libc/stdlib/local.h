@@ -29,8 +29,12 @@ extern uint32_t __environ_sequence;
 #endif
 
 extern __THREAD_LOCAL uint64_t _rand_next;
+
+/* random, srandom, initstate and setstate; these need the libc lock */
 extern char                   *__random_state;
-extern char                    __random_builtin[8];
+int                            __random_type(const char *state);
+void                           __random_seed(char *state, int type, unsigned seed);
+void                           __random_init(void);
 
 #ifdef __AVR__
 typedef unsigned int uwchar_t;
