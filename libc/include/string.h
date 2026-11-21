@@ -77,7 +77,7 @@ char * __nonnull((1)) basename(const char *) _ASMNAME("__gnu_basename");
 #endif
 #endif
 
-#if __MISC_VISIBLE || __POSIX_VISIBLE || __ISO_C_VISIBLE >= 2023
+#if __MISC_VISIBLE || __XSI_VISIBLE || __ISO_C_VISIBLE >= 2023
 void *memccpy(void * __restrict, const void * __restrict, int, size_t) __picolibc_export;
 #endif
 void *memchr(const void *, int, size_t) __picolibc_export;
