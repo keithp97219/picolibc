@@ -48,12 +48,13 @@ long
 __fallback_sysconf(int name)
 {
     switch (name) {
+    /* libc/posix/aio's limits; each request is a thread, with no count limit */
     case _SC_AIO_LISTIO_MAX:
-        return _POSIX_AIO_LISTIO_MAX;
+        return AIO_LISTIO_MAX;
     case _SC_AIO_MAX:
-        return _POSIX_AIO_MAX;
+        return -1;
     case _SC_AIO_PRIO_DELTA_MAX:
-        return 0;
+        return AIO_PRIO_DELTA_MAX;
     case _SC_ARG_MAX:
         return _POSIX_ARG_MAX;
     case _SC_ATEXIT_MAX:
