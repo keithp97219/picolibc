@@ -53,8 +53,15 @@ static const struct {
     { "%i",           1234.56,  "1234.56",      0 },
     { "%n",           -1234.56, "-1234.56",     0 },
     { "%i",           -1234.56, "-1234.56",     0 },
+#ifdef __GLIBC__
+    /* glibc accepts '+' here, against POSIX */
     { "%+n",          1234.56,  "1234.56",      0 },
     { "%+n",          -1234.56, "-1234.56",     0 },
+#else
+    /* '+' fails when positive_sign and negative_sign are both empty */
+    { "%+n", 1234.56, NULL, EINVAL },
+    { "%+n", -1234.56, NULL, EINVAL },
+#endif
     { "%!.0n",        0.0,      "0",            0 },
     { "%!.0n",        10.0,     "10",           0 },
     { "%!.0n",        120.0,    "120",          0 },

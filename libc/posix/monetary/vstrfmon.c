@@ -143,9 +143,12 @@ __vstrfmon(char * __restrict buf, size_t size, const char * __restrict format, v
                 sign_paren = true;
                 continue;
             case '+':
-                /* Should this return -1/EINVAL? Glibc doesn't */
-                sign_paren = false;
-                continue;
+                /*
+                 * The sign strings are both empty in the POSIX locale,
+                 * which POSIX says makes '+' fail
+                 */
+                errno = EINVAL;
+                return -1;
             case '!':
                 continue;
             case '-':
