@@ -56,6 +56,7 @@ picolibc_headers(sys
   lock.h
   mman.h
   msg.h
+  _open_flags.h
   param.h
   queue.h
   resource.h

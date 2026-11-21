@@ -61,6 +61,11 @@ _BEGIN_STD_C
 
 #include <sys/_wait.h>
 
+#if __POSIX_VISIBLE >= 202405
+/* The open flags for mkostemp, which may make all of <fcntl.h> visible */
+#include <sys/_open_flags.h>
+#endif
+
 typedef struct {
     int quot; /* quotient */
     int rem;  /* remainder */
