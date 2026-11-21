@@ -49,9 +49,18 @@
 /* Mixing float and double arguments is the point of this test */
 #pragma GCC diagnostic ignored "-Wdouble-promotion"
 
-#if __STDC_VERSION_TGMATH_H__ != 202311L
+/*
+ * picolibc's <tgmath.h> is C23's. Others may not be: clang puts its own
+ * ahead of the C library's, and it has neither the C23 functions nor
+ * the version macro, so skip with those
+ */
+#if __STDC_VERSION_TGMATH_H__ == 202311L
+#define HAVE_C23_TGMATH
+#elif defined(__PICOLIBC__)
 #error __STDC_VERSION_TGMATH_H__ has the wrong value
 #endif
+
+#ifdef HAVE_C23_TGMATH
 
 static int errors;
 
@@ -507,3 +516,14 @@ main(void)
         printf("tgmath tests passed\n");
     return errors != 0;
 }
+
+#else
+
+int
+main(void)
+{
+    printf("no C23 <tgmath.h>, skipping\n");
+    return 77;
+}
+
+#endif
