@@ -50,7 +50,6 @@ effects vary with the locale.
 size_t
 mbstowcs(wchar_t * __restrict pwcs, const char * __restrict s, size_t n)
 {
-#ifdef __MB_CAPABLE
     mbstate_t state;
     state.__count = 0;
 
@@ -76,18 +75,4 @@ mbstowcs(wchar_t * __restrict pwcs, const char * __restrict s, size_t n)
         }
     }
     return ret;
-#else  /* not __MB_CAPABLE */
-
-    int count = 0;
-
-    if (n != 0) {
-        do {
-            if ((*pwcs++ = (wchar_t)*s++) == 0)
-                break;
-            count++;
-        } while (--n != 0);
-    }
-
-    return count;
-#endif /* not __MB_CAPABLE */
 }
