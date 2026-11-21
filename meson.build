@@ -1065,6 +1065,8 @@ foreach params : [default_target] + targets
     picolibc_ld_data.set('INITTLS', ld_comment)
     picolibc_ld_data.set('DATATLS', '')
     picolibc_ld_data.set('LINUX', '')
+    # The hosted OS notes (FreeBSD's ABI tag), kept only for linux/freebsd
+    picolibc_ld_data.set('OSNOTE', ld_comment)
 
     # non-exec mode for ram PHDR
     picolibc_ld_data.set('RAM_MODE', 'w!rx')
@@ -1449,6 +1451,7 @@ foreach params : [default_target] + targets
     picolibc_linux_ld_data.set('INITTLS', '')
     picolibc_linux_ld_data.set('DATATLS', ld_comment)
     picolibc_linux_ld_data.set('LINUX', ld_comment)
+    picolibc_linux_ld_data.set('OSNOTE', '')
     # Don't discard frame information as that
     # is necessary for debugging
     picolibc_linux_ld_data.set('C', ld_comment)

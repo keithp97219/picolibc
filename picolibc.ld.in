@@ -57,6 +57,7 @@ PHDRS
 @DATA_INIT_PHDR_DECL@	ram_init PT_LOAD;
 	ram PT_LOAD;
 	@TLS_PHDRS@
+@OSNOTE@	note PT_NOTE;
 }
 
 SECTIONS
@@ -154,6 +155,15 @@ SECTIONS
 		*(.data.rel.ro .data.rel.ro.*)
 
 	} >@RODATA_MEM@ AT>@RODATA_AT@ :@RODATA_PHDR@
+
+@OSNOTE@	/*
+@OSNOTE@	 * The ABI note FreeBSD's crt0 adds, which the kernel finds through
+@OSNOTE@	 * PT_NOTE; without it, the program gets the kernel's oldest
+@OSNOTE@	 * compatibility behaviour
+@OSNOTE@	 */
+@OSNOTE@	.note.tag : {
+@OSNOTE@		KEEP(*(.note.tag))
+@OSNOTE@	} >@RODATA_MEM@ AT>@RODATA_AT@ :@RODATA_PHDR@ :note
 
 @INITTLS@	/* TLS data when stored in separately allocate tls_space section */
 @INITTLS@	.tdata :
