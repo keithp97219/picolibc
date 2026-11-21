@@ -45,4 +45,11 @@
 
 #define __PICOLIBC_OS_SINGLE_PROCESS 202405L
 
+/* Sockets, with picolibc built for the FreeBSD network interfaces */
+#ifdef __PICOLIBC_NETWORK_FREEBSD
+#define __PICOLIBC_OS_IPV6        202405L
+#define __PICOLIBC_OS_NETWORKING  202405L
+#define __PICOLIBC_OS_RAW_SOCKETS 202405L
+#endif
+
 #endif /* _SYS__POSIX_H_ */
