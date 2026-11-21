@@ -45,6 +45,7 @@ dir_tests = [
   'test-stdlib_h',
   'test-stdlib_h-iso',
   'test-stdlib_h-names',
+  'test-strtol',
   'test-system',
   'test-unlockpt',
 ]
