@@ -444,6 +444,14 @@ test each option rather than infer them from the edition, sets
 `_POSIX2_VERSION` undefined. A system claiming less than the single
 process group gets no `_POSIX_VERSION`.
 
+Without `<sys/_posix.h>`, picolibc describes itself (`<sys/_os.h>`):
+it claims the single process group, which libc.a provides alone, so
+bare-metal applications get `_POSIX_SUBPROFILE` and `_POSIX_VERSION`
+`202405L`. `<unistd.h>` and `<sys/utsname.h>` send `sysconf` and
+`uname` to `__baremetal_sysconf` and `__baremetal_uname`, so an OS
+library linked anyway can't contradict those claims; the same
+functions are the weak `sysconf` and `uname` an OS replaces.
+
 The realtime profiles of IEEE 1003.13-2003 follow from the claims:
 `<unistd.h>` defines `_POSIX_AEP_REALTIME_MINIMAL` (PSE51),
 `_CONTROLLER` (PSE52), `_DEDICATED` (PSE53) and `_MULTI` (PSE54) when

@@ -296,7 +296,7 @@ unsigned sleep(unsigned int __seconds) __picolibc_export;
 void swab(const void * __restrict, void * __restrict, ssize_t) __picolibc_export;
 #endif
 long  sysconf(int __name) __picolibc_export;
-long  __fallback_sysconf(int __name) __picolibc_export;
+long  __baremetal_sysconf(int __name) __picolibc_export;
 pid_t tcgetpgrp(int __fildes) __picolibc_export;
 int   tcsetpgrp(int __fildes, pid_t __pgrp_id) __picolibc_export;
 char *ttyname(int __fildes) __picolibc_export;
@@ -694,12 +694,22 @@ int     unlinkat(int, const char *, int) __picolibc_export;
  * library is the same whether the header was right, wrong or missing
  * when picolibc was built. Only applications see its claims. The one
  * exception is a weak fallback, such as libos/fallback's sysconf, that
- * the OS replaces.
+ * the OS replaces. Without <sys/_posix.h>, <sys/_os.h> describes
+ * picolibc alone.
  */
 
-#if defined(__has_include)
-#if __has_include(<sys/_posix.h>)
-#include <sys/_posix.h>
+#include <sys/_os.h>
+
+/*
+ * Without an OS, picolibc's own sysconf and uname make up the single
+ * process group, the subset of POSIX the library provides alone
+ */
+#ifdef __PICOLIBC_BAREMETAL
+#ifndef __PICOLIBC_OS_SINGLE_PROCESS
+#define __PICOLIBC_OS_SINGLE_PROCESS 202405L
+#endif
+#ifndef _LIBC
+#define sysconf(__name) __baremetal_sysconf(__name)
 #endif
 #endif
 

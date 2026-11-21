@@ -43,6 +43,7 @@ srcs_os_fallback = [
   'signal.c',
   'sigprocmask.c',
   'sysconf.c',
+  'uname.c',
   ]
 
 src_os_fallback = files(srcs_os_fallback)

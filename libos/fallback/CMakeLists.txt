@@ -50,6 +50,7 @@ if(DEFINED OS_FALLBACK)
     signal.c
     sigprocmask.c
     sysconf.c
+    uname.c
     )
 else()
   picolibc_sources(
@@ -62,5 +63,6 @@ else()
     signal.c
     sigprocmask.c
     sysconf.c
+    uname.c
     )
 endif()

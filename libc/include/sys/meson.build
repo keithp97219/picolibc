@@ -57,6 +57,7 @@ inc_sys_headers_all = [
   'mman.h',
   'msg.h',
   '_open_flags.h',
+  '_os.h',
   'param.h',
   'queue.h',
   'resource.h',

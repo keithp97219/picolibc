@@ -35,6 +35,7 @@
 
 #include "local-linux.h"
 #include "local-resource.h"
+#include "../fallback/local-sysconf.h"
 #include <limits.h>
 #include <sys/auxv.h>
 #include <unistd.h>
@@ -199,6 +200,6 @@ sysconf(int name)
         value = (long)getauxval(LINUX_AT_PAGESZ);
         return value > 0 ? value : 4096;
     default:
-        return __fallback_sysconf(name);
+        return __sysconf_common(name);
     }
 }
