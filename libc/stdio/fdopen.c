@@ -58,7 +58,11 @@ fdopen(int fd, const char *mode)
 
     buf = (char *)(bf + 1);
 
-    *bf = (struct __file_bufio)FDEV_SETUP_POSIX(fd, buf, buf_size, stdio_flags, __BFALL);
+    /*
+     * The stream starts at the descriptor's offset, which is read
+     * when the position is first needed.
+     */
+    *bf = (struct __file_bufio)FDEV_SETUP_POSIX(fd, buf, buf_size, stdio_flags, __BFALL | __BSYNC);
 
     if (open_flags & O_APPEND)
         (void)fseeko(&(bf->xfile.cfile.file), 0, SEEK_END);
