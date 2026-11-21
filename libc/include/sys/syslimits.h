@@ -119,7 +119,8 @@
 #endif
 
 #if __MISC_VISIBLE || __POSIX_VISIBLE >= 202405
-#define NSIG_MAX 64 /* signal numbers are less than this; matches sigset_t */
+#define NSIG_MAX       64  /* signal numbers are less than this; matches sigset_t */
+#define GETENTROPY_MAX 256 /* max length for one getentropy call */
 #endif
 
 #endif

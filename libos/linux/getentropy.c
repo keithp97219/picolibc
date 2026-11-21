@@ -34,10 +34,16 @@
  */
 
 #include "local-linux.h"
+#include <limits.h>
+#include <unistd.h>
 
 int
 getentropy(void *buffer, size_t length)
 {
+    if (length > GETENTROPY_MAX) {
+        errno = EINVAL;
+        return -1;
+    }
     while (length) {
         ssize_t bytes = _syscall(LINUX_SYS_getrandom, buffer, length, 0);
         if (bytes < 0) {

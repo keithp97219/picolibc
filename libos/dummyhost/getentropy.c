@@ -36,12 +36,12 @@
 #define _GNU_SOURCE
 #include <unistd.h>
 #include <errno.h>
+#include <limits.h>
 
 int
 getentropy(void *buffer, size_t length)
 {
     (void)buffer;
-    (void)length;
-    errno = ENOSYS;
+    errno = length > GETENTROPY_MAX ? EINVAL : ENOSYS;
     return -1;
 }
