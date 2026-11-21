@@ -112,9 +112,5 @@ dir_thread_tests = [
   'test-setuid-thread',
 ]
 
-if oslib_test_variant == 'linux'
-  test_skip += ['test-ftruncate']
-endif
-
 # glibc's sysconf disagrees with its <unistd.h> about robust mutexes
 test_skip_native += ['test-sysconf']
