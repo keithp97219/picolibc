@@ -42,6 +42,10 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <picolibc.h>
+#ifdef __PICOLIBC_PTHREADS
+#include <pthread.h>
+#endif
 
 /*
  * Checks for characters the shell would treat as operators outside of
@@ -245,8 +249,8 @@ __wordexp_ok(int status, size_t len)
     return WIFEXITED(status) && WEXITSTATUS(status) == 0 && len >= 2;
 }
 
-int
-wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
+static int
+__wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
 {
     char  *out, *p, **wordv;
     size_t len, count = 0, offs, i;
@@ -323,4 +327,24 @@ wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
     wordv[offs + we->we_wordc] = NULL;
     free(out);
     return 0;
+}
+
+int
+wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
+{
+    int ret;
+#ifdef __PICOLIBC_PTHREADS
+    int cancel;
+
+    /*
+     * wordexp may be a cancellation point, but acting on a request in
+     * the middle would leak the pipe, the output and the child
+     */
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cancel);
+#endif
+    ret = __wordexp(words, we, flags);
+#ifdef __PICOLIBC_PTHREADS
+    pthread_setcancelstate(cancel, NULL);
+#endif
+    return ret;
 }
