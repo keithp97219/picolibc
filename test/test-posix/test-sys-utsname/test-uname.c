@@ -81,7 +81,7 @@ main(void)
     check(same(sysname) && same(nodename) && same(release) && same(version) && same(machine),
           "same names twice");
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(__PICOLIBC_BAREMETAL)
     /* On Linux both come from the same kernel name; gethostname gives the node name */
     check(strcmp(name.sysname, "Linux") == 0, "Linux sysname");
     memset(host, 0, sizeof(host));

@@ -37,7 +37,7 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
+#if defined(__PICOLIBC_POSIX_NETWORKING)
 
 #include <limits.h>
 #include <stdio.h>

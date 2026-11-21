@@ -39,7 +39,7 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
+#if defined(__PICOLIBC_XSI_SINGLE_PROCESS)
 
 #include <fcntl.h>
 #include <limits.h>
