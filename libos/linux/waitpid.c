@@ -45,17 +45,19 @@ waitpid(pid_t pid, int *wstatus, int options)
     pid_t ret;
     int   kstatus;
 
-    if (options & ~(WNOHANG | WUNTRACED | WCONTINUED)) {
-        errno = EINVAL;
-        return -1;
-    }
     if (options & WNOHANG)
         koptions |= LINUX_WNOHANG;
     if (options & WUNTRACED)
         koptions |= LINUX_WUNTRACED;
     if (options & WCONTINUED)
         koptions |= LINUX_WCONTINUED;
+    /* A pending cancellation acts even when the options are bad */
     cancel = _cancel_enter();
+    if (options & ~(WNOHANG | WUNTRACED | WCONTINUED)) {
+        _cancel_leave(cancel);
+        errno = EINVAL;
+        return -1;
+    }
     ret = _syscall(LINUX_SYS_wait4, pid, &kstatus, koptions, NULL);
     _cancel_leave(cancel);
     /* With WNOHANG, 0 means no child changed state and there's no status */
