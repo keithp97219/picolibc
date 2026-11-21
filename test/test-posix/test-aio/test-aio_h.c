@@ -97,8 +97,7 @@ _Static_assert(SIGEV_NONE != SIGEV_SIGNAL && SIGEV_NONE != SIGEV_THREAD
 /* Each function has the specified prototype */
 static int (* const p_aio_cancel)(int, struct aiocb *) = aio_cancel;
 static int (* const p_aio_error)(const struct aiocb *) = aio_error;
-#if (defined(_POSIX_FSYNC) && _POSIX_FSYNC > 0)                        \
-    || (defined(_POSIX_SYNCHRONIZED_IO) && _POSIX_SYNCHRONIZED_IO > 0)
+#if _POSIX_FSYNC > 0 || _POSIX_SYNCHRONIZED_IO > 0
 static int (* const p_aio_fsync)(int, struct aiocb *) = aio_fsync;
 #endif
 static int     (    *const p_aio_read)(struct aiocb *) = aio_read;
@@ -169,8 +168,7 @@ main(void)
 {
     (void)p_aio_cancel;
     (void)p_aio_error;
-#if (defined(_POSIX_FSYNC) && _POSIX_FSYNC > 0)                        \
-    || (defined(_POSIX_SYNCHRONIZED_IO) && _POSIX_SYNCHRONIZED_IO > 0)
+#if _POSIX_FSYNC > 0 || _POSIX_SYNCHRONIZED_IO > 0
     (void)p_aio_fsync;
 #endif
     (void)p_aio_read;
