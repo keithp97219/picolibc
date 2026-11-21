@@ -244,7 +244,13 @@ main(void)
     check(mkdtemp(path) == path, "mkdtemp");
     check_name(path, "dir", 7);
     check(stat(path, &st) == 0 && S_ISDIR(st.st_mode), "a directory");
-    check((st.st_mode & 07777) == S_IRWXU, "mode 0700");
+    {
+        struct stat parent;
+
+        /* A new directory may inherit a set-group-ID parent's bit */
+        check(stat(dir, &parent) == 0, "stat parent");
+        check((st.st_mode & 07777) == (S_IRWXU | (parent.st_mode & S_ISGID)), "mode 0700");
+    }
 
     /* Fewer than six trailing Xs: EINVAL */
     snprintf(path, sizeof(path), "%s/shortXXXXX", dir);
