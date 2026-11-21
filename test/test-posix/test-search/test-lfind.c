@@ -56,6 +56,14 @@ cmp(const void *a, const void *b)
     return *(const int *)a - *(const int *)b;
 }
 
+static int
+ne(const void *a, const void *b)
+{
+    return *(const int *)a != *(const int *)b;
+}
+
+static const int ca[] = { 1, 3, 3, 7 };
+
 int
 main(void)
 {
@@ -70,6 +78,16 @@ main(void)
     n = 0;
     key = 5;
     check(lfind(&key, a, &n, sizeof(int), cmp) == NULL, "empty");
+    check(n == 0, "empty count unchanged");
+
+    /* Only equality matters: a comparison returning 1 for any difference */
+    n = 4;
+    key = 9;
+    check(lfind(&key, a, &n, sizeof(int), ne) == &a[2] && n == 4, "non-zero means different");
+
+    /* Searching a table of a const type */
+    key = 3;
+    check(lfind(&key, ca, &n, sizeof(int), cmp) == &ca[1], "const table");
     printf("success\n");
     return 0;
 }

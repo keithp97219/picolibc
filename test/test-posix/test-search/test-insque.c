@@ -39,8 +39,14 @@
 #include <search.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-/* insque links elements into doubly-linked lists */
+/*
+ * insque links elements into doubly-linked lists, linear (ended by null
+ * pointers, started with insque(&e, NULL)) or circular (started by
+ * pointing the first element at itself), after the given predecessor,
+ * whatever the structure's names and further members are
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -55,17 +61,53 @@ struct elem {
     int          value;
 };
 
+/* Any names, and more members after the two pointers */
+struct other {
+    struct other *fwd;
+    struct other *back;
+    char          payload[13];
+};
+
 int
 main(void)
 {
-    struct elem a = { .value = 1 }, b = { .value = 2 }, c = { .value = 3 };
+    struct elem  a = { .value = 1 }, b = { .value = 2 }, c = { .value = 3 }, d = { .value = 4 };
+    struct other x, y;
 
+    /* A linear list: insque(&a, NULL) clears both pointers */
+    a.next = a.prev = &d;
     insque(&a, NULL);
     check(a.next == NULL && a.prev == NULL, "new list");
     insque(&c, &a);
     insque(&b, &a);
     check(a.next == &b && b.next == &c && c.next == NULL, "forward links");
     check(c.prev == &b && b.prev == &a && a.prev == NULL, "backward links");
+
+    /* Inserting after the last element */
+    insque(&d, &c);
+    check(c.next == &d && d.prev == &c && d.next == NULL, "insert at the end");
+    check(a.value == 1 && b.value == 2 && c.value == 3 && d.value == 4, "values untouched");
+
+    /* A circular list of one element pointing at itself */
+    a.next = a.prev = &a;
+    insque(&b, &a);
+    check(a.next == &b && b.next == &a && a.prev == &b && b.prev == &a, "circular two");
+    insque(&c, &b);
+    check(a.next == &b && b.next == &c && c.next == &a, "circular forward");
+    check(a.prev == &c && c.prev == &b && b.prev == &a, "circular backward");
+    insque(&d, &a);
+    check(a.next == &d && d.next == &b && b.prev == &d && d.prev == &a, "circular middle");
+
+    /* Other member names, and data after the pointers */
+    memset(x.payload, 'x', sizeof(x.payload));
+    memset(y.payload, 'y', sizeof(y.payload));
+    insque(&x, NULL);
+    insque(&y, &x);
+    check(x.fwd == &y && y.back == &x && y.fwd == NULL && x.back == NULL, "other names");
+    check(x.payload[0] == 'x' && x.payload[12] == 'x' && y.payload[0] == 'y'
+              && y.payload[12] == 'y',
+          "payload untouched");
+
     printf("success\n");
     return 0;
 }

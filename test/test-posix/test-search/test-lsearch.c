@@ -39,6 +39,7 @@
 #include <search.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* lsearch finds an element, appending it when missing */
 
@@ -56,16 +57,66 @@ cmp(const void *a, const void *b)
     return *(const int *)a - *(const int *)b;
 }
 
+/* Elements of an odd width; equality only, so any non-zero means different */
+struct rec {
+    char name[3];
+    char extra[4];
+};
+
+static const void *rec_key;
+static int         rec_bad;
+
+static int
+rec_cmp(const void *a, const void *b)
+{
+    if (a != rec_key && b != rec_key)
+        rec_bad++;
+    return memcmp(a, b, 3) != 0;
+}
+
+static void
+set_rec(struct rec *r, const char *name, const char *extra)
+{
+    memcpy(r->name, name, sizeof(r->name));
+    memcpy(r->extra, extra, sizeof(r->extra));
+}
+
 int
 main(void)
 {
     int    a[4] = { 5, 3 }, key;
     size_t n = 2;
+    struct rec  recs[4] = { { "ab", "123" }, { "cd", "456" } }, rk;
+    struct rec *r;
 
     key = 3;
     check(lsearch(&key, a, &n, sizeof(int), cmp) == &a[1] && n == 2, "found");
     key = 8;
     check(lsearch(&key, a, &n, sizeof(int), cmp) == &a[2] && n == 3 && a[2] == 8, "appended");
+    key = 8;
+    check(lsearch(&key, a, &n, sizeof(int), cmp) == &a[2] && n == 3, "found after appending");
+
+    /* The whole element is copied to the end, and found from then on */
+    _Static_assert(sizeof(struct rec) == 7, "odd width");
+    n = 2;
+    set_rec(&rk, "ef", "789");
+    rec_key = &rk;
+    r = lsearch(&rk, recs, &n, sizeof(struct rec), rec_cmp);
+    check(r == &recs[2] && n == 3, "odd width appended");
+    check(memcmp(&recs[2], &rk, sizeof(rk)) == 0, "whole element copied");
+    check(memcmp(recs[0].extra, "123", 4) == 0 && memcmp(recs[1].extra, "456", 4) == 0,
+          "others untouched");
+    set_rec(&rk, "cd", "xyz");
+    r = lsearch(&rk, recs, &n, sizeof(struct rec), rec_cmp);
+    check(r == &recs[1] && n == 3 && memcmp(recs[1].extra, "456", 4) == 0, "found, not replaced");
+    check(rec_bad == 0, "compar sees the key");
+
+    /* An empty table gets the key as its first element */
+    n = 0;
+    set_rec(&rk, "gh", "000");
+    r = lsearch(&rk, recs, &n, sizeof(struct rec), rec_cmp);
+    check(r == &recs[0] && n == 1 && memcmp(&recs[0], &rk, sizeof(rk)) == 0, "empty table");
+
     printf("success\n");
     return 0;
 }

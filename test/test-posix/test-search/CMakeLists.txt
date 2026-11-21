@@ -34,10 +34,13 @@
 #
 
 set(tests
+  test-hsearch
   test-insque
   test-lfind
   test-lsearch
   test-remque
+  test-search_h
+  test-tsearch
   )
 
 foreach(test IN LISTS tests)

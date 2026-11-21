@@ -40,7 +40,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* remque unlinks elements from doubly-linked lists */
+/*
+ * remque unlinks elements from doubly-linked lists, linear or circular,
+ * at the head, the tail or in the middle, leaving the rest linked
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -57,16 +60,33 @@ struct elem {
 int
 main(void)
 {
-    struct elem a, b, c;
+    struct elem a, b, c, d;
 
+    /* Linear: middle, head, tail, and the last one */
     insque(&a, NULL);
     insque(&b, &a);
     insque(&c, &b);
+    insque(&d, &c);
     remque(&b);
     check(a.next == &c && c.prev == &a, "middle removed");
     remque(&a);
-    check(c.prev == NULL, "head removed");
+    check(c.prev == NULL && c.next == &d && d.prev == &c, "head removed");
+    remque(&d);
+    check(c.next == NULL && c.prev == NULL, "tail removed");
     remque(&c);
+
+    /* Circular */
+    a.next = a.prev = &a;
+    insque(&b, &a);
+    insque(&c, &b);
+    insque(&d, &c);
+    remque(&c);
+    check(b.next == &d && d.prev == &b, "circular middle removed");
+    remque(&a);
+    check(d.next == &b && b.prev == &d && b.next == &d && d.prev == &b, "circular head removed");
+    remque(&d);
+    check(b.next == &b && b.prev == &b, "circular down to one");
+
     printf("success\n");
     return 0;
 }
