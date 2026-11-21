@@ -87,9 +87,11 @@ check_by_name(const char *name, gid_t gid)
     check(strcmp(gr->gr_name, name) == 0 && gr->gr_gid == gid, "getgrnam entry");
 }
 
+#ifdef __PICOLIBC_POSIX_FD_MGMT
 /*
  * With every descriptor in use, the database can't be opened: the
- * lookups may fail with EMFILE, and if they do, they report it
+ * lookups may fail with EMFILE, and if they do, they report it. Using
+ * up the descriptors takes dup, from the descriptor management group.
  */
 static void
 check_emfile(void)
@@ -124,6 +126,7 @@ check_emfile(void)
         close(fds[--n]);
     check(setrlimit(RLIMIT_NOFILE, &lim) == 0, "setrlimit");
 }
+#endif
 
 int
 main(void)
@@ -175,7 +178,9 @@ main(void)
     /* And a lookup after one that failed still works */
     check(getgrgid(0) != NULL, "getgrgid(0) again");
 
+#ifdef __PICOLIBC_POSIX_FD_MGMT
     check_emfile();
+#endif
 
     printf("success\n");
     return 0;
