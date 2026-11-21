@@ -83,11 +83,12 @@ main(void)
     check(sched_getparam(0, &before) == 0, "sched_getparam");
     param.sched_priority = sched_get_priority_max(SCHED_FIFO) + 1;
     errno = 0;
-    check(sched_setscheduler(0, SCHED_FIFO, &param) == -1 && errno == EINVAL,
+    /* Without privilege, EPERM is as good an answer as EINVAL */
+    check(sched_setscheduler(0, SCHED_FIFO, &param) == -1 && (errno == EINVAL || errno == EPERM),
           "SCHED_FIFO priority above the range");
     param.sched_priority = sched_get_priority_min(SCHED_RR) - 1;
     errno = 0;
-    check(sched_setscheduler(0, SCHED_RR, &param) == -1 && errno == EINVAL,
+    check(sched_setscheduler(0, SCHED_RR, &param) == -1 && (errno == EINVAL || errno == EPERM),
           "SCHED_RR priority below the range");
     param.sched_priority = sched_get_priority_max(SCHED_OTHER) + 1;
     errno = 0;
