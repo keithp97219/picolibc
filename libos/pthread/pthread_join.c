@@ -51,8 +51,7 @@ pthread_join(pthread_t thread, void **value_ptr)
     _cancel_leave(self);
     if (value_ptr)
         *value_ptr = thread->result;
-    if (thread->map)
-        _pthread_os_free(thread);
+    _pthread_release(thread);
     _pthread_reap();
     return 0;
 }

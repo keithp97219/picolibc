@@ -35,6 +35,10 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+#include <picotls.h>
+#include <string.h>
+
+#define round_down(v, a) ((v) & ~((uintptr_t)(a) - 1))
 
 /* First code run by a new thread, called by the OS layer */
 void
@@ -57,6 +61,12 @@ _pthread_start(struct __pthread *self)
 }
 
 /*
+ * Every thread's descriptor, followed by its thread-specific data
+ * values, sits at the top of its stack region, with the TLS block
+ * just below and the stack below that, growing down. picolibc
+ * allocates the region, with room for both and a guard below, unless
+ * the application provided the stack.
+ *
  * Returns ENOMEM when the memory can't be had and EAGAIN when another
  * limit, such as the number of threads, is reached; thrd_create tells
  * them apart.
@@ -65,10 +75,15 @@ int
 _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict attr,
                 void *(*start_routine)(void *), void * __restrict arg)
 {
-    pthread_attr_t    default_attr;
-    struct __pthread *t;
-    _pthread_sigset_t old;
-    int               ret;
+    pthread_attr_t         default_attr;
+    struct _pthread_layout layout;
+    struct __pthread      *t;
+    void                  *map = NULL;
+    size_t                 map_size = 0;
+    uintptr_t              top;
+    char                  *tls;
+    _pthread_sigset_t      old;
+    int                    ret;
 
     if (!attr) {
         pthread_attr_init(&default_attr);
@@ -79,10 +94,32 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
     (void)_pthread_self();
     _pthread_reap();
 
-    ret = _pthread_os_alloc(attr, &t);
-    if (ret)
-        return ret;
+    _pthread_layout(&layout);
+    if (attr->__stackaddr) {
+        /* An application stack must hold the descriptor and TLS as well */
+        if (attr->__stacksize < __PTHREAD_STACK_MIN)
+            return EINVAL;
+        top = (uintptr_t)attr->__stackaddr;
+    } else {
+        size_t size;
 
+        if (__picolibc_add_overflow(attr->__stacksize, layout.overhead, &size))
+            return ENOMEM;
+        top = (uintptr_t)_pthread_os_stack_alloc(size, attr->__guardsize, &map, &map_size);
+        if (!top)
+            return ENOMEM;
+    }
+
+    t = (struct __pthread *)round_down(top - layout.desc_size, layout.align);
+    memset(t, 0, layout.desc_size);
+    t->specific = (struct __pthread_specific *)(t + 1);
+    tls = (char *)round_down((uintptr_t)t - layout.tls_size, layout.align);
+    _init_tls(tls);
+
+    t->map = map;
+    t->map_size = map_size;
+    t->tls = tls;
+    t->stack_top = (void *)round_down((uintptr_t)tls, 16);
     t->start = start_routine;
     t->arg = arg;
     t->detach_state = attr->__detachstate;
@@ -114,7 +151,8 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
 
     if (ret != 0) {
         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
-        _pthread_os_free(t);
+        if (map)
+            _pthread_os_stack_free(map, map_size);
         return ret;
     }
 
@@ -130,7 +168,7 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
             pthread_mutex_lock(&_pthread_all_lock);
             _pthread_all_remove(t);
             pthread_mutex_unlock(&_pthread_all_lock);
-            _pthread_os_free(t);
+            _pthread_release(t);
             return sched_ret;
         }
     }

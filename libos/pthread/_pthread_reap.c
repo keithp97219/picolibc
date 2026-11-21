@@ -48,7 +48,7 @@ _pthread_reap(void)
     while ((thread = *prev) != NULL) {
         if (__atomic_load_n(_pthread_exit_word(thread), __ATOMIC_ACQUIRE) == _PTHREAD_EXIT_DONE) {
             *prev = thread->zombie_next;
-            _pthread_os_free(thread);
+            _pthread_release(thread);
         } else {
             prev = &thread->zombie_next;
         }

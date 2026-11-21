@@ -38,90 +38,45 @@
 
 #ifdef _PTHREAD_HAVE_MAP
 
-#include <picotls.h>
-#include <stdalign.h>
-#include <stddef.h>
-
 /* All pages sizes used by the supported machines are multiples of this */
 #define PTHREAD_PAGE_SIZE 4096
 
-#define round_up(v, a)    (((v) + (a) - 1) & ~((uintptr_t)(a) - 1))
-#define round_down(v, a)  ((v) & ~((uintptr_t)(a) - 1))
+#define round_up(v, a)    (((v) + (a) - 1) & ~((size_t)(a) - 1))
 
 /*
- * Each thread gets one anonymous mapping holding, from low to high
- * addresses, a guard region, the stack (unless the application
- * provided one), the TLS block and the thread descriptor followed by
- * its thread-specific data values.
+ * Each stack picolibc provides is an anonymous mapping, with the guard
+ * region, if any, at its low end.
  */
-int
-_pthread_os_alloc(const pthread_attr_t *attr, struct __pthread **tp)
+void *
+_pthread_os_stack_alloc(size_t size, size_t guard, void **map, size_t *map_size)
 {
-    size_t            align, tls_size, desc_size, stack_size, guard_size, map_size;
-    char             *map;
-    uintptr_t         top, stack_top;
-    struct __pthread *t;
-    char             *tls;
+    size_t total;
+    char  *m;
 
-    align = _tls_align();
-    if (align < alignof(max_align_t))
-        align = alignof(max_align_t);
-    tls_size = round_up(_tls_size(), align);
-    desc_size = round_up(
-        sizeof(struct __pthread) + __PTHREAD_KEYS_MAX * sizeof(struct __pthread_specific), align);
-    stack_size = 0;
-    guard_size = 0;
-    if (!attr->__stackaddr) {
-        stack_size = attr->__stacksize;
-        guard_size = attr->__guardsize;
-    }
-
-    /*
-     * Sizes too large to add up, with room for rounding each to pages,
-     * can't be mapped; don't let them wrap around to small ones
-     */
-    if (__picolibc_add_overflow(guard_size, stack_size, &map_size)
-        || __picolibc_add_overflow(map_size, tls_size + desc_size + align + 3 * PTHREAD_PAGE_SIZE,
-                                   &map_size))
-        return ENOMEM;
-
-    stack_size = round_up(stack_size, PTHREAD_PAGE_SIZE);
-    guard_size = round_up(guard_size, PTHREAD_PAGE_SIZE);
-    map_size = round_up(guard_size + stack_size + tls_size + desc_size + align, PTHREAD_PAGE_SIZE);
+    /* Sizes too large to round up to pages can't be mapped; don't let them wrap */
+    if (__picolibc_add_overflow(size, guard, &total)
+        || __picolibc_add_overflow(total, 2 * PTHREAD_PAGE_SIZE, &total))
+        return NULL;
+    size = round_up(size, PTHREAD_PAGE_SIZE);
+    guard = round_up(guard, PTHREAD_PAGE_SIZE);
+    total = size + guard;
 
     /* Fresh anonymous memory reads as zero */
-    map = _pthread_map(map_size);
-    if (!map)
-        return ENOMEM;
+    m = _pthread_map(total);
+    if (!m)
+        return NULL;
     /* The guard region is best effort */
-    if (guard_size)
-        _pthread_guard(map, guard_size);
-
-    top = (uintptr_t)map + map_size;
-    t = (struct __pthread *)round_down(top - desc_size, align);
-    t->specific = (struct __pthread_specific *)(t + 1);
-    tls = (char *)round_down((uintptr_t)t - tls_size, align);
-
-    _init_tls(tls);
-
-    if (attr->__stackaddr)
-        stack_top = (uintptr_t)attr->__stackaddr;
-    else
-        stack_top = (uintptr_t)tls;
-    stack_top = round_down(stack_top, 16);
-
-    t->map = map;
-    t->map_size = map_size;
-    t->stack_top = (void *)stack_top;
-    t->tls = tls;
-    *tp = t;
-    return 0;
+    if (guard)
+        _pthread_guard(m, guard);
+    *map = m;
+    *map_size = total;
+    return m + total;
 }
 
 void
-_pthread_os_free(struct __pthread *t)
+_pthread_os_stack_free(void *map, size_t map_size)
 {
-    _pthread_unmap(t->map, t->map_size);
+    _pthread_unmap(map, map_size);
 }
 
 #endif /* _PTHREAD_HAVE_MAP */

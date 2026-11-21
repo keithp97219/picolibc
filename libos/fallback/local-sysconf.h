@@ -119,8 +119,8 @@ __sysconf_common(int name)
         return -1;
 #endif
     case _SC_THREAD_STACK_MIN:
-#ifdef PTHREAD_STACK_MIN
-        return PTHREAD_STACK_MIN;
+#ifdef __PTHREAD_STACK_MIN
+        return __PTHREAD_STACK_MIN;
 #else
         return -1;
 #endif

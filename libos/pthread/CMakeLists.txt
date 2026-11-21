@@ -161,6 +161,7 @@ set(PICOLIBC_PTHREAD_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/pthread_setspecific.c
   ${CMAKE_CURRENT_SOURCE_DIR}/pthread_sigmask.c
   ${CMAKE_CURRENT_SOURCE_DIR}/_pthread_specific_exit.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/_pthread_stack_min.c
   ${CMAKE_CURRENT_SOURCE_DIR}/pthread_spin_destroy.c
   ${CMAKE_CURRENT_SOURCE_DIR}/pthread_spin_init.c
   ${CMAKE_CURRENT_SOURCE_DIR}/pthread_spin_lock.c

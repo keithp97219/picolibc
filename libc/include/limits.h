@@ -46,8 +46,16 @@
 #include <sys/_pthread.h>
 #define PTHREAD_DESTRUCTOR_ITERATIONS __PTHREAD_DESTRUCTOR_ITERATIONS
 #define PTHREAD_KEYS_MAX              __PTHREAD_KEYS_MAX
-#define PTHREAD_STACK_MIN             __PTHREAD_STACK_MIN
 #define SEM_VALUE_MAX                 __SEM_VALUE_MAX
+/*
+ * The minimum stack size depends on the program's TLS, so it isn't a
+ * constant; POSIX leaves it to sysconf(_SC_THREAD_STACK_MIN). As with
+ * glibc, the GNU and _DYNAMIC_STACK_SIZE_SOURCE environments name that
+ * value PTHREAD_STACK_MIN.
+ */
+#if __GNU_VISIBLE || defined(_DYNAMIC_STACK_SIZE_SOURCE)
+#define PTHREAD_STACK_MIN __PTHREAD_STACK_MIN
+#endif
 #endif
 #endif
 

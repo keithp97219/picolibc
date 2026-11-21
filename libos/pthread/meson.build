@@ -160,6 +160,7 @@ if posix_threads
     'pthread_setspecific.c',
     'pthread_sigmask.c',
     '_pthread_specific_exit.c',
+    '_pthread_stack_min.c',
     'pthread_spin_destroy.c',
     'pthread_spin_init.c',
     'pthread_spin_lock.c',

@@ -42,6 +42,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <sched.h>
 #include <signal.h>
@@ -53,6 +54,11 @@
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include "../is-qemu.h"
+
+/* POSIX leaves PTHREAD_STACK_MIN out where it isn't a constant */
+#ifndef PTHREAD_STACK_MIN
+#define PTHREAD_STACK_MIN ((size_t)sysconf(_SC_THREAD_STACK_MIN))
+#endif
 
 /* Thread attributes: guard areas, stack sizes, scheduling and their effect on pthread_create */
 

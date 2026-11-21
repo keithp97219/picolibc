@@ -43,13 +43,26 @@
 #ifndef _SYS__PTHREAD_H_
 #define _SYS__PTHREAD_H_
 
+#include <sys/cdefs.h>
 #include <sys/_types.h>
 
 /* Implementation limits, published by <limits.h> */
 #define __PTHREAD_DESTRUCTOR_ITERATIONS 4
 #define __PTHREAD_KEYS_MAX              128
-#define __PTHREAD_STACK_MIN             16384
 #define __SEM_VALUE_MAX                 0x7fffffff
+
+/*
+ * The smallest thread stack: each thread's descriptor and TLS block
+ * sit at the top of its stack, so this is their size, known only when
+ * the program is linked, plus __PTHREAD_STACK_WORK_MIN for the code to
+ * run on. sysconf(_SC_THREAD_STACK_MIN) reports it.
+ */
+#define __PTHREAD_STACK_WORK_MIN 16384
+#define __PTHREAD_STACK_MIN      ((__size_t)__pthread_stack_min())
+
+_BEGIN_STD_C
+long __pthread_stack_min(void);
+_END_STD_C
 
 struct __pthread;
 

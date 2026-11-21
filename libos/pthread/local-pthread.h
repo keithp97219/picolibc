@@ -65,9 +65,12 @@
  *
  *   _futex_wait, _futex_wake  Wait on and wake a 32-bit word, as
  *                            described below.
- *   _pthread_os_alloc,       Allocate and free a thread's descriptor,
- *   _pthread_os_free         TLS and stack, unless _PTHREAD_HAVE_MAP
- *                            selects the default (_pthread_alloc.c).
+ *   _pthread_os_stack_alloc, Allocate and free the stacks picolibc
+ *   _pthread_os_stack_free   provides, unless _PTHREAD_HAVE_MAP selects
+ *                            the default (_pthread_alloc.c). Each
+ *                            thread's descriptor and TLS block sit at
+ *                            the top of its stack region, whether
+ *                            picolibc or the application provided it.
  *   _pthread_os_create       Start a thread running _pthread_start.
  *   _pthread_os_exit         End the calling thread.
  *   _pthread_os_set_tid      Give the initial thread its id.
@@ -87,7 +90,11 @@
  *   _PTHREAD_HAVE_MAP        _pthread_map, _pthread_unmap and
  *                            _pthread_guard (anonymous memory, an
  *                            inaccessible guard) give the default
- *                            thread allocator.
+ *                            stack allocator.
+ *   _PTHREAD_HAVE_RELEASE    _pthread_os_release frees OS-private
+ *                            per-thread objects, which may live outside
+ *                            the stack (kernel memory, say) and be
+ *                            reached through struct __pthread_os.
  *   _PTHREAD_HAVE_SIGNALS    Per-thread signal masks and directed
  *                            signals: _pthread_sigset_t,
  *                            _pthread_sigblock_all, _pthread_sigsetmask,
@@ -184,12 +191,13 @@ struct __pthread {
     void                      *result;
 
     /*
-     * Memory holding this descriptor, its TLS block and possibly its
-     * stack, as _pthread_os_alloc sets it up; map is NULL only for the
-     * initial thread
+     * The stack region picolibc allocated, holding this descriptor and
+     * its TLS block at the top; map is NULL for the initial thread and
+     * for threads on application stacks
      */
     void                      *map;
     size_t                     map_size;
+    /* Where the new thread's stack starts and its TLS block, for _pthread_os_create */
     void                      *stack_top;
     void                      *tls;
 
@@ -609,18 +617,53 @@ void                     _pthread_specific_exit(struct __pthread *self);
 __noreturn void          _pthread_start(struct __pthread *self);
 
 /*
- * _pthread_os_alloc allocates a new thread's descriptor, followed by
- * __PTHREAD_KEYS_MAX struct __pthread_specific values for t->specific,
- * with every other member zero. It also provides the stack
- * (attr->__stackaddr and __stacksize, or one of attr->__stacksize with
- * attr->__guardsize of guard) and the TLS block, setting t->map
- * non-NULL and recording what _pthread_os_create and _pthread_os_free
- * need. Returns 0, ENOMEM, or EAGAIN for other limits.
+ * Where a thread's descriptor and TLS block go at the top of its
+ * stack region, and the room they take there
  */
-int                      _pthread_os_alloc(const pthread_attr_t *attr, struct __pthread **tp);
+struct _pthread_layout {
+    size_t align;
+    size_t tls_size;
+    size_t desc_size; /* descriptor and thread-specific data values */
+    size_t overhead;  /* all of that, with room for aligning the top */
+};
 
-/* Release what _pthread_os_alloc allocated, once the thread has exited or never ran */
-void                     _pthread_os_free(struct __pthread *t);
+void  _pthread_layout(struct _pthread_layout *layout);
+
+/*
+ * Allocate a stack region of at least size bytes, with guard bytes
+ * below it made inaccessible where the OS can. Stores what
+ * _pthread_os_stack_free needs in *map and *map_size and returns the
+ * top of the region, or NULL. Only stacks picolibc provides come from
+ * here; the descriptor and TLS block go at the top of the region.
+ */
+void *_pthread_os_stack_alloc(size_t size, size_t guard, void **map, size_t *map_size);
+
+/* Release a region from _pthread_os_stack_alloc once nothing uses it */
+void  _pthread_os_stack_free(void *map, size_t map_size);
+
+#ifdef _PTHREAD_HAVE_RELEASE
+/*
+ * Release the OS's private objects for a thread which has exited, as
+ * the thread is joined or a detached thread is reclaimed. A detached
+ * thread on an application stack is never reclaimed (its memory
+ * belongs to the application), so the OS releases those itself.
+ */
+void _pthread_os_release(struct __pthread *t);
+#endif
+
+/* Reclaim an exited thread */
+static inline void
+_pthread_release(struct __pthread *t)
+{
+    void  *map = t->map;
+    size_t map_size = t->map_size;
+
+#ifdef _PTHREAD_HAVE_RELEASE
+    _pthread_os_release(t);
+#endif
+    if (map)
+        _pthread_os_stack_free(map, map_size);
+}
 
 /*
  * Initialize the thread control block for a new TLS block (already
@@ -630,7 +673,7 @@ void                     _pthread_os_free(struct __pthread *t);
  * This depends only on the machine; libos/pthread/machine has it for
  * OS layers which set up TLS this way.
  */
-void                    *_pthread_tls_setup(void *tls, void *arg_space);
+void           *_pthread_tls_setup(void *tls, void *arg_space);
 
 /*
  * Start a thread for t, sharing the creator's address space, files
@@ -638,17 +681,17 @@ void                    *_pthread_tls_setup(void *tls, void *arg_space);
  * _pthread_start(t). Set t->tid before either thread can use it.
  * Returns 0, ENOMEM or EAGAIN.
  */
-int                      _pthread_os_create(struct __pthread *t);
+int             _pthread_os_create(struct __pthread *t);
 
 /*
  * End the calling thread alone, then clear self->tid (unless the
  * kernel does) and set and wake _pthread_exit_word(self) once nothing
  * of the thread's memory is in use.
  */
-__noreturn void          _pthread_os_exit(struct __pthread *self);
+__noreturn void _pthread_os_exit(struct __pthread *self);
 
 /* Set the id of the initial thread, or of the only thread in a fork child */
-void                     _pthread_os_set_tid(struct __pthread *self);
+void            _pthread_os_set_tid(struct __pthread *self);
 
 #ifdef _PTHREAD_HAVE_SIGNALS
 /*
