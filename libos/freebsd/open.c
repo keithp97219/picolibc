@@ -35,17 +35,26 @@
 
 #include "local-freebsd.h"
 #include <stdarg.h>
+#include <freebsd/freebsd-errno.h>
 
 int
 open(const char *path, int flags, ...)
 {
     va_list ap;
     int     mode;
+    long    ret;
 
     va_start(ap, flags);
     mode = va_arg(ap, int);
     va_end(ap);
 
-    return _syscall(FREEBSD_SYS_openat, FREEBSD_AT_FDCWD, path, _open_flags_to_freebsd(flags),
-                    mode);
+    ret = _syscall_raw(FREEBSD_SYS_openat, FREEBSD_AT_FDCWD, path, _open_flags_to_freebsd(flags),
+                       mode);
+    if (ret < 0) {
+        /* FreeBSD reports EMLINK for O_NOFOLLOW on a symbolic link, POSIX ELOOP */
+        errno = (ret == _FREEBSD_ERR(FREEBSD_EMLINK) && (flags & O_NOFOLLOW)) ? ELOOP
+                                                                              : _syscall_errno(ret);
+        return -1;
+    }
+    return (int)ret;
 }

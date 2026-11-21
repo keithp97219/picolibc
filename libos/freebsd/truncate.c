@@ -33,10 +33,19 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
+#include "local-rlimit.h"
 
 int
 truncate(const char *path, off_t length)
 {
+    struct stat st;
+
+    /* FreeBSD ignores truncating a FIFO or a device, where POSIX says EINVAL */
+    if (stat(path, &st) == 0 && !S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode)) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (length > 0 && _fsize_exceeded(length))
+        return -1;
     return _syscall(FREEBSD_SYS_truncate, path, length);
 }

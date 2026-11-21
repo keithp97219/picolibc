@@ -106,8 +106,12 @@ _fcntl_lock(int fd, int kop, struct flock *fl)
             fl->l_type = F_WRLCK;
             break;
         default:
+            /*
+             * Nothing blocks the lock: only l_type changes, though
+             * FreeBSD has made a SEEK_CUR request relative to SEEK_SET
+             */
             fl->l_type = F_UNLCK;
-            break;
+            return (int)ret;
         }
         fl->l_whence = kfl.l_whence;
         fl->l_start = kfl.l_start;

@@ -33,10 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
+#include "local-rlimit.h"
 
 int
 ftruncate(int fd, off_t length)
 {
+    if (length > 0 && _fsize_exceeded(length))
+        return -1;
     return _syscall(FREEBSD_SYS_ftruncate, fd, length);
 }

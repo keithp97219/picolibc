@@ -35,6 +35,7 @@
 
 #include "local-poll.h"
 #include "local-cancel.h"
+#include "local-rlimit.h"
 #include <stdlib.h>
 
 /* Translate poll event bits between picolibc and FreeBSD */
@@ -118,6 +119,11 @@ _ppoll(struct pollfd *fds, nfds_t nfds, const struct __freebsd_timespec *kts,
      * turned back into picolibc's (POLLOUT and POLLWRNORM share a
      * bit), so the originals are kept aside
      */
+    /* FreeBSD takes up to FD_SETSIZE entries even past the descriptor limit */
+    if (nfds > (nfds_t)_rlimit_cur(FREEBSD_RLIMIT_NOFILE)) {
+        errno = EINVAL;
+        return -1;
+    }
     if (nfds > POLL_STACK_EVENTS) {
         events = malloc(nfds * sizeof(*events));
         if (!events) {
