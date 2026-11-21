@@ -35,6 +35,8 @@
 
 dir_tests = [
   'test-a64l',
+  'test-abort-status',
+  'test-exit',
   'test-getsubopt',
   'test-grantpt',
   'test-initstate',
@@ -62,6 +64,7 @@ dir_tests = [
 
 # random is shared by all threads, and atexit runs on the last thread's exit
 dir_thread_tests = [
+  'test-atexit-thread',
   'test-random-thread',
 ]
 
