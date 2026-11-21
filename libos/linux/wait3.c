@@ -68,13 +68,14 @@ wait3(int *wstatus, int options, struct rusage *rusage)
     cancel = _cancel_enter();
     ret = _syscall(LINUX_SYS_wait4, -1, &kstatus, koptions, pusage);
     _cancel_leave(cancel);
-    if (ret != (pid_t)-1) {
+    if (ret > 0) {
         if (WIFSIGNALED(kstatus))
             kstatus
                 = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus))) | (kstatus & __W_COREFLAG);
         else if (WIFSTOPPED(kstatus))
             kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
-        *wstatus = kstatus;
+        if (wstatus)
+            *wstatus = kstatus;
         if (rusage) {
             SIMPLE_MAP_TIMEVAL(&rusage->ru_utime, &kusage.ru_utime);
             SIMPLE_MAP_TIMEVAL(&rusage->ru_stime, &kusage.ru_stime);
