@@ -48,6 +48,8 @@ main(void)
     printf("#define LINUX_RLIMIT_CORE %d\n", RLIMIT_CORE);
     printf("#define LINUX_RLIMIT_NOFILE %d\n", RLIMIT_NOFILE);
     printf("#define LINUX_RLIMIT_AS %d\n", RLIMIT_AS);
+    printf("#define LINUX_RLIMIT_NPROC %d\n", RLIMIT_NPROC);
+    printf("#define LINUX_RLIMIT_SIGPENDING %d\n", RLIMIT_SIGPENDING);
     printf("#define LINUX_RLIM_INFINITY %lluU\n", (rlim_t)RLIM_INFINITY);
     printf("#define LINUX_RLIM64_INFINITY %lluU\n", (rlim_t)RLIM64_INFINITY);
     printf("#define LINUX_RLIM_SAVED_MAX %lluU\n", (rlim_t)RLIM_SAVED_MAX);
