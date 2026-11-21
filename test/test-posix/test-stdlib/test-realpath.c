@@ -156,6 +156,43 @@ main(void)
     fails("loop", ELOOP);
     errno = 0;
     check(realpath("", got) == NULL && errno == ENOENT, "empty path");
+    {
+        /* Through a volatile object, as glibc declares the argument non-null */
+        const char * volatile nullp = NULL;
+
+        errno = 0;
+        check(realpath(nullp, got) == NULL && errno == EINVAL, "null path");
+    }
+
+    /* Trailing slashes after directories, and '..' after links and the root */
+    resolves("d/", "d");
+    resolves("rel/", "d");
+    resolves("rel/./f", "d/f");
+    fails("rel/f/", ENOTDIR);
+    check(realpath("/..", got) == got && strcmp(got, "/") == 0, "/.. is the root");
+    snprintf(path, sizeof(path), "%s/abs/..", base);
+    check(realpath(path, got) == got && strcmp(got, top) == 0, "abs/.. is the test directory");
+
+    /* A component longer than NAME_MAX */
+    {
+        char long_name[NAME_MAX + 2];
+
+        memset(long_name, 'n', sizeof(long_name) - 1);
+        long_name[sizeof(long_name) - 1] = '\0';
+        fails(long_name, ENAMETOOLONG);
+    }
+
+    /* No search permission for a directory on the way */
+    if (geteuid() != 0) {
+        snprintf(path, sizeof(path), "%s/d", base);
+        check(chmod(path, 0) == 0, "chmod");
+        snprintf(path, sizeof(path), "%s/d/f", base);
+        errno = 0;
+        alloc = realpath(path, got);
+        snprintf(path, sizeof(path), "%s/d", base);
+        check(chmod(path, 0700) == 0, "chmod back");
+        check(alloc == NULL && errno == EACCES, "no search permission");
+    }
 
     /* Without a buffer, the result is allocated */
     snprintf(path, sizeof(path), "%s/rel/f", base);
