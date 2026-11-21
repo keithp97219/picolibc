@@ -39,16 +39,35 @@ __STDIO_UNLOCKED(putwc)(wchar_t c, FILE *stream)
         wchar_t wc;
         char    c[sizeof(wchar_t)];
     } u;
-    unsigned i;
+    char   mb[MB_LEN_MAX];
+    char  *out = mb;
+    size_t len, i;
 
     stream->flags |= __SWIDE;
 
     if ((stream->flags & __SWR) == 0)
         return WEOF;
 
-    u.wc = c;
-    for (i = 0; i < sizeof(wchar_t); i++)
-        if (stream->put(u.c[i], stream) < 0) {
+    if (stream->flags & __SWCHAR) {
+        /* Wide string streams store the wchar_t itself */
+        u.wc = c;
+        out = u.c;
+        len = sizeof(wchar_t);
+    } else {
+        /* Other streams hold the character's multibyte encoding */
+        mbstate_t ps;
+
+        memset(&ps, 0, sizeof(ps));
+        len = wcrtomb(mb, c, &ps);
+        if (len == (size_t)-1) {
+            /* wcrtomb set errno to EILSEQ */
+            stream->flags |= __SERR;
+            return WEOF;
+        }
+    }
+
+    for (i = 0; i < len; i++)
+        if (stream->put(out[i], stream) < 0) {
             stream->flags |= __SERR;
             return WEOF;
         }

@@ -91,11 +91,11 @@ bool              __matchcaseprefix(const char *input, const char *pattern);
           .pos = (char *)(_s) \
 }
 
-#define FDEV_SETUP_WSTRING_READ(_s)                                           \
-    {                                                                         \
-        .file = { .flags = __SRD, .get = __file_wstr_get, __LOCK_INIT_NONE }, \
-        .pos = (char *)(_s),                                                  \
-        .end = (char *)(_s)                                                   \
+#define FDEV_SETUP_WSTRING_READ(_s)                                                                \
+    {                                                                                              \
+        .file = { .flags = __SRD | __SWIDE | __SWCHAR, .get = __file_wstr_get, __LOCK_INIT_NONE }, \
+        .pos = (char *)(_s),                                                                       \
+        .end = (char *)(_s)                                                                        \
     }
 
 #define FDEV_STRING_WRITE_END(_s, _n) (((int)(_n) < 0) ? NULL : ((_n) ? (_s) + (_n) - 1 : (_s)))
@@ -108,11 +108,13 @@ bool              __matchcaseprefix(const char *input, const char *pattern);
     }
 
 /* A zero-sized wide string is an error even when no output is generated. */
-#define FDEV_SETUP_WSTRING_WRITE(_s, _n)                                                 \
-    {                                                                                    \
-        .file = { .flags = (_n) ? __SWR : 0, .put = __file_wstr_put, __LOCK_INIT_NONE }, \
-        .pos = (char *)(_s),                                                             \
-        .end = (char *)FDEV_STRING_WRITE_END((_s), (_n)),                                \
+#define FDEV_SETUP_WSTRING_WRITE(_s, _n)                            \
+    {                                                               \
+        .file = { .flags = ((_n) ? __SWR : 0) | __SWIDE | __SWCHAR, \
+                 .put = __file_wstr_put,                           \
+                 __LOCK_INIT_NONE },                               \
+        .pos = (char *)(_s),                                        \
+        .end = (char *)FDEV_STRING_WRITE_END((_s), (_n)),           \
     }
 
 #define FDEV_SETUP_STRING_ALLOC()                                                  \
