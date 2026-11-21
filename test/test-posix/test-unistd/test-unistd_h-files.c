@@ -1,0 +1,180 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+/* lockf, F_LOCK and friends, and sync are XSI interfaces */
+#define _XOPEN_SOURCE 800
+/* glibc declares dup3, pipe2 and getentropy, and defines SEEK_DATA and SEEK_HOLE, only with
+ * _GNU_SOURCE */
+#ifdef TEST_GLIBC
+#define _GNU_SOURCE
+#endif
+/* The application's own macros, defined before the header */
+#define flags +
+#define flag  +
+#include <unistd.h>
+/* <stdio.h>'s FILE has a member named flags; only <unistd.h> is checked */
+#undef flags
+#undef flag
+
+#include <limits.h>
+#include <stdio.h>
+
+/*
+ * <unistd.h> declares the file functions with the types POSIX gives
+ * them, and defines the constants they use with the values POSIX asks
+ */
+
+/* Types */
+_Static_assert((ssize_t)-1 < 0, "ssize_t is signed");
+_Static_assert((off_t)-1 < 0, "off_t is signed");
+_Static_assert(sizeof(size_t) > 0 && sizeof(intptr_t) == sizeof(void *), "size_t, intptr_t");
+_Static_assert(sizeof(uid_t) > 0 && sizeof(gid_t) > 0 && sizeof(pid_t) > 0, "id types");
+
+/* NULL */
+static void * const null __attribute__((unused)) = NULL;
+
+/* access modes: F_OK and the R_OK, W_OK, X_OK combinations are distinct */
+#if !defined(F_OK) || !defined(R_OK) || !defined(W_OK) || !defined(X_OK)
+#error access constants missing
+#endif
+#if F_OK == R_OK || F_OK == W_OK || F_OK == X_OK || R_OK == W_OK || R_OK == X_OK || W_OK == X_OK
+#error access constants not distinct
+#endif
+#if (R_OK | W_OK) == (R_OK | X_OK) || (R_OK | W_OK) == (R_OK | W_OK | X_OK)                    \
+    || (R_OK | X_OK) == (R_OK | W_OK | X_OK) || F_OK == (R_OK | W_OK) || F_OK == (R_OK | X_OK) \
+    || F_OK == (R_OK | W_OK | X_OK) || (R_OK | W_OK) == W_OK || (R_OK | X_OK) == X_OK
+#error access combinations not distinct
+#endif
+
+/* SEEK_SET, SEEK_CUR and SEEK_END as in <stdio.h>; SEEK_DATA and SEEK_HOLE distinct */
+#if !defined(SEEK_SET) || !defined(SEEK_CUR) || !defined(SEEK_END)
+#error SEEK constants missing
+#endif
+_Static_assert(SEEK_DATA != SEEK_HOLE && SEEK_DATA != SEEK_SET && SEEK_DATA != SEEK_CUR
+                   && SEEK_DATA != SEEK_END && SEEK_HOLE != SEEK_SET && SEEK_HOLE != SEEK_CUR
+                   && SEEK_HOLE != SEEK_END,
+               "SEEK_DATA and SEEK_HOLE distinct");
+_Static_assert(SEEK_SET != SEEK_CUR && SEEK_SET != SEEK_END && SEEK_CUR != SEEK_END,
+               "SEEK values distinct");
+
+/* The lockf functions (XSI) */
+#if !defined(F_LOCK) || !defined(F_TEST) || !defined(F_TLOCK) || !defined(F_ULOCK)
+#error lockf constants missing
+#endif
+_Static_assert(F_LOCK != F_TEST && F_LOCK != F_TLOCK && F_LOCK != F_ULOCK && F_TEST != F_TLOCK
+                   && F_TEST != F_ULOCK && F_TLOCK != F_ULOCK,
+               "lockf constants distinct");
+
+/* The standard streams */
+#if STDIN_FILENO != 0 || STDOUT_FILENO != 1 || STDERR_FILENO != 2
+#error FILENO values
+#endif
+
+/* O_CLOEXEC, as in <fcntl.h> (glibc's <unistd.h> doesn't define it) */
+#ifndef __GLIBC__
+#ifndef O_CLOEXEC
+#error O_CLOEXEC missing from <unistd.h>
+#endif
+_Static_assert(O_CLOEXEC != 0, "O_CLOEXEC");
+#endif
+
+/* posix_close: POSIX_CLOSE_RESTART (glibc has neither) */
+#ifndef __GLIBC__
+#ifndef POSIX_CLOSE_RESTART
+#error POSIX_CLOSE_RESTART missing
+#endif
+#endif
+
+/* GETENTROPY_MAX in <limits.h>, at least 256 (glibc doesn't define it) */
+#ifndef __GLIBC__
+#if !defined(GETENTROPY_MAX) || GETENTROPY_MAX < 256
+#error GETENTROPY_MAX
+#endif
+#endif
+
+/* Each declaration has exactly the type POSIX gives */
+#define check_type(f, type)                                                    \
+    _Static_assert(_Generic(&(f), type: 1, default: 0), #f " has type " #type)
+
+check_type(access, int (*)(const char *, int));
+check_type(chdir, int (*)(const char *));
+check_type(chown, int (*)(const char *, uid_t, gid_t));
+check_type(close, int (*)(int));
+check_type(dup, int (*)(int));
+check_type(dup2, int (*)(int, int));
+check_type(dup3, int (*)(int, int, int));
+check_type(faccessat, int (*)(int, const char *, int, int));
+check_type(fchdir, int (*)(int));
+check_type(fchown, int (*)(int, uid_t, gid_t));
+check_type(fchownat, int (*)(int, const char *, uid_t, gid_t, int));
+check_type(fdatasync, int (*)(int));
+check_type(fsync, int (*)(int));
+check_type(ftruncate, int (*)(int, off_t));
+check_type(getcwd, char *(*)(char *, size_t));
+check_type(getentropy, int (*)(void *, size_t));
+check_type(isatty, int (*)(int));
+check_type(lchown, int (*)(const char *, uid_t, gid_t));
+check_type(link, int (*)(const char *, const char *));
+check_type(linkat, int (*)(int, const char *, int, const char *, int));
+check_type(lockf, int (*)(int, int, off_t));
+check_type(lseek, off_t (*)(int, off_t, int));
+check_type(pipe, int (*)(int[2]));
+check_type(pipe2, int (*)(int[2], int));
+#ifndef __GLIBC__
+check_type(posix_close, int (*)(int, int));
+#endif
+check_type(pread, ssize_t (*)(int, void *, size_t, off_t));
+check_type(pwrite, ssize_t (*)(int, const void *, size_t, off_t));
+check_type(read, ssize_t (*)(int, void *, size_t));
+check_type(readlink, ssize_t (*)(const char * restrict, char * restrict, size_t));
+check_type(readlinkat, ssize_t (*)(int, const char * restrict, char * restrict, size_t));
+check_type(rmdir, int (*)(const char *));
+check_type(symlink, int (*)(const char *, const char *));
+check_type(symlinkat, int (*)(const char *, int, const char *));
+check_type(sync, void (*)(void));
+check_type(truncate, int (*)(const char *, off_t));
+check_type(ttyname, char *(*)(int));
+check_type(ttyname_r, int (*)(int, char *, size_t));
+check_type(unlink, int (*)(const char *));
+check_type(unlinkat, int (*)(int, const char *, int));
+check_type(write, ssize_t (*)(int, const void *, size_t));
+
+int
+main(void)
+{
+    printf("success\n");
+    return 0;
+}

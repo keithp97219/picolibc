@@ -37,18 +37,26 @@
 /* The application's own macros, defined before the header */
 #define name     +
 #define namesize +
+#define flags    +
+#define flag     +
 #include <unistd.h>
+/* <stdio.h>'s FILE has a member named flags; only <unistd.h> is checked */
+#undef flags
+#undef flag
 
 #include <stdio.h>
 
 /*
  * In strict POSIX mode, without XSI, <unistd.h> declares none of the
  * XSI process functions, nothing Issue 7 or 8 removed and no
- * extensions, and its prototypes don't use the application's names
+ * extensions, nor the lockf constants, and its prototypes don't use
+ * the application's names
  */
 
 /* XSI interfaces */
 static int nice;
+static int lockf;
+static int sync;
 static int setregid;
 static int setreuid;
 static int getresgid;
@@ -69,10 +77,16 @@ static int setgroups;
 static int issetugid;
 static int daemon;
 
+#if defined(F_LOCK) || defined(F_TEST) || defined(F_TLOCK) || defined(F_ULOCK)
+#error lockf constants without XSI
+#endif
+
 int
 main(void)
 {
     (void)nice;
+    (void)lockf;
+    (void)sync;
     (void)setregid;
     (void)setreuid;
     (void)getresgid;
