@@ -76,7 +76,7 @@ iconv(iconv_t ic, char ** __restrict inbuf, size_t * __restrict inbytesleft,
     int    err = 0;
 
     if (ic == (iconv_t)-1) {
-        errno = EINVAL;
+        errno = EBADF;
         return (size_t)-1;
     }
 

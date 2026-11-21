@@ -39,7 +39,7 @@ int
 iconv_close(iconv_t ic)
 {
     if (ic == (iconv_t)-1) {
-        errno = EINVAL;
+        errno = EBADF;
         return -1;
     }
     free(ic);
