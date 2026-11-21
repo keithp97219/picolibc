@@ -51,6 +51,7 @@ posix_test_dirs = [
   'test-grp',
   'test-integration',
   'test-inttypes',
+  'test-langinfo',
   'test-libgen',
   'test-libintl',
   'test-locale',
