@@ -43,8 +43,12 @@ sched_setscheduler(pid_t pid, int policy, const struct sched_param *param)
     int                          kpolicy = _sched_policy_to_freebsd(policy);
     int                          former;
 
-    if (kpolicy < 0 || param->sched_priority < sched_get_priority_min(policy)
-        || param->sched_priority > sched_get_priority_max(policy)) {
+    /*
+     * Time sharing has the one priority 0; the kernel checks the
+     * real-time ranges itself (after privilege, so an unprivileged
+     * caller may see EPERM for a bad priority, which POSIX allows)
+     */
+    if (kpolicy < 0 || (policy == SCHED_OTHER && param->sched_priority != 0)) {
         errno = EINVAL;
         return -1;
     }
