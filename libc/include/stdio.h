@@ -634,11 +634,11 @@ int vfprintf_s(FILE * __restrict stream, const char * __restrict fmt, va_list ap
 #endif
 
 /*
- * We don't have any way of knowing any underlying POSIX limits,
- * so just use a reasonably small value here
+ * tmpnam picks six random characters from 36, so it can make many more
+ * names than this. XSI requires at least 10000.
  */
 #ifndef TMP_MAX
-#define TMP_MAX 32
+#define TMP_MAX 10000
 #endif
 
 /*@}*/
