@@ -107,8 +107,7 @@ main(void)
     check(fputs("bee", f) >= 0 && fseek(f, 0, SEEK_SET) == 0 && fgetc(f) == 'b', "update mode");
     check(freopen("b", "r", f) == f && fwide(f, 1) > 0, "make the new stream wide");
     check(freopen("a", "r", f) == f, "freopen a");
-    /* POSIX says 0 (no orientation); picolibc's fwide reports byte orientation instead */
-    check(fwide(f, 0) <= 0, "orientation cleared");
+    check(fwide(f, 0) == 0, "orientation cleared");
     check(fgetc(f) == 'n', "byte input after freopen");
 
     /* 'e' and 'x' as for fopen */

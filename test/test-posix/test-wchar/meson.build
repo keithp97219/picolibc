@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-fwide',
   'test-mbrtowc',
   'test-mbsrtowcs',
   'test-open_wmemstream',
