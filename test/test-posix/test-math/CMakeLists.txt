@@ -37,6 +37,7 @@ set(tests
   test-j0-errors
   test-math_h
   test-math_h-names
+  test-remquo
   test-signgam
   test-y0-errors
   )

@@ -37,6 +37,7 @@ dir_tests = [
   'test-j0-errors',
   'test-math_h',
   'test-math_h-names',
+  'test-remquo',
   'test-signgam',
   'test-y0-errors',
 ]
@@ -44,6 +45,7 @@ dir_tests = [
 # Keep the compiler from evaluating the functions itself
 test_extra_c_args += {
   'test-j0-errors': ['-fno-builtin'],
+  'test-remquo': ['-fno-builtin'],
   'test-signgam': ['-fno-builtin'],
   'test-y0-errors': ['-fno-builtin'],
 }
