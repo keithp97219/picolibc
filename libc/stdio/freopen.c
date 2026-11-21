@@ -54,29 +54,49 @@ freopen(const char *pathname, const char *mode, FILE *stream)
     if (stdio_flags == 0)
         goto exit;
 
-    if (pathname != NULL) {
-        fd = open(pathname, open_flags, 0666);
-        if (fd < 0)
-            goto exit;
-    } else
-        fd = (int)(intptr_t)(pf->ptr);
-
+    /* Flush first, ignoring any failure */
     (void)__fflush_locked(stream);
 
     __bufio_lock(stream);
 
-    if (pathname != NULL)
-        close((int)(intptr_t)(pf->ptr));
+    if (pathname != NULL) {
+        /*
+         * Close the old file before opening the new one, ignoring any
+         * failure, so the new descriptor can take the old number
+         */
+        (void)bufio_close(pf);
+        fd = open(pathname, open_flags, 0666);
+    } else
+        fd = _FDEV_BUFIO_FD(pf);
 
-    stream->flags = (stream->flags & ~(__SRD | __SWR | __SERR | __SEOF)) | stdio_flags;
-    pf->pos = 0;
+    /* Errors and end-of-file are cleared, as is the orientation */
+    stream->flags &= ~(__SRD | __SWR | __SERR | __SEOF | __SWIDE);
+    __atomic_store_ungetc(&stream->unget, 0);
     pf->ptr = (void *)(intptr_t)(fd);
+    pf->dir = 0;
+    pf->len = 0;
+    pf->off = 0;
 
     /* Switch to POSIX backend */
+    pf->bflags &= ~(__BFPTR | __BSYNC);
     pf->read_int = read;
     pf->write_int = write;
     pf->lseek_int = lseek;
     pf->close_int = close;
+
+    if (fd < 0) {
+        /* The old file is closed even though the open failed */
+        __bufio_unlock(stream);
+        goto exit;
+    }
+
+    stream->flags |= stdio_flags;
+    if (pathname != NULL)
+        pf->pos = 0;
+    else {
+        pf->bflags |= __BSYNC;
+        bufio_sync_pos(pf);
+    }
 
     /* Reset buffer mode and size */
     int (*setvbuf)(struct __file *, char *buf, int mode, size_t size) = 0;
