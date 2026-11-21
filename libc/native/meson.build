@@ -35,14 +35,18 @@
 
 srcs_os_native_host = [
   'fstat_host.c',
+  'fstatvfs_host.c',
   'lstat_host.c',
   'stat_host.c',
+  'statvfs_host.c',
   ]
 
 srcs_os_native = [
   'fstat.c',
+  'fstatvfs.c',
   'lstat.c',
   'stat.c',
+  'statvfs.c',
   ]
 
 src_os_native_host = files(srcs_os_native_host)
