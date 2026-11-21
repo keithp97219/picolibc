@@ -44,3 +44,7 @@ dir_tests = [
   'test-sys_resource_h-names',
 ]
 
+# setpriority changes every thread of the process
+dir_thread_tests = [
+  'test-setpriority-thread',
+]

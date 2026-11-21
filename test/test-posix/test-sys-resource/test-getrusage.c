@@ -39,15 +39,22 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/resource.h>
+#include <signal.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 
-/* getrusage reports CPU time used */
+/*
+ * getrusage reports CPU time used by the process, and by the children
+ * (and their children) that have been waited for, but not by children
+ * that weren't, such as those discarded with SIGCHLD ignored
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -57,11 +64,91 @@
         }                                              \
     } while (0)
 
+/* CPU time in microseconds */
+static long long
+usec(int who)
+{
+    struct rusage ru;
+
+    check(getrusage(who, &ru) == 0, "getrusage");
+    return (ru.ru_utime.tv_sec + ru.ru_stime.tv_sec) * 1000000LL + ru.ru_utime.tv_usec
+        + ru.ru_stime.tv_usec;
+}
+
+#define BURN 100000 /* 100ms */
+
+/* Use at least BURN microseconds of CPU time */
+static void
+burn(void)
+{
+    while (usec(RUSAGE_SELF) < BURN)
+        ;
+}
+
+static pid_t
+burner(int grandchild)
+{
+    pid_t pid = fork();
+
+    check(pid >= 0, "fork");
+    if (pid == 0) {
+        if (grandchild) {
+            /* The time of a grandchild waited for by its parent counts too */
+            pid_t g = burner(0);
+            _exit(waitpid(g, NULL, 0) == g ? 0 : 1);
+        }
+        burn();
+        _exit(0);
+    }
+    return pid;
+}
+
+static void
+children(void)
+{
+    struct sigaction sa;
+    siginfo_t        info;
+    pid_t            pid;
+    long long        before;
+    int              status;
+
+    /* A new process has no children's time */
+    check(usec(RUSAGE_CHILDREN) == 0, "no children's time yet");
+
+    /* A terminated child counts only once it is waited for */
+    pid = burner(0);
+    check(waitid(P_PID, (id_t)pid, &info, WEXITED | WNOWAIT) == 0, "waitid WNOWAIT");
+    check(usec(RUSAGE_CHILDREN) == 0, "not counted before the wait");
+    check(waitpid(pid, &status, 0) == pid && status == 0, "waitpid");
+    before = usec(RUSAGE_CHILDREN);
+    check(before >= BURN, "counted after the wait");
+
+    /* So does a grandchild its parent waited for */
+    pid = burner(1);
+    check(waitpid(pid, &status, 0) == pid && status == 0, "waitpid");
+    check(usec(RUSAGE_CHILDREN) >= before + BURN, "grandchild counted");
+    before = usec(RUSAGE_CHILDREN);
+
+    /* A child discarded with SIGCHLD ignored never counts */
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = SIG_IGN;
+    sigemptyset(&sa.sa_mask);
+    check(sigaction(SIGCHLD, &sa, NULL) == 0, "ignore SIGCHLD");
+    pid = burner(0);
+    /* This returns once the child is gone */
+    errno = 0;
+    check(waitpid(pid, &status, 0) == -1 && errno == ECHILD, "discarded");
+    check(usec(RUSAGE_CHILDREN) == before, "a discarded child isn't counted");
+    exit(0);
+}
+
 int
 main(void)
 {
     struct rusage ru;
     volatile long i, sum = 0;
+    pid_t         pid;
+    int           status;
 
     for (i = 0; i < 20000000; i++)
         sum += i;
@@ -73,6 +160,13 @@ main(void)
           "some time used");
     check(getrusage(RUSAGE_CHILDREN, &ru) == 0, "RUSAGE_CHILDREN");
     check(getrusage(42, &ru) == -1 && errno == EINVAL, "EINVAL");
+
+    pid = fork();
+    check(pid >= 0, "fork");
+    if (pid == 0)
+        children();
+    check(waitpid(pid, &status, 0) == pid, "waitpid");
+    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "children's time");
     printf("success\n");
     return 0;
 }

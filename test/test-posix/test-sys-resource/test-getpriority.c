@@ -64,13 +64,20 @@ main(void)
 
     errno = 0;
     prio = getpriority(PRIO_PROCESS, 0);
-    check(errno == 0 && prio >= -20 && prio <= 19, "own priority");
+    check(errno == 0 && prio >= -NZERO && prio <= NZERO - 1, "own priority");
     check(getpriority(PRIO_PROCESS, getpid()) == prio, "by pid");
     errno = 0;
     (void)getpriority(PRIO_PGRP, 0);
     check(errno == 0, "process group");
     errno = 0;
     check(getpriority(PRIO_PROCESS, INT_MAX) == -1 && errno == ESRCH, "ESRCH");
+    errno = 0;
+    check(getpriority(PRIO_PGRP, INT_MAX) == -1 && errno == ESRCH, "ESRCH for a group");
+    /* The lowest value of all the user's processes, ours among them */
+    errno = 0;
+    check(getpriority(PRIO_USER, 0) <= prio && errno == 0, "user");
+    errno = 0;
+    check(getpriority(PRIO_PGRP, (id_t)getpgrp()) <= prio && errno == 0, "own group by ID");
     errno = 0;
     check(getpriority(42, 0) == -1 && errno == EINVAL, "EINVAL");
     printf("success\n");

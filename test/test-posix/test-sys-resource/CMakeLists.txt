@@ -37,6 +37,7 @@ set(tests
   test-getpriority
   test-getrusage
   test-setpriority
+  test-setpriority-thread
   test-setrlimit
   test-setrlimit-enforce
   test-sys_resource_h
