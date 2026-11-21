@@ -36,6 +36,7 @@
 add_subdirectory(test-aio)
 add_subdirectory(test-arpa-inet)
 add_subdirectory(test-dirent)
+add_subdirectory(test-errno)
 add_subdirectory(test-fcntl)
 add_subdirectory(test-fmtmsg)
 add_subdirectory(test-fnmatch)
