@@ -38,8 +38,9 @@ SUCH DAMAGE.
 #define _SEARCH_H_
 
 #include <sys/cdefs.h>
-#include <machine/ansi.h>
-#include <sys/types.h>
+#include <sys/_types.h>
+#define __need_size_t
+#include <stddef.h>
 
 typedef struct entry {
     char *key;
@@ -59,10 +60,13 @@ typedef struct node {
 } node_t;
 #endif
 
+/* The reentrant hash table and tdestroy are BSD and GNU extensions */
+#if __BSD_VISIBLE
 struct hsearch_data {
     struct internal_head *htable;
     size_t                htablesize;
 };
+#endif
 
 #ifndef __compar_fn_t_defined
 #define __compar_fn_t_defined
@@ -77,14 +81,16 @@ void   remque(void *) __picolibc_export;
 int    hcreate(size_t) __picolibc_export;
 void   hdestroy(void) __picolibc_export;
 ENTRY *hsearch(ENTRY, ACTION) __picolibc_export;
-int    hcreate_r(size_t, struct hsearch_data *) __picolibc_export;
-void   hdestroy_r(struct hsearch_data *) __picolibc_export;
-int    hsearch_r(ENTRY, ACTION, ENTRY **, struct hsearch_data *) __picolibc_export;
 void  *tdelete(const void  *__restrict, posix_tnode  **__restrict, __compar_fn_t) __picolibc_export;
-void   tdestroy(void *, void (*)(void *)) __picolibc_export;
 posix_tnode *tfind(const void *, posix_tnode * const *, __compar_fn_t) __picolibc_export;
 posix_tnode *tsearch(const void *, posix_tnode **, __compar_fn_t) __picolibc_export;
 void twalk(const posix_tnode *, void (*)(const posix_tnode *, VISIT, int)) __picolibc_export;
+#if __BSD_VISIBLE
+int  hcreate_r(size_t, struct hsearch_data *) __picolibc_export;
+void hdestroy_r(struct hsearch_data *) __picolibc_export;
+int  hsearch_r(ENTRY, ACTION, ENTRY **, struct hsearch_data *) __picolibc_export;
+void tdestroy(void *, void (*)(void *)) __picolibc_export;
+#endif
 _END_STD_C
 
 #endif /* !_SEARCH_H_ */
