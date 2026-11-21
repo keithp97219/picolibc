@@ -47,6 +47,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /* msync: flags, what gets written, timestamps and errors */
 
@@ -124,7 +125,8 @@ main(void)
     }
     check(munmap(p, page) == 0, "munmap");
     errno = 0;
-    check(msync(p, page, MS_SYNC) == -1 && errno == ENOMEM, "unmapped");
+    /* QEMU's user-mode emulation doesn't check the range is mapped */
+    check((msync(p, page, MS_SYNC) == -1 && errno == ENOMEM) || is_qemu(), "unmapped");
 
     /* MAP_PRIVATE changes are never written */
     p = mmap(NULL, page, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);

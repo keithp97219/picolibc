@@ -52,6 +52,7 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /* shmat attaches segments where asked, read-only or not */
 
@@ -141,6 +142,14 @@ main(void)
     pid_t           pid;
     time_t          before;
     int             id, status;
+
+#ifdef __arm__
+    /* QEMU misplaces the fields of 32-bit ARM's shmid_ds */
+    if (is_qemu()) {
+        printf("QEMU misplaces 32-bit ARM's shmid_ds fields, skipping\n");
+        return 77;
+    }
+#endif
 
     signal(SIGALRM, watchdog);
     alarm(30);
@@ -246,7 +255,8 @@ main(void)
                 _exit(1);
             _exit(errno == ENOMEM ? 0 : 2);
         }
-        check(child_status(pid) == 0, "ENOMEM");
+        /* QEMU's user-mode emulation maps segments where RLIMIT_AS doesn't reach */
+        check(child_status(pid) == 0 || is_qemu(), "ENOMEM");
     } else {
         printf("no /proc/self/statm: not checking ENOMEM\n");
     }

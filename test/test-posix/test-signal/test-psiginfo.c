@@ -41,6 +41,7 @@
 #include <wchar.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../is-qemu.h"
 
 #define check(condition, message)                      \
     do {                                               \
@@ -52,31 +53,6 @@
 
 #ifndef TEST_FILE_NAME
 #define TEST_FILE_NAME "test-psiginfo.txt"
-#endif
-
-#ifdef __GLIBC__
-/*
- * qemu's user-mode emulation reports BogoMIPS as 100.00 for every Arm
- * CPU; real hardware reports twice its timer frequency
- */
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    bool  ret = false;
-
-    if (!f)
-        return false;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
-}
 #endif
 
 int

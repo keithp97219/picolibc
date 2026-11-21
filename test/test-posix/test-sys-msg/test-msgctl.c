@@ -50,6 +50,7 @@
 #include <sys/msg.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /*
  * msgctl reads and sets every member of msqid_ds. On 32-bit targets
@@ -91,28 +92,6 @@ keep(int id)
         ids[nids++] = id;
     return id;
 }
-
-#ifdef __arm__
-/* QEMU's user-mode emulation identifies itself through BogoMIPS */
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    bool  ret = false;
-
-    if (!f)
-        return false;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
-}
-#endif
 
 /* Waits until the kernel's clock has passed t, so a new timestamp differs */
 static void

@@ -46,8 +46,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/shm.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /* shmget creates and finds segments, initialized to zero */
 
@@ -123,6 +125,14 @@ main(void)
     unsigned char     *p;
     size_t             i;
     unsigned long long max;
+
+#ifdef __arm__
+    /* QEMU misplaces the fields of 32-bit ARM's shmid_ds */
+    if (is_qemu()) {
+        printf("QEMU misplaces 32-bit ARM's shmid_ds fields, skipping\n");
+        return 77;
+    }
+#endif
 
     signal(SIGALRM, watchdog);
     alarm(30);

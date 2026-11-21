@@ -46,8 +46,10 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/sem.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /* semget creates and finds semaphore sets, and initializes them */
 
@@ -113,6 +115,14 @@ main(void)
     int             a, b, id, proj, i;
     time_t          before;
     FILE           *f;
+
+#ifdef __arm__
+    /* QEMU misplaces the fields of 32-bit ARM's semid_ds */
+    if (is_qemu()) {
+        printf("QEMU misplaces 32-bit ARM's semid_ds fields, skipping\n");
+        return 77;
+    }
+#endif
 
     signal(SIGALRM, watchdog);
     alarm(30);

@@ -48,6 +48,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "../is-qemu.h"
 
 /* Installing, querying and resetting signal actions */
 
@@ -139,29 +140,6 @@ read_interrupted(int flags, int *err)
     check(plain_caught == SIGALRM, "alarm delivered");
     close(pipe_fds[0]);
     close(pipe_fds[1]);
-    return ret;
-}
-
-/*
- * qemu's user-mode emulation reports BogoMIPS as 100.00 for every Arm
- * CPU; real hardware reports twice its timer frequency
- */
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    bool  ret = false;
-
-    if (!f)
-        return false;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
     return ret;
 }
 

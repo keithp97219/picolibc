@@ -48,6 +48,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
+#include "../is-qemu.h"
 
 /* mprotect: protections take effect on whole pages, and the errors */
 
@@ -129,9 +130,12 @@ main(void)
     check(mprotect(p + 1, page, PROT_READ) == -1 && errno == EINVAL, "address not page aligned");
     check(munmap(p + page, page) == 0, "munmap middle page");
     errno = 0;
-    check(mprotect(p, 3 * page, PROT_READ) == -1 && errno == ENOMEM, "range with a hole");
+    /* QEMU's user-mode emulation doesn't check the range is mapped */
+    check((mprotect(p, 3 * page, PROT_READ) == -1 && errno == ENOMEM) || is_qemu(),
+          "range with a hole");
     errno = 0;
-    check(mprotect(p + page, page, PROT_READ) == -1 && errno == ENOMEM, "unmapped page");
+    check((mprotect(p + page, page, PROT_READ) == -1 && errno == ENOMEM) || is_qemu(),
+          "unmapped page");
     check(munmap(p, 3 * page) == 0, "munmap");
 
     /* The file's access mode limits PROT_WRITE on MAP_SHARED, even after close */

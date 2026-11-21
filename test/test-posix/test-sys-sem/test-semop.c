@@ -50,6 +50,7 @@
 #include <sys/sem.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /* semop applies arrays of operations atomically, in order */
 
@@ -155,6 +156,14 @@ main(void)
     time_t          before;
     long            opm;
     int             id;
+
+#ifdef __arm__
+    /* QEMU misplaces the fields of 32-bit ARM's semid_ds */
+    if (is_qemu()) {
+        printf("QEMU misplaces 32-bit ARM's semid_ds fields, skipping\n");
+        return 77;
+    }
+#endif
 
     signal(SIGALRM, watchdog);
     alarm(30);

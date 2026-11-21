@@ -50,6 +50,7 @@
 #include <sys/msg.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /* msgrcv picks messages by type, waits for them, and reports its errors */
 
@@ -97,28 +98,6 @@ drop(int id)
         if (ids[i] == id)
             ids[i] = ids[--nids];
 }
-
-#ifdef __arm__
-/* QEMU's user-mode emulation identifies itself through BogoMIPS */
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    bool  ret = false;
-
-    if (!f)
-        return false;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
-}
-#endif
 
 /*
  * Waits until the child, which has said through the pipe that it is

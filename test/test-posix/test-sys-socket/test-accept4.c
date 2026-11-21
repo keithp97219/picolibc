@@ -56,6 +56,7 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /* accept4 sets flags on the accepted socket */
 
@@ -197,26 +198,6 @@ int_option(int fd, int name)
 
     check(getsockopt(fd, SOL_SOCKET, name, &value, &len) == 0, "getsockopt");
     return value;
-}
-
-/* QEMU's user-mode emulation reports BogoMIPS as 100.00 */
-static int
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    int   ret = 0;
-
-    if (!f)
-        return 0;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
 }
 
 int

@@ -53,6 +53,7 @@
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /* recvmsg scatters data and receives addresses, descriptors and flags */
 
@@ -185,26 +186,6 @@ send_fds(int fd, const int *fds, int n)
     cmsg->cmsg_len = CMSG_LEN((size_t)n * sizeof(int));
     memcpy(CMSG_DATA(cmsg), fds, (size_t)n * sizeof(int));
     check(sendmsg(fd, &msg, 0) == 1, "send descriptors");
-}
-
-/* QEMU's user-mode emulation reports BogoMIPS as 100.00 */
-static int
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    int   ret = 0;
-
-    if (!f)
-        return 0;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
 }
 
 int

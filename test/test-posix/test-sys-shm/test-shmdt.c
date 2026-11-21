@@ -50,6 +50,7 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /* shmdt detaches a segment only from its start address */
 
@@ -98,6 +99,14 @@ main(void)
     time_t          before;
     long            page = sysconf(_SC_PAGESIZE);
     int             id, status;
+
+#ifdef __arm__
+    /* QEMU misplaces the fields of 32-bit ARM's shmid_ds */
+    if (is_qemu()) {
+        printf("QEMU misplaces 32-bit ARM's shmid_ds fields, skipping\n");
+        return 77;
+    }
+#endif
 
     signal(SIGALRM, watchdog);
     alarm(30);

@@ -42,7 +42,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
+#include "../is-qemu.h"
 
 /* mlock and mlockall lock memory, or report why they can't */
 
@@ -83,17 +85,21 @@ main(void)
     errno = 0;
     check(mlockall(0) == -1 && errno == EINVAL, "no flags");
     /* No system has a flag this high, and an unimplemented flag must fail */
-    errno = 0;
-    check(mlockall(MCL_CURRENT | 0x40000000) == -1 && errno == EINVAL, "unimplemented flag");
-    errno = 0;
-    check(mlockall(MCL_FUTURE | 0x100) == -1 && errno == EINVAL, "unimplemented flag 0x100");
+    /* QEMU's user-mode emulation drops flags it doesn't know */
+    if (!is_qemu()) {
+        errno = 0;
+        check(mlockall(MCL_CURRENT | 0x40000000) == -1 && errno == EINVAL, "unimplemented flag");
+        errno = 0;
+        check(mlockall(MCL_FUTURE | 0x100) == -1 && errno == EINVAL, "unimplemented flag 0x100");
+    }
     errno = 0;
     check(mlock(mem, (size_t)-page) == -1 && (errno == ENOMEM || errno == EINVAL), "huge range");
 
     /* A range that isn't all mapped */
     check(munmap(mem + page, page) == 0, "munmap second page");
     errno = 0;
-    check(munlock(mem, 2 * page) == -1 && errno == ENOMEM, "munlock of a hole");
+    /* QEMU's user-mode emulation doesn't check the range is mapped */
+    check((munlock(mem, 2 * page) == -1 && errno == ENOMEM) || is_qemu(), "munlock of a hole");
     if (mlock(mem, page) == 0) {
         errno = 0;
         check(mlock(mem, 2 * page) == -1 && errno == ENOMEM, "mlock of a hole");

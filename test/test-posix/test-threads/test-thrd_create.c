@@ -50,6 +50,7 @@
 #include <sys/wait.h>
 #include <threads.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /*
  * thrd_create starts threads that thrd_join, thrd_exit and thrd_detach
@@ -82,28 +83,6 @@ exiter(void *arg)
     (void)arg;
     thrd_exit(42);
 }
-
-#ifndef __GLIBC__
-/* qemu-user ignores RLIMIT_AS; it shows a BogoMIPS of 100.00 */
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    bool  ret = false;
-
-    if (!f)
-        return false;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
-}
-#endif
 
 /* The address space in use, in bytes, or 0 if unknown */
 static unsigned long

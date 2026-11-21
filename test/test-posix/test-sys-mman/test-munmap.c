@@ -50,6 +50,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include "../is-qemu.h"
 
 /* mmap and munmap: what gets mapped where, sharing, and the errors */
 
@@ -219,11 +220,14 @@ errors(void)
     check(mmap(NULL, (size_t)0 - page, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0) == MAP_FAILED
               && errno == ENOMEM,
           "no room");
-    errno = 0;
-    check(mmap((void *)top, 2 * page, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0)
-                  == MAP_FAILED
-              && errno == ENOMEM,
-          "MAP_FIXED outside the address space");
+    /* QEMU's user-mode emulation places guest mappings itself */
+    if (!is_qemu()) {
+        errno = 0;
+        check(mmap((void *)top, 2 * page, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0)
+                      == MAP_FAILED
+                  && errno == ENOMEM,
+              "MAP_FIXED outside the address space");
+    }
     p = anon(2 * page, MAP_PRIVATE);
     errno = 0;
     check(mmap(p + 1, page, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) == MAP_FAILED
@@ -236,7 +240,8 @@ errors(void)
     errno = 0;
     check(munmap(p + 1, page) == -1 && errno == EINVAL, "munmap address not page aligned");
     errno = 0;
-    check(munmap((void *)top, 2 * page) == -1 && errno == EINVAL,
+    /* QEMU's user-mode emulation places guest mappings itself */
+    check((munmap((void *)top, 2 * page) == -1 && errno == EINVAL) || is_qemu(),
           "munmap outside the address space");
     check(munmap(p, 2 * page) == 0, "munmap");
 

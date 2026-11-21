@@ -40,6 +40,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <string.h>
+#include "../is-qemu.h"
 
 static const int resources[] = {
     RLIMIT_CORE, RLIMIT_CPU, RLIMIT_DATA, RLIMIT_FSIZE, RLIMIT_NOFILE, RLIMIT_STACK, RLIMIT_AS,
@@ -56,29 +57,6 @@ __typeof(setrlimit) __fake_setrlimit __weak;
 #define is_fake(sym) 0
 #endif
 
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-
-    if (!f)
-        return false;
-    static char line[1024];
-    bool        ret = false;
-
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strstr(line, "BogoMIPS")) {
-            if (strstr(line, "100.00")) {
-                printf("Running under QEMU, tests relaxed\n");
-                ret = true;
-            }
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
-}
-
 int
 main(void)
 {
@@ -92,6 +70,8 @@ main(void)
         return 77;
     }
     qemu = is_qemu();
+    if (qemu)
+        printf("Running under QEMU, tests relaxed\n");
 
     for (r = 0; r < NUM_RESOURCE; r++) {
 

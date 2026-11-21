@@ -52,6 +52,7 @@
 #include <string.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
+#include "../is-qemu.h"
 
 /* Thread attributes: guard areas, stack sizes, scheduling and their effect on pthread_create */
 
@@ -62,26 +63,6 @@
             exit(1);                                   \
         }                                              \
     } while (0)
-
-/* QEMU user mode accepts but ignores RLIMIT_AS */
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    bool  ret = false;
-
-    if (!f)
-        return false;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
-}
 
 #define GUARD_SIZE (64 * 1024)
 #define STACK_SIZE (256 * 1024)

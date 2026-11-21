@@ -109,26 +109,7 @@ tcp_pair(int *client, int *server)
 }
 
 #include <sys/time.h>
-
-/* QEMU's user-mode emulation, which handles some options itself */
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    bool  ret = false;
-
-    if (!f)
-        return false;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
-}
+#include "../is-qemu.h"
 
 static int
 get_int(int fd, int name)

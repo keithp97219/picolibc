@@ -49,6 +49,7 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /*
  * shmctl reads and sets every member of shmid_ds. On 32-bit targets
@@ -132,6 +133,14 @@ main(void)
     uid_t           other_uid;
     gid_t           other_gid;
     char           *p, c;
+
+#ifdef __arm__
+    /* QEMU misplaces the fields of 32-bit ARM's shmid_ds */
+    if (is_qemu()) {
+        printf("QEMU misplaces 32-bit ARM's shmid_ds fields, skipping\n");
+        return 77;
+    }
+#endif
 
     signal(SIGALRM, watchdog);
     alarm(60);

@@ -48,6 +48,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /*
  * timer_settime, timer_gettime and timer_getoverrun: disarmed timers,
@@ -93,31 +94,6 @@ pending(int sig)
     check(sigpending(&set) == 0, "sigpending");
     return sigismember(&set, sig);
 }
-
-#ifdef __PICOLIBC__
-/*
- * qemu's user-mode emulation reports BogoMIPS as 100.00 for every Arm
- * CPU; real hardware reports twice its timer frequency
- */
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    bool  ret = false;
-
-    if (!f)
-        return false;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
-}
-#endif
 
 int
 main(void)

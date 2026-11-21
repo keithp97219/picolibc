@@ -46,6 +46,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include "../is-qemu.h"
 
 /* posix_madvise: advice never changes what the memory holds; errors are returned */
 
@@ -64,26 +65,6 @@ static char file[256];
             exit(1);                                   \
         }                                              \
     } while (0)
-
-/* qemu-user accepts most advice without looking at the range */
-static bool
-is_qemu(void)
-{
-    FILE *f = fopen("/proc/cpuinfo", "r");
-    char  line[256];
-    bool  ret = false;
-
-    if (!f)
-        return false;
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strncmp(line, "BogoMIPS", 8) == 0) {
-            ret = strstr(line, "100.00") != NULL;
-            break;
-        }
-    }
-    fclose(f);
-    return ret;
-}
 
 static const struct {
     const char *name;
@@ -165,7 +146,7 @@ main(void)
 #endif
         printf("%s on a hole\n", advices[i].name);
         ret = posix_madvise(anon, 3 * page, advices[i].advice);
-        if (qemu && ret == 0 && advices[i].advice != POSIX_MADV_DONTNEED) {
+        if (qemu && ret == 0) {
             printf("qemu accepted advice for a hole, skipping\n");
             continue;
         }

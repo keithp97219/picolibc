@@ -51,6 +51,7 @@
 #include <sys/sem.h>
 #include <sys/wait.h>
 #include <time.h>
+#include "../is-qemu.h"
 
 /*
  * semctl's commands, and every member of semid_ds. On 32-bit targets
@@ -189,6 +190,14 @@ main(void)
     pid_t           pid, pid2;
     uid_t           other_uid;
     gid_t           other_gid;
+
+#ifdef __arm__
+    /* QEMU misplaces the fields of 32-bit ARM's semid_ds */
+    if (is_qemu()) {
+        printf("QEMU misplaces 32-bit ARM's semid_ds fields, skipping\n");
+        return 77;
+    }
+#endif
 
     signal(SIGALRM, watchdog);
     alarm(60);
