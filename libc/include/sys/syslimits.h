@@ -123,4 +123,8 @@
 #define GETENTROPY_MAX 256 /* max length for one getentropy call */
 #endif
 
+#if __XSI_VISIBLE
+#define NZERO 20 /* default nice value; Linux nice values run from -20 to 19 */
+#endif
+
 #endif
