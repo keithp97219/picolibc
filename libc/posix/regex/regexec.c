@@ -61,6 +61,23 @@ static char sccsid[] = "@(#)regexec.c	8.3 (Berkeley) 3/20/94";
 static int nope = 0; /* for use in asserts; shuts lint up */
 #endif
 
+/*
+ * Compares a back-reference with the string, ignoring case under
+ * REG_ICASE (XBD 9.2 and 4.1)
+ */
+static int
+backcmp(const struct re_guts *g, const char *a, const char *b, size_t len)
+{
+    size_t i;
+
+    if (!(g->cflags & REG_ICASE))
+        return memcmp(a, b, len);
+    for (i = 0; i < len; i++)
+        if (a[i] != b[i] && tolower((unsigned char)a[i]) != tolower((unsigned char)b[i]))
+            return 1;
+    return 0;
+}
+
 /* macros for manipulating states, small version */
 #define states           long
 #define states1          states /* for later use in regexec() decision */

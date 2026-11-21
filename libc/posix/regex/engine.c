@@ -624,7 +624,7 @@ backref(struct match *m, char *start, char *stop, sopno startst, sopno stopst,
         if (sp > stop - len)
             return (NULL); /* not enough left to match */
         ssp = m->offp + m->pmatch[i].rm_so;
-        if (memcmp(sp, ssp, len) != 0)
+        if (backcmp(m->g, sp, ssp, len) != 0)
             return (NULL);
         while (m->g->strip[ss] != (sop)SOP(O_BACK, i))
             ss++;
