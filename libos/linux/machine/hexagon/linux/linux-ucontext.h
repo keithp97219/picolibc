@@ -37,9 +37,12 @@
 #define _LINUX_UCONTEXT_H_
 
 /*
- * The offsets of uc_stack and uc_sigmask in the kernel's struct
- * ucontext haven't been measured here, so signal handlers get the
- * kernel's context as it is
+ * Where the kernel's struct ucontext holds the interrupted stack and
+ * signal mask, from asm-generic/ucontext.h in the hexagon toolchain's
+ * kernel headers. qemu-hexagon delivers the mask there, but places
+ * uc_stack elsewhere; this hasn't been checked on hexagon hardware.
  */
+#define LINUX_UC_STACK   8
+#define LINUX_UC_SIGMASK 216
 
 #endif /* _LINUX_UCONTEXT_H_ */
