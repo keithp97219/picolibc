@@ -368,18 +368,10 @@ p_ere_exp(struct parse *p)
         EMIT(ORPAREN, subno);
         (void)MUSTEAT(')', REG_EPAREN);
         break;
-#ifndef POSIX_MISTAKE
-    case ')': /* happens only if no current unmatched ( */
-        /*
-         * You may ask, why the ifndef?  Because I didn't notice
-         * this until slightly too late for 1003.2, and none of the
-         * other 1003.2 regular-expression reviewers noticed it at
-         * all.  So an unmatched ) is legal POSIX, at least until
-         * we can get it fixed.
-         */
-        SETERROR(REG_EPAREN);
-        break;
-#endif
+    /*
+     * A ')' with no '(' before it falls through to ordinary: XBD 9.5.1
+     * says it is special only when matched with a preceding '('
+     */
     case '^':
         EMIT(OBOL, 0);
         p->g->iflags |= USEBOL;
