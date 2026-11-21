@@ -200,6 +200,11 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   constants with `_Static_assert` rather than `#ifdef`.
 > - **Full suite:** run without `--no-rebuild`, which leaves some
 >   generated test inputs unbuilt.
+> - **clang native build:** from posix-spec-audit f6ce89fbd8 onward (it has
+>   fix-clang-native), `CC=clang CXX=clang++ scripts/do-native-configure
+>   -Dwerror=true` builds and passes, so use a full clang native build
+>   rather than per-file syntax checks. Both CC and CXX must be clang, and
+>   the -native tests need libclang-rt-21-dev for the sanitizer runtime.
 > - **Configurations without threads:** also build the native
 >   configuration (`scripts/do-native-configure`, `ninja` only). It has no
 >   threads, so a test whose statics or helpers are only used inside its
