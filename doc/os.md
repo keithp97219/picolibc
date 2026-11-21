@@ -338,6 +338,20 @@ provides along with `opendir` and `closedir`:
 struct dirent *readdir(DIR *dirp);
 ```
 
+## Describing POSIX support
+
+An operating system says which POSIX options and option groups it
+provides in `<sys/_posix.h>`, which `<unistd.h>` includes when it
+exists; `<unistd.h>` then works out `_POSIX_VERSION` from them. See the
+comments in `sys/unistd.h` and `libos/linux/include/sys/_posix.h`.
+
+picolibc's ABI doesn't depend on `<sys/_posix.h>`. No type, structure
+layout or library code changes with what it defines, so a picolibc
+built without the OS's header, or with a different version of it, is
+the same library. Only applications see its claims. The one exception
+is a weak fallback, such as `sysconf` in `libos/fallback`, which the
+operating system replaces with its own.
+
 ## Linking with System Library
 
 To get Picolibc to use a system library, that library needs to be

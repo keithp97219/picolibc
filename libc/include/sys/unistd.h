@@ -662,6 +662,13 @@ int     unlinkat(int, const char *, int) __picolibc_export;
  * covers, with the version of the standard they meet. Anything it
  * leaves undefined isn't provided. picolibc installs that header only
  * for its own OS layers.
+ *
+ * picolibc's ABI doesn't depend on <sys/_posix.h>: no type, structure
+ * layout or library code may change with what it defines, so the
+ * library is the same whether the header was right, wrong or missing
+ * when picolibc was built. Only applications see its claims. The one
+ * exception is a weak fallback, such as libos/fallback's sysconf, that
+ * the OS replaces.
  */
 
 #if defined(__has_include)

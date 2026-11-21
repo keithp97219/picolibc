@@ -36,7 +36,8 @@
 /*
  * POSIX options and option groups provided by libos/linux, included
  * at the end of <unistd.h>. Only what is complete is defined;
- * anything undefined is not provided.
+ * anything undefined is not provided. Nothing here may change
+ * picolibc's ABI; see <sys/unistd.h>.
  */
 
 #ifndef _SYS__POSIX_H_
