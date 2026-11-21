@@ -47,10 +47,15 @@ struct __iconv_t {
     wctomb_p          out_wctomb;
     mbstate_t         in_state;
     mbstate_t         out_state;
-    size_t            buf_len;
-    size_t            buf_off;
     enum __iconv_mode mode;
-    char              buf[MB_LEN_MAX];
 };
+
+#ifdef __MB_CAPABLE
+#define __iconv_mbtowc(id) __get_mbtowc(id)
+#define __iconv_wctomb(id) __get_wctomb(id)
+#else
+#define __iconv_mbtowc(id) ((void)(id), __ascii_mbtowc)
+#define __iconv_wctomb(id) ((void)(id), __ascii_wctomb)
+#endif
 
 #endif /* _ICONV_PRIVATE_H_ */

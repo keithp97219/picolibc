@@ -42,8 +42,6 @@ iconv_close(iconv_t ic)
         errno = EINVAL;
         return -1;
     }
-#ifdef __MB_CAPABLE
     free(ic);
-#endif
     return 0;
 }

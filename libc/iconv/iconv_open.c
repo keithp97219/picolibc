@@ -39,16 +39,6 @@
 iconv_t
 iconv_open(const char *tocode, const char *fromcode)
 {
-    if (!tocode || !fromcode)
-        goto fail;
-
-    enum locale_id toid = __find_charset(tocode);
-    enum locale_id fromid = __find_charset(fromcode);
-
-    if (toid == locale_INVALID || fromid == locale_INVALID)
-        goto fail;
-
-#ifdef __MB_CAPABLE
     iconv_t     ic;
     const char *mode_name;
     static const struct {
@@ -62,6 +52,16 @@ iconv_open(const char *tocode, const char *fromcode)
 #define NMODE (sizeof(modes) / sizeof(modes[0]))
     size_t            m;
     enum __iconv_mode mode = iconv_default;
+    enum locale_id    toid, fromid;
+
+    if (!tocode || !fromcode)
+        goto fail;
+
+    toid = __find_charset(tocode);
+    fromid = __find_charset(fromcode);
+
+    if (toid == locale_INVALID || fromid == locale_INVALID)
+        goto fail;
 
     mode_name = strchr(tocode, '/');
     if (mode_name) {
@@ -80,15 +80,12 @@ iconv_open(const char *tocode, const char *fromcode)
 
     ic = calloc(1, sizeof(*ic));
     if (!ic)
-        goto fail;
+        return (iconv_t)-1;
 
-    ic->in_mbtowc = __get_mbtowc(fromid);
-    ic->out_wctomb = __get_wctomb(toid);
+    ic->in_mbtowc = __iconv_mbtowc(fromid);
+    ic->out_wctomb = __iconv_wctomb(toid);
     ic->mode = mode;
     return ic;
-#else
-    return NULL;
-#endif
 
 fail:
     errno = EINVAL;
