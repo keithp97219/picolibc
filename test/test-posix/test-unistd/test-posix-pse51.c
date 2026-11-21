@@ -34,27 +34,99 @@
  */
 
 /*
- * A system with no <sys/_posix.h> of its own claims the minimal
- * realtime profile (PSE51) here, as its <sys/_posix.h> would. <unistd.h>
- * supplies exactly what IEEE 1003.13-2003 Tables 6-1 and 6-2 require of
- * the OS, nothing that only full POSIX.1 or the larger profiles need,
- * and reports a subprofile of POSIX.1-2024.
+ * A system claiming every option and option group the minimal realtime
+ * profile (PSE51) needs gets _POSIX_AEP_REALTIME_MINIMAL, computed by
+ * <unistd.h> from IEEE 1003.13-2003 Tables 6-1 and 6-2; one without
+ * sporadic server, as most systems are, doesn't. Claim them here, as
+ * <sys/_posix.h> would, on a system without threads of its own, and
+ * check the profile and that it's a subprofile of POSIX.1-2024.
  */
 
 #define _POSIX_C_SOURCE 202405L
 
 /* Without the system support this test needs, it is skipped */
 #if defined(__has_include)
-#if !__has_include(<sys/_posix.h>)
+#if __has_include(<sys/_posix.h>)
+#include <sys/_posix.h>
+#endif
+#if __has_include(<picolibc.h>) && !defined(__PICOLIBC_OS_THREADS)
 #define CLAIM
-#define __PICOLIBC_OS_AEP_REALTIME_MINIMAL 200312L
+#ifndef NO_SPORADIC_SERVER
+#define __PICOLIBC_OS_THREAD_SPORADIC_SERVER 202405L
+#endif
+#ifndef __PICOLIBC_OS_NO_TRUNC
+#define __PICOLIBC_OS_NO_TRUNC 1
+#endif
+#ifndef __PICOLIBC_OS_CLOCK_SELECTION
+#define __PICOLIBC_OS_CLOCK_SELECTION 202405L
+#endif
+#ifndef __PICOLIBC_OS_FSYNC
+#define __PICOLIBC_OS_FSYNC 202405L
+#endif
+#ifndef __PICOLIBC_OS_MEMLOCK
+#define __PICOLIBC_OS_MEMLOCK 202405L
+#endif
+#ifndef __PICOLIBC_OS_MEMLOCK_RANGE
+#define __PICOLIBC_OS_MEMLOCK_RANGE 202405L
+#endif
+#ifndef __PICOLIBC_OS_MONOTONIC_CLOCK
+#define __PICOLIBC_OS_MONOTONIC_CLOCK 202405L
+#endif
+#ifndef __PICOLIBC_OS_REALTIME_SIGNALS
+#define __PICOLIBC_OS_REALTIME_SIGNALS 202405L
+#endif
+#ifndef __PICOLIBC_OS_SEMAPHORES
+#define __PICOLIBC_OS_SEMAPHORES 202405L
+#endif
+#ifndef __PICOLIBC_OS_SHARED_MEMORY_OBJECTS
+#define __PICOLIBC_OS_SHARED_MEMORY_OBJECTS 202405L
+#endif
+#ifndef __PICOLIBC_OS_SYNCHRONIZED_IO
+#define __PICOLIBC_OS_SYNCHRONIZED_IO 202405L
+#endif
+#ifndef __PICOLIBC_OS_THREAD_ATTR_STACKADDR
+#define __PICOLIBC_OS_THREAD_ATTR_STACKADDR 202405L
+#endif
+#ifndef __PICOLIBC_OS_THREAD_ATTR_STACKSIZE
+#define __PICOLIBC_OS_THREAD_ATTR_STACKSIZE 202405L
+#endif
+#ifndef __PICOLIBC_OS_THREAD_CPUTIME
+#define __PICOLIBC_OS_THREAD_CPUTIME 202405L
+#endif
+#ifndef __PICOLIBC_OS_THREAD_PRIO_INHERIT
+#define __PICOLIBC_OS_THREAD_PRIO_INHERIT 202405L
+#endif
+#ifndef __PICOLIBC_OS_THREAD_PRIO_PROTECT
+#define __PICOLIBC_OS_THREAD_PRIO_PROTECT 202405L
+#endif
+#ifndef __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING
+#define __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING 202405L
+#endif
+#ifndef __PICOLIBC_OS_THREADS
+#define __PICOLIBC_OS_THREADS 202405L
+#endif
+#ifndef __PICOLIBC_OS_TIMEOUTS
+#define __PICOLIBC_OS_TIMEOUTS 202405L
+#endif
+#ifndef __PICOLIBC_OS_TIMERS
+#define __PICOLIBC_OS_TIMERS 202405L
+#endif
+#ifndef __PICOLIBC_OS_DEVICE_IO
+#define __PICOLIBC_OS_DEVICE_IO 202405L
+#endif
+#ifndef __PICOLIBC_OS_SIGNALS
+#define __PICOLIBC_OS_SIGNALS 202405L
+#endif
+#ifndef __PICOLIBC_OS_SINGLE_PROCESS
+#define __PICOLIBC_OS_SINGLE_PROCESS 202405L
+#endif
 #endif
 #endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-#if defined(CLAIM) && defined(__PICOLIBC__)
+#ifdef CLAIM
 
 #define check(condition, message)                      \
     do {                                               \
@@ -64,58 +136,26 @@
         }                                              \
     } while (0)
 
-/* What the profile requires, from Table 6-2 and the units in Table 6-1 */
-#define REQUIRED(option) check(option == 200312L, "PSE51 requires " #option)
-
 int
 main(void)
 {
-    REQUIRED(_POSIX_CLOCK_SELECTION);
-    REQUIRED(_POSIX_FSYNC);
-    REQUIRED(_POSIX_MEMLOCK);
-    REQUIRED(_POSIX_MEMLOCK_RANGE);
-    REQUIRED(_POSIX_MONOTONIC_CLOCK);
-    REQUIRED(_POSIX_REALTIME_SIGNALS);
-    REQUIRED(_POSIX_SEMAPHORES);
-    REQUIRED(_POSIX_SHARED_MEMORY_OBJECTS);
-    REQUIRED(_POSIX_SYNCHRONIZED_IO);
-    REQUIRED(_POSIX_THREAD_ATTR_STACKADDR);
-    REQUIRED(_POSIX_THREAD_ATTR_STACKSIZE);
-    REQUIRED(_POSIX_THREAD_CPUTIME);
-    REQUIRED(_POSIX_THREAD_PRIO_INHERIT);
-    REQUIRED(_POSIX_THREAD_PRIO_PROTECT);
-    REQUIRED(_POSIX_THREAD_PRIORITY_SCHEDULING);
-    REQUIRED(_POSIX_THREAD_SPORADIC_SERVER);
-    REQUIRED(_POSIX_THREADS);
-    REQUIRED(_POSIX_TIMEOUTS);
-    REQUIRED(_POSIX_TIMERS);
-    REQUIRED(__PICOLIBC_POSIX_DEVICE_IO);
-    REQUIRED(__PICOLIBC_POSIX_SIGNALS);
-    REQUIRED(__PICOLIBC_POSIX_SINGLE_PROCESS);
-    check(_POSIX_NO_TRUNC == 1, "PSE51 requires _POSIX_NO_TRUNC");
-    check(_POSIX_AEP_REALTIME_MINIMAL == 200312L, "the profile itself");
-
-    /* picolibc's own parts of the profile */
-    check(__PICOLIBC_POSIX_C_LIB_EXT == 202405L, "picolibc's C_LIB_EXT");
-
-    /* Not required by PSE51, so not claimed for it */
-#if defined(_POSIX_BARRIERS) || defined(_POSIX_MAPPED_FILES) || defined(_POSIX_MEMORY_PROTECTION) \
-    || defined(_POSIX_READER_WRITER_LOCKS) || defined(_POSIX_SPIN_LOCKS)
-    check(0, "full POSIX.1 options claimed for PSE51");
+#ifdef NO_SPORADIC_SERVER
+    /* One option short of PSE51 */
+#ifdef _POSIX_AEP_REALTIME_MINIMAL
+    check(0, "PSE51 claimed without sporadic server");
 #endif
-#if defined(_POSIX_MESSAGE_PASSING) || defined(__PICOLIBC_POSIX_FD_MGMT)                \
-    || defined(__PICOLIBC_POSIX_FILE_SYSTEM) || defined(__PICOLIBC_POSIX_MULTI_PROCESS)
-    check(0, "larger profiles' options or groups claimed for PSE51");
+#else
+    check(_POSIX_AEP_REALTIME_MINIMAL == 200312L, "PSE51 from its members");
 #endif
 
-    /* picolibc's asynchronous I/O exists only with its own threads */
-#if defined(__PICOLIBC_PTHREADS) != defined(_POSIX_ASYNCHRONOUS_IO)
-    check(0, "_POSIX_ASYNCHRONOUS_IO follows picolibc's threads");
+    /* PSE52 needs more than PSE51's members */
+#if defined(_POSIX_AEP_REALTIME_CONTROLLER) && !defined(__PICOLIBC_OS_FILE_SYSTEM)
+    check(0, "PSE52 without the file system");
 #endif
 
     /* A subprofile of POSIX.1-2024, without the shell and utilities */
 #ifndef _POSIX_SUBPROFILE
-    check(0, "PSE51 alone is a subprofile");
+    check(0, "PSE51's members alone are a subprofile");
 #endif
     check(_POSIX_VERSION == 202405L, "a subprofile names the edition it profiles");
 #ifdef _POSIX2_VERSION

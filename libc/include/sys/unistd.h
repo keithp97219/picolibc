@@ -679,8 +679,8 @@ int     unlinkat(int, const char *, int) __picolibc_export;
  * only: __PICOLIBC_OS_<OPTION> for each POSIX option it supports (named
  * as the option without _POSIX_), __PICOLIBC_OS_<GROUP> and
  * __PICOLIBC_OS_XSI_<GROUP> for the OS's part of each option group,
- * each with the version of the standard met, __PICOLIBC_OS_AEP_REALTIME_<P>
- * for a realtime profile, and __PICOLIBC_OS_<CONSTANT> for the constants
+ * each with the version of the standard met, and __PICOLIBC_OS_<CONSTANT>
+ * for the constants
  * (CHOWN_RESTRICTED, JOB_CONTROL, NO_TRUNC, SAVED_IDS, SHELL, VDISABLE).
  * Anything it leaves undefined isn't provided. This header combines
  * those with picolibc's own share to define every public name: the
@@ -701,6 +701,12 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #if __has_include(<sys/_posix.h>)
 #include <sys/_posix.h>
 #endif
+#endif
+
+/* Profiles follow from the options and groups the OS claims */
+#if defined(__PICOLIBC_OS_AEP_REALTIME_MINIMAL) || defined(__PICOLIBC_OS_AEP_REALTIME_CONTROLLER) \
+    || defined(__PICOLIBC_OS_AEP_REALTIME_DEDICATED) || defined(__PICOLIBC_OS_AEP_REALTIME_MULTI)
+#error "<sys/_posix.h> claims options and option groups; <unistd.h> computes the realtime profiles"
 #endif
 
 /* Every public name below is this header's to define */
@@ -833,202 +839,6 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #error \
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
-
-/*
- * Realtime profiles (IEEE 1003.13-2003). The OS may claim one with
- * __PICOLIBC_OS_AEP_REALTIME_<PROFILE>, as shorthand for the profiles
- * below it and for what the profile requires of the OS: the options in
- * its option table, and its units of functionality, as the option
- * groups or options that stand for them. Each the OS leaves undefined
- * takes the profile's value, or 1 for the constants. Units that are
- * library code alone (the C language functions, file locking, regular
- * expressions, ...) need nothing from the OS. POSIX.1-2024 removed the
- * trace options PSE52 and up require; _POSIX_VDISABLE (PSE54) is the
- * OS's terminal driver's, and _POSIX_REGEXP and
- * _POSIX_THREAD_SAFE_FUNCTIONS are picolibc's own.
- */
-#if defined(__PICOLIBC_OS_AEP_REALTIME_MULTI) && !defined(__PICOLIBC_OS_AEP_REALTIME_DEDICATED)
-#define __PICOLIBC_OS_AEP_REALTIME_DEDICATED __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif
-#if defined(__PICOLIBC_OS_AEP_REALTIME_DEDICATED) && !defined(__PICOLIBC_OS_AEP_REALTIME_CONTROLLER)
-#define __PICOLIBC_OS_AEP_REALTIME_CONTROLLER __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#if defined(__PICOLIBC_OS_AEP_REALTIME_CONTROLLER) && !defined(__PICOLIBC_OS_AEP_REALTIME_MINIMAL)
-#define __PICOLIBC_OS_AEP_REALTIME_MINIMAL __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
-#endif
-
-/* PSE51, the minimal realtime system profile */
-#ifdef __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#ifndef __PICOLIBC_OS_CLOCK_SELECTION
-#define __PICOLIBC_OS_CLOCK_SELECTION __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_FSYNC
-#define __PICOLIBC_OS_FSYNC __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_MEMLOCK
-#define __PICOLIBC_OS_MEMLOCK __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_MEMLOCK_RANGE
-#define __PICOLIBC_OS_MEMLOCK_RANGE __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_MONOTONIC_CLOCK
-#define __PICOLIBC_OS_MONOTONIC_CLOCK __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_REALTIME_SIGNALS
-#define __PICOLIBC_OS_REALTIME_SIGNALS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_SEMAPHORES
-#define __PICOLIBC_OS_SEMAPHORES __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_SHARED_MEMORY_OBJECTS
-#define __PICOLIBC_OS_SHARED_MEMORY_OBJECTS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_SYNCHRONIZED_IO
-#define __PICOLIBC_OS_SYNCHRONIZED_IO __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_THREAD_ATTR_STACKADDR
-#define __PICOLIBC_OS_THREAD_ATTR_STACKADDR __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_THREAD_ATTR_STACKSIZE
-#define __PICOLIBC_OS_THREAD_ATTR_STACKSIZE __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_THREAD_CPUTIME
-#define __PICOLIBC_OS_THREAD_CPUTIME __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_THREAD_PRIO_INHERIT
-#define __PICOLIBC_OS_THREAD_PRIO_INHERIT __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_THREAD_PRIO_PROTECT
-#define __PICOLIBC_OS_THREAD_PRIO_PROTECT __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING
-#define __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_THREAD_SPORADIC_SERVER
-#define __PICOLIBC_OS_THREAD_SPORADIC_SERVER __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_THREADS
-#define __PICOLIBC_OS_THREADS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_TIMEOUTS
-#define __PICOLIBC_OS_TIMEOUTS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_TIMERS
-#define __PICOLIBC_OS_TIMERS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_DEVICE_IO
-#define __PICOLIBC_OS_DEVICE_IO __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_SIGNALS
-#define __PICOLIBC_OS_SIGNALS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_SINGLE_PROCESS
-#define __PICOLIBC_OS_SINGLE_PROCESS __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif
-#ifndef __PICOLIBC_OS_NO_TRUNC
-#define __PICOLIBC_OS_NO_TRUNC 1
-#endif
-#define _POSIX_AEP_REALTIME_MINIMAL __PICOLIBC_OS_AEP_REALTIME_MINIMAL
-#endif /* __PICOLIBC_OS_AEP_REALTIME_MINIMAL */
-
-/* PSE52, the realtime controller system profile */
-#ifdef __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
-#ifndef __PICOLIBC_OS_MAPPED_FILES
-#define __PICOLIBC_OS_MAPPED_FILES __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
-#endif
-#ifndef __PICOLIBC_OS_MESSAGE_PASSING
-#define __PICOLIBC_OS_MESSAGE_PASSING __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
-#endif
-#ifndef __PICOLIBC_OS_FD_MGMT
-#define __PICOLIBC_OS_FD_MGMT __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
-#endif
-#ifndef __PICOLIBC_OS_FILE_SYSTEM
-#define __PICOLIBC_OS_FILE_SYSTEM __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
-#endif
-#define _POSIX_AEP_REALTIME_CONTROLLER __PICOLIBC_OS_AEP_REALTIME_CONTROLLER
-#endif /* __PICOLIBC_OS_AEP_REALTIME_CONTROLLER */
-
-/* PSE53, the dedicated realtime system profile */
-#ifdef __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#ifndef __PICOLIBC_OS_ASYNCHRONOUS_IO
-#define __PICOLIBC_OS_ASYNCHRONOUS_IO __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_CPUTIME
-#define __PICOLIBC_OS_CPUTIME __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_MEMORY_PROTECTION
-#define __PICOLIBC_OS_MEMORY_PROTECTION __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_PRIORITIZED_IO
-#define __PICOLIBC_OS_PRIORITIZED_IO __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_PRIORITY_SCHEDULING
-#define __PICOLIBC_OS_PRIORITY_SCHEDULING __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_RAW_SOCKETS
-#define __PICOLIBC_OS_RAW_SOCKETS __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_SPAWN
-#define __PICOLIBC_OS_SPAWN __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_SPORADIC_SERVER
-#define __PICOLIBC_OS_SPORADIC_SERVER __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_THREAD_PROCESS_SHARED
-#define __PICOLIBC_OS_THREAD_PROCESS_SHARED __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_MULTI_PROCESS
-#define __PICOLIBC_OS_MULTI_PROCESS __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_NETWORKING
-#define __PICOLIBC_OS_NETWORKING __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#ifndef __PICOLIBC_OS_PIPE
-#define __PICOLIBC_OS_PIPE __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif
-#define _POSIX_AEP_REALTIME_DEDICATED __PICOLIBC_OS_AEP_REALTIME_DEDICATED
-#endif /* __PICOLIBC_OS_AEP_REALTIME_DEDICATED */
-
-/* PSE54, the multi-purpose realtime system profile */
-#ifdef __PICOLIBC_OS_AEP_REALTIME_MULTI
-#ifndef __PICOLIBC_OS_ADVISORY_INFO
-#define __PICOLIBC_OS_ADVISORY_INFO __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif
-#ifndef __PICOLIBC_OS_DEVICE_SPECIFIC
-#define __PICOLIBC_OS_DEVICE_SPECIFIC __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif
-#ifndef __PICOLIBC_OS_DYNAMIC_LINKING
-#define __PICOLIBC_OS_DYNAMIC_LINKING __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif
-#ifndef __PICOLIBC_OS_FIFO
-#define __PICOLIBC_OS_FIFO __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif
-#ifndef __PICOLIBC_OS_FILE_ATTRIBUTES
-#define __PICOLIBC_OS_FILE_ATTRIBUTES __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif
-#ifndef __PICOLIBC_OS_FILE_SYSTEM_EXT
-#define __PICOLIBC_OS_FILE_SYSTEM_EXT __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif
-#ifndef __PICOLIBC_OS_SYMBOLIC_LINKS
-#define __PICOLIBC_OS_SYMBOLIC_LINKS __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif
-#ifndef __PICOLIBC_OS_USER_GROUPS
-#define __PICOLIBC_OS_USER_GROUPS __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif
-#ifndef __PICOLIBC_OS_CHOWN_RESTRICTED
-#define __PICOLIBC_OS_CHOWN_RESTRICTED 1
-#endif
-#ifndef __PICOLIBC_OS_JOB_CONTROL
-#define __PICOLIBC_OS_JOB_CONTROL 1
-#endif
-#ifndef __PICOLIBC_OS_SAVED_IDS
-#define __PICOLIBC_OS_SAVED_IDS 1
-#endif
-#ifndef __PICOLIBC_OS_SHELL
-#define __PICOLIBC_OS_SHELL 1
-#endif
-#define _POSIX_AEP_REALTIME_MULTI __PICOLIBC_OS_AEP_REALTIME_MULTI
-#endif /* __PICOLIBC_OS_AEP_REALTIME_MULTI */
 
 /* The options and constants the OS provides */
 #ifdef __PICOLIBC_OS_ADVISORY_INFO
@@ -1339,6 +1149,104 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #endif
 
 /*
+ * Realtime profiles (IEEE 1003.13-2003), each defined when every option
+ * and unit of functionality in its tables is present, as the option or
+ * option group that stands for it in POSIX.1-2024. POSIX.1-2024 removed
+ * the trace options PSE52 and up require, and the units it dropped
+ * (POSIX_PRIORITY_RANGES, POSIX_EVENT_MGMT, POSIX_STRING_MATCHING,
+ * POSIX_SHELL_FUNC, XSI_THREADS_EXT) are left out. The OS can't claim
+ * a profile; it claims the options and groups.
+ */
+
+/* clang-format off */
+
+/* PSE51, the minimal realtime system profile */
+#if    defined(__PICOLIBC_POSIX_C_LANG_JUMP)                                               \
+    && defined(__PICOLIBC_POSIX_C_LANG_SUPPORT)                                            \
+    && defined(__PICOLIBC_POSIX_C_LIB_EXT)                                                 \
+    && defined(__PICOLIBC_POSIX_DEVICE_IO)                                                 \
+    && defined(__PICOLIBC_POSIX_FILE_LOCKING)                                              \
+    && defined(__PICOLIBC_POSIX_SIGNALS)                                                   \
+    && defined(__PICOLIBC_POSIX_SINGLE_PROCESS)                                            \
+    && defined(_POSIX_CLOCK_SELECTION) && _POSIX_CLOCK_SELECTION > 0                       \
+    && defined(_POSIX_FSYNC) && _POSIX_FSYNC > 0                                           \
+    && defined(_POSIX_MEMLOCK) && _POSIX_MEMLOCK > 0                                       \
+    && defined(_POSIX_MEMLOCK_RANGE) && _POSIX_MEMLOCK_RANGE > 0                           \
+    && defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK > 0                       \
+    && defined(_POSIX_REALTIME_SIGNALS) && _POSIX_REALTIME_SIGNALS > 0                     \
+    && defined(_POSIX_SEMAPHORES) && _POSIX_SEMAPHORES > 0                                 \
+    && defined(_POSIX_SHARED_MEMORY_OBJECTS) && _POSIX_SHARED_MEMORY_OBJECTS > 0           \
+    && defined(_POSIX_SYNCHRONIZED_IO) && _POSIX_SYNCHRONIZED_IO > 0                       \
+    && defined(_POSIX_THREAD_ATTR_STACKADDR) && _POSIX_THREAD_ATTR_STACKADDR > 0           \
+    && defined(_POSIX_THREAD_ATTR_STACKSIZE) && _POSIX_THREAD_ATTR_STACKSIZE > 0           \
+    && defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME > 0                         \
+    && defined(_POSIX_THREAD_PRIO_INHERIT) && _POSIX_THREAD_PRIO_INHERIT > 0               \
+    && defined(_POSIX_THREAD_PRIO_PROTECT) && _POSIX_THREAD_PRIO_PROTECT > 0               \
+    && defined(_POSIX_THREAD_PRIORITY_SCHEDULING) && _POSIX_THREAD_PRIORITY_SCHEDULING > 0 \
+    && defined(_POSIX_THREAD_SPORADIC_SERVER) && _POSIX_THREAD_SPORADIC_SERVER > 0         \
+    && defined(_POSIX_THREADS) && _POSIX_THREADS > 0                                       \
+    && defined(_POSIX_TIMEOUTS) && _POSIX_TIMEOUTS > 0                                     \
+    && defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0                                         \
+    && defined(_POSIX_NO_TRUNC) && _POSIX_NO_TRUNC != -1
+#define _POSIX_AEP_REALTIME_MINIMAL 200312L
+#endif
+
+/* PSE52, the realtime controller system profile */
+#if    defined(_POSIX_AEP_REALTIME_MINIMAL)                          \
+    && defined(__PICOLIBC_POSIX_C_LANG_MATH)                         \
+    && defined(__PICOLIBC_POSIX_FD_MGMT)                             \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM)                         \
+    && defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0       \
+    && defined(_POSIX_MESSAGE_PASSING) && _POSIX_MESSAGE_PASSING > 0
+#define _POSIX_AEP_REALTIME_CONTROLLER 200312L
+#endif
+
+/* PSE53, the dedicated realtime system profile */
+#if    defined(_POSIX_AEP_REALTIME_CONTROLLER)                                   \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)                                   \
+    && defined(__PICOLIBC_POSIX_NETWORKING)                                      \
+    && defined(__PICOLIBC_POSIX_PIPE)                                            \
+    && defined(__PICOLIBC_POSIX_SIGNAL_JUMP)                                     \
+    && defined(_POSIX_ASYNCHRONOUS_IO) && _POSIX_ASYNCHRONOUS_IO > 0             \
+    && defined(_POSIX_CPUTIME) && _POSIX_CPUTIME > 0                             \
+    && defined(_POSIX_MEMORY_PROTECTION) && _POSIX_MEMORY_PROTECTION > 0         \
+    && defined(_POSIX_PRIORITIZED_IO) && _POSIX_PRIORITIZED_IO > 0               \
+    && defined(_POSIX_PRIORITY_SCHEDULING) && _POSIX_PRIORITY_SCHEDULING > 0     \
+    && defined(_POSIX_RAW_SOCKETS) && _POSIX_RAW_SOCKETS > 0                     \
+    && defined(_POSIX_SPAWN) && _POSIX_SPAWN > 0                                 \
+    && defined(_POSIX_SPORADIC_SERVER) && _POSIX_SPORADIC_SERVER > 0             \
+    && defined(_POSIX_THREAD_PROCESS_SHARED) && _POSIX_THREAD_PROCESS_SHARED > 0
+#define _POSIX_AEP_REALTIME_DEDICATED 200312L
+#endif
+
+/* PSE54, the multi-purpose realtime system profile */
+#if    defined(_POSIX_AEP_REALTIME_DEDICATED)                                    \
+    && defined(__PICOLIBC_POSIX_C_LANG_WIDE_CHAR)                                \
+    && defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC)                                 \
+    && defined(__PICOLIBC_POSIX_DYNAMIC_LINKING)                                 \
+    && defined(__PICOLIBC_POSIX_FIFO)                                            \
+    && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES)                                 \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)                                 \
+    && defined(__PICOLIBC_POSIX_REGEXP)                                          \
+    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)                                  \
+    && defined(__PICOLIBC_POSIX_SYSTEM_DATABASE)                                 \
+    && defined(__PICOLIBC_POSIX_USER_GROUPS)                                     \
+    && defined(__PICOLIBC_POSIX_WIDE_CHAR_DEVICE_IO)                             \
+    && defined(__PICOLIBC_XSI_SYSTEM_LOGGING)                                    \
+    && defined(_POSIX_ADVISORY_INFO) && _POSIX_ADVISORY_INFO > 0                 \
+    && defined(_POSIX_JOB_CONTROL) && _POSIX_JOB_CONTROL > 0                     \
+    && defined(_POSIX_REGEXP) && _POSIX_REGEXP > 0                               \
+    && defined(_POSIX_SAVED_IDS) && _POSIX_SAVED_IDS > 0                         \
+    && defined(_POSIX_SHELL) && _POSIX_SHELL > 0                                 \
+    && defined(_POSIX_THREAD_SAFE_FUNCTIONS) && _POSIX_THREAD_SAFE_FUNCTIONS > 0 \
+    && defined(_POSIX_CHOWN_RESTRICTED) && _POSIX_CHOWN_RESTRICTED != -1         \
+    && defined(_POSIX_VDISABLE) && _POSIX_VDISABLE != -1
+#define _POSIX_AEP_REALTIME_MULTI 200312L
+#endif
+
+/* clang-format on */
+
+/*
  * _POSIX_VERSION is the newest edition whose required options and
  * option groups are all present. POSIX.1-2024 also needs the
  * close-on-fork flags (O_CLOFORK, FD_CLOFORK, SOCK_CLOFORK), which an
@@ -1481,13 +1389,15 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #endif /* !_POSIX_VERSION */
 
 /*
- * A system claiming a realtime profile without meeting a whole edition
- * implements a subprofile (POSIX.1-2024 XBD 2.1.5.1): it defines
- * _POSIX_SUBPROFILE, and _POSIX_VERSION still names the edition being
- * profiled. It need not have the shell and utilities, so
+ * A system with the single process group (sysconf, uname, ...) that
+ * doesn't meet a whole edition implements a subprofile (POSIX.1-2024
+ * XBD 2.1.5.1): the subset the OS claims, which the OS documents. It
+ * defines _POSIX_SUBPROFILE, so applications test each option rather
+ * than infer them from the edition, and _POSIX_VERSION names the
+ * edition being profiled. It need not have the shell and utilities, so
  * _POSIX2_VERSION is left undefined.
  */
-#if defined(_POSIX_AEP_REALTIME_MINIMAL) && !defined(_POSIX_VERSION)
+#if defined(__PICOLIBC_POSIX_SINGLE_PROCESS) && !defined(_POSIX_VERSION)
 #define _POSIX_SUBPROFILE 1
 #define _POSIX_VERSION    202405L
 #endif

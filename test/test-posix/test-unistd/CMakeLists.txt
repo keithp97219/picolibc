@@ -85,6 +85,7 @@ set(tests
   test-posix-options
   test-posix-profiles
   test-posix-pse51
+  test-posix-subprofile
   test-posix_close
   test-pread
   test-pwrite

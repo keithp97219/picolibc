@@ -431,25 +431,32 @@ and stops with an error if the header defines one of those itself.
    `SINGLE_PROCESS`, `SYSTEM_LOGGING`, `USER_GROUPS`), and
    `<unistd.h>` defines `__PICOLIBC_XSI_<GROUP>` from it.
 
- * **Realtime profiles** (IEEE 1003.13-2003):
-   `__PICOLIBC_OS_AEP_REALTIME_MINIMAL` (PSE51), `_CONTROLLER` (PSE52),
-   `_DEDICATED` (PSE53) or `_MULTI` (PSE54). A profile claim implies the
-   smaller profiles and supplies what the profile's tables require of
-   the OS and the header left undefined: its options, with the
-   profile's value (1 for the constants), and its units of
-   functionality, as the option groups or options that stand for them.
-   It claims nothing a profile doesn't require, such as
-   `__PICOLIBC_OS_MEMORY_PROTECTION` for PSE51. `<unistd.h>` defines
-   `_POSIX_AEP_REALTIME_<PROFILE>` from it.
-
 `<unistd.h>` then sets `_POSIX_VERSION` to the newest edition whose
-required options and groups are all present. A system claiming a
-profile without meeting a whole edition implements a subprofile
-(POSIX.1-2024 XBD 2.1.5.1): `<unistd.h>` defines `_POSIX_SUBPROFILE`,
-sets `_POSIX_VERSION` to `202405L`, the edition it profiles, and leaves
-`_POSIX2_VERSION` undefined. The header may be included in any
-compilation unit, so it uses only macros visible there (Zephyr's, for
-instance, tests its Kconfig `CONFIG_` symbols).
+required options and groups are all present.
+
+A system that claims the single process group (`sysconf`, `uname`,
+...) without meeting a whole edition implements a subprofile
+(POSIX.1-2024 XBD 2.1.5.1). Its profile is the subset the OS claims,
+published or not; the OS documents it, and `sysconf` reports it at run
+time. `<unistd.h>` defines `_POSIX_SUBPROFILE`, telling applications to
+test each option rather than infer them from the edition, sets
+`_POSIX_VERSION` to `202405L`, the edition it profiles, and leaves
+`_POSIX2_VERSION` undefined. A system claiming less than the single
+process group gets no `_POSIX_VERSION`.
+
+The realtime profiles of IEEE 1003.13-2003 follow from the claims:
+`<unistd.h>` defines `_POSIX_AEP_REALTIME_MINIMAL` (PSE51),
+`_CONTROLLER` (PSE52), `_DEDICATED` (PSE53) and `_MULTI` (PSE54) when
+every option and unit of functionality in the profile's tables is
+present, as the option or group that stands for it in POSIX.1-2024.
+The OS can't claim a profile directly, and `<unistd.h>` stops with an
+error if `<sys/_posix.h>` defines `__PICOLIBC_OS_AEP_REALTIME_*`. Most
+systems lack sporadic server, which every profile requires, and so
+claim none.
+
+`<sys/_posix.h>` may be included in any compilation unit, so it uses
+only macros visible there (Zephyr's, for instance, tests its Kconfig
+`CONFIG_` symbols).
 
 ### `<sys/_pthread.h>`: threads
 

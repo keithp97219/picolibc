@@ -113,8 +113,8 @@
 #include <utmpx.h>
 #endif
 
-/* POSIX.1-2024 needs close-on-fork */
-#if _POSIX_VERSION >= 202405L
+/* POSIX.1-2024 needs close-on-fork; a subprofile of it need not */
+#if _POSIX_VERSION >= 202405L && !defined(_POSIX_SUBPROFILE)
 #if !defined(O_CLOFORK) || !defined(FD_CLOFORK)
 #error "_POSIX_VERSION claims POSIX.1-2024 without close-on-fork"
 #endif
