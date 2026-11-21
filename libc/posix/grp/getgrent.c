@@ -40,7 +40,7 @@ struct group *
 getgrent(void)
 {
     if (!__group_file) {
-        __group_file = fopen(_PATH_GROUP, "r");
+        __group_file = fopen(_PATH_GROUP, "re");
         if (!__group_file)
             return NULL;
     }

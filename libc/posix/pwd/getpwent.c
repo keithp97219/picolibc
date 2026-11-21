@@ -40,7 +40,7 @@ struct passwd *
 getpwent(void)
 {
     if (!__passwd_file) {
-        __passwd_file = fopen(_PATH_PASSWD, "r");
+        __passwd_file = fopen(_PATH_PASSWD, "re");
         if (!__passwd_file)
             return NULL;
     }

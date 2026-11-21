@@ -35,6 +35,7 @@
 # <grp.h>
 
 dir_srcs = [
+  '__gr_find.c',
   'endgrent.c',
   'fgetgrent.c',
   'fgetgrent_r.c',

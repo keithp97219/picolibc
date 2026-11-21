@@ -35,6 +35,7 @@
 # <pwd.h>
 
 dir_srcs = [
+  '__pw_find.c',
   'endpwent.c',
   'fgetpwent.c',
   'fgetpwent_r.c',

@@ -37,30 +37,21 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <pwd.h>
-#include <string.h>
 #include <errno.h>
+#include "local-pwd.h"
 
 int
 getpwuid_r(uid_t uid, struct passwd *pwbuf, char *buf, size_t size, struct passwd **pwbufp)
 {
-    FILE          *file;
-    struct passwd *pwd;
-    int            ret;
+    FILE *file;
+    int   ret;
 
-    file = fopen(_PATH_PASSWD, "r");
-    if (!file) {
-        *pwbufp = NULL;
-        return errno;
-    }
-    while ((ret = fgetpwent_r(file, pwbuf, buf, size, &pwd)) == 0)
-        if (pwd->pw_uid == uid)
-            break;
-    fclose(file);
-    if (ret == 0) {
-        *pwbufp = pwd;
-        return 0;
-    }
-    /* Reaching the end without a match isn't an error */
     *pwbufp = NULL;
+    file = fopen(_PATH_PASSWD, "re");
+    if (!file)
+        return errno;
+    ret = __pw_find(file, __pw_match_uid, NULL, uid, pwbuf, buf, size, pwbufp);
+    fclose(file);
+    /* Reaching the end without a match isn't an error */
     return ret == ENOENT ? 0 : ret;
 }

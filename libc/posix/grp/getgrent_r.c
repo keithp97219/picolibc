@@ -43,7 +43,7 @@ int
 getgrent_r(struct group *grbuf, char *buf, size_t size, struct group **grbufp)
 {
     if (!__group_file) {
-        __group_file = fopen(_PATH_GROUP, "r");
+        __group_file = fopen(_PATH_GROUP, "re");
         if (!__group_file) {
             *grbufp = NULL;
             return errno;

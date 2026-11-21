@@ -42,4 +42,21 @@ extern char          __passwd_buffer[BUFSIZ];
 extern struct passwd __passwd_data;
 extern FILE         *__passwd_file;
 
+/* What __pw_find looks for */
+enum __pw_match {
+    __pw_match_any,
+    __pw_match_name,
+    __pw_match_uid,
+};
+
+/*
+ * Read entries from file until one matches, skipping lines that aren't
+ * valid entries. Returns 0 with the entry stored in buf, ENOENT at the
+ * end of the file, ERANGE when the matching entry doesn't fit (leaving
+ * a seekable file positioned to read it again), or another error. errno
+ * is left alone.
+ */
+int __pw_find(FILE *file, enum __pw_match match, const char *name, uid_t uid, struct passwd *pwbuf,
+              char *buf, size_t size, struct passwd **result);
+
 #endif /* _LOCAL_PWD_H_ */

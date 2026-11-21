@@ -33,34 +33,25 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _GNU_SOURCE
+#define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <sys/types.h>
 #include <grp.h>
-#include <string.h>
 #include <errno.h>
+#include "local-grp.h"
 
 int
 getgrgid_r(gid_t gid, struct group *grbuf, char *buf, size_t size, struct group **grbufp)
 {
-    FILE         *file;
-    struct group *grp;
-    int           ret;
+    FILE *file;
+    int   ret;
 
-    file = fopen(_PATH_GROUP, "r");
-    if (!file) {
-        *grbufp = NULL;
-        return errno;
-    }
-    while ((ret = fgetgrent_r(file, grbuf, buf, size, &grp)) == 0)
-        if (grp->gr_gid == gid)
-            break;
-    fclose(file);
-    if (ret == 0) {
-        *grbufp = grp;
-        return 0;
-    }
-    /* Reaching the end without a match isn't an error */
     *grbufp = NULL;
+    file = fopen(_PATH_GROUP, "re");
+    if (!file)
+        return errno;
+    ret = __gr_find(file, __gr_match_gid, NULL, gid, grbuf, buf, size, grbufp);
+    fclose(file);
+    /* Reaching the end without a match isn't an error */
     return ret == ENOENT ? 0 : ret;
 }

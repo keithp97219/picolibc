@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 picolibc_sources(
+  __gr_find.c
   endgrent.c
   fgetgrent.c
   fgetgrent_r.c

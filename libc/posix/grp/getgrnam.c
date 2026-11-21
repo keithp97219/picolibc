@@ -37,15 +37,18 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <grp.h>
-#include <string.h>
+#include <errno.h>
 #include "local-grp.h"
 
 struct group *
 getgrnam(const char *name)
 {
-    struct group *grp_ret = NULL;
+    struct group *grp_ret;
+    int           saved_errno = errno;
+    int           ret;
 
-    if (getgrnam_r(name, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret) == 0)
-        return grp_ret;
-    return NULL;
+    ret = getgrnam_r(name, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
+    /* errno changes only for an error */
+    errno = ret ? ret : saved_errno;
+    return grp_ret;
 }

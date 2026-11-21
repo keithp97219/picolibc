@@ -42,4 +42,21 @@ extern char         __group_buffer[BUFSIZ];
 extern struct group __group_data;
 extern FILE        *__group_file;
 
+/* What __gr_find looks for */
+enum __gr_match {
+    __gr_match_any,
+    __gr_match_name,
+    __gr_match_gid,
+};
+
+/*
+ * Read entries from file until one matches, skipping lines that aren't
+ * valid entries. Returns 0 with the entry stored in buf, ENOENT at the
+ * end of the file, ERANGE when the matching entry doesn't fit (leaving
+ * a seekable file positioned to read it again), or another error. errno
+ * is left alone.
+ */
+int __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct group *grbuf,
+              char *buf, size_t size, struct group **result);
+
 #endif /* _LOCAL_GRP_H_ */

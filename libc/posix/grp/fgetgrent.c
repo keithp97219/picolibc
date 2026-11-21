@@ -36,14 +36,18 @@
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <sys/types.h>
+#include <errno.h>
 #include "local-grp.h"
 
 struct group *
 fgetgrent(FILE *stream)
 {
-    struct group *grp = NULL;
+    struct group *grp_ret;
+    int           ret;
 
-    if (fgetgrent_r(stream, &__group_data, __group_buffer, sizeof(__group_buffer), &grp) == 0)
-        return grp;
-    return NULL;
+    ret = fgetgrent_r(stream, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
+    /* The end of the file leaves errno alone */
+    if (ret != 0 && ret != ENOENT)
+        errno = ret;
+    return grp_ret;
 }

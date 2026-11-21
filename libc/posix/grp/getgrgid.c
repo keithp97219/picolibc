@@ -36,15 +36,19 @@
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <sys/types.h>
-#include <string.h>
+#include <grp.h>
+#include <errno.h>
 #include "local-grp.h"
 
 struct group *
 getgrgid(gid_t gid)
 {
-    struct group *grp_ret = NULL;
+    struct group *grp_ret;
+    int           saved_errno = errno;
+    int           ret;
 
-    if (getgrgid_r(gid, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret) == 0)
-        return grp_ret;
-    return NULL;
+    ret = getgrgid_r(gid, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
+    /* errno changes only for an error */
+    errno = ret ? ret : saved_errno;
+    return grp_ret;
 }

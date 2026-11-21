@@ -37,14 +37,18 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <errno.h>
 #include "local-pwd.h"
 
 struct passwd *
 fgetpwent(FILE *stream)
 {
-    struct passwd *pwd = NULL;
+    struct passwd *pwd_ret;
+    int            ret;
 
-    if (fgetpwent_r(stream, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd) == 0)
-        return pwd;
-    return NULL;
+    ret = fgetpwent_r(stream, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
+    /* The end of the file leaves errno alone */
+    if (ret != 0 && ret != ENOENT)
+        errno = ret;
+    return pwd_ret;
 }

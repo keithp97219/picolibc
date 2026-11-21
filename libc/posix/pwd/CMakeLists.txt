@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 picolibc_sources(
+  __pw_find.c
   endpwent.c
   fgetpwent.c
   fgetpwent_r.c

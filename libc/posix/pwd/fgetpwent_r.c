@@ -34,93 +34,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <sys/types.h>
 #include <stdio.h>
 #include <pwd.h>
-#include <stdbool.h>
-#include <errno.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-
-enum pw_id {
-    pw_name,
-    pw_passwd,
-    pw_uid,
-    pw_gid,
-    pw_gecos,
-    pw_dir,
-    pw_shell,
-    pw_count,
-};
-
-static const ptrdiff_t pw_offset[] = {
-    [pw_name] = __offsetof(struct passwd, pw_name),
-    [pw_passwd] = -1,
-    [pw_uid] = __offsetof(struct passwd, pw_uid),
-    [pw_gid] = __offsetof(struct passwd, pw_gid),
-    [pw_gecos] = -1,
-    [pw_dir] = __offsetof(struct passwd, pw_dir),
-    [pw_shell] = __offsetof(struct passwd, pw_shell),
-};
-
-static inline bool
-pw_is_numeric(enum pw_id state)
-{
-    return state == pw_uid || state == pw_gid;
-}
+#include "local-pwd.h"
 
 int
 fgetpwent_r(FILE *stream, struct passwd *pwbuf, char *buf, size_t size, struct passwd **pwbufp)
 {
-    char      *line;
-    char      *nl;
-    char      *token;
-    enum pw_id id;
-    ptrdiff_t  offset;
-    void      *ptr;
-
-    errno = 0;
-    line = fgets(buf, size, stream);
-    if (!line) {
-        *pwbufp = NULL;
-        if (errno == 0)
-            errno = ENOENT;
-        return errno;
-    }
-    if ((nl = strchr(line, '\n')) != NULL) {
-        *nl = '\0';
-    } else if (!feof(stream)) {
-        /* The line doesn't fit in the buffer */
-        *pwbufp = NULL;
-        return (errno = ERANGE);
-    }
-    id = pw_name;
-
-    /*
-     * Use strsep instead of strtok_r because strsep permits empty
-     * fields
-     */
-    while ((token = strsep(&line, ":")) != NULL) {
-        if (id < pw_count) {
-            offset = pw_offset[id];
-            if (offset != -1) {
-                ptr = (char *)pwbuf + offset;
-                if (pw_is_numeric(id)) {
-                    char *num_end;
-                    uid_t uid = strtol(token, &num_end, 10);
-                    if (*num_end != '\0')
-                        break;
-                    *((uid_t *)ptr) = uid;
-                } else {
-                    *((char **)ptr) = token;
-                }
-            }
-            id++;
-        }
-    }
-    if (id != pw_count)
-        return (errno = EINVAL);
-    *pwbufp = pwbuf;
-    return 0;
+    return __pw_find(stream, __pw_match_any, NULL, 0, pwbuf, buf, size, pwbufp);
 }

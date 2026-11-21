@@ -37,15 +37,18 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <pwd.h>
-#include <string.h>
+#include <errno.h>
 #include "local-pwd.h"
 
 struct passwd *
 getpwnam(const char *name)
 {
-    struct passwd *pwd_ret = NULL;
+    struct passwd *pwd_ret;
+    int            saved_errno = errno;
+    int            ret;
 
-    if (getpwnam_r(name, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret) == 0)
-        return pwd_ret;
-    return NULL;
+    ret = getpwnam_r(name, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
+    /* errno changes only for an error */
+    errno = ret ? ret : saved_errno;
+    return pwd_ret;
 }
