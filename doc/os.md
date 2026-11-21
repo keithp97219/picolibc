@@ -399,8 +399,9 @@ required options and groups are all present. A system claiming a
 profile without meeting a whole edition implements a subprofile
 (POSIX.1-2024 XBD 2.1.5.1): `<unistd.h>` defines `_POSIX_SUBPROFILE`,
 sets `_POSIX_VERSION` to `202405L`, the edition it profiles, and leaves
-`_POSIX2_VERSION` undefined. A `_POSIX_VERSION` the header defines
-itself is kept. The header may be included in any compilation unit, so
+`_POSIX2_VERSION` undefined. These depend on picolibc's share as well as
+the OS's, so the OS must not define `_POSIX_VERSION`, `_POSIX2_VERSION`
+or `_POSIX_SUBPROFILE`; `<unistd.h>` stops with an error if it does. The header may be included in any compilation unit, so
 it uses only macros visible there (Zephyr's, for instance, tests its
 Kconfig `CONFIG_` symbols).
 

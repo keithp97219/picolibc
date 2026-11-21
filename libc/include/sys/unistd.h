@@ -697,6 +697,15 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #endif
 
 /*
+ * The edition and subprofile depend on picolibc's share as well as the
+ * OS's, so only this header can work them out
+ */
+#if defined(_POSIX_VERSION) || defined(_POSIX2_VERSION) || defined(_POSIX_SUBPROFILE)
+#error \
+    "_POSIX_VERSION, _POSIX2_VERSION and _POSIX_SUBPROFILE are computed by <unistd.h>; the OS must not define them"
+#endif
+
+/*
  * Realtime profiles (IEEE 1003.13-2003). The OS may claim one by
  * defining _POSIX_AEP_REALTIME_<PROFILE>, as shorthand for the
  * profiles below it and for what the profile requires of the OS: the
@@ -937,8 +946,7 @@ int     unlinkat(int, const char *, int) __picolibc_export;
  * _POSIX_VERSION is the newest edition whose required options and
  * option groups are all present. POSIX.1-2024 also needs the
  * close-on-fork flags (O_CLOFORK, FD_CLOFORK, SOCK_CLOFORK), which an
- * OS that has them reports with __PICOLIBC_POSIX_CLOFORK. Platforms
- * that set _POSIX_VERSION themselves keep their value.
+ * OS that has them reports with __PICOLIBC_POSIX_CLOFORK.
  */
 #ifndef _POSIX_VERSION
 
@@ -1084,10 +1092,8 @@ int     unlinkat(int, const char *, int) __picolibc_export;
  * _POSIX2_VERSION is left undefined.
  */
 #if defined(_POSIX_AEP_REALTIME_MINIMAL) && !defined(_POSIX_VERSION)
-#ifndef _POSIX_SUBPROFILE
 #define _POSIX_SUBPROFILE 1
-#endif
-#define _POSIX_VERSION 202405L
+#define _POSIX_VERSION    202405L
 #endif
 
 #if defined(_POSIX_VERSION) && !defined(_POSIX2_VERSION) && !defined(_POSIX_SUBPROFILE)
