@@ -762,7 +762,12 @@ test_strdup(void)
                 fail("wrong copy");
             free(d);
         }
+#ifdef __PICOLIBC__
         check_errno();
+#else
+        /* A successful call may set errno; other C libraries' malloc does */
+        errno = ERRNO_MARK;
+#endif
     }
 }
 
