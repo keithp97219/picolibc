@@ -241,8 +241,9 @@ _MATH_ALIAS_d_id(jn)
     ix = 0x7fffffff & hx;
     /* if Y(n,NaN) is NaN */
 
+    /* Y(n,0) is -inf, but +inf for negative odd n as Y(-n,x) = (-1)^n Y(n,x) */
     if ((ix | lx) == 0)
-        return __math_divzero(1);
+        return __math_divzero(!(n < 0 && (n & 1)));
 
     if (isnan(x))
         return x + x;
