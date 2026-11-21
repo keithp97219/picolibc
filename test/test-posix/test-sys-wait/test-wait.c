@@ -37,15 +37,21 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS)
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS) \
+    && defined(__PICOLIBC_POSIX_PIPE)
 
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/wait.h>
 
-/* wait collects any child's status, and fails when there are none */
+/*
+ * wait collects any child's status, fails when there are none, is
+ * interrupted by signal handlers, and children of a process that
+ * exits get another parent
+ */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -54,6 +60,76 @@
             exit(1);                                   \
         }                                              \
     } while (0)
+
+static volatile sig_atomic_t got_alarm;
+
+static void
+on_alarm(int sig)
+{
+    (void)sig;
+    got_alarm = 1;
+}
+
+static void
+interrupted(void)
+{
+    struct sigaction sa;
+    int              fds[2], status;
+    pid_t            pid;
+    char             c;
+
+    check(pipe(fds) == 0, "pipe");
+    pid = fork();
+    check(pid >= 0, "fork");
+    if (pid == 0) {
+        close(fds[1]);
+        (void)read(fds[0], &c, 1);
+        _exit(4);
+    }
+    close(fds[0]);
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = on_alarm;
+    sigemptyset(&sa.sa_mask);
+    check(sigaction(SIGALRM, &sa, NULL) == 0, "sigaction");
+    alarm(1);
+    errno = 0;
+    check(wait(&status) == -1 && errno == EINTR && got_alarm, "EINTR");
+    close(fds[1]);
+    check(wait(&status) == pid && WEXITSTATUS(status) == 4, "reaped after EINTR");
+}
+
+/* When a process exits, its children get a new parent */
+static void
+orphaned(void)
+{
+    int   go[2], report[2], status;
+    pid_t pid, parent;
+    char  c;
+
+    check(pipe(go) == 0 && pipe(report) == 0, "pipe");
+    pid = fork();
+    check(pid >= 0, "fork");
+    if (pid == 0) {
+        /* Taken before the fork: getppid in the grandchild may already show the new parent */
+        parent = getpid();
+        if (fork() == 0) {
+            if (read(go[0], &c, 1) != 1)
+                _exit(1);
+            c = getppid() != parent;
+            (void)write(report[1], &c, 1);
+            _exit(0);
+        }
+        _exit(0);
+    }
+    close(go[0]);
+    close(report[1]);
+    check(waitpid(pid, &status, 0) == pid && status == 0, "parent exited");
+    /* Once the parent is reaped, the grandchild has been given to another */
+    check(write(go[1], "x", 1) == 1, "go");
+    check(read(report[0], &c, 1) == 1 && c == 1, "the orphan has a new parent");
+    close(go[1]);
+    close(report[0]);
+}
 
 int
 main(void)
@@ -98,6 +174,9 @@ main(void)
     check(wait(NULL) == pid, "wait(NULL)");
     errno = 0;
     check(wait(NULL) == -1 && errno == ECHILD, "ECHILD again");
+
+    interrupted();
+    orphaned();
     printf("success\n");
     return 0;
 }

@@ -34,9 +34,14 @@
 #
 
 set(tests
+  test-sys_wait_h
   test-wait
+  test-wait3
   test-waitpid
+  test-waitpid-cancel
+  test-waitpid-sigchld
   test-waitid
+  test-wcoredump
   )
 
 foreach(test IN LISTS tests)

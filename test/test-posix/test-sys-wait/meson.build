@@ -34,7 +34,16 @@
 #
 
 dir_tests = [
+  'test-sys_wait_h',
   'test-wait',
+  'test-wait3',
   'test-waitpid',
+  'test-waitpid-sigchld',
   'test-waitid',
+  'test-wcoredump',
+]
+
+# Cancellation needs threads
+dir_thread_tests = [
+  'test-waitpid-cancel',
 ]
