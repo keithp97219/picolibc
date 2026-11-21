@@ -682,11 +682,11 @@ vfprintf(FILE *stream, const CHAR *fmt, va_list ap_orig)
 
 #ifndef my_putc
 #ifdef WIDE_CHARS
-#define my_putc(c, stream)            \
-    do {                              \
-        ++stream_len;                 \
-        if (putwc(c, stream) == WEOF) \
-            goto fail;                \
+#define my_putc(c, stream)                     \
+    do {                                       \
+        ++stream_len;                          \
+        if (putwc_unlocked(c, stream) == WEOF) \
+            goto fail;                         \
     } while (0)
 #else
     int (*put)(char, FILE *) = stream->put;
