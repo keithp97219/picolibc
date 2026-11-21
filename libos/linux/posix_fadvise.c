@@ -58,6 +58,9 @@ posix_fadvise(int fd, off_t offset, off_t len, int advice)
     unsigned long lhi = (unsigned long)((uint64_t)len >> 32);
 #if defined(__arm__)
     ret = _syscall_raw(LINUX_SYS_arm_fadvise64_64, fd, advice, olo, ohi, llo, lhi);
+#elif defined(__hexagon__)
+    /* hexagon orders the arguments as arm does */
+    ret = _syscall_raw(LINUX_SYS_fadvise64_64, fd, advice, olo, ohi, llo, lhi);
 #elif defined(__i386__)
     ret = _syscall_raw(LINUX_SYS_fadvise64_64, fd, olo, ohi, llo, lhi, advice);
 #else
