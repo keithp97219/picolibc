@@ -52,6 +52,7 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
+#include "../is-qemu.h"
 
 /*
  * tcgetpgrp and tcsetpgrp report and set the foreground process group of a controlling terminal,
@@ -209,8 +210,19 @@ orphaned(int subsidiary, pid_t fg)
         return 42;
     pfd.fd = fds[0];
     pfd.events = POLLIN;
-    if (poll(&pfd, 1, 10000) != 1 || read(fds[0], &result, 1) != 1)
+    if (poll(&pfd, 1, 10000) != 1 || read(fds[0], &result, 1) != 1) {
+        /*
+         * Under QEMU's user-mode emulation the orphaned member can die
+         * in tcsetpgrp instead of returning, depending on the session
+         * of the process that adopts it
+         */
+        if (is_qemu()) {
+            printf("QEMU lost the orphaned member, not checking it\n");
+            (void)close(fds[0]);
+            return 0;
+        }
         return 43;
+    }
     (void)close(fds[0]);
     /* Linux reports ENOTTY, and glibc passes that on */
 #ifdef __GLIBC__

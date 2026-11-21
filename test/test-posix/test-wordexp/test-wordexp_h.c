@@ -72,7 +72,8 @@ static wordfree_fn *wordfree_check = wordfree;
 /* The flags are distinct bits, so they can be ORed */
 #define F1 (WRDE_APPEND | WRDE_DOOFFS | WRDE_NOCMD)
 #define F2 (WRDE_REUSE | WRDE_SHOWERR | WRDE_UNDEF)
-_Static_assert(WRDE_APPEND && WRDE_DOOFFS && WRDE_NOCMD && WRDE_REUSE && WRDE_SHOWERR && WRDE_UNDEF,
+_Static_assert(WRDE_APPEND != 0 && WRDE_DOOFFS != 0 && WRDE_NOCMD != 0 && WRDE_REUSE != 0
+                   && WRDE_SHOWERR != 0 && WRDE_UNDEF != 0,
                "flags");
 _Static_assert((WRDE_APPEND & (WRDE_DOOFFS | WRDE_NOCMD | F2)) == 0
                    && (WRDE_DOOFFS & (WRDE_NOCMD | F2)) == 0 && (WRDE_NOCMD & F2) == 0

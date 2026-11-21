@@ -54,6 +54,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "../is-qemu.h"
 
 /*
  * Each exec function runs this program again (through /proc/self/exe)
@@ -349,6 +350,15 @@ main(int argc, char **argv)
 
         if (ret == 77) {
             printf("%s: not supported, skipped\n", names[how]);
+            continue;
+        }
+        /*
+         * QEMU's user-mode emulation runs fexecve through the
+         * descriptor's /proc/self/fd path, which close-on-exec has
+         * already closed
+         */
+        if ((how == FEXECVE || how == FEXECVE_O_EXEC) && ret == 100 + ENOENT && is_qemu()) {
+            printf("%s: QEMU lost the close-on-exec descriptor, skipped\n", names[how]);
             continue;
         }
         if (ret != 0) {

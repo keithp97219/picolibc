@@ -79,12 +79,12 @@ static regfree_t  *regfree_check = regfree;
 
 /* The flags are distinct bits, so they can be ORed */
 #define CFLAGS (REG_EXTENDED | REG_ICASE | REG_NOSUB | REG_NEWLINE)
-_Static_assert(REG_EXTENDED && REG_ICASE && REG_NOSUB && REG_NEWLINE, "cflags");
+_Static_assert(REG_EXTENDED != 0 && REG_ICASE != 0 && REG_NOSUB != 0 && REG_NEWLINE != 0, "cflags");
 _Static_assert((REG_EXTENDED & REG_ICASE) == 0 && (REG_EXTENDED & REG_NOSUB) == 0
                    && (REG_EXTENDED & REG_NEWLINE) == 0 && (REG_ICASE & REG_NOSUB) == 0
                    && (REG_ICASE & REG_NEWLINE) == 0 && (REG_NOSUB & REG_NEWLINE) == 0,
                "cflags are distinct bits");
-_Static_assert(REG_NOTBOL && REG_NOTEOL && (REG_NOTBOL & REG_NOTEOL) == 0, "eflags");
+_Static_assert(REG_NOTBOL != 0 && REG_NOTEOL != 0 && (REG_NOTBOL & REG_NOTEOL) == 0, "eflags");
 #ifdef REG_MINIMAL
 _Static_assert(REG_MINIMAL && (REG_MINIMAL & CFLAGS) == 0, "REG_MINIMAL");
 #endif
