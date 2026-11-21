@@ -35,13 +35,28 @@
 
 #include "local-linux.h"
 #include "local-cancel.h"
+#include <linux/linux-errno.h>
 
 int
 close(int fd)
 {
     void *cancel = _cancel_enter();
-    long  ret = _syscall(LINUX_SYS_close, fd);
+    long  ret = _syscall_raw(LINUX_SYS_close, fd);
 
     _cancel_leave(cancel);
-    return ret;
+    /*
+     * Linux releases the descriptor before anything that can be
+     * interrupted, so an interrupted close has still closed it. With
+     * a non-zero POSIX_CLOSE_RESTART, EINTR would mean it is still
+     * open, so report EINPROGRESS instead.
+     */
+    if (ret == -LINUX_EINTR) {
+        errno = EINPROGRESS;
+        return -1;
+    }
+    if (ret < 0) {
+        errno = _syscall_errno(ret);
+        return -1;
+    }
+    return 0;
 }
