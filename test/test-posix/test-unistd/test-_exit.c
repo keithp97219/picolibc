@@ -68,6 +68,12 @@
 static int fds[2];
 
 static void
+on_sigchld(int sig)
+{
+    (void)sig;
+}
+
+static void
 at_exit(void)
 {
     (void)write(fds[1], "A", 1);
@@ -137,7 +143,15 @@ main(void)
     check(got >= 1 && buf[0] == 'A', "exit ran atexit");
     check(WIFEXITED(status) && WEXITSTATUS(status) == 0x34, "exit status");
 
-    /* The parent gets SIGCHLD */
+    /*
+     * The parent gets SIGCHLD. Whether a blocked signal whose action
+     * is to ignore it stays pending is unspecified, and that is
+     * SIGCHLD's default action (FreeBSD discards it), so catch it
+     */
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = on_sigchld;
+    check(sigaction(SIGCHLD, &sa, NULL) == 0, "catch SIGCHLD");
     sigemptyset(&set);
     sigaddset(&set, SIGCHLD);
     check(sigprocmask(SIG_BLOCK, &set, &old) == 0, "block SIGCHLD");
@@ -151,6 +165,8 @@ main(void)
     check(sigpending(&set) == 0 && sigismember(&set, SIGCHLD) == 1, "SIGCHLD");
     check(waitpid(pid, &status, 0) == pid, "waitpid");
     check(sigprocmask(SIG_SETMASK, &old, NULL) == 0, "restore the mask");
+    sa.sa_handler = SIG_DFL;
+    check(sigaction(SIGCHLD, &sa, NULL) == 0, "default SIGCHLD");
 
     /* The children of a process that exits go to a system process */
     check(pipe(report) == 0, "pipe");

@@ -50,7 +50,12 @@
  * setrlimit changes soft limits up to the hard limit, lowers hard
  * limits irreversibly and rejects bad requests. Every change is made
  * in a child, so the test's own limits stay as they were. Resources
- * whose hard limit is below 2 are skipped.
+ * whose hard limit is below 2 units are skipped.
+ *
+ * A stack limit below what the stack already holds may take effect at
+ * once (FreeBSD unmaps the stack beyond it), so the stack limits are
+ * in units of STACK_UNIT bytes, which the child's stack stays within;
+ * other limits are in units of 1.
  */
 
 static const int resources[] = {
@@ -60,9 +65,11 @@ static const int resources[] = {
 #define NUM_RESOURCE (sizeof(resources) / sizeof(resources[0]))
 
 /* qemu-user doesn't apply these to itself, and reports success without checking */
-#define IS_MEM(r) ((r) == RLIMIT_DATA || (r) == RLIMIT_STACK || (r) == RLIMIT_AS)
+#define IS_MEM(r)  ((r) == RLIMIT_DATA || (r) == RLIMIT_STACK || (r) == RLIMIT_AS)
 
-#define SKIPPED   77
+#define SKIPPED    77
+
+#define STACK_UNIT ((rlim_t)16 * 1024 * 1024)
 
 /*
  * In the child, with limits that may stop printf from working, a
@@ -90,24 +97,25 @@ child(int resource, int qemu)
 {
     struct rlimit old, rl;
     int           relaxed = qemu && IS_MEM(resource);
+    rlim_t        u = resource == RLIMIT_STACK ? STACK_UNIT : 1;
     int           ret;
 
     check(getrlimit(resource, &old) == 0);
-    if (old.rlim_max != RLIM_INFINITY && old.rlim_max < 2)
+    if (old.rlim_max != RLIM_INFINITY && old.rlim_max < 2 * u)
         _exit(SKIPPED);
 
     /* The soft limit can be anything up to the hard limit */
     rl.rlim_max = old.rlim_max;
-    rl.rlim_cur = 1;
+    rl.rlim_cur = u;
     check(setrlimit(resource, &rl) == 0);
-    check(relaxed || same(resource, 1, old.rlim_max));
+    check(relaxed || same(resource, u, old.rlim_max));
     rl.rlim_cur = old.rlim_max;
     check(setrlimit(resource, &rl) == 0);
     check(relaxed || same(resource, old.rlim_max, old.rlim_max));
 
     /* A soft limit above the hard limit is EINVAL, and changes nothing */
-    rl.rlim_cur = 2;
-    rl.rlim_max = 1;
+    rl.rlim_cur = 2 * u;
+    rl.rlim_max = u;
     errno = 0;
     ret = setrlimit(resource, &rl);
     check(relaxed || (ret == -1 && errno == EINVAL));
@@ -116,7 +124,7 @@ child(int resource, int qemu)
     if (old.rlim_max == RLIM_INFINITY) {
         /* RLIM_INFINITY is larger than any other value, even where rlim_t has larger ones */
         rl.rlim_cur = RLIM_INFINITY;
-        rl.rlim_max = 2;
+        rl.rlim_max = 2 * u;
         errno = 0;
         ret = setrlimit(resource, &rl);
         check(relaxed || (ret == -1 && errno == EINVAL));
@@ -130,18 +138,18 @@ child(int resource, int qemu)
     }
 
     /* Lowering the hard limit is allowed */
-    rl.rlim_cur = 1;
-    rl.rlim_max = 2;
+    rl.rlim_cur = u;
+    rl.rlim_max = 2 * u;
     check(setrlimit(resource, &rl) == 0);
-    check(relaxed || same(resource, 1, 2));
+    check(relaxed || same(resource, u, 2 * u));
 
     /* Raising it again takes privilege */
-    rl.rlim_max = 3;
+    rl.rlim_max = 3 * u;
     errno = 0;
     ret = setrlimit(resource, &rl);
     if (geteuid() != 0) {
         check(relaxed || (ret == -1 && errno == EPERM));
-        check(relaxed || same(resource, 1, 2));
+        check(relaxed || same(resource, u, 2 * u));
     }
 
     /* An invalid resource is EINVAL */
@@ -174,7 +182,7 @@ main(void)
             return 1;
         }
         if (WEXITSTATUS(status) == SKIPPED) {
-            printf("resource %d: hard limit below 2, skipped\n", resources[r]);
+            printf("resource %d: hard limit below 2 units, skipped\n", resources[r]);
             skipped++;
         } else if (WEXITSTATUS(status) != 0) {
             printf("resource %d: check %d failed\n", resources[r], WEXITSTATUS(status));
