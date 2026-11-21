@@ -53,6 +53,7 @@ posix_test_dirs = [
   'test-inttypes',
   'test-libgen',
   'test-libintl',
+  'test-locale',
   'test-monetary',
   'test-mqueue',
   'test-net-if',
