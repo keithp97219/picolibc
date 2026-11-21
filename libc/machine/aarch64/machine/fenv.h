@@ -37,11 +37,10 @@ typedef __uint64_t fenv_t;
 typedef __uint64_t fexcept_t;
 
 /*
- * We can't tell if we're using compiler-rt or libgcc; instead
- * we assume a connection between the compiler in use and
- * the runtime library.
+ * The build notes whether the run-time library is compiler-rt or
+ * libgcc; the compiler doesn't say, as clang may use either one.
  */
-#if defined(__clang__)
+#ifdef __RUNTIME_COMPILER_RT
 
 /* compiler-rt has no exceptions in soft-float */
 

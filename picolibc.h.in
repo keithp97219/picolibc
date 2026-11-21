@@ -55,6 +55,9 @@
 /* Compiler supports _Complex */
 #cmakedefine __HAVE_COMPLEX
 
+/* Run-time library is compiler-rt */
+#cmakedefine __RUNTIME_COMPILER_RT
+
 /* The compiler supports __builtin_complex */
 #cmakedefine __HAVE_BUILTIN_COMPLEX 1
 
