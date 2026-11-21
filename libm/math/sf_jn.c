@@ -34,7 +34,7 @@ jnf(int n, float x)
     ix = 0x7fffffff & hx;
     /* if J(n,NaN) is NaN */
     if (FLT_UWORD_IS_NAN(ix))
-        return x + x;
+        return opt_barrier_float(x + x);
     if (n < 0) {
         n = -n;
         x = -x;
@@ -182,7 +182,7 @@ ynf(int n, float x)
         return __math_divzerof(!(n < 0 && (n & 1)));
 
     if (ix > 0x7f800000)
-        return x + x;
+        return opt_barrier_float(x + x);
 
     if (hx < 0)
         return __math_invalidf(x);
