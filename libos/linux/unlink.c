@@ -34,13 +34,11 @@
  */
 
 #include "local-linux.h"
+#include <fcntl.h>
+#include <unistd.h>
 
 int
 unlink(const char *path)
 {
-#ifdef LINUX_SYS_unlink
-    return _syscall(LINUX_SYS_unlink, path);
-#else
-    return _syscall(LINUX_SYS_unlinkat, LINUX_AT_FDCWD, path, 0);
-#endif
+    return unlinkat(AT_FDCWD, path, 0);
 }

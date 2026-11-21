@@ -34,16 +34,24 @@
  */
 
 #include "local-linux.h"
+#include <linux/linux-errno.h>
 #include <unistd.h>
 
 int
 unlinkat(int dirfd, const char *path, int flags)
 {
-    int kflags = _at_flags_to_linux(flags, AT_REMOVEDIR);
+    int  kflags = _at_flags_to_linux(flags, AT_REMOVEDIR);
+    long ret;
 
     if (kflags < 0) {
         errno = EINVAL;
         return -1;
     }
-    return _syscall(LINUX_SYS_unlinkat, _at_fd_to_linux(dirfd), path, kflags);
+    ret = _syscall_raw(LINUX_SYS_unlinkat, _at_fd_to_linux(dirfd), path, kflags);
+    if (ret < 0) {
+        /* Linux reports EISDIR for a directory, where POSIX says EPERM */
+        errno = ret == -LINUX_EISDIR ? EPERM : _syscall_errno(ret);
+        return -1;
+    }
+    return 0;
 }
