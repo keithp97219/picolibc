@@ -39,6 +39,14 @@
 int
 fchown(int fd, uid_t owner, gid_t group)
 {
-    /* fchownat uses 32-bit ids everywhere, unlike fchown on some targets */
-    return fchownat(fd, "", owner, group, AT_EMPTY_PATH);
+    /*
+     * fchownat uses 32-bit ids everywhere, unlike fchown on some
+     * targets. Call it directly, as fchownat would take AT_FDCWD
+     * (and Linux's AT_FDCWD) as the current directory.
+     */
+    if (fd < 0) {
+        errno = EBADF;
+        return -1;
+    }
+    return _syscall(LINUX_SYS_fchownat, fd, "", owner, group, LINUX_AT_EMPTY_PATH);
 }
