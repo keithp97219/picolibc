@@ -36,4 +36,5 @@
 
 dir_srcs = [
   'realpath.c',
+  'setkey.c',
 ]

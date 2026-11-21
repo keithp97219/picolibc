@@ -34,6 +34,8 @@
 #
 picolibc_sources(
   confstr.c
+  crypt.c
+  encrypt.c
   execl.c
   execle.c
   execlp.c

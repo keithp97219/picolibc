@@ -113,7 +113,7 @@ int dup3(int __fildes, int __fildes2, int __flag) __picolibc_export;
 int eaccess(const char *__path, int __mode) __picolibc_export;
 #endif
 #if __XSI_VISIBLE
-void encrypt(char *, int) __picolibc_export;
+void encrypt(char __block[64], int __edflag) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || (__XSI_VISIBLE && __XSI_VISIBLE < 500)
 void endusershell(void) __picolibc_export;

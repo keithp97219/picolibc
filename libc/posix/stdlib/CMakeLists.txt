@@ -34,4 +34,5 @@
 #
 picolibc_sources(
   realpath.c
+  setkey.c
   )
