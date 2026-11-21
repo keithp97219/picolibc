@@ -37,6 +37,7 @@ set(tests
   test-ctermid
   test-fdopen
   test-fopen
+  test-fseek
   test-getdelim
   test-pclose
   test-popen
