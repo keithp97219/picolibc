@@ -56,3 +56,15 @@ static FILE __stdio = FDEV_SETUP_STREAM(e9_putc, NULL, NULL, _FDEV_SETUP_WRITE);
 
 FILE * const stdout = &__stdio;
 STDIO_ALIAS(stderr);
+
+/* Port 0xe9 is output only, so stdin is always at end of file */
+static int
+e9_getc(FILE *file)
+{
+    (void)file;
+    return EOF;
+}
+
+static FILE  __stdin = FDEV_SETUP_STREAM(NULL, e9_getc, NULL, _FDEV_SETUP_READ);
+
+FILE * const stdin = &__stdin;
