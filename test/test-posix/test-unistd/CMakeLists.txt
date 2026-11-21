@@ -103,6 +103,8 @@ set(tests
   test-symlinkat
   test-sync
   test-sysconf
+  test-sysconf-arg_max
+  test-sysconf-limits
   test-tcsetpgrp
   test-truncate
   test-ttyname_r
