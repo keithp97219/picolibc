@@ -39,8 +39,8 @@
 #include "if_native.h"
 
 /* Make sure the native C library has reasonable types */
-_Static_assert(sizeof(off_t) == 8);
-_Static_assert(sizeof(time_t) == 8);
+_Static_assert(sizeof(off_t) == 8, "off_t");
+_Static_assert(sizeof(time_t) == 8, "time_t");
 
 int
 __stat_host(const char *path, struct if_stat *if_stat)
