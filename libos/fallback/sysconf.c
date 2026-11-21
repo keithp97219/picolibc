@@ -63,6 +63,13 @@ __fallback_sysconf(int name)
         return _POSIX_CHILD_MAX;
     case _SC_DELAYTIMER_MAX:
         return _POSIX_DELAYTIMER_MAX;
+    /*
+     * A suggested initial size for the getpw*_r and getgr*_r buffers;
+     * entries in libc/posix/pwd and grp have no fixed limit
+     */
+    case _SC_GETGR_R_SIZE_MAX:
+    case _SC_GETPW_R_SIZE_MAX:
+        return 1024;
     case _SC_HOST_NAME_MAX:
         return _POSIX_HOST_NAME_MAX;
     case _SC_IOV_MAX:
