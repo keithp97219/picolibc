@@ -36,13 +36,17 @@
 #include "local-aio.h"
 #include <fcntl.h>
 
-/* Requests start running at once, so none can be canceled */
+/*
+ * Requests waiting for earlier ones on the same descriptor, or for
+ * their thread to start, can be canceled; once one starts it runs to
+ * completion
+ */
 int
 aio_cancel(int fd, struct aiocb *cb)
 {
-    struct __aio_req *r;
+    struct __aio_req *r, *next;
     sigset_t          old;
-    int               ret = AIO_ALLDONE;
+    bool              canceled = false, running = false;
 
     if (fcntl(fd, F_GETFD) < 0)
         return -1;
@@ -51,11 +55,24 @@ aio_cancel(int fd, struct aiocb *cb)
         return -1;
     }
     __aio_lock_nosig(&old);
-    for (r = __aio_running; r; r = r->next)
-        if (r->fildes == fd && (!cb || r->cb == cb)) {
-            ret = AIO_NOTCANCELED;
-            break;
+    for (r = __aio_running; r; r = next) {
+        next = r->next;
+        if (r->fildes != fd || (cb && r->cb != cb))
+            continue;
+        if (r->started) {
+            running = true;
+        } else {
+            /* Its thread notifies, once it sees the request canceled */
+            r->canceled = true;
+            __aio_unlink(r);
+            __aio_set_status(r->cb, -1, ECANCELED);
+            canceled = true;
         }
+    }
+    if (canceled)
+        __aio_wake();
     __aio_unlock_nosig(&old);
-    return ret;
+    if (running)
+        return AIO_NOTCANCELED;
+    return canceled ? AIO_CANCELED : AIO_ALLDONE;
 }

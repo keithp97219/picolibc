@@ -74,6 +74,9 @@ struct __aio_req {
     int                fd;
     /* A write that appends, so it must follow earlier writes */
     bool               append;
+    /* Set once the request has started, or aio_cancel canceled it */
+    bool               started;
+    bool               canceled;
 };
 
 /*
@@ -100,6 +103,12 @@ struct __aio_waiter {
 
 /* The waiting threads; the lock guards the list */
 extern struct __aio_waiter *__aio_waiters;
+
+/* Wakes the threads waiting for requests to complete; the lock is held */
+void                        __aio_wake(void);
+
+/* Takes a request off the running list; the lock is held */
+void                        __aio_unlink(struct __aio_req *req);
 
 /* Adds and removes waiters; these take the lock */
 void                        __aio_add_waiter(struct __aio_waiter *w);

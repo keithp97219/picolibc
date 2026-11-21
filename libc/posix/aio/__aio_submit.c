@@ -45,19 +45,6 @@ pthread_cond_t       __aio_done = PTHREAD_COND_INITIALIZER;
 struct __aio_req    *__aio_running;
 struct __aio_waiter *__aio_waiters;
 
-/* Takes a request off the running list; the lock is held */
-static void
-__aio_unlink(struct __aio_req *req)
-{
-    struct __aio_req **prev;
-
-    for (prev = &__aio_running; *prev; prev = &(*prev)->next)
-        if (*prev == req) {
-            *prev = req->next;
-            break;
-        }
-}
-
 /*
  * Whether an earlier request on the same descriptor must finish first:
  * appending writes go in the order they were queued, and a
@@ -81,22 +68,12 @@ __aio_must_wait(const struct __aio_req *req)
     return false;
 }
 
-/* Run one request; each runs in its own thread */
-static void *
-__aio_run(void *arg)
+/* Performs a request's transfer or synchronization */
+static ssize_t
+__aio_io(struct __aio_req *req)
 {
-    struct __aio_req    *req = arg;
-    struct aiocb        *cb = req->cb;
-    struct __aio_list   *list = req->list;
-    bool                 notify_list = false;
-    struct __aio_waiter *w;
-    ssize_t              ret;
-    int                  error = 0;
-
-    pthread_mutex_lock(&__aio_lock);
-    while (__aio_must_wait(req))
-        pthread_cond_wait(&__aio_done, &__aio_lock);
-    pthread_mutex_unlock(&__aio_lock);
+    struct aiocb *cb = req->cb;
+    ssize_t       ret;
 
     /*
      * Pipes, sockets and terminals can't seek, so there the offset
@@ -120,22 +97,51 @@ __aio_run(void *arg)
         ret = fsync(req->fd);
         break;
     }
-    if (ret < 0)
-        error = errno;
+    return ret;
+}
+
+/* Run one request; each runs in its own thread */
+static void *
+__aio_run(void *arg)
+{
+    struct __aio_req  *req = arg;
+    struct aiocb      *cb = req->cb;
+    struct __aio_list *list = req->list;
+    bool               notify_list = false;
+    ssize_t            ret = -1;
+    int                error = 0;
+    bool               canceled;
+
+    /* aio_cancel can cancel the request until it starts */
+    pthread_mutex_lock(&__aio_lock);
+    while (!req->canceled && __aio_must_wait(req))
+        pthread_cond_wait(&__aio_done, &__aio_lock);
+    canceled = req->canceled;
+    req->started = true;
+    pthread_mutex_unlock(&__aio_lock);
+
+    if (canceled) {
+        error = ECANCELED;
+    } else {
+        ret = __aio_io(req);
+        if (ret < 0)
+            error = errno;
+    }
     close(req->fd);
 
     pthread_mutex_lock(&__aio_lock);
-    __aio_unlink(req);
-    __aio_set_status(cb, ret, error);
+    /* aio_cancel has already set the status of a canceled request */
+    if (!canceled) {
+        __aio_unlink(req);
+        __aio_set_status(cb, ret, error);
+    }
     if (list) {
         if (error)
             list->failed = true;
         if (--list->count == 0 && !list->wait)
             notify_list = true;
     }
-    pthread_cond_broadcast(&__aio_done);
-    for (w = __aio_waiters; w; w = w->next)
-        sem_post(&w->sem);
+    __aio_wake();
     pthread_mutex_unlock(&__aio_lock);
 
     /* The caller may reuse cb as soon as the status is visible */
@@ -163,6 +169,28 @@ __aio_unlock_nosig(const sigset_t *old)
 {
     pthread_mutex_unlock(&__aio_lock);
     pthread_sigmask(SIG_SETMASK, old, NULL);
+}
+
+void
+__aio_wake(void)
+{
+    struct __aio_waiter *w;
+
+    pthread_cond_broadcast(&__aio_done);
+    for (w = __aio_waiters; w; w = w->next)
+        sem_post(&w->sem);
+}
+
+void
+__aio_unlink(struct __aio_req *req)
+{
+    struct __aio_req **prev;
+
+    for (prev = &__aio_running; *prev; prev = &(*prev)->next)
+        if (*prev == req) {
+            *prev = req->next;
+            break;
+        }
 }
 
 void
