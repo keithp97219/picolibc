@@ -96,6 +96,25 @@ struct if_statvfs {
     __uint32_t f_nosuid;
 };
 
+/*
+ * open flags, as bits both sides agree on; picolibc's O_ values aren't
+ * the host's, which vary by architecture
+ */
+#define IF_O_ACCMODE   0x0003 /* O_RDONLY 0, O_WRONLY 1, O_RDWR 2 */
+#define IF_O_CREAT     0x0004
+#define IF_O_EXCL      0x0008
+#define IF_O_NOCTTY    0x0010
+#define IF_O_TRUNC     0x0020
+#define IF_O_APPEND    0x0040
+#define IF_O_NONBLOCK  0x0080
+#define IF_O_SYNC      0x0100
+#define IF_O_DIRECTORY 0x0200
+#define IF_O_NOFOLLOW  0x0400
+#define IF_O_CLOEXEC   0x0800
+#define IF_O_DIRECT    0x1000
+
+int __open_host(const char *path, int if_flags, int mode);
+
 int __fstat_host(int fd, struct if_stat *if_stat);
 int __lstat_host(const char *path, struct if_stat *if_stat);
 int __stat_host(const char *path, struct if_stat *if_stat);
