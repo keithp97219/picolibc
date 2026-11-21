@@ -54,11 +54,31 @@ newlocale(int category_mask, const char *name, locale_t base)
         return 0;
     }
 
-    /* A locale picolibc doesn't have is ENOENT */
-    locale = __find_locale(name);
-    if (locale == locale_INVALID) {
-        errno = ENOENT;
-        return 0;
+    if (*name == '\0') {
+        int c;
+
+        /* The environment names each category's locale (XBD 8.2) */
+        locale = locale_C;
+        for (c = LC_ALL + 1; c < _LC_LAST; c++) {
+            enum locale_id id;
+
+            if ((category_mask & (1 << c)) == 0)
+                continue;
+            id = __find_locale_env(c);
+            if (id == locale_INVALID) {
+                errno = ENOENT;
+                return 0;
+            }
+            if (c == LC_CTYPE)
+                locale = id;
+        }
+    } else {
+        /* A locale picolibc doesn't have is ENOENT */
+        locale = __find_locale(name);
+        if (locale == locale_INVALID) {
+            errno = ENOENT;
+            return 0;
+        }
     }
 
     /*

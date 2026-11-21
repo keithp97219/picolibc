@@ -127,7 +127,10 @@ These options control how much internationalization support is included
 in the library. Picolibc supports locale names of the form '<locale>' or
 '<locale>.<charset>'; e.g. POSIX or C.UTF-8. When no charset is
 specified, picolibc selects ASCII when multi-byte support is disabled
-or locale is C. Otherwise, picolibc selects UTF-8.
+or locale is C. Otherwise, picolibc selects UTF-8. A name of "" takes
+the locale from the LC_ALL, LC_* and LANG environment variables, as
+POSIX describes; setlocale and newlocale fail when that names a
+charset the library doesn't have.
 
 Picolibc supports the same charsets for locales and iconv.
 

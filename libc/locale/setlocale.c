@@ -52,11 +52,26 @@ setlocale(int category, const char *name)
     if (name == NULL)
         return (char *)__locale_name(__global_locale);
 
-    /* Set the global locale */
-    locale = __find_locale(name);
+    if (*name == '\0') {
+        /* The environment names the locale (XBD 8.2) */
+        if (category == LC_ALL) {
+            int c;
+
+            /* Check every category before changing any */
+            for (c = LC_ALL + 1; c < _LC_LAST; c++)
+                if (__find_locale_env(c) == locale_INVALID)
+                    return NULL;
+            locale = __find_locale_env(LC_CTYPE);
+        } else {
+            locale = __find_locale_env(category);
+        }
+    } else {
+        locale = __find_locale(name);
+    }
     if (locale == locale_INVALID)
         return NULL;
 
+    /* Set the global locale */
     switch (category) {
     case LC_ALL:
     case LC_CTYPE:

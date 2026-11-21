@@ -200,6 +200,8 @@ enum locale_id __find_charset(const char *name);
 
 enum locale_id __find_locale(const char *name);
 
+enum locale_id __find_locale_env(int category);
+
 /* LC_NUMERIC data */
 #define DECIMAL_POINT         "."
 #define DECIMAL_POINT_L(l)    ((void)(l), DECIMAL_POINT)
