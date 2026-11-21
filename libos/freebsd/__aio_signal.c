@@ -34,22 +34,76 @@
  */
 
 #include "local-signal.h"
-#include <unistd.h>
+#include <freebsd/freebsd-errno.h>
+#include <freebsd/freebsd-sigevent-struct.h>
+#include <freebsd/freebsd-aiocb-struct.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
 
 int __aio_signal(int sig, union sigval value);
 
 /*
- * Sends a completion signal. FreeBSD's sigqueue reports SI_QUEUE; only
- * the kernel's own asynchronous I/O sends SI_ASYNCIO.
+ * Only the kernel sends SI_ASYNCIO, from its own asynchronous I/O. Ask
+ * it for an aio_mlock of no bytes, which completes at once and sends
+ * the completion signal with that code and the value. Each request
+ * stays with the kernel until aio_return collects it, which happens
+ * on a later call once it is done.
  */
+struct aio_note {
+    struct aio_note       *next;
+    struct __freebsd_aiocb cb;
+};
+
+static pthread_mutex_t  notes_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct aio_note *notes;
+static char             note_buf;
+
 int
 __aio_signal(int sig, union sigval value)
 {
-    int ksig = _signal_to_freebsd(sig);
+    struct aio_note **prev, *n;
+    int               ksig = _signal_to_freebsd(sig);
+    long              ret;
 
     if (ksig < 0) {
         errno = EINVAL;
         return -1;
     }
-    return (int)_syscall(FREEBSD_SYS_sigqueue, getpid(), ksig, value.sival_ptr);
+
+    pthread_mutex_lock(&notes_lock);
+    prev = &notes;
+    while ((n = *prev) != NULL) {
+        if (_syscall_raw(FREEBSD_SYS_aio_error, &n->cb) != FREEBSD_EINPROGRESS) {
+            (void)_syscall_raw(FREEBSD_SYS_aio_return, &n->cb);
+            *prev = n->next;
+            free(n);
+        } else {
+            prev = &n->next;
+        }
+    }
+
+    n = calloc(1, sizeof(*n));
+    if (!n) {
+        pthread_mutex_unlock(&notes_lock);
+        errno = EAGAIN;
+        return -1;
+    }
+    n->cb.aio_fildes = -1;
+    n->cb.aio_buf = &note_buf;
+    n->cb.aio_nbytes = 0;
+    n->cb.aio_sigevent.sigev_notify = FREEBSD_SIGEV_SIGNAL;
+    n->cb.aio_sigevent.sigev_signo = ksig;
+    n->cb.aio_sigevent.sigev_value = (__uint64_t)(uintptr_t)value.sival_ptr;
+    if (sizeof(value.sival_ptr) < sizeof(n->cb.aio_sigevent.sigev_value))
+        memcpy(&n->cb.aio_sigevent.sigev_value, &value, sizeof(value));
+    ret = _syscall(FREEBSD_SYS_aio_mlock, &n->cb);
+    if (ret < 0) {
+        free(n);
+    } else {
+        n->next = notes;
+        notes = n;
+    }
+    pthread_mutex_unlock(&notes_lock);
+    return ret < 0 ? -1 : 0;
 }

@@ -130,6 +130,7 @@ PROBE_HEADERS = [
     "sys/select.h",
     "sys/unistd.h",
     "sys/rtprio.h",
+    "sys/aio.h",
 ]
 
 # Constant groups: output name, the header whose '#define NAME' lines
@@ -224,6 +225,10 @@ STRUCTS = [
         ("rtp", "void *"),
     ]),
     ("rtprio", "struct rtprio", [("type", "__uint16_t"), ("prio", "__uint16_t")]),
+    ("aiocb", "struct aiocb", [
+        ("aio_fildes", "int"), ("aio_offset", "__int64_t"), ("aio_buf", "void *"),
+        ("aio_nbytes", "__size_t"), ("aio_sigevent", "struct __freebsd_sigevent"),
+    ]),
     ("umtx_time", "struct _umtx_time", [
         ("_timeout", "struct __freebsd_timespec"), ("_flags", "__uint32_t"),
         ("_clockid", "__uint32_t"),
