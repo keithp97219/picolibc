@@ -45,6 +45,8 @@ vswprintf(wchar_t *s, size_t n, const wchar_t *fmt, va_list ap)
 
     if (n)
         memset(f.pos, 0, sizeof(wchar_t));
+    else
+        errno = EOVERFLOW; /* Not even the null fits */
 
     return i;
 }
