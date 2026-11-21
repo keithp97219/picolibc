@@ -159,11 +159,13 @@ static int
 __wordexp_shell(const char *words, int flags, char **out, size_t *len)
 {
     /*
-     * $1 turns on set -u, $2 holds the words; printf ends each field
-     * with a null byte, and the leading x keeps an empty expansion
-     * from looking like one empty field.
+     * $1 turns on set -u and $2 holds the words. set -- clears the
+     * positional parameters before the words are expanded, so $1 and
+     * the rest aren't the script's. printf ends each field with a null
+     * byte, and the leading x keeps an empty expansion from looking
+     * like one empty field.
      */
-    static const char script[] = "[ -n \"$1\" ] && set -u; eval \"printf '%s\\\\0' x $2\"";
+    static const char script[] = "[ -n \"$1\" ] && set -u; eval \"set --; printf '%s\\\\0' x $2\"";
     char  *argv[] = { "sh",          "-c", (char *)script, "sh", (flags & WRDE_UNDEF) ? "1" : "",
                       (char *)words, NULL };
     char  *buf = NULL;
