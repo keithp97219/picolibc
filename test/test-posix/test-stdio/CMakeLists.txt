@@ -38,6 +38,7 @@ set(tests
   test-fdopen
   test-fgetc
   test-fileno
+  test-flockfile
   test-fmemopen
   test-fopen
   test-fseek

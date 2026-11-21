@@ -51,3 +51,8 @@ dir_tests = [
   'test-stdio_h-names',
   'test-stdio_h-xsi',
 ]
+
+# These need threads; they use the library's own locks
+dir_thread_tests = [
+  'test-flockfile',
+]
