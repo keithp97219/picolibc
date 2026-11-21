@@ -73,17 +73,21 @@ main(void)
 {
     struct group ent, *result;
     char         buf[4096], small[1];
+    char         name[256];
     size_t       need, m;
     long         suggested;
     int          ret;
 
-    /* Every system has a root group */
+    /* Every system has a group 0, though its name varies (root, wheel) */
     check(getgrgid_r(0, &ent, buf, sizeof(buf), &result) == 0, "getgrgid_r");
     if (!result) {
         printf("no root entry, skipping\n");
         return 77;
     }
-    check(result == &ent && strcmp(ent.gr_name, "root") == 0 && ent.gr_gid == 0, "root");
+    check(result == &ent && ent.gr_name[0] != '\0' && strlen(ent.gr_name) < sizeof(name)
+              && ent.gr_gid == 0,
+          "root");
+    strcpy(name, ent.gr_name);
 
     /* Not finding an entry isn't an error */
     result = &ent;
@@ -106,7 +110,7 @@ main(void)
             break;
         check(ret == ERANGE && result == NULL, "ERANGE below the size needed");
     }
-    check(result == &ent && strcmp(ent.gr_name, "root") == 0 && ent.gr_gid == 0, "root again");
+    check(result == &ent && strcmp(ent.gr_name, name) == 0 && ent.gr_gid == 0, "root again");
     check(in_buffer(ent.gr_name, buf, need), "name in the buffer");
     for (m = 0;; m++) {
         check((const char *)&ent.gr_mem[m] >= buf

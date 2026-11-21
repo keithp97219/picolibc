@@ -71,4 +71,10 @@ void _sigmask_to_freebsd(struct __freebsd_sigset *kset, const sigset_t *set);
 void _sigmask_from_freebsd(sigset_t *set, const struct __freebsd_sigset *kset);
 void _siginfo_from_freebsd(siginfo_t *info, const struct __freebsd_siginfo *kinfo);
 
+/*
+ * sigtimedwait, storing the signal through sig and returning 0 or an
+ * errno value, leaving errno alone
+ */
+int  _sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout, int *sig);
+
 #endif /* _LOCAL_SIGNAL_H_ */

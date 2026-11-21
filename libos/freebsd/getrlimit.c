@@ -33,40 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
-#include <sys/resource.h>
-#include <freebsd/freebsd-resource.h>
-#include <freebsd/freebsd-rlimit-struct.h>
-
-/* Translate a resource, returning -1 for one FreeBSD lacks */
-static int
-_resource_to_freebsd(int resource)
-{
-    switch (resource) {
-    case RLIMIT_CORE:
-        return FREEBSD_RLIMIT_CORE;
-    case RLIMIT_CPU:
-        return FREEBSD_RLIMIT_CPU;
-    case RLIMIT_DATA:
-        return FREEBSD_RLIMIT_DATA;
-    case RLIMIT_FSIZE:
-        return FREEBSD_RLIMIT_FSIZE;
-    case RLIMIT_NOFILE:
-        return FREEBSD_RLIMIT_NOFILE;
-    case RLIMIT_STACK:
-        return FREEBSD_RLIMIT_STACK;
-    case RLIMIT_AS:
-        return FREEBSD_RLIMIT_AS;
-    default:
-        return -1;
-    }
-}
-
-static rlim_t
-_rlim_from_freebsd(__int64_t v)
-{
-    return v == FREEBSD_RLIM_INFINITY ? RLIM_INFINITY : (rlim_t)v;
-}
+#include "local-resource.h"
 
 int
 getrlimit(int resource, struct rlimit *rlim)

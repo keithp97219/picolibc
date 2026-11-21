@@ -48,3 +48,7 @@ dir_tests = [
 dir_thread_tests = [
   'test-setpriority-thread',
 ]
+
+# clang assumes the allocation functions never set errno, and reuses the
+# value stored before the call; POSIX has malloc set ENOMEM past RLIMIT_DATA
+test_extra_c_args += {'test-setrlimit-enforce': ['-fno-builtin']}

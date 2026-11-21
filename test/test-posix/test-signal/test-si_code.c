@@ -116,7 +116,10 @@ main(void)
     check(addr == p + page + 2, "si_addr of the mapping fault");
     check(munmap(p, page) == 0, "munmap");
 
-    /* BUS_ADRERR: a file mapping past the end of the file */
+    /*
+     * SIGBUS: a file mapping past the end of the file. POSIX doesn't
+     * say which code: Linux reports BUS_ADRERR, FreeBSD BUS_OBJERR
+     */
     fd = mkstemp(name);
     check(fd >= 0, "mkstemp");
     unlink(name);
@@ -139,7 +142,7 @@ main(void)
         check(ftruncate(fd, page) == 0, "ftruncate to one page");
     }
     check(fault(p + page + 3) == SIGBUS, "SIGBUS past the end of the file");
-    check(code == BUS_ADRERR, "BUS_ADRERR");
+    check(code == BUS_ADRERR || code == BUS_OBJERR, "BUS_ADRERR or BUS_OBJERR");
     check(addr == p + page + 3, "si_addr of the bus error");
     munmap(p, 2 * page);
     close(fd);

@@ -129,10 +129,14 @@ check_itimers(void)
 #ifdef __PICOLIBC__
     unsigned int left;
 
-    /* alarm can't fail; a huge request must stay huge, not wrap */
+    /*
+     * alarm can't fail; a huge request must stay huge, not wrap. The
+     * kernel may cap it: FreeBSD's interval timers take at most
+     * INT32_MAX / 2 seconds (34 years)
+     */
     alarm(UINT_MAX);
     left = alarm(0);
-    check(left > 0x7fff0000u, "alarm(UINT_MAX) left a long alarm");
+    check(left >= 0x3fffffffu, "alarm(UINT_MAX) left a long alarm");
 
     /* setitimer rejects seconds the kernel's long can't hold */
 #if LONG_MAX < INT64_MAX

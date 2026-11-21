@@ -77,6 +77,64 @@ _si_code_from_freebsd(int ksig, int kcode)
             return SEGV_ACCERR;
         }
         break;
+    case FREEBSD_SIGBUS:
+        switch (kcode) {
+        case FREEBSD_BUS_ADRALN:
+            return BUS_ADRALN;
+        case FREEBSD_BUS_ADRERR:
+            return BUS_ADRERR;
+        case FREEBSD_BUS_OBJERR:
+            return BUS_OBJERR;
+        }
+        break;
+    case FREEBSD_SIGILL:
+        switch (kcode) {
+        case FREEBSD_ILL_ILLOPC:
+            return ILL_ILLOPC;
+        case FREEBSD_ILL_ILLOPN:
+            return ILL_ILLOPN;
+        case FREEBSD_ILL_ILLADR:
+            return ILL_ILLADR;
+        case FREEBSD_ILL_ILLTRP:
+            return ILL_ILLTRP;
+        case FREEBSD_ILL_PRVOPC:
+            return ILL_PRVOPC;
+        case FREEBSD_ILL_PRVREG:
+            return ILL_PRVREG;
+        case FREEBSD_ILL_COPROC:
+            return ILL_COPROC;
+        case FREEBSD_ILL_BADSTK:
+            return ILL_BADSTK;
+        }
+        break;
+    case FREEBSD_SIGFPE:
+        switch (kcode) {
+        case FREEBSD_FPE_INTDIV:
+            return FPE_INTDIV;
+        case FREEBSD_FPE_INTOVF:
+            return FPE_INTOVF;
+        case FREEBSD_FPE_FLTDIV:
+            return FPE_FLTDIV;
+        case FREEBSD_FPE_FLTOVF:
+            return FPE_FLTOVF;
+        case FREEBSD_FPE_FLTUND:
+            return FPE_FLTUND;
+        case FREEBSD_FPE_FLTRES:
+            return FPE_FLTRES;
+        case FREEBSD_FPE_FLTINV:
+            return FPE_FLTINV;
+        case FREEBSD_FPE_FLTSUB:
+            return FPE_FLTSUB;
+        }
+        break;
+    case FREEBSD_SIGTRAP:
+        switch (kcode) {
+        case FREEBSD_TRAP_BRKPT:
+            return TRAP_BRKPT;
+        case FREEBSD_TRAP_TRACE:
+            return TRAP_TRACE;
+        }
+        break;
     }
     return kcode;
 }
@@ -92,6 +150,10 @@ _siginfo_from_freebsd(siginfo_t *info, const struct __freebsd_siginfo *kinfo)
     info->si_uid = kinfo->si_uid;
     info->si_addr = kinfo->si_addr;
     info->si_status = kinfo->si_status;
+    /* A child stopped or killed by a signal reports the signal number */
+    if (kinfo->si_signo == FREEBSD_SIGCHLD && kinfo->si_code != FREEBSD_CLD_EXITED
+        && kinfo->si_code > 0 && kinfo->si_code <= FREEBSD_CLD_CONTINUED)
+        info->si_status = _signal_from_freebsd(kinfo->si_status);
     info->si_band = kinfo->si_band;
     memcpy(&info->si_value, &kinfo->si_value, sizeof(info->si_value));
 }

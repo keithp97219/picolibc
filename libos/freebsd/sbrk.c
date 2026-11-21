@@ -36,18 +36,37 @@
 #include "local-freebsd.h"
 #include <stdint.h>
 #include <sys/mman.h>
+#include <freebsd/freebsd-resource.h>
+#include <freebsd/freebsd-rlimit-struct.h>
 
 /*
  * FreeBSD has dropped the break on newer architectures; take memory
  * from anonymous mappings. Each mapping reserves address space for the
  * next few requests so malloc's arena stays contiguous while it can.
+ * FreeBSD applies RLIMIT_DATA only to the break, so sbrk applies it to
+ * the mappings, as POSIX asks of malloc.
  */
 
 #define SBRK_CHUNK (1024 * 1024)
 #define SBRK_MASK  (SBRK_CHUNK - 1)
 
+#define PAGE_MASK  4095
+
 static uintptr_t brk_cur;
 static uintptr_t brk_end;
+static size_t    brk_total;
+
+/* Whether size more bytes of mappings stay within RLIMIT_DATA */
+static int
+_sbrk_fits(size_t size)
+{
+    struct __freebsd_rlimit klim;
+
+    if (_syscall_raw(FREEBSD_SYS_getrlimit, FREEBSD_RLIMIT_DATA, &klim) < 0
+        || klim.rlim_cur == FREEBSD_RLIM_INFINITY)
+        return 1;
+    return brk_total <= (size_t)klim.rlim_cur && size <= (size_t)klim.rlim_cur - brk_total;
+}
 
 void * __disable_sanitizer
 sbrk(intptr_t increment)
@@ -60,6 +79,13 @@ sbrk(intptr_t increment)
         size_t size = ((size_t)increment + SBRK_MASK) & ~(size_t)SBRK_MASK;
         void  *map;
 
+        if (!_sbrk_fits(size)) {
+            /* Map no more than the request when the limit is near */
+            size = ((size_t)increment + PAGE_MASK) & ~(size_t)PAGE_MASK;
+            if (!_sbrk_fits(size))
+                goto fail;
+        }
+
         /* Try to extend the current region in place first */
         map = mmap(brk_cur ? (void *)brk_end : NULL, size, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -71,6 +97,7 @@ sbrk(intptr_t increment)
             brk_cur = old;
         }
         brk_end = (uintptr_t)map + size;
+        brk_total += size;
     }
     brk_cur = old + (uintptr_t)increment;
     return (void *)old;

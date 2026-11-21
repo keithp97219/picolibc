@@ -66,6 +66,13 @@ long _syscall(long sys_call, ...);
 long _syscall_raw(long sys_call, ...);
 int  _syscall_errno(long ret);
 
+/*
+ * A system call of up to four arguments whose successful results
+ * include small negative values (getpriority): stores the kernel's
+ * errno, or 0, through kerrno, and returns the result.
+ */
+long _syscall_err(long sys_call, long a, long b, long c, long d, int *kerrno);
+
 /* The value _syscall_raw returns for a FreeBSD errno */
 #define _FREEBSD_ERR(e) (-(long)(e))
 
@@ -105,8 +112,11 @@ _at_flags_to_freebsd(int flags, int allowed)
 }
 
 /* Translate open flags */
-int _open_flags_to_freebsd(int flags);
-int _open_flags_from_freebsd(int kflags);
+int   _open_flags_to_freebsd(int flags);
+int   _open_flags_from_freebsd(int kflags);
+
+/* Create a child process, with no other bookkeeping */
+pid_t _fork_raw(void);
 
 /* Convert the kernel's struct stat */
 struct __freebsd_stat;

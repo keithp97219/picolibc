@@ -38,19 +38,25 @@
 
 /*
  * What libos/freebsd provides, in the __PICOLIBC_OS_ terms doc/os.md
- * defines; <unistd.h> derives the public POSIX names from these. This
- * grows with the implementation.
+ * defines; <unistd.h> derives the public POSIX names from these. Only
+ * what is complete is defined. Nothing here may change picolibc's
+ * ABI; see <sys/unistd.h>.
  */
 
 /* clang-format off */
 
 /* Options POSIX.1-2024 requires, provided by the kernel */
 #define __PICOLIBC_OS_CHOWN_RESTRICTED             1
+#define __PICOLIBC_OS_JOB_CONTROL                  1
 #define __PICOLIBC_OS_NO_TRUNC                     1
+#define __PICOLIBC_OS_SAVED_IDS                    1
 
 /* Options */
 #define __PICOLIBC_OS_ADVISORY_INFO                202405L
 #define __PICOLIBC_OS_FSYNC                        202405L
+#define __PICOLIBC_OS_MONOTONIC_CLOCK              202405L
+#define __PICOLIBC_OS_REALTIME_SIGNALS             202405L
+#define __PICOLIBC_OS_TIMERS                       202405L
 /* SYNCHRONIZED_IO waits for msync, with the memory mapping functions */
 
 /* Option groups */
@@ -65,14 +71,30 @@
 #define __PICOLIBC_OS_FILE_SYSTEM        202405L
 #define __PICOLIBC_OS_FILE_SYSTEM_EXT    202405L
 #define __PICOLIBC_OS_FILE_SYSTEM_FD     202405L
+#define __PICOLIBC_OS_MULTI_PROCESS      202405L
+#define __PICOLIBC_OS_MULTI_PROCESS_FD   202405L
 #define __PICOLIBC_OS_PIPE               202405L
+#define __PICOLIBC_OS_SIGNALS            202405L
 #define __PICOLIBC_OS_SINGLE_PROCESS     202405L
 #define __PICOLIBC_OS_SYMBOLIC_LINKS     202405L
 #define __PICOLIBC_OS_SYMBOLIC_LINKS_FD  202405L
+#define __PICOLIBC_OS_USER_GROUPS        202405L
 
 /* XSI option groups */
-#define __PICOLIBC_OS_XSI_DEVICE_IO      202405L
-#define __PICOLIBC_OS_XSI_FILE_SYSTEM    202405L
+#define __PICOLIBC_OS_XSI_DEVICE_IO            202405L
+#define __PICOLIBC_OS_XSI_FILE_SYSTEM          202405L
+#define __PICOLIBC_OS_XSI_MULTI_PROCESS        202405L
+#define __PICOLIBC_OS_XSI_SIGNALS              202405L
+#define __PICOLIBC_OS_XSI_USER_GROUPS          202405L
+
+/*
+ * FreeBSD has the process CPU-time clocks (clock_getcpuclockid), but
+ * ktimer_create rejects them, so __PICOLIBC_OS_CPUTIME stays undefined
+ * until timers on them are emulated.
+ *
+ * FreeBSD delivers 62 real-time signals; picolibc numbers 31, so
+ * __PICOLIBC_OS_RTSIG_MAX stays undefined
+ */
 
 /* clang-format on */
 

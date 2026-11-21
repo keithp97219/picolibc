@@ -152,11 +152,16 @@ CONSTANTS = [
     ("pathconf", ["sys/unistd.h"], r"_PC_[A-Z0-9_]+", False),
     ("utime", ["sys/stat.h"], r"UTIME_(NOW|OMIT)", False),
     ("select", ["sys/select.h"], r"FD_SETSIZE", False),
+    ("sigaltstack", ["sys/_sigaltstack.h"], r"SS_[A-Z]+", True),
+    ("sigevent", ["sys/signal.h"], r"SIGEV_THREAD_ID", False),
+    ("cpuclock", ["sys/time.h"], r"CPUCLOCK_WHICH_[A-Z]+", False),
 ]
 
 # Values the headers above define only for userland or through other names
 EXTRA_CONSTANTS = {
     "signal": {"MINSIGSTKSZ": "__MINSIGSTKSZ"},
+    # waitid's idtype_t is an enum
+    "wait": {"P_PID": "P_PID", "P_PGID": "P_PGID", "P_ALL": "P_ALL"},
 }
 
 # Structures: output name, C type, and for each member picolibc uses its
@@ -224,6 +229,21 @@ STRUCTS = [
     ]),
     ("pollfd", "struct pollfd", [("fd", "int"), ("events", "short"), ("revents", "short")]),
     ("fd_set", "fd_set", [("fds_bits", "unsigned long[16]", "__fds_bits")]),
+    ("sigaltstack", "stack_t", [("ss_sp", "void *"), ("ss_size", "__size_t"), ("ss_flags", "int")]),
+    ("itimerval", "struct itimerval", [
+        ("it_interval", "struct __freebsd_timeval"), ("it_value", "struct __freebsd_timeval"),
+    ]),
+    ("itimerspec", "struct itimerspec", [
+        ("it_interval", "struct __freebsd_timespec"), ("it_value", "struct __freebsd_timespec"),
+    ]),
+    ("sigevent", "struct sigevent", [
+        ("sigev_notify", "int"), ("sigev_signo", "int"), ("sigev_value", "__uint64_t"),
+        ("sigev_notify_thread_id", "int", "_sigev_un._threadid"),
+    ]),
+    ("ucontext", "ucontext_t", [
+        ("uc_sigmask", "struct __freebsd_sigset"), ("uc_link", "void *"),
+        ("uc_stack", "struct __freebsd_sigaltstack"),
+    ]),
 ]
 
 

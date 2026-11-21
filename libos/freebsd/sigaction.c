@@ -34,6 +34,10 @@
  */
 
 #include "local-signal.h"
+#include <string.h>
+#include <freebsd/freebsd-sigaltstack.h>
+#include <freebsd/freebsd-sigaltstack-struct.h>
+#include <freebsd/freebsd-ucontext-struct.h>
 
 /*
  * The kernel calls one handler, which translates the signal number and
@@ -41,6 +45,45 @@
  * handler through its own trampoline, so nothing else is needed.
  */
 static struct sigaction _freebsd_actions[SIGRTMAX + 1];
+
+/*
+ * Hand an SA_SIGINFO handler picolibc's ucontext_t, with the
+ * interrupted mask in picolibc's signal numbers, and put any change it
+ * makes to that mask back where the kernel restores it from. Signals
+ * picolibc doesn't number (SIGTHR, SIGLIBRT, the real-time signals
+ * past SIGRTMAX) keep their state.
+ */
+static void
+_freebsd_call_sigaction(void (*func)(int, siginfo_t *, void *), int sig, siginfo_t *info,
+                        struct __freebsd_ucontext *kuc)
+{
+    struct __freebsd_sigset kold = kuc->uc_sigmask, knew;
+    ucontext_t              uc = { .uc_mcontext = { kuc } };
+    sigset_t                mask;
+    unsigned                i;
+
+    uc.uc_stack.ss_sp = kuc->uc_stack.ss_sp;
+    uc.uc_stack.ss_size = kuc->uc_stack.ss_size;
+    uc.uc_stack.ss_flags = 0;
+    if (kuc->uc_stack.ss_flags & FREEBSD_SS_DISABLE)
+        uc.uc_stack.ss_flags |= SS_DISABLE;
+    if (kuc->uc_stack.ss_flags & FREEBSD_SS_ONSTACK)
+        uc.uc_stack.ss_flags |= SS_ONSTACK;
+    _sigmask_from_freebsd(&uc.uc_sigmask, &kold);
+    mask = uc.uc_sigmask;
+    (*func)(sig, info, &uc);
+    if (memcmp(&mask, &uc.uc_sigmask, sizeof(mask)) != 0) {
+        struct __freebsd_sigset all;
+        sigset_t                full;
+
+        /* The kernel signals picolibc's numbers reach */
+        sigfillset(&full);
+        _sigmask_to_freebsd(&all, &full);
+        _sigmask_to_freebsd(&knew, &uc.uc_sigmask);
+        for (i = 0; i < sizeof(knew.__bits) / sizeof(knew.__bits[0]); i++)
+            kuc->uc_sigmask.__bits[i] = knew.__bits[i] | (kold.__bits[i] & ~all.__bits[i]);
+    }
+}
 
 static void
 _freebsd_handler(int ksig, struct __freebsd_siginfo *kinfo, void *ucontext)
@@ -53,7 +96,7 @@ _freebsd_handler(int ksig, struct __freebsd_siginfo *kinfo, void *ucontext)
         siginfo_t info;
 
         _siginfo_from_freebsd(&info, kinfo);
-        _freebsd_actions[sig].sa_sigaction(sig, &info, ucontext);
+        _freebsd_call_sigaction(_freebsd_actions[sig].sa_sigaction, sig, &info, ucontext);
     } else {
         _freebsd_actions[sig].sa_handler(sig);
     }

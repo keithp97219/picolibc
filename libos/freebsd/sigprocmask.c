@@ -52,8 +52,13 @@ sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
         khow = FREEBSD_SIG_SETMASK;
         break;
     default:
-        errno = EINVAL;
-        return -1;
+        /* Without a set, how is ignored */
+        if (set) {
+            errno = EINVAL;
+            return -1;
+        }
+        khow = FREEBSD_SIG_BLOCK;
+        break;
     }
     if (set)
         _sigmask_to_freebsd(&kset, set);

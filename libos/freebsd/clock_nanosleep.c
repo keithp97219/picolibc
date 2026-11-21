@@ -39,13 +39,19 @@
 int
 clock_nanosleep(clockid_t clock_id, int flags, const struct timespec *req, struct timespec *rem)
 {
-    int  kclock = _clock_to_freebsd(clock_id);
+    long kclock = _clock_to_freebsd(clock_id);
     long ret;
 
     if (kclock < 0)
         return EINVAL;
     ret = _syscall_raw(FREEBSD_SYS_clock_nanosleep, kclock,
                        (flags & TIMER_ABSTIME) ? FREEBSD_TIMER_ABSTIME : 0, req, rem);
+    /*
+     * The kernel returns the error number as the result (it is one of
+     * the kern_posix_error calls), not with the carry flag
+     */
+    if (ret > 0)
+        ret = _FREEBSD_ERR(ret);
     if (ret < 0)
         return _syscall_errno(ret);
     return 0;

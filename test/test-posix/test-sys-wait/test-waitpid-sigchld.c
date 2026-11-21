@@ -49,6 +49,11 @@
  * Linux doesn't queue SIGCHLD. Then, with SIGCHLD blocked, a wait or
  * waitpid that returns a child's status clears a pending SIGCHLD
  * unless another child's status is available.
+ *
+ * Whether a blocked signal whose action is to ignore it stays pending
+ * is unspecified, and SIGCHLD's default action is to ignore it
+ * (FreeBSD discards it), so the test catches it, with a handler that
+ * never runs while it is blocked.
  */
 
 #define check(condition, message)                      \
@@ -74,6 +79,12 @@ exited_child(int status)
     return pid;
 }
 
+static void
+on_sigchld(int sig)
+{
+    (void)sig;
+}
+
 static int
 sigchld_pending(void)
 {
@@ -86,13 +97,16 @@ sigchld_pending(void)
 int
 main(void)
 {
-    sigset_t block;
-    pid_t    a, b;
-    int      status;
+    struct sigaction act = { .sa_handler = on_sigchld };
+    sigset_t         block;
+    pid_t            a, b;
+    int              status;
 
     sigemptyset(&block);
     sigaddset(&block, SIGCHLD);
     check(sigprocmask(SIG_BLOCK, &block, NULL) == 0, "block SIGCHLD");
+    sigemptyset(&act.sa_mask);
+    check(sigaction(SIGCHLD, &act, NULL) == 0, "catch SIGCHLD");
 
     /* One child: waitpid clears the signal */
     a = exited_child(1);
