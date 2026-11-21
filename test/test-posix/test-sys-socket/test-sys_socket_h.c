@@ -50,19 +50,19 @@
 #define same_type(a, T) _Generic((a), T: 1, default: 0)
 
 /* The types */
-static socklen_t   slen;
+static socklen_t   slen __attribute__((unused));
 static sa_family_t family;
 _Static_assert(sizeof(slen) * 8 >= 32 && (socklen_t)0.5 == 0,
                "socklen_t: an integer type of at least 32 bits");
 _Static_assert((sa_family_t)-1 > 0 && (sa_family_t)0.5 == 0,
                "sa_family_t: an unsigned integer type");
 
-static struct sockaddr         sa;
+static struct sockaddr         sa __attribute__((unused));
 static struct sockaddr_storage ss;
 static struct msghdr           msg;
 static struct cmsghdr          cmsg;
 static struct linger           linger;
-static struct iovec            iov;
+static struct iovec            iov __attribute__((unused));
 
 _Static_assert(same_type(sa.sa_family, sa_family_t) && same_type(sa.sa_data[0], char), "sockaddr");
 _Static_assert(same_type(ss.ss_family, sa_family_t), "sockaddr_storage");
@@ -88,7 +88,7 @@ _Static_assert(sizeof(struct sockaddr_storage) >= sizeof(struct sockaddr)
                "sockaddr_storage size and alignment");
 
 /* CMSG_SPACE and CMSG_LEN of constants are constants */
-static char control[CMSG_SPACE(sizeof(int)) + CMSG_SPACE(2 * sizeof(int))];
+static char control[CMSG_SPACE(sizeof(int)) + CMSG_SPACE(2 * sizeof(int))] __attribute__((unused));
 _Static_assert(CMSG_LEN(0) >= sizeof(struct cmsghdr) && CMSG_SPACE(1) >= CMSG_LEN(1)
                    && CMSG_LEN(4) == CMSG_LEN(0) + 4,
                "CMSG_LEN and CMSG_SPACE");

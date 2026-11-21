@@ -46,7 +46,7 @@
 #define same_type(a, T) _Generic((a), T: 1, default: 0)
 
 static struct timeval  tv;
-static struct timespec ts;
+static struct timespec ts __attribute__((unused));
 static sigset_t        set;
 static time_t          t;
 static suseconds_t     us;

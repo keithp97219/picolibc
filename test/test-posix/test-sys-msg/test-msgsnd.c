@@ -331,8 +331,8 @@ main(void)
     check(child_status(pid) == 2, "EIDRM");
     check(msgsnd(id, &m, 1, IPC_NOWAIT) == -1 && errno == EINVAL, "EINVAL once removed");
 
-    /* EACCES without write permission, which needs IPC_STAT's mode */
-    if (geteuid() != 0 && stat_ok) {
+    /* EACCES without write permission, which QEMU's user-mode emulation doesn't check */
+    if (geteuid() != 0 && !is_qemu()) {
         id = keep(msgget(IPC_PRIVATE, IPC_CREAT | 0400));
         check(id >= 0, "msgget");
         check(msgsnd(id, &m, 1, IPC_NOWAIT) == -1 && errno == EACCES, "EACCES");

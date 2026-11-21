@@ -58,9 +58,9 @@ _Static_assert(same_type(addr, uint32_t) && same_type(u8, unsigned char) && size
                "in_addr_t, uint8_t and uint32_t");
 
 /* The structures */
-static struct in_addr      in;
+static struct in_addr      in __attribute__((unused));
 static struct sockaddr_in  sin;
-static struct in6_addr     in6;
+static struct in6_addr     in6 __attribute__((unused));
 static struct sockaddr_in6 sin6;
 static struct ipv6_mreq    mreq;
 _Static_assert(same_type(in.s_addr, in_addr_t), "in_addr");

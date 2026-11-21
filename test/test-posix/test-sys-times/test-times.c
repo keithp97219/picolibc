@@ -38,7 +38,7 @@
 #include <unistd.h>
 
 /* struct tms and its clock_t members */
-static struct tms tms_;
+static struct tms tms_ __attribute__((unused));
 _Static_assert(_Generic(tms_.tms_utime, clock_t: 1, default: 0), "tms_utime");
 _Static_assert(_Generic(tms_.tms_stime, clock_t: 1, default: 0), "tms_stime");
 _Static_assert(_Generic(tms_.tms_cutime, clock_t: 1, default: 0), "tms_cutime");

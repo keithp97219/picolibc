@@ -59,9 +59,10 @@ _Static_assert((MAP_SHARED & MAP_PRIVATE) == 0 && (MAP_SHARED & MAP_FIXED) == 0
 /* MAP_ANON is new in POSIX.1-2024, with the same value as MAP_ANONYMOUS */
 _Static_assert(MAP_ANON == MAP_ANONYMOUS, "MAP_ANON");
 _Static_assert((MS_ASYNC & MS_SYNC) == 0 && (MS_ASYNC & MS_INVALIDATE) == 0
-                   && (MS_SYNC & MS_INVALIDATE) == 0 && MS_ASYNC && MS_SYNC && MS_INVALIDATE,
+                   && (MS_SYNC & MS_INVALIDATE) == 0 && MS_ASYNC != 0 && MS_SYNC != 0
+                   && MS_INVALIDATE != 0,
                "MS_ bits");
-_Static_assert((MCL_CURRENT & MCL_FUTURE) == 0 && MCL_CURRENT && MCL_FUTURE, "MCL_ bits");
+_Static_assert((MCL_CURRENT & MCL_FUTURE) == 0 && MCL_CURRENT != 0 && MCL_FUTURE != 0, "MCL_ bits");
 _Static_assert(POSIX_MADV_NORMAL != POSIX_MADV_RANDOM && POSIX_MADV_NORMAL != POSIX_MADV_SEQUENTIAL
                    && POSIX_MADV_NORMAL != POSIX_MADV_WILLNEED
                    && POSIX_MADV_NORMAL != POSIX_MADV_DONTNEED
@@ -76,7 +77,7 @@ _Static_assert(same_type(MAP_FAILED, void *), "MAP_FAILED is a void *");
 
 /* The flags shm_open takes; glibc 2.43 leaves them to <fcntl.h> */
 #ifndef __GLIBC__
-_Static_assert(O_RDONLY != O_RDWR && O_CREAT && O_EXCL && O_TRUNC
+_Static_assert(O_RDONLY != O_RDWR && O_CREAT != 0 && O_EXCL != 0 && O_TRUNC != 0
                    && ((O_CREAT | O_EXCL | O_TRUNC) & (O_RDONLY | O_RDWR)) == 0,
                "O_ flags");
 #endif

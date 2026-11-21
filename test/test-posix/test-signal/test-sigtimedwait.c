@@ -58,14 +58,13 @@
     } while (0)
 
 static volatile sig_atomic_t caught;
-static siginfo_t             info;
 
 static void
 handler(int sig, siginfo_t *si, void *context)
 {
+    (void)si;
     (void)context;
     caught = sig;
-    info = *si;
 }
 
 /* Catch SIGUSR1 and SIGUSR2 with handler */

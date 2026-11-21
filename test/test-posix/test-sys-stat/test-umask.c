@@ -82,8 +82,11 @@ main(void)
     check(stat(path, &st) == 0 && (st.st_mode & 0777) == 0755, "directory mode");
     check(rmdir(path) == 0, "rmdir");
 
-    /* Only the permission bits are kept */
-    umask(07777);
+    /* Only the permission bits are kept; a variable keeps fortify quiet */
+    {
+        mode_t all = 07777;
+        umask(all);
+    }
     check(umask(old) == 0777, "only permission bits");
     check(rmdir(dir) == 0, "clean up");
     printf("success\n");

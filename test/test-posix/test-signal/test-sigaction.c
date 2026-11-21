@@ -98,7 +98,12 @@ other_handler(int sig)
  * so that a sigaction which picked up a stale handler from a register
  * or stack slot would likely install one of them
  */
+/* clang has no noclone */
+#ifdef __clang__
+static void __attribute__((noinline))
+#else
 static void __attribute__((noinline, noclone))
+#endif
 query_action(int sig, struct sigaction *old, void (*a)(int), void (*b)(int), void (*c)(int),
              void (*d)(int), void (*e)(int))
 {

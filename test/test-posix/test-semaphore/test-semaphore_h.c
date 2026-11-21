@@ -71,7 +71,7 @@ _Static_assert(same_type(ts.tv_sec, time_t) && same_type(ts.tv_nsec, long), "tim
 
 /* glibc 2.43 leaves O_CREAT and O_EXCL to <fcntl.h> */
 #ifndef __GLIBC__
-_Static_assert(O_CREAT != O_EXCL && O_CREAT && O_EXCL, "O_CREAT and O_EXCL");
+_Static_assert(O_CREAT != O_EXCL && O_CREAT != 0 && O_EXCL != 0, "O_CREAT and O_EXCL");
 #endif
 
 static int (* const p_sem_clockwait)(sem_t * restrict, clockid_t, const struct timespec * restrict)

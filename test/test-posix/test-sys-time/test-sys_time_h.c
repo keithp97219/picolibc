@@ -51,7 +51,7 @@
     } while (0)
 
 static fd_set         fds;
-static struct timeval tv;
+static struct timeval tv __attribute__((unused));
 static time_t         tt;
 static suseconds_t    us;
 

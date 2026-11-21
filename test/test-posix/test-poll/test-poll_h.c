@@ -54,9 +54,9 @@
 #define same_type(a, T) _Generic((a), T: 1, default: 0)
 
 static struct pollfd   pfd;
-static nfds_t          nfds;
+static nfds_t          nfds __attribute__((unused));
 static sigset_t        set;
-static struct timespec ts;
+static struct timespec ts __attribute__((unused));
 _Static_assert(same_type(pfd.fd, int) && same_type(pfd.events, short)
                    && same_type(pfd.revents, short),
                "pollfd");

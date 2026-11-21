@@ -65,20 +65,22 @@ _Static_assert(FTW_F != FTW_D && FTW_F != FTW_DNR && FTW_F != FTW_DP && FTW_F !=
                "FTW_ type values are distinct");
 
 /* The flags, distinct bits */
-_Static_assert(FTW_PHYS && FTW_MOUNT && FTW_DEPTH && FTW_CHDIR && !(FTW_PHYS & FTW_MOUNT)
-                   && !(FTW_PHYS & FTW_DEPTH) && !(FTW_PHYS & FTW_CHDIR) && !(FTW_MOUNT & FTW_DEPTH)
-                   && !(FTW_MOUNT & FTW_CHDIR) && !(FTW_DEPTH & FTW_CHDIR),
+_Static_assert(FTW_PHYS != 0 && FTW_MOUNT != 0 && FTW_DEPTH != 0 && FTW_CHDIR != 0
+                   && !(FTW_PHYS & FTW_MOUNT) && !(FTW_PHYS & FTW_DEPTH) && !(FTW_PHYS & FTW_CHDIR)
+                   && !(FTW_MOUNT & FTW_DEPTH) && !(FTW_MOUNT & FTW_CHDIR)
+                   && !(FTW_DEPTH & FTW_CHDIR),
                "FTW_ flags are distinct bits");
 
 /* FTW_XDEV is new in POSIX.1-2024; glibc 2.43 lacks it */
 #ifndef __GLIBC__
-_Static_assert(FTW_XDEV && !(FTW_XDEV & (FTW_PHYS | FTW_MOUNT | FTW_DEPTH | FTW_CHDIR)),
+_Static_assert(FTW_XDEV != 0 && !(FTW_XDEV & (FTW_PHYS | FTW_MOUNT | FTW_DEPTH | FTW_CHDIR)),
                "FTW_XDEV is a distinct bit");
 #endif
 
 /* struct stat, the st_mode names and the file type macros */
 static struct stat st;
-_Static_assert(S_IFMT && S_IFDIR && S_IFREG && S_IFLNK && S_IRWXU && S_IRUSR && S_IXOTH,
+_Static_assert(S_IFMT != 0 && S_IFDIR != 0 && S_IFREG != 0 && S_IFLNK != 0 && S_IRWXU != 0
+                   && S_IRUSR != 0 && S_IXOTH != 0,
                "st_mode names");
 
 /* The function needs system support */

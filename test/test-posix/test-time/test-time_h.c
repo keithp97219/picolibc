@@ -63,11 +63,11 @@ static timer_t           tmr;
 static locale_t          loc;
 static pid_t             pid;
 static struct sigevent  *sev;
-static struct timespec   ts;
-static struct itimerspec its;
+static struct timespec   ts __attribute__((unused));
+static struct itimerspec its __attribute__((unused));
 
 /* struct tm members and their types */
-static struct tm         tm;
+static struct tm         tm __attribute__((unused));
 _Static_assert(_Generic(tm.tm_sec, int: 1, default: 0), "tm_sec");
 _Static_assert(_Generic(tm.tm_min, int: 1, default: 0), "tm_min");
 _Static_assert(_Generic(tm.tm_hour, int: 1, default: 0), "tm_hour");

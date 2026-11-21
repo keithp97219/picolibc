@@ -41,11 +41,10 @@
 #define same_type(a, T) _Generic((a), T: 1, default: 0)
 
 /* The byte order functions, which may also be macros, and their types */
-static uint32_t u32;
-static uint16_t u16;
-_Static_assert(sizeof(u32) == 4 && sizeof(u16) == 2, "uint32_t and uint16_t");
-_Static_assert(same_type(htonl(u32), uint32_t) && same_type(htons(u16), uint16_t)
-                   && same_type(ntohl(u32), uint32_t) && same_type(ntohs(u16), uint16_t),
+_Static_assert(sizeof(uint32_t) == 4 && sizeof(uint16_t) == 2, "uint32_t and uint16_t");
+_Static_assert(same_type(htonl((uint32_t)0), uint32_t) && same_type(htons((uint16_t)0), uint16_t)
+                   && same_type(ntohl((uint32_t)0), uint32_t)
+                   && same_type(ntohs((uint16_t)0), uint16_t),
                "byte order results");
 static uint32_t (* const p_htonl)(uint32_t) = (htonl);
 static uint16_t (* const p_htons)(uint16_t) = (htons);

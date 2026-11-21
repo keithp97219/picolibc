@@ -85,8 +85,9 @@ _Static_assert(same_type(ai.ai_flags, int) && same_type(ai.ai_family, int)
 #define AI_SUM_FLAGS                                                                     \
     ((AI_PASSIVE) + (AI_CANONNAME) + (AI_NUMERICHOST) + (AI_NUMERICSERV) + (AI_V4MAPPED) \
      + (AI_ALL) + (AI_ADDRCONFIG))
-_Static_assert(AI_ALL_FLAGS == AI_SUM_FLAGS && AI_PASSIVE && AI_CANONNAME && AI_NUMERICHOST
-                   && AI_NUMERICSERV && AI_V4MAPPED && AI_ALL && AI_ADDRCONFIG,
+_Static_assert(AI_ALL_FLAGS == AI_SUM_FLAGS && AI_PASSIVE != 0 && AI_CANONNAME != 0
+                   && AI_NUMERICHOST != 0 && AI_NUMERICSERV != 0 && AI_V4MAPPED != 0 && AI_ALL != 0
+                   && AI_ADDRCONFIG != 0,
                "AI flags");
 
 #if defined(__PICOLIBC__) || defined(NI_NUMERICSCOPE)
@@ -99,8 +100,8 @@ _Static_assert(AI_ALL_FLAGS == AI_SUM_FLAGS && AI_PASSIVE && AI_CANONNAME && AI_
     ((NI_NOFQDN) | (NI_NUMERICHOST) | (NI_NAMEREQD) | (NI_NUMERICSERV) | (NI_SCOPE) | (NI_DGRAM))
 #define NI_SUM_FLAGS                                                                              \
     ((NI_NOFQDN) + (NI_NUMERICHOST) + (NI_NAMEREQD) + (NI_NUMERICSERV) + (NI_SCOPE) + (NI_DGRAM))
-_Static_assert(NI_ALL_FLAGS == NI_SUM_FLAGS && NI_NOFQDN && NI_NUMERICHOST && NI_NAMEREQD
-                   && NI_NUMERICSERV && NI_DGRAM,
+_Static_assert(NI_ALL_FLAGS == NI_SUM_FLAGS && NI_NOFQDN != 0 && NI_NUMERICHOST != 0
+                   && NI_NAMEREQD != 0 && NI_NUMERICSERV != 0 && NI_DGRAM != 0,
                "NI flags");
 #ifndef __GLIBC__
 _Static_assert(NI_NUMERICSCOPE != 0, "NI_NUMERICSCOPE");

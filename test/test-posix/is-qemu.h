@@ -36,7 +36,8 @@
 /*
  * Whether the test runs under QEMU's user-mode emulation, which some
  * tests excuse where it doesn't behave as a kernel would. QEMU reports
- * a BogoMIPS of 100.00 in /proc/cpuinfo.
+ * a BogoMIPS of 100.00 in /proc/cpuinfo, or, for some targets such as
+ * hexagon, passes the host's through, which then names an x86 vendor.
  */
 
 #ifndef _IS_QEMU_H_
@@ -59,6 +60,12 @@ is_qemu(void)
             ret = strstr(line, "100.00") != NULL;
             break;
         }
+#if !defined(__x86_64__) && !defined(__i386__)
+        if (strncmp(line, "vendor_id", 9) == 0) {
+            ret = strstr(line, "GenuineIntel") != NULL || strstr(line, "AuthenticAMD") != NULL;
+            break;
+        }
+#endif
     }
     fclose(f);
     return ret;
