@@ -234,9 +234,7 @@ wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
     size_t len, count = 0, offs, i;
     int    status, ret;
 
-    ret = __wordexp_check(words, flags);
-    if (ret)
-        return ret;
+    /* REUSE is as if wordfree, then wordexp, so even an error frees the words */
     if (flags & WRDE_REUSE) {
         wordfree(we);
         flags &= ~WRDE_APPEND;
@@ -247,6 +245,9 @@ wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
         if (!(flags & WRDE_DOOFFS))
             we->we_offs = 0;
     }
+    ret = __wordexp_check(words, flags);
+    if (ret)
+        return ret;
 
     status = __wordexp_shell(words, flags, &out, &len);
     if (status == -2)
