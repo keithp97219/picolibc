@@ -134,20 +134,15 @@ flip(int fd, int name)
           "option off");
 }
 
-int
-main(void)
+/* The timeouts, once SO_RCVTIMEO has been set on fd */
+static void
+timeouts(int fd, bool qemu)
 {
-    struct timeval tv = { 0, 100000 }, got;
-    struct linger  linger = { 1, 5 }, glinger;
+    struct timeval tv;
+    struct timeval got;
     socklen_t      len;
-    int            fd = make_socket(AF_INET, SOCK_DGRAM), on = 1, value, tcp, fds[2];
     char           buf[4];
-    bool           qemu = is_qemu();
 
-    check(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == 0, "SO_REUSEADDR");
-    len = sizeof(value);
-    check(getsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &value, &len) == 0 && value != 0, "get");
-    check(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == 0, "SO_RCVTIMEO");
     len = sizeof(got);
     check(getsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &got, &len) == 0, "get SO_RCVTIMEO");
     /*
@@ -164,9 +159,6 @@ main(void)
     check(getsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &got, &len) == 0, "short SO_RCVTIMEO");
     if (!qemu)
         check(len == sizeof(got.tv_sec) && got.tv_sec == 0, "truncated timeout");
-    len = 2;
-    value = -1;
-    check(getsockopt(fd, SOL_SOCKET, SO_TYPE, &value, &len) == 0 && len <= 2, "short SO_TYPE");
     {
         struct sockaddr_in sin = loopback();
         check(bind(fd, (struct sockaddr *)&sin, sizeof(sin)) == 0, "bind");
@@ -185,6 +177,31 @@ main(void)
     tv.tv_usec = 1000000;
     errno = 0;
     check(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1 && errno == EDOM, "EDOM");
+}
+
+int
+main(void)
+{
+    struct timeval tv = { 0, 100000 };
+    struct linger  linger = { 1, 5 }, glinger;
+    socklen_t      len;
+    int            fd = make_socket(AF_INET, SOCK_DGRAM), on = 1, value, tcp, fds[2];
+    bool           qemu = is_qemu();
+
+    check(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == 0, "SO_REUSEADDR");
+    len = sizeof(value);
+    check(getsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &value, &len) == 0 && value != 0, "get");
+    errno = 0;
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == 0) {
+        timeouts(fd, qemu);
+    } else {
+        /* Some QEMU builds lack the 64-bit time options 32-bit targets use */
+        check(qemu && errno == ENOPROTOOPT, "SO_RCVTIMEO");
+        printf("QEMU lacks the 64-bit socket timeouts, not checking them\n");
+    }
+    len = 2;
+    value = -1;
+    check(getsockopt(fd, SOL_SOCKET, SO_TYPE, &value, &len) == 0 && len <= 2, "short SO_TYPE");
     check(setsockopt(fd, SOL_SOCKET, SO_LINGER, &linger, sizeof(linger)) == 0, "SO_LINGER");
     len = sizeof(glinger);
     check(getsockopt(fd, SOL_SOCKET, SO_LINGER, &glinger, &len) == 0, "get SO_LINGER");
