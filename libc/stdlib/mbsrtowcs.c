@@ -13,5 +13,11 @@ size_t
 mbsrtowcs(wchar_t * __restrict dst, const char ** __restrict src, size_t len,
           mbstate_t * __restrict ps)
 {
+#ifdef __MB_CAPABLE
+    static mbstate_t _mbsrtowcs_state;
+
+    if (ps == NULL)
+        ps = &_mbsrtowcs_state;
+#endif
     return mbsnrtowcs(dst, src, (size_t)-1, len, ps);
 }
