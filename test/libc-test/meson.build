@@ -87,6 +87,7 @@ libc_test_inc = include_directories('common')
 # The upstream build flags, less those meson already supplies
 libc_test_c_args = cc.get_supported_arguments(['-D_POSIX_C_SOURCE=200809L', '-fno-builtin',
                                               '-Wno-unused-function', '-Wno-unused',
+                                              '-Wno-unused-parameter',
                                               '-Wno-overflow', '-Wno-unknown-pragmas',
                                               '-Wno-missing-prototypes',
                                               '-Wno-missing-declarations',

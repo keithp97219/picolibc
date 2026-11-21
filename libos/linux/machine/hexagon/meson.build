@@ -38,5 +38,11 @@ subdir('linux')
 srcs_os_linux_machine = [
   '_syscall_raw.S',
 ]
+if posix_threads
+  srcs_os_linux_machine += [
+    'clone.S',
+    'pthread_tls_setup.c',
+  ]
+endif
 
 src_os_linux_machine = files(srcs_os_linux_machine)

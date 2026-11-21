@@ -369,10 +369,13 @@ extern pthread_mutex_t         _pthread_atfork_lock;
 extern struct _pthread_atfork *_pthread_atfork;
 extern size_t                  _pthread_atfork_count;
 
-/* Called by fork around the system call */
-void                           _pthread_fork_prepare(void);
-void                           _pthread_fork_parent(void);
-void                           _pthread_fork_child(void);
+/*
+ * Called by fork around the system call; the C library lock is held
+ * from prepare until parent or child
+ */
+void                           _pthread_fork_prepare(void) __no_thread_safety_analysis;
+void                           _pthread_fork_parent(void) __no_thread_safety_analysis;
+void                           _pthread_fork_child(void) __no_thread_safety_analysis;
 void                           _pthread_fork_reset(void);
 
 /*
