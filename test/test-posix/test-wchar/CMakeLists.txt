@@ -34,6 +34,8 @@
 #
 
 set(tests
+  test-mbrtowc
+  test-mbsrtowcs
   test-open_wmemstream
   test-wchar_h
   )
