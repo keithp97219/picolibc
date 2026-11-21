@@ -45,12 +45,26 @@
 
 #define __PICOLIBC_OS_SINGLE_PROCESS 202405L
 
+/* A terminal special character of 0xff is turned off */
+#define __PICOLIBC_OS_VDISABLE 0xff
+
 /* Options */
 #define __PICOLIBC_OS_MAPPED_FILES          202405L
 #define __PICOLIBC_OS_MEMLOCK               202405L
 #define __PICOLIBC_OS_MEMLOCK_RANGE         202405L
 #define __PICOLIBC_OS_MEMORY_PROTECTION     202405L
 #define __PICOLIBC_OS_SHARED_MEMORY_OBJECTS 202405L
+
+/*
+ * Option groups. The terminal functions are all there, but FreeBSD's
+ * canonical input ends a line at a NUL byte, so DEVICE_SPECIFIC isn't
+ * claimed
+ */
+#define __PICOLIBC_OS_DEVICE_SPECIFIC_R 202405L
+
+/* XSI option groups */
+#define __PICOLIBC_OS_XSI_DEVICE_SPECIFIC    202405L
+#define __PICOLIBC_OS_XSI_GENERAL_TERMINAL_R 202405L
 
 /* Sockets, with picolibc built for the FreeBSD network interfaces */
 #ifdef __PICOLIBC_NETWORK_FREEBSD
