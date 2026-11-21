@@ -45,21 +45,28 @@ newlocale(int category_mask, const char *name, locale_t base)
 {
     enum locale_id locale;
 
-    locale = __find_locale(name);
-
     /*
-     * Make sure the mask doesn't contain invalid bits, that locale
-     * specifies a known locale value and that base is not
-     * LC_GLOBAL_LOCALE
+     * Make sure the mask doesn't contain invalid bits, that there is
+     * a name and that base is not LC_GLOBAL_LOCALE
      */
-    if ((category_mask & ~LC_ALL_MASK) != 0 || locale == locale_INVALID
-        || base == LC_GLOBAL_LOCALE) {
+    if ((category_mask & ~LC_ALL_MASK) != 0 || name == NULL || base == LC_GLOBAL_LOCALE) {
         errno = EINVAL;
         return 0;
     }
 
-    if ((category_mask & LC_CTYPE) == 0)
-        locale = locale_C;
+    /* A locale picolibc doesn't have is ENOENT */
+    locale = __find_locale(name);
+    if (locale == locale_INVALID) {
+        errno = ENOENT;
+        return 0;
+    }
+
+    /*
+     * Only LC_CTYPE has data that varies; the other categories come
+     * from base, or from the POSIX locale for a new object
+     */
+    if ((category_mask & LC_CTYPE_MASK) == 0)
+        locale = base ? base : locale_C;
 
     return locale;
 }
