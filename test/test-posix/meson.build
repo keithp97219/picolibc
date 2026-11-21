@@ -40,6 +40,7 @@
 posix_test_dirs = [
   'test-aio',
   'test-arpa-inet',
+  'test-assert',
   'test-dirent',
   'test-errno',
   'test-fcntl',
