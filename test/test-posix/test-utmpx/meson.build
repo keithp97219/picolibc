@@ -36,4 +36,5 @@
 dir_tests = [
   'test-getutxent',
   'test-utmp',
+  'test-utmpx_h',
 ]

@@ -37,6 +37,7 @@ set(tests
   test-getpwent
   test-getpwnam_r
   test-getpwuid_r
+  test-pwd_h
   )
 
 foreach(test IN LISTS tests)

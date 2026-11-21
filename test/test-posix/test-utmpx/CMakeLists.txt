@@ -36,6 +36,7 @@
 set(tests
   test-getutxent
   test-utmp
+  test-utmpx_h
   )
 
 foreach(test IN LISTS tests)
