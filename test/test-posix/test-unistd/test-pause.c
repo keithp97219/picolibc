@@ -46,8 +46,11 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#include <sys/wait.h>
+#endif
 
-/* pause returns once a handler has run */
+/* pause returns once a handler has run, and never when the signal ends the process */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -81,6 +84,24 @@ main(void)
     errno = 0;
     check(pause() == -1 && errno == EINTR, "pause");
     check(caught == SIGALRM, "pause woken by SIGALRM");
+
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+    {
+        pid_t pid;
+        int   status;
+
+        fflush(stdout);
+        pid = fork();
+        check(pid >= 0, "fork");
+        if (pid == 0) {
+            pause();
+            _exit(1);
+        }
+        check(kill(pid, SIGTERM) == 0, "kill");
+        check(waitpid(pid, &status, 0) == pid, "waitpid");
+        check(WIFSIGNALED(status) && WTERMSIG(status) == SIGTERM, "pause didn't return");
+    }
+#endif
 
     printf("success\n");
     return 0;

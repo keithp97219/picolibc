@@ -88,6 +88,7 @@ dir_tests = [
   'test-setreuid',
   'test-setsid',
   'test-setuid',
+  'test-sleep',
   'test-symlinkat',
   'test-sync',
   'test-sysconf',

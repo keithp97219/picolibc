@@ -90,6 +90,7 @@ set(tests
   test-setreuid
   test-setsid
   test-setuid
+  test-sleep
   test-setuid-thread
   test-symlinkat
   test-sync

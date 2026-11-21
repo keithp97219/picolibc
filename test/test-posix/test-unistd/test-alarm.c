@@ -39,6 +39,7 @@
 /* Without the system support this test needs, it is skipped */
 #if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS)
 
+#include <limits.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <signal.h>
@@ -99,6 +100,33 @@ main(void)
         printf("signal handler called correctly.\n");
         break;
     }
+
+    /* alarm(0) cancels the request and reports the time that was left */
+    alarm(5);
+    prev = alarm(0);
+    if (prev < 4 || prev > 5) {
+        printf("alarm(0) returned %u instead of 4 or 5\n", prev);
+        ret = 1;
+    }
+    prev = alarm(0);
+    if (prev != 0) {
+        printf("alarm(0) after cancelling returned %u\n", prev);
+        ret = 1;
+    }
+
+    /*
+     * The longest request still reports time left. On 32-bit targets
+     * glibc's setitimer fails with EOVERFLOW for UINT_MAX seconds, so
+     * its alarm sets nothing
+     */
+#if !defined(__GLIBC__) || __SIZEOF_LONG__ > 4
+    alarm(UINT_MAX);
+    prev = alarm(0);
+    if (prev == 0) {
+        printf("alarm(0) after alarm(UINT_MAX) returned 0\n");
+        ret = 1;
+    }
+#endif
 
     return ret;
 }
