@@ -106,7 +106,12 @@ randint(unsigned __int128, _u128);
         return ret;                                          \
     }
 
-#ifdef __SIZEOF_INT128__
+/*
+ * C23 requires the standard and extended unsigned integer types (7.18).
+ * unsigned __int128 is neither while there's no uint128_t (7.22.1.5), so
+ * it is picolibc's extension, and only picolibc is checked with it
+ */
+#if defined(__SIZEOF_INT128__) && defined(__PICOLIBC__)
 #define loop128(func)  loop(func, unsigned __int128, _u128)
 #define check128(func) check(func, unsigned __int128, _u128)
 #define run128()          \
