@@ -67,8 +67,10 @@ realloc(void *ptr, size_t size)
     if (ptr == NULL)
         return malloc(size);
 
+    /* POSIX: free the object, return NULL and set errno to EINVAL */
     if (size == 0) {
         free(ptr);
+        errno = EINVAL;
         return NULL;
     }
 
