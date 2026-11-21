@@ -81,6 +81,7 @@ dir_tests = [
   'test-setegid',
   'test-seteuid',
   'test-setgid',
+  'test-setpgid',
   'test-setregid',
   'test-setreuid',
   'test-setsid',

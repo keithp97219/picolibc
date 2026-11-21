@@ -45,7 +45,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-/* setsid makes a new session and process group led by the caller */
+/* setsid makes a new session and process group led by the caller, unless one would clash */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -78,6 +78,40 @@ main(void)
     check(waitpid(pid, &status, 0) == pid, "waitpid");
     check(WIFEXITED(status), "child exited");
     check(WEXITSTATUS(status) == 0, "child checks");
+
+    /* Nor can a process whose process ID names another process's group */
+    fflush(stdout);
+    pid = fork();
+    check(pid >= 0, "fork");
+    if (pid == 0) {
+        pid_t self = getpid(), group = getpgrp(), member;
+        int   fds[2];
+        char  c;
+
+        if (setpgid(0, 0) != 0 || pipe(fds) != 0)
+            _exit(10);
+        member = fork();
+        if (member < 0)
+            _exit(11);
+        if (member == 0) {
+            (void)close(fds[1]);
+            (void)read(fds[0], &c, 1);
+            _exit(0);
+        }
+        /* Move back to the old group; the member keeps this one alive */
+        if (setpgid(0, group) != 0 || getpgrp() == self || getpgid(member) != self)
+            _exit(12);
+        errno = 0;
+        if (setsid() != (pid_t)-1 || errno != EPERM)
+            _exit(13);
+        (void)close(fds[1]);
+        if (waitpid(member, &status, 0) != member)
+            _exit(14);
+        _exit(0);
+    }
+    check(waitpid(pid, &status, 0) == pid, "waitpid");
+    check(WIFEXITED(status), "child exited");
+    check(WEXITSTATUS(status) == 0, "group named for the caller");
 
     printf("success\n");
     return 0;
