@@ -55,12 +55,20 @@ __aio_run(void *arg)
     ssize_t            ret;
     int                error = 0;
 
+    /*
+     * Pipes, sockets and terminals can't seek, so there the offset
+     * doesn't apply and the transfer is a plain read or write
+     */
     switch (cb->__aio_op) {
     case LIO_READ:
         ret = pread(cb->aio_fildes, (void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
+        if (ret < 0 && errno == ESPIPE)
+            ret = read(cb->aio_fildes, (void *)cb->aio_buf, cb->aio_nbytes);
         break;
     case LIO_WRITE:
         ret = pwrite(cb->aio_fildes, (const void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
+        if (ret < 0 && errno == ESPIPE)
+            ret = write(cb->aio_fildes, (const void *)cb->aio_buf, cb->aio_nbytes);
         break;
     case __AIO_FDATASYNC:
         ret = fdatasync(cb->aio_fildes);
