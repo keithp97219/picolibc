@@ -41,6 +41,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
+#include <time.h>
 
 #ifndef __weak_reference
 #define __fallback_sysconf sysconf
@@ -67,6 +68,9 @@ __fallback_sysconf(int name)
         return ATEXIT_MAX;
     case _SC_CHILD_MAX:
         return CHILD_MAX;
+    case _SC_CLK_TCK:
+        /* clock() reports times() ticks as CLOCKS_PER_SEC */
+        return CLOCKS_PER_SEC;
     case _SC_DELAYTIMER_MAX:
         return _POSIX_DELAYTIMER_MAX;
     /*
