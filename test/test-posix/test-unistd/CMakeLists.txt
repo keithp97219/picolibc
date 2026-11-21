@@ -85,6 +85,7 @@ set(tests
   test-pread
   test-pwrite
   test-read
+  test-readlink
   test-readlinkat
   test-setegid
   test-seteuid
