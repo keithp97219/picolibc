@@ -116,9 +116,9 @@ static volatile float  f_zero = 0.0f, f_one = 1.0f, f_two = 2.0f, f_inf = INFINI
 static volatile float  f_min = FLT_TRUE_MIN, f_max = FLT_MAX;
 static volatile float  f_qnan = NAN, f_snan = __builtin_nansf("");
 static volatile float  f_third = 1.0f / 3.0f;
-static volatile double d_zero = 0.0, d_one = 1.0, d_two = 2.0, d_inf = INFINITY;
+static volatile double d_zero = 0.0, d_one = 1.0, d_two = 2.0, d_inf = (double)INFINITY;
 static volatile double d_min = DBL_TRUE_MIN, d_max = DBL_MAX;
-static volatile double d_qnan = NAN, d_snan = __builtin_nans("");
+static volatile double d_qnan = (double)NAN, d_snan = __builtin_nans("");
 
 static volatile double d_third = 1.0 / 3.0, d_f_third;
 
@@ -129,7 +129,7 @@ init_d_f_third(void)
     d_f_third = (double)f_third;
 }
 
-static volatile double d_f_min = FLT_TRUE_MIN;
+static volatile double d_f_min = (double)FLT_TRUE_MIN;
 #if DBL_MANT_DIG > FLT_MANT_DIG
 static volatile double d_f_min_half = (double)FLT_TRUE_MIN / 2;
 static volatile double d_f_max_plus = (double)FLT_MAX * (1.0 + DBL_EPSILON);
@@ -137,9 +137,10 @@ static volatile double d_f_max_plus = (double)FLT_MAX * (1.0 + DBL_EPSILON);
 static volatile double d_one_plus = 1.0 + DBL_EPSILON;
 
 #ifdef _TEST_LONG_DOUBLE
-static volatile long double l_zero = 0.0L, l_one = 1.0L, l_two = 2.0L, l_inf = INFINITY;
+static volatile long double l_zero = 0.0L, l_one = 1.0L, l_two = 2.0L,
+                            l_inf = (long double)INFINITY;
 static volatile long double l_min = LDBL_TRUE_MIN, l_max = LDBL_MAX;
-static volatile long double l_qnan = NAN, l_snan = __builtin_nansl("");
+static volatile long double l_qnan = (long double)NAN, l_snan = __builtin_nansl("");
 
 static volatile long double l_d_third;
 
@@ -161,7 +162,7 @@ static volatile long double l_third;
 static volatile long double l_d_max_plus = (long double)DBL_MAX * (1.0L + LDBL_EPSILON);
 #endif
 #if LDBL_MIN_EXP < DBL_MIN_EXP
-static volatile long double l_d_min = DBL_TRUE_MIN;
+static volatile long double l_d_min = (long double)DBL_TRUE_MIN;
 static volatile long double l_d_min_half = (long double)DBL_TRUE_MIN / 2;
 #endif
 static volatile long double l_one_plus;
