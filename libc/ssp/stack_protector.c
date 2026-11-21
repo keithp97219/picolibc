@@ -29,11 +29,10 @@ __stack_chk_init(void)
     if (__stack_chk_guard != 0)
         return;
 
-    if (getentropy) {
-        /* Use getentropy if available */
-        getentropy(&__stack_chk_guard, sizeof(__stack_chk_guard));
-    } else {
-        /* If getentropy is not available, use the "terminator canary". */
+    /* Use getentropy if available */
+    if (!getentropy || getentropy(&__stack_chk_guard, sizeof(__stack_chk_guard)) != 0
+        || __stack_chk_guard == 0) {
+        /* If getentropy is not available or fails, use the "terminator canary". */
         ((unsigned char *)&__stack_chk_guard)[0] = 0;
         ((unsigned char *)&__stack_chk_guard)[1] = 0;
 #if __SIZEOF_POINTER__ > 2

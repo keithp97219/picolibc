@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright © 2026 MIPS Holding, Inc.
+ * Copyright © 2026 Keith Packard
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,14 +33,59 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _GNU_SOURCE
-#include "arc_semihost.h"
-#include <unistd.h>
+/*
+ * picolibc's getentropy without an entropy source: __splitmix64 seeded
+ * from the stack address. The result differs between calls, which is
+ * enough for the stack canary, but it is predictable and not suitable
+ * for cryptography. Applications without <sys/_posix.h> reach it as
+ * __baremetal_getentropy; it's also the weak getentropy an OS
+ * overrides, and what an OS without an entropy source can wrap. It
+ * takes no lock: arc4random calls it holding the libc lock, and racing
+ * threads at worst see repeated bits from a generator that is already
+ * predictable.
+ */
+#define __PICOLIBC_BAREMETAL_IMPL
+#define _DEFAULT_SOURCE
+#include <errno.h>
+#include <limits.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
+static uint64_t __baremetal_entropy_state;
+
+int
+__baremetal_getentropy(void *buffer, size_t length)
+{
+    uint8_t *b = buffer;
+
+    if (length > GETENTROPY_MAX) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (__baremetal_entropy_state == 0)
+        __baremetal_entropy_state = (uint64_t)(uintptr_t)&b;
+    while (length) {
+        uint64_t bits = __splitmix64(&__baremetal_entropy_state);
+        size_t   this_time = sizeof(bits);
+
+        if (this_time > length)
+            this_time = length;
+        memcpy(b, &bits, this_time);
+        length -= this_time;
+        b += this_time;
+    }
+    return 0;
+}
+
+#ifdef __weak_reference
+__weak_reference(__baremetal_getentropy, getentropy);
+#else
 int
 getentropy(void *buffer, size_t length)
 {
-    memset(buffer, 0, length);
-    return 0;
+    return __baremetal_getentropy(buffer, length);
 }
+#endif

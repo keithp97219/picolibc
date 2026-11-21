@@ -42,6 +42,7 @@ if(DEFINED OS_FALLBACK)
 
   target_sources(os-fallback PRIVATE
     fpathconf.c
+    getentropy.c
     getpid.c
     kill.c
     pathconf.c
@@ -55,6 +56,7 @@ if(DEFINED OS_FALLBACK)
 else()
   picolibc_sources(
     fpathconf.c
+    getentropy.c
     getpid.c
     kill.c
     pathconf.c

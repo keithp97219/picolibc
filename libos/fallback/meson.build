@@ -35,6 +35,7 @@
 
 srcs_os_fallback = [
   'fpathconf.c',
+  'getentropy.c',
   'getpid.c',
   'kill.c',
   'pathconf.c',

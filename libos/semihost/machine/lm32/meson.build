@@ -50,7 +50,6 @@ src_semihost += files([
   src_semihost_fake_fstatvfs,
   src_semihost_fake_ftruncate,
   src_semihost_fake_getcwd,
-  src_semihost_fake_getentropy,
   src_semihost_fake_getpid,
   src_semihost_fake_getrlimit,
   src_semihost_fake_gettimeofday,

@@ -65,7 +65,6 @@ endif
 
 src_semihost += files(srcs_semihost_hexagon) + [
   src_semihost_fake_fstatvfs,
-  src_semihost_fake_getentropy,
   src_semihost_fake_getpid,
   src_semihost_fake_getrlimit,
   src_semihost_fake_kill,

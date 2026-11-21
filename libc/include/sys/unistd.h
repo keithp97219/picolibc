@@ -168,6 +168,7 @@ int getdomainname(char *__name, size_t __len) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || __POSIX_VISIBLE >= 202405
 int getentropy(void *, size_t) __picolibc_export;
+int __baremetal_getentropy(void *, size_t) __picolibc_export;
 #endif
 gid_t getegid(void) __picolibc_export;
 uid_t geteuid(void) __picolibc_export;
@@ -702,7 +703,8 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 
 /*
  * Without an OS, picolibc's own sysconf and uname make up the single
- * process group, the subset of POSIX the library provides alone
+ * process group, the subset of POSIX the library provides alone;
+ * getentropy completes C_LIB_EXT
  */
 #ifdef __PICOLIBC_BAREMETAL
 #ifndef __PICOLIBC_OS_SINGLE_PROCESS
@@ -710,6 +712,9 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #endif
 #ifndef _LIBC
 #define sysconf(__name) __baremetal_sysconf(__name)
+#if __BSD_VISIBLE || __POSIX_VISIBLE >= 202405
+#define getentropy(__buffer, __length) __baremetal_getentropy(__buffer, __length)
+#endif
 #endif
 #endif
 

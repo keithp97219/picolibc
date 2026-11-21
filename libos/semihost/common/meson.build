@@ -37,7 +37,6 @@ src_semihost += files([
                        'close.c',
                        'exit.c',
                        'fstat.c',
-                       'getentropy.c',
                        'gettimeofday.c',
                        'iob.c',
                        'isatty.c',
