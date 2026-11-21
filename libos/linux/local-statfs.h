@@ -83,6 +83,22 @@ _pathconf_statvfs(const struct statvfs *buf, int name)
         return LINUX_POSIX_VDISABLE;
     case _PC_TIMESTAMP_RESOLUTION:
         return 1;
+    case _PC_TEXTDOMAIN_MAX:
+        /* A domain names a "<domain>.mo" file */
+        return (long)buf->f_namemax - 3;
+    case _PC_ALLOC_SIZE_MIN:
+        /* Files take whole fragments */
+        return (long)buf->f_frsize;
+    case _PC_REC_MIN_XFER_SIZE:
+    case _PC_REC_XFER_ALIGN:
+        return (long)buf->f_bsize;
+    case _PC_CHOWN_RESTRICTED:
+        return _POSIX_CHOWN_RESTRICTED;
+    case _PC_NO_TRUNC:
+        return _POSIX_NO_TRUNC;
+    case _PC_PRIO_IO:
+        /* Linux has no prioritized I/O */
+        return -1;
     }
     return __fallback_fpathconf(-1, name);
 }
