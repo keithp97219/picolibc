@@ -178,7 +178,7 @@ long gethostid(void) __picolibc_export;
 #endif
 char *getlogin(void) __picolibc_export;
 #if __POSIX_VISIBLE >= 199506
-int getlogin_r(char *name, size_t namesize) __picolibc_export;
+int getlogin_r(char *__name, size_t __namesize) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || (__XSI_VISIBLE && __POSIX_VISIBLE < 200112)
 char *getpass(const char *__prompt) __picolibc_export;
@@ -270,7 +270,8 @@ int setgroups(int ngroups, const gid_t *grouplist) __picolibc_export;
 int sethostname(const char *, size_t) __picolibc_export;
 #endif
 int setpgid(pid_t __pid, pid_t __pgid) __picolibc_export;
-#if __SVID_VISIBLE || __XSI_VISIBLE >= 500
+/* setpgrp was removed in Issue 8 */
+#if __SVID_VISIBLE || (__XSI_VISIBLE >= 500 && __XSI_VISIBLE < 800)
 int setpgrp(void) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || __XSI_VISIBLE >= 4
@@ -334,7 +335,8 @@ int truncate(const char *, off_t __length) __picolibc_export;
 #if __BSD_VISIBLE || __POSIX_VISIBLE < 200112
 int getdtablesize(void) __picolibc_export;
 #endif
-#if __BSD_VISIBLE || __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 500
+/* ualarm was removed in Issue 7 */
+#if __BSD_VISIBLE || (__XSI_VISIBLE >= 500 && __POSIX_VISIBLE < 200809)
 useconds_t ualarm(useconds_t __useconds, useconds_t __interval) __picolibc_export;
 #endif
 
