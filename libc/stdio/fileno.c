@@ -41,7 +41,10 @@ fileno(FILE *stream)
     __flockfile(stream);
     if (stream->flags & __SBUF) {
         struct __file_bufio *pf = (struct __file_bufio *)stream;
-        __funlock_return(stream, (int)(intptr_t)(pf->ptr));
+        /* Streams with __BFPTR hold a cookie, not a descriptor */
+        if (!(pf->bflags & __BFPTR) && _FDEV_BUFIO_FD(pf) >= 0)
+            __funlock_return(stream, _FDEV_BUFIO_FD(pf));
     }
+    errno = EBADF;
     __funlock_return(stream, -1);
 }
