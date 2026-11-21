@@ -89,6 +89,20 @@ __aio_io(struct __aio_req *req)
         ret = pwrite(req->fd, (const void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
         if (ret < 0 && errno == ESPIPE)
             ret = write(req->fd, (const void *)cb->aio_buf, cb->aio_nbytes);
+#ifdef SIGXFSZ
+        /*
+         * Past the file size limit, the kernel sends SIGXFSZ to this
+         * thread, which blocks it, and it would go when the thread
+         * exits; send it to the process instead
+         */
+        if (ret < 0 && errno == EFBIG) {
+            sigset_t pending;
+
+            if (sigpending(&pending) == 0 && sigismember(&pending, SIGXFSZ) == 1)
+                kill(getpid(), SIGXFSZ);
+            errno = EFBIG;
+        }
+#endif
         break;
     case __AIO_FDATASYNC:
         ret = fdatasync(req->fd);
