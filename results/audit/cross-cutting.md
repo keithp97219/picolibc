@@ -586,3 +586,12 @@ Until those are fixed, the arm64 units check their own new or changed files with
   - waitid passes idtype 3 (P_PIDFD) and P_PGID 0 to Linux.
   - waitpid doesn't clear a blocked SIGCHLD.
   - setpriority changes one thread.
+
+## From the arm64 coordinator: clang native build of posix-spec-audit f6ce89fbd8 on aarch64
+
+`CC=clang CXX=clang++ scripts/do-native-configure -Dwerror=true`, clang 21.1.8 with libclang-rt-21-dev, on real aarch64: the build is clean (the test-tgmath backend crash is gone). The full `meson test -t 4` gives Ok 1168, Expected Fail 6, **Fail 2**, Skipped 361:
+
+- `test-math-errhandling` (picolibc build, exit 126) fails with clang only, as on 8b8b1780b2: the clang build believes floating-point exceptions aren't supported, but aarch64 raises FE_INVALID, FE_DIVBYZERO, FE_UNDERFLOW and FE_OVERFLOW (and FE_INVALID from the sNaN cases).
+- `test-mktemp` (picolibc build, "contents: (char)c == *s") fails with gcc as well, as seen on 8b8b1780b2, so it is an aarch64 native-configuration problem rather than a clang one.
+
+Until those are fixed, units on this host use the full clang native build and treat these two failures as known.
