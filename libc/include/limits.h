@@ -26,9 +26,21 @@
 #ifndef SSIZE_MAX
 #define SSIZE_MAX __SSIZE_MAX__
 #endif
-/* Number of real-time signals, SIGRTMIN through SIGRTMAX */
+/*
+ * Number of real-time signals, SIGRTMIN through SIGRTMAX, unless the
+ * OS supports fewer and says so in <sys/_posix.h>
+ */
+#if defined(__has_include)
+#if __has_include(<sys/_posix.h>)
+#include <sys/_posix.h>
+#endif
+#endif
 #ifndef RTSIG_MAX
+#ifdef __PICOLIBC_OS_RTSIG_MAX
+#define RTSIG_MAX __PICOLIBC_OS_RTSIG_MAX
+#else
 #define RTSIG_MAX 31
+#endif
 #endif
 #endif
 

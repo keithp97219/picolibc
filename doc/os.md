@@ -384,6 +384,10 @@ and stops with an error if the header defines one of those itself.
    with the values `<unistd.h>` publishes as `_POSIX_CHOWN_RESTRICTED`
    and the rest.
 
+ * **Limits:** `__PICOLIBC_OS_RTSIG_MAX`, the number of real-time
+   signals the OS supports when that's fewer than the 31 picolibc
+   numbers, which `<limits.h>` publishes as `RTSIG_MAX`.
+
  * **Option groups:** `__PICOLIBC_OS_<GROUP>` for the OS's part of each
    POSIX.1-2024 option group, with the version met; `<unistd.h>`
    defines `__PICOLIBC_POSIX_<GROUP>` from it. Groups picolibc
@@ -482,7 +486,9 @@ over `<pthread.h>`'s `struct __pthread_cleanup`.
 8192. picolibc numbers the signals itself, including the real-time
 signals `SIGRTMIN` (32) to `SIGRTMAX` (62), and the OS layer maps them
 to its own. An OS that delivers fewer real-time signals reports how
-many through `RTSIG_MAX` and `sysconf(_SC_RTSIG_MAX)`.
+many with `__PICOLIBC_OS_RTSIG_MAX` in `<sys/_posix.h>`, which
+`<limits.h>` publishes as `RTSIG_MAX`, and through
+`sysconf(_SC_RTSIG_MAX)`.
 
 ### Networking
 
