@@ -42,6 +42,7 @@ __STDIO_UNLOCKED(getwc)(FILE *stream)
     unsigned   i;
     int        sc;
     __ungetc_t unget;
+    mbstate_t  ps;
 
     stream->flags |= __SWIDE;
 
@@ -53,16 +54,46 @@ __STDIO_UNLOCKED(getwc)(FILE *stream)
     if ((unget = __atomic_exchange_ungetc(&stream->unget, 0)) != 0)
         return (wint_t)(unget - 1);
 
-    for (i = 0; i < sizeof(wchar_t); i++) {
+    if (stream->flags & __SWCHAR) {
+        /* Wide string streams hold the wchar_t itself */
+        for (i = 0; i < sizeof(wchar_t); i++) {
+            sc = stream->get(stream);
+            if (sc < 0) {
+                stream->flags |= (sc == _FDEV_ERR) ? __SERR : __SEOF;
+                return WEOF;
+            }
+            u.c[i] = (char)sc;
+        }
+        return (wint_t)u.wc;
+    }
+
+    /* Other streams hold multibyte characters */
+    memset(&ps, 0, sizeof(ps));
+    for (;;) {
+        char   b;
+        size_t len;
+
         sc = stream->get(stream);
         if (sc < 0) {
             stream->flags |= (sc == _FDEV_ERR) ? __SERR : __SEOF;
+            /* The input ended in the middle of a character */
+            if (sc != _FDEV_ERR && !mbsinit(&ps)) {
+                stream->flags |= __SERR;
+                errno = EILSEQ;
+            }
             return WEOF;
         }
-        u.c[i] = (char)sc;
+        b = (char)sc;
+        len = mbrtowc(&u.wc, &b, 1, &ps);
+        if (len == (size_t)-2)
+            continue;
+        if (len == (size_t)-1) {
+            /* mbrtowc set errno to EILSEQ */
+            stream->flags |= __SERR;
+            return WEOF;
+        }
+        return (wint_t)u.wc;
     }
-
-    return (wint_t)u.wc;
 }
 
 #ifdef __STDIO_LOCKING

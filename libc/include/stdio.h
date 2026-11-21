@@ -98,7 +98,8 @@ struct __file {
 #define __SCLOSE 0x0010                /* struct is __file_close */
 #define __SEXT   0x0020                /* struct is __file_ext */
 #define __SBUF   0x0040                /* struct is __file_bufio */
-#define __SWIDE  0x0080                /* wchar output mode */
+#define __SWIDE  0x0080                /* wide-oriented */
+#define __SWCHAR 0x0200                /* get and put move the bytes of wchar_t values */
     int (*put)(char, struct __file *); /* function to write one char to device */
     int (*get)(struct __file *);       /* function to read one char from device */
     int (*flush)(struct __file *);     /* function to flush output to device */

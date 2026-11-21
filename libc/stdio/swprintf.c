@@ -41,7 +41,6 @@ swprintf(wchar_t *s, size_t n, const wchar_t *fmt, ...)
     va_list           ap;
     int               i;
     struct __file_str f = FDEV_SETUP_WSTRING_WRITE(s, n);
-    f.file.flags |= __SWIDE;
 
     va_start(ap, fmt);
     i = vfwprintf(&f.file, fmt, ap);

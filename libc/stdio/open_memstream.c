@@ -183,7 +183,7 @@ __open_memstream(char **cbuf, wchar_t **wbuf, size_t *size)
 
     *mf = (struct __file_open_mem) {
         .xfile = FDEV_SETUP_EXT(__open_mem_put, NULL, __open_mem_flush, __open_mem_close,
-                                __open_mem_seek, NULL, wbuf ? (__SWR | __SWIDE) : __SWR),
+                                __open_mem_seek, NULL, wbuf ? (__SWR | __SWIDE | __SWCHAR) : __SWR),
         .psize = size,
         .unit = unit,
         .bsize = BUFSIZ,
