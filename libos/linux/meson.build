@@ -51,7 +51,6 @@ if fs.is_dir(machine_dir)
 
   srcs_os_linux = [
     '_Fork.c',
-    'abort.c',
     'accept.c',
     'accept4.c',
     'access.c',
@@ -273,7 +272,6 @@ if fs.is_dir(machine_dir)
     'symlink.c',
     'symlinkat.c',
     'sync.c',
-    'system.c',
     '_syscall.c',
     '_syscall_errno.c',
     'sysconf.c',

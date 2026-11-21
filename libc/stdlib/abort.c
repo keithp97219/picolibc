@@ -28,9 +28,10 @@ Use <<abort>> to signal that your program has detected a condition it
 cannot deal with.  Normally, <<abort>> ends your program's execution.
 
 Before terminating your program, <<abort>> raises the exception <<SIGABRT>>
-(using `<<raise(SIGABRT)>>').  If you have used <<signal>> to register
-an exception handler for this condition, that handler has the
-opportunity to retain control, thereby avoiding program termination.
+(using `<<raise(SIGABRT)>>'), even when it is blocked or ignored. A
+handler registered for it may keep control by not returning; when it
+returns, <<abort>> restores the default action and raises <<SIGABRT>>
+again, so the program ends as one killed by that signal.
 
 In this implementation, <<abort>> does not perform any stream- or
 file-related cleanup (the host environment may do so; if not, you can
@@ -43,24 +44,38 @@ RETURNS
 PORTABILITY
 ANSI C requires <<abort>>.
 
-Supporting OS subroutines required: <<_exit>> and optionally, <<write>>.
+Supporting OS subroutines required: <<_exit>>, <<raise>>, <<signal>>,
+<<sigprocmask>> and optionally, <<write>>.
 */
 
+#define _POSIX_C_SOURCE 202405L
+#include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <signal.h>
 
 void
 abort(void)
 {
+    sigset_t abrt;
+
 #ifdef ABORT_MESSAGE
     write(2, "Abort called\n", sizeof("Abort called\n") - 1);
 #endif
 
-    while (1) {
-        raise(SIGABRT);
-        _exit(1);
-    }
+    sigemptyset(&abrt);
+    sigaddset(&abrt, SIGABRT);
+
+    /* POSIX: abort overrides blocking or ignoring SIGABRT */
+    (void)sigprocmask(SIG_UNBLOCK, &abrt, NULL);
+    (void)raise(SIGABRT);
+
+    /* SIGABRT is ignored, or its handler returned */
+    (void)signal(SIGABRT, SIG_DFL);
+    (void)sigprocmask(SIG_UNBLOCK, &abrt, NULL);
+    (void)raise(SIGABRT);
+
+    for (;;)
+        _exit(127);
 }
 
 #endif

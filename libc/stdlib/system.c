@@ -44,36 +44,97 @@ a command processor.
 POSIX.2 requires <<system>>, and requires that it invoke a <<sh>>.
 Where <<sh>> is found is left unspecified.
 
-Supporting OS subroutines required: <<_exit>>, <<_execve>>, <<_fork_r>>,
-<<_wait_r>>.
+Supporting OS subroutines required: <<_exit>>, <<execve>>, <<fork>>,
+<<sigaction>>, <<sigprocmask>>, <<waitpid>>.
 */
 
+#define _POSIX_C_SOURCE 202405L
+#include <alloca.h>
 #include <errno.h>
-#include <stddef.h>
+#include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
 
 extern char **environ;
 
+/*
+ * As POSIX describes: fork, then execl(<shell>, "sh", "-c", "--",
+ * command, NULL), but without the "--" (see below). SIGINT and SIGQUIT
+ * are ignored and SIGCHLD blocked while waiting; the child gets the
+ * caller's dispositions and mask back before running the shell.
+ */
 int
-system(const char *s)
+system(const char *command)
 {
-    char *argv[4];
-    int   pid, status;
+    struct sigaction ign = { .sa_handler = SIG_IGN };
+    struct sigaction old_int, old_quit;
+    sigset_t         chld, old_mask;
+    char            *argv[4];
+    pid_t            pid;
+    int              status;
+    int              err = 0;
 
+    /* Report whether there's a shell to run commands */
+    if (command == NULL)
+        return access("/bin/sh", X_OK) == 0;
+
+    sigemptyset(&ign.sa_mask);
+    sigemptyset(&chld);
+    sigaddset(&chld, SIGCHLD);
+
+    (void)sigprocmask(SIG_BLOCK, &chld, &old_mask);
+    (void)sigaction(SIGINT, &ign, &old_int);
+    (void)sigaction(SIGQUIT, &ign, &old_quit);
+
+    /*
+     * Some shells (FreeBSD's) take the argument after -c as the
+     * command, even "--", so this leaves out the "--" POSIX shows. A
+     * command starting with '-' or '+' gets a leading blank, which the
+     * shell skips, instead, so it isn't taken as options.
+     */
+    if (command[0] == '-' || command[0] == '+') {
+        size_t len = strlen(command);
+        char  *blank = alloca(len + 2);
+
+        blank[0] = ' ';
+        memcpy(blank + 1, command, len + 1);
+        command = blank;
+    }
     argv[0] = "sh";
     argv[1] = "-c";
-    argv[2] = (char *)s;
+    argv[2] = (char *)command;
     argv[3] = NULL;
 
-    if ((pid = fork()) == 0) {
+    pid = fork();
+    if (pid == 0) {
+        (void)sigaction(SIGINT, &old_int, NULL);
+        (void)sigaction(SIGQUIT, &old_quit, NULL);
+        (void)sigprocmask(SIG_SETMASK, &old_mask, NULL);
         execve("/bin/sh", argv, environ);
         _exit(127);
-    } else if (pid == -1)
-        return -1;
-    else {
-        (void)waitpid(pid, &status, 0);
-        return status;
     }
+
+    if (pid < 0) {
+        err = errno;
+        status = -1;
+    } else {
+        /* Other signals may interrupt the wait; it ends with the child */
+        while (waitpid(pid, &status, 0) < 0) {
+            if (errno != EINTR) {
+                err = errno;
+                status = -1;
+                break;
+            }
+        }
+    }
+
+    (void)sigaction(SIGINT, &old_int, NULL);
+    (void)sigaction(SIGQUIT, &old_quit, NULL);
+    (void)sigprocmask(SIG_SETMASK, &old_mask, NULL);
+
+    if (status == -1)
+        errno = err;
+    return status;
 }
