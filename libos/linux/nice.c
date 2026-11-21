@@ -47,6 +47,11 @@ nice(int incr)
     prio = getpriority(PRIO_PROCESS, 0);
     if (prio == -1 && errno)
         return -1;
+    /* Linux nice values run from -20 to 19; limit incr so the sum can't overflow */
+    if (incr > 39)
+        incr = 39;
+    if (incr < -39)
+        incr = -39;
     prio += incr;
     if (prio > 19)
         prio = 19;
