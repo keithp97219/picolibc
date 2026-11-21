@@ -46,9 +46,9 @@ rather than stopping when one finishes. The x86_64 host applies each
 round's results and then writes the next request, usually within an hour
 or two of the results landing.
 
-1. unistd-config, logging-misc, stdio (done; being merged)
-2. stdlib, strings, locale (current request)
-3. wide, search-dbm, math
+1. unistd-config, logging-misc, stdio (done; merged)
+2. stdlib, strings, locale (done; being merged)
+3. wide, search-dbm, math (current request)
 
 The plan is complete after round 3; this section will say so.
 
@@ -230,6 +230,12 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   a weak fallback that the OS replaces, such as libos/fallback's
 >   sysconf, may test them. Record any existing violation in
 >   `cross-cutting.md`.
+> - **OS headers:** thread types, sem_t and their initializers now come
+>   from the OS's `<sys/_pthread.h>` (libos/linux/include), not from
+>   libc/include; see doc/os.md for each OS header's contract. Tests that
+>   use `<pthread.h>`, `<semaphore.h>` or pthread types always build, but
+>   include `<unistd.h>` first and use them only under `#if
+>   _POSIX_THREADS > 0` (`_POSIX_SEMAPHORES > 0`), skipping otherwise.
 > - **Configurations without threads:** also build the native
 >   configuration (`scripts/do-native-configure`, `ninja` only). It has no
 >   threads, so a test whose statics or helpers are only used inside its
