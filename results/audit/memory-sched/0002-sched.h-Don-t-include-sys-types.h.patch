@@ -1,0 +1,42 @@
+From 821d76dedeb7448146a0852dda73242d2f8ae7d9 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:55:46 +0000
+Subject: [PATCH 02/10] sched.h: Don't include <sys/types.h>
+
+It brings in all of <stdint.h>, whose names POSIX doesn't let <sched.h>
+define. Declare pid_t and time_t directly instead.
+---
+ libc/include/sched.h | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/libc/include/sched.h b/libc/include/sched.h
+index 6be956c513..5e0b516abe 100644
+--- a/libc/include/sched.h
++++ b/libc/include/sched.h
+@@ -21,11 +21,22 @@
+ #define _SCHED_H_
+ 
+ #include <sys/cdefs.h>
+-#include <sys/types.h>
++#include <sys/_types.h>
+ #include <sys/sched.h>
+ 
+ _BEGIN_STD_C
+ 
++/* Only pid_t and time_t from <sys/types.h>; it would bring in all of <stdint.h> */
++#ifndef _PID_T_DECLARED
++typedef __pid_t pid_t;
++#define _PID_T_DECLARED
++#endif
++
++#ifndef _TIME_T_DECLARED
++typedef __time_t time_t;
++#define _TIME_T_DECLARED
++#endif
++
+ #if __POSIX_VISIBLE >= 199309
+ /*
+  *  XBD 13 - Set Scheduling Parameters, P1003.1b-2008, p. 1803
+-- 
+2.47.3
+

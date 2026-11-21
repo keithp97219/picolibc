@@ -1,0 +1,209 @@
+From b145ee72d8431af60176d0de22f5346db5479fe3 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:53:29 +0000
+Subject: [PATCH 2/5] libos/linux: Report thrd_nomem when thrd_create can't map
+ a thread
+
+pthread_create gives EAGAIN for both a failed mapping and a failed
+clone, so thrd_create couldn't tell a lack of memory (thrd_nomem) from
+the thread limit (thrd_error). Split out _pthread_create, which
+reports ENOMEM, and use it in a Linux thrd_create.
+---
+ libos/linux/local-pthread.h  | 10 +++--
+ libos/linux/meson.build      |  2 +
+ libos/linux/pthread_create.c | 25 +++++++++---
+ libos/linux/thrd_create.c    | 76 ++++++++++++++++++++++++++++++++++++
+ 4 files changed, 105 insertions(+), 8 deletions(-)
+ create mode 100644 libos/linux/thrd_create.c
+
+diff --git a/libos/linux/local-pthread.h b/libos/linux/local-pthread.h
+index 59005eb4cb..d060b1c72d 100644
+--- a/libos/linux/local-pthread.h
++++ b/libos/linux/local-pthread.h
+@@ -337,11 +337,15 @@ struct _sem_named {
+ extern pthread_mutex_t    _sem_named_lock;
+ extern struct _sem_named *_sem_named;
+ 
++/* pthread_create, but reports a lack of memory as ENOMEM */
++int        _pthread_create(pthread_t        *__restrict thread, const pthread_attr_t        *__restrict attr,
++                           void *(*start_routine)(void *), void        *__restrict arg);
++
+ /* Scheduling for a thread id; these return 0 or an errno value */
+-int                       _pthread_setsched(int tid, int policy, int priority);
+-int                       _pthread_getsched(int tid, int *policy, int *priority);
++int        _pthread_setsched(int tid, int policy, int priority);
++int        _pthread_getsched(int tid, int *policy, int *priority);
+ 
+-extern int                _pthread_concurrency;
++extern int _pthread_concurrency;
+ 
+ /*
+  * Cancellation uses a Linux real-time signal which picolibc's signal
+diff --git a/libos/linux/meson.build b/libos/linux/meson.build
+index b6728779af..ba20bd5676 100644
+--- a/libos/linux/meson.build
++++ b/libos/linux/meson.build
+@@ -465,6 +465,8 @@ if fs.is_dir(machine_dir)
+       '_sem_wait_timed.c',
+       '_mq_notify_thread.c',
+       '_timer_thread.c',
++      # Replaces the generic version
++      'thrd_create.c',
+     ]
+   endif
+ 
+diff --git a/libos/linux/pthread_create.c b/libos/linux/pthread_create.c
+index 1f411d2dfa..a6e97b5eed 100644
+--- a/libos/linux/pthread_create.c
++++ b/libos/linux/pthread_create.c
+@@ -35,6 +35,7 @@
+ 
+ #define _DEFAULT_SOURCE
+ #include "local-pthread.h"
++#include <linux/linux-errno.h>
+ #include <picotls.h>
+ #include <stdalign.h>
+ #include <stddef.h>
+@@ -84,10 +85,14 @@ pthread_start(void *arg)
+  * addresses, a guard region, the stack (unless the application
+  * provided one), the TLS block and the thread descriptor followed by
+  * its thread-specific data values.
++ *
++ * Returns ENOMEM when the memory can't be had and EAGAIN when another
++ * limit, such as the number of threads, is reached; thrd_create tells
++ * them apart.
+  */
+ int
+-pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict attr,
+-               void *(*start_routine)(void *), void * __restrict arg)
++_pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict attr,
++                void *(*start_routine)(void *), void * __restrict arg)
+ {
+     pthread_attr_t    default_attr;
+     size_t            align, tls_size, desc_size, stack_size, guard_size, map_size;
+@@ -130,7 +135,7 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
+     if (__picolibc_add_overflow(guard_size, stack_size, &map_size)
+         || __picolibc_add_overflow(map_size, tls_size + desc_size + align + 3 * PTHREAD_PAGE_SIZE,
+                                    &map_size))
+-        return EAGAIN;
++        return ENOMEM;
+ 
+     stack_size = round_up(stack_size, PTHREAD_PAGE_SIZE);
+     guard_size = round_up(guard_size, PTHREAD_PAGE_SIZE);
+@@ -138,7 +143,7 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
+ 
+     map = _pthread_map(map_size);
+     if (!map)
+-        return EAGAIN;
++        return ENOMEM;
+     /* The guard region is best effort */
+     if (guard_size)
+         (void)_syscall_raw(LINUX_SYS_mprotect, map, guard_size, LINUX_PROT_NONE);
+@@ -199,7 +204,7 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
+     if (ret < 0) {
+         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
+         _pthread_unmap(map, map_size);
+-        return EAGAIN;
++        return ret == -LINUX_ENOMEM ? ENOMEM : EAGAIN;
+     }
+ 
+     if (t->start_wait) {
+@@ -220,3 +225,13 @@ pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
+     }
+     return 0;
+ }
++
++int
++pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict attr,
++               void *(*start_routine)(void *), void * __restrict arg)
++{
++    int ret = _pthread_create(thread, attr, start_routine, arg);
++
++    /* pthread_create reports a lack of memory as EAGAIN too */
++    return ret == ENOMEM ? EAGAIN : ret;
++}
+diff --git a/libos/linux/thrd_create.c b/libos/linux/thrd_create.c
+new file mode 100644
+index 0000000000..68215d3d87
+--- /dev/null
++++ b/libos/linux/thrd_create.c
+@@ -0,0 +1,76 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _DEFAULT_SOURCE
++#include "local-pthread.h"
++#include <threads.h>
++#include <stdint.h>
++#include <stdlib.h>
++
++/*
++ * The generic thrd_create can't tell a lack of memory from the other
++ * reasons pthread_create gives EAGAIN for; this one can.
++ */
++
++struct __thrd_start {
++    thrd_start_t func;
++    void        *arg;
++};
++
++static void *
++__thrd_run(void *p)
++{
++    struct __thrd_start start = *(struct __thrd_start *)p;
++
++    free(p);
++    return (void *)(intptr_t)start.func(start.arg);
++}
++
++int
++thrd_create(thrd_t *thr, thrd_start_t func, void *arg)
++{
++    struct __thrd_start *start = malloc(sizeof(*start));
++    int                  ret;
++
++    if (!start)
++        return thrd_nomem;
++    start->func = func;
++    start->arg = arg;
++    ret = _pthread_create(thr, NULL, __thrd_run, start);
++    if (ret == 0)
++        return thrd_success;
++    free(start);
++    return ret == ENOMEM ? thrd_nomem : thrd_error;
++}
+-- 
+2.47.3
+

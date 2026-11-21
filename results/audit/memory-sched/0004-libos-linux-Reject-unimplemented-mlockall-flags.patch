@@ -1,0 +1,29 @@
+From d5ee8f083c18d37318ea0df296b6dd4528cff933 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:55:46 +0000
+Subject: [PATCH 04/10] libos/linux: Reject unimplemented mlockall flags
+
+The flag mapping dropped unknown bits, so mlockall(MCL_CURRENT | x)
+succeeded where POSIX requires EINVAL.
+---
+ libos/linux/mlockall_munlockall.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/libos/linux/mlockall_munlockall.c b/libos/linux/mlockall_munlockall.c
+index ea06395e93..9737558244 100644
+--- a/libos/linux/mlockall_munlockall.c
++++ b/libos/linux/mlockall_munlockall.c
+@@ -41,6 +41,10 @@ mlockall(int flags)
+ {
+     int linux_flags = 0;
+ 
++    if (flags & ~(MCL_CURRENT | MCL_FUTURE | MCL_ONFAULT)) {
++        errno = EINVAL;
++        return -1;
++    }
+     if (flags & MCL_CURRENT)
+         linux_flags |= LINUX_MCL_CURRENT;
+     if (flags & MCL_FUTURE)
+-- 
+2.47.3
+

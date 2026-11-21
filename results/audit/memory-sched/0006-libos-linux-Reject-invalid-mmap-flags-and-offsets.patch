@@ -1,0 +1,47 @@
+From d04a450cfb060965881001432534b0169ae65121 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:55:46 +0000
+Subject: [PATCH 06/10] libos/linux: Reject invalid mmap flags and offsets
+
+MAP_SHARED | MAP_PRIVATE has the value of Linux's MAP_SHARED_VALIDATE,
+so a file was mapped shared; fail with EINVAL instead.
+
+On targets using mmap2, an offset whose page number doesn't fit in
+unsigned long was truncated, mapping the wrong part of the file (offset
+2^44 mapped offset 0 on arm). Fail with EINVAL, as glibc does.
+---
+ libos/linux/mmap.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/libos/linux/mmap.c b/libos/linux/mmap.c
+index c8297904df..3480617351 100644
+--- a/libos/linux/mmap.c
++++ b/libos/linux/mmap.c
+@@ -49,6 +49,11 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
+     if (prot & PROT_EXEC)
+         linux_prot |= LINUX_PROT_EXEC;
+ 
++    /* Exactly one of MAP_SHARED and MAP_PRIVATE; Linux reads both as MAP_SHARED_VALIDATE */
++    if ((flags & (MAP_SHARED | MAP_PRIVATE)) == (MAP_SHARED | MAP_PRIVATE)) {
++        errno = EINVAL;
++        return MAP_FAILED;
++    }
+     if (flags & MAP_SHARED)
+         linux_flags |= LINUX_MAP_SHARED;
+     if (flags & MAP_PRIVATE)
+@@ -62,9 +67,10 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
+     /*
+      * 32-bit ARM and i686: the mmap2 syscall takes the file offset in
+      * units of pages (4096 bytes) rather than bytes.  POSIX requires
+-     * that offset be a multiple of the page size; return EINVAL if not.
++     * that offset be a multiple of the page size; return EINVAL if not,
++     * or if the page number doesn't fit in the syscall's unsigned long.
+      */
+-    if (offset & 0xfff) {
++    if ((offset & 0xfff) || (offset >> 12) != (off_t)(unsigned long)(offset >> 12)) {
+         errno = EINVAL;
+         return MAP_FAILED;
+     }
+-- 
+2.47.3
+

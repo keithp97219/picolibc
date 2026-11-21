@@ -1,0 +1,135 @@
+From ec216528a64dc3b1e7edbc4f99910ba7dea937ac Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:53:36 +0000
+Subject: [PATCH 3/5] libos/linux: Wait on each call_once flag separately
+
+call_once held the global libc lock while its function ran. If the
+function was cancelled the lock stayed held and the flag stayed set,
+hanging every later libc lock user; POSIX requires the flag to be left
+as if call_once had never been called. Callers using other flags also
+waited for the function, so one that waited for another thread using
+call_once deadlocked.
+
+On Linux, keep the running thread's id in the flag and wait on it with
+a futex, with a cleanup handler resetting it; a nested call on the
+same flag still returns at once.
+---
+ libos/linux/call_once.c | 91 +++++++++++++++++++++++++++++++++++++++++
+ libos/linux/meson.build |  3 +-
+ 2 files changed, 93 insertions(+), 1 deletion(-)
+ create mode 100644 libos/linux/call_once.c
+
+diff --git a/libos/linux/call_once.c b/libos/linux/call_once.c
+new file mode 100644
+index 0000000000..a4608c86fc
+--- /dev/null
++++ b/libos/linux/call_once.c
+@@ -0,0 +1,91 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _DEFAULT_SOURCE
++#include "local-pthread.h"
++#include <threads.h>
++#include <limits.h>
++
++/*
++ * *flag is ONCE_FLAG_INIT (0) before func runs, the id of the thread
++ * running func while it runs, and CALL_ONCE_DONE afterwards. Callers
++ * wait on the flag itself, so only callers using the same flag wait
++ * for func, and a nested call from func on its own flag returns at
++ * once instead of deadlocking.
++ */
++#define CALL_ONCE_DONE (-1)
++
++/*
++ * A func cancelled at a cancellation point leaves *flag as if
++ * call_once had never been called; a waiting caller runs its func
++ */
++static void
++call_once_cancelled(void *arg)
++{
++    once_flag *flag = arg;
++
++    __atomic_store_n(flag, ONCE_FLAG_INIT, __ATOMIC_RELEASE);
++    _futex_wake((unsigned int *)flag, INT_MAX, false);
++}
++
++void
++call_once(once_flag *flag, void (*func)(void))
++{
++    int state = __atomic_load_n(flag, __ATOMIC_ACQUIRE);
++    int self;
++
++    if (state == CALL_ONCE_DONE)
++        return;
++    self = _pthread_self()->tid;
++    while (state != CALL_ONCE_DONE) {
++        if (state == ONCE_FLAG_INIT) {
++            if (__atomic_compare_exchange_n(flag, &state, self, false, __ATOMIC_ACQUIRE,
++                                            __ATOMIC_ACQUIRE)) {
++                pthread_cleanup_push(call_once_cancelled, flag);
++                func();
++                pthread_cleanup_pop(0);
++                __atomic_store_n(flag, CALL_ONCE_DONE, __ATOMIC_RELEASE);
++                _futex_wake((unsigned int *)flag, INT_MAX, false);
++                return;
++            }
++        } else if (state == self) {
++            return;
++        } else {
++            (void)_futex_wait((unsigned int *)flag, (unsigned int)state, false, CLOCK_REALTIME,
++                              NULL);
++            state = __atomic_load_n(flag, __ATOMIC_ACQUIRE);
++        }
++    }
++}
+diff --git a/libos/linux/meson.build b/libos/linux/meson.build
+index ba20bd5676..8191fd085d 100644
+--- a/libos/linux/meson.build
++++ b/libos/linux/meson.build
+@@ -465,7 +465,8 @@ if fs.is_dir(machine_dir)
+       '_sem_wait_timed.c',
+       '_mq_notify_thread.c',
+       '_timer_thread.c',
+-      # Replaces the generic version
++      # Replace the generic versions
++      'call_once.c',
+       'thrd_create.c',
+     ]
+   endif
+-- 
+2.47.3
+

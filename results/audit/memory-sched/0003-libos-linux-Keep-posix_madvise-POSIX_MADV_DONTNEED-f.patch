@@ -1,0 +1,55 @@
+From 4d9f08bae3fbf275ca9ef1cdf085d03cc23bfc05 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:55:46 +0000
+Subject: [PATCH 03/10] libos/linux: Keep posix_madvise(POSIX_MADV_DONTNEED)
+ from discarding data
+
+Linux's MADV_DONTNEED drops the contents of private pages, while
+posix_madvise must not change the semantics of access to memory. Only
+check the range for POSIX_MADV_DONTNEED, with msync(MS_ASYNC), which
+has no other effect on Linux.
+---
+ libos/linux/madvise.c | 21 +++++++++++++++------
+ 1 file changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/libos/linux/madvise.c b/libos/linux/madvise.c
+index 07740a8fdc..5414463e15 100644
+--- a/libos/linux/madvise.c
++++ b/libos/linux/madvise.c
+@@ -59,18 +59,27 @@ _posix_advice_to_linux(int advice)
+  * posix_madvise: POSIX.1-2008.
+  *
+  * Unlike most POSIX functions, posix_madvise() returns an error code
+- * directly rather than setting errno and returning -1.  The syscall
+- * trampoline sets errno and returns -1 on failure, so we read errno
+- * back out and return it directly.
++ * directly rather than setting errno and returning -1.
+  */
+ int
+ posix_madvise(void *addr, size_t len, int advice)
+ {
+-    int linux_advice = _posix_advice_to_linux(advice);
++    int  linux_advice = _posix_advice_to_linux(advice);
++    long ret;
++
+     if (linux_advice < 0)
+         return EINVAL;
+-    int ret = (int)_syscall(LINUX_SYS_madvise, addr, len, linux_advice);
++    /*
++     * Linux's MADV_DONTNEED discards the contents of private pages,
++     * but posix_madvise must not change what the memory holds. Only
++     * check the range, which msync with MS_ASYNC does without
++     * touching anything.
++     */
++    if (advice == POSIX_MADV_DONTNEED)
++        ret = _syscall_raw(LINUX_SYS_msync, addr, len, LINUX_MS_ASYNC);
++    else
++        ret = _syscall_raw(LINUX_SYS_madvise, addr, len, linux_advice);
+     if (ret < 0)
+-        return errno;
++        return _syscall_errno(ret);
+     return 0;
+ }
+-- 
+2.47.3
+

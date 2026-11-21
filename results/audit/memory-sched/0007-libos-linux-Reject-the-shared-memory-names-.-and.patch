@@ -1,0 +1,28 @@
+From 0165e582ee362b32781efefe91db85d150007e30 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:55:46 +0000
+Subject: [PATCH 07/10] libos/linux: Reject the shared memory names . and ..
+
+shm_open("/.") and shm_open("/..") opened /dev/shm and /dev; fail with
+EINVAL, as for other names shm_open doesn't support.
+---
+ libos/linux/local-shm.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libos/linux/local-shm.h b/libos/linux/local-shm.h
+index a9e1f29e8c..df12a26a0e 100644
+--- a/libos/linux/local-shm.h
++++ b/libos/linux/local-shm.h
+@@ -61,6 +61,9 @@ _shm_path(char *path, const char *prefix, const char *name)
+     name_len = strlen(name);
+     if (name_len == 0 || strchr(name, '/') != NULL)
+         return EINVAL;
++    /* "." and ".." would name /dev/shm and /dev themselves */
++    if (prefix_len == 0 && name[0] == '.' && (name_len == 1 || (name_len == 2 && name[1] == '.')))
++        return EINVAL;
+     if (prefix_len + name_len > NAME_MAX)
+         return ENAMETOOLONG;
+     memcpy(path, _SHM_DIR, sizeof(_SHM_DIR) - 1);
+-- 
+2.47.3
+

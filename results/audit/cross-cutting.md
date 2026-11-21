@@ -282,3 +282,97 @@ Append yours under a heading naming the unit.
     link to a parent isn't reported without FTW_DEPTH.
   - glibc's FTW_ACTIONRETVAL is 16, the same value as picolibc's new FTW_XDEV.
     This is harmless, but worth knowing when comparing traces.
+
+## From memory-sched (arm64 host)
+
+- **`<sys/types.h>` includes all of `<stdint.h>`** (libc/include/sys/types.h:270,
+  unconditionally, plus `__Long`/`__ULong`). Every header that includes
+  `<sys/types.h>` therefore defines INT8_MAX, SIZE_MAX, INTPTR_MAX, UINT64_C and the
+  rest in strict mode, names POSIX reserves for `<stdint.h>` (and `<sys/types.h>`
+  itself may only add `_t` names). `<sched.h>` was fixed here by declaring pid_t
+  and time_t itself; `<pthread.h>`, `<spawn.h>` and the other includers still leak.
+  Dropping the include from `<sys/types.h>` needs a check of what relies on it.
+- **Plain parameter names in public prototypes.** `<time.h>` declares
+  `timer_gettime(timer_t timerid, struct itimerspec *value)`,
+  `timer_settime(..., int flags, ... value, ... ovalue)`, `timer_create(...,
+  timerid)` and `clock_nanosleep(clockid_t clock_id, int flags, ...)`. An
+  application macro named `value`, `flags` or `timerid` defined before the include
+  breaks the header (found through `<semaphore.h>`, which includes `<time.h>`).
+  Prototypes in installed headers should use reserved (`__`) names or none. The time
+  unit's headers, and probably others, should be swept for this.
+- **glibc 2.43 gaps in this area** (tests guard them with `__GLIBC__`):
+  - `<sys/mman.h>` doesn't define O_RDONLY, O_RDWR, O_CREAT, O_EXCL or O_TRUNC, and
+    defines MCL_ONFAULT in strict mode.
+  - `<semaphore.h>` doesn't define O_CREAT or O_EXCL.
+  - posix_madvise(POSIX_MADV_DONTNEED) returns 0 without looking at the range, so
+    it never reports ENOMEM.
+  - shm_open("/.") and shm_open("/..") open `/dev/shm` and `/dev`.
+  - mmap with MAP_SHARED | MAP_PRIVATE maps a file shared (Linux's
+    MAP_SHARED_VALIDATE); anonymous memory gets EINVAL from the kernel.
+- **Linux scheduling calls act on one thread, not the process.** sched_setparam,
+  sched_setscheduler, sched_getparam and sched_getscheduler take a thread ID on
+  Linux, so pid 0 or getpid() changes or reports only the calling (or main) thread,
+  where POSIX describes the process. glibc and musl behave the same. Fixing it would
+  mean walking /proc/<pid>/task; nothing in picolibc tries. Not testable here anyway
+  for anything but SCHED_OTHER priority 0.
+
+## From sysv-ipc (arm64 host)
+
+- **`<sys/types.h>` includes all of `<stdint.h>`** (libc/include/sys/types.h:270), so
+  every header that includes it defines INT8_MAX ... UINTMAX_MAX, INTn_C(),
+  SIZE_MAX, PTRDIFF_MIN/MAX, SIG_ATOMIC_MIN/MAX, WCHAR_MIN/MAX and WINT_MIN/MAX in
+  strict mode, plus `__Long`/`__ULong`. Seen with `-E -dM` on `<sys/ipc.h>`,
+  `<sys/msg.h>`, `<sys/sem.h>` and `<sys/shm.h>` under `_POSIX_C_SOURCE 202405L` and
+  `_XOPEN_SOURCE 800`. The `_MAX`/`_MIN` macros aren't reserved for those headers. The
+  typedefs (int8_t and so on) end in `_t`, so they are allowed. This joins the known
+  wint_t/MALLOC_ALIGNMENT leak; one fix in `<sys/types.h>` would cover every header.
+- **SHMLBA is a compile-time constant**: 4096 everywhere except 16384 on 32-bit ARM.
+  Linux's SHMLBA is PAGE_SIZE on arm64 (and 4 * PAGE_SIZE for compat tasks), so on
+  arm64 kernels with 16 KiB or 64 KiB pages, shmat(SHM_RND) rounds to a different value
+  from the one the application sees. glibc uses `__getpagesize()` (aarch64) and
+  `__getpagesize() << 2` (arm). It can't be shown on this 4 KiB-page host. A fix needs a
+  reserved-name page-size function that `<sys/shm.h>` can call, so it is left for a
+  decision. Any other header constant that copies the kernel's page size has the same
+  problem.
+- **Linux SysV IPC differs from POSIX in ways a library can't fix cheaply** (confirmed
+  with glibc probes): an unprivileged owner can raise msg_qbytes up to msgmnb (POSIX:
+  only a privileged process may raise it), and a shared memory id removed with IPC_RMID
+  while attached stays valid for shmat and shmctl until the last detach (POSIX removes
+  the identifier at once). Units testing other kernel objects (POSIX message queues,
+  shm_open) should expect the same kind of difference.
+- **glibc 2.43 gaps for this area** (the tests guard them with `__GLIBC__`): no
+  SHM_FAILED and no intptr_t in `<sys/shm.h>` (both new in Issue 8); semid_ds's
+  sem_nsems is `unsigned long`, not `unsigned short`; semop truncates nsops to 32 bits on
+  64-bit targets, so a count of 2^32 + 1 does one operation instead of failing with
+  E2BIG.
+- **Kernel timestamps can trail time() by a tick.** The IPC timestamps come from
+  `ktime_get_real_seconds()`, which can still show the previous second for up to one
+  tick after CLOCK_REALTIME has moved on. Tests that compare a kernel timestamp with a
+  `time(NULL)` taken just before should allow one second of slack, or wait two seconds
+  when they need two timestamps to differ.
+
+## From threads-c11 (aarch64 host)
+
+- **Linux's nanosleep remaining time can exceed the request.** The kernel
+  computes the remaining time from the timer's hard expiry, which includes
+  the thread's timer slack (50 us by default, PR_SET_TIMERSLACK). A sleep
+  interrupted within the slack of its start reported 30.000008 s left of a
+  30 s request. POSIX (nanosleep, thrd_sleep): "the requested interval minus
+  the time actually slept". picolibc and glibc both pass the kernel's value
+  through. test-thrd_sleep allows 1 ms over; clamping in nanosleep would be
+  the time unit's call.
+- **glibc 2.43's thrd_sleep doesn't set errno** for EINTR or EINVAL (it
+  returns clock_nanosleep's error code as -1/-2). POSIX.1-2024 CX: "If it
+  returns a negative value, it shall set errno to indicate the error."
+  Native tests guard errno checks with `#ifndef __GLIBC__`.
+- **glibc 2.43's thrd_create returns thrd_error when the stack can't be
+  mapped** (pthread_create turns ENOMEM into EAGAIN, which glibc's
+  thrd_create maps to thrd_error) where C says thrd_nomem.
+- **picolibc has no RLIMIT_NPROC**, so the Linux thread limit (which counts
+  threads against RLIMIT_NPROC) can't be lowered from a picolibc program;
+  tests that need to hit the thread limit can only run against glibc. For the
+  resource-wait unit.
+- **Library code holding `__LIBC_LOCK` across a user callback** hangs every
+  other thread's libc use if the callback blocks or is cancelled. call_once
+  did (now fixed on Linux). Other generic code that calls application
+  functions with the libc lock held may have the same problem; not surveyed.

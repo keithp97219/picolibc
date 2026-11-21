@@ -1,0 +1,1355 @@
+From 7ef809610007cf6c001abde37d20ee8693bda9b8 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:58:36 +0000
+Subject: [PATCH 5/7] test-posix: Check msgget, msgctl, msgsnd and msgrcv
+
+Creation and lookup by key, every msqid_ds member through IPC_STAT
+and IPC_SET, type selection, blocking sends and receives woken by
+room, a message, a signal or removal, and the permission errors.
+The tests detect QEMU's misplaced 32-bit ARM msqid_ds at run time,
+so test-msgrcv now runs against glibc on arm too.
+---
+ test/test-posix/test-sys-msg/CMakeLists.txt |   3 +
+ test/test-posix/test-sys-msg/meson.build    |   9 +-
+ test/test-posix/test-sys-msg/test-msgctl.c  | 296 +++++++++++++++
+ test/test-posix/test-sys-msg/test-msgget.c  | 235 ++++++++++++
+ test/test-posix/test-sys-msg/test-msgrcv.c  | 322 +++++++++++++++--
+ test/test-posix/test-sys-msg/test-msgsnd.c  | 381 ++++++++++++++++++++
+ 6 files changed, 1203 insertions(+), 43 deletions(-)
+ create mode 100644 test/test-posix/test-sys-msg/test-msgctl.c
+ create mode 100644 test/test-posix/test-sys-msg/test-msgget.c
+ create mode 100644 test/test-posix/test-sys-msg/test-msgsnd.c
+
+diff --git a/test/test-posix/test-sys-msg/CMakeLists.txt b/test/test-posix/test-sys-msg/CMakeLists.txt
+index d0d53cf733..8a9dea1136 100644
+--- a/test/test-posix/test-sys-msg/CMakeLists.txt
++++ b/test/test-posix/test-sys-msg/CMakeLists.txt
+@@ -34,7 +34,10 @@
+ #
+ 
+ set(tests
++  test-msgctl
++  test-msgget
+   test-msgrcv
++  test-msgsnd
+   test-sys_msg_h
+   )
+ 
+diff --git a/test/test-posix/test-sys-msg/meson.build b/test/test-posix/test-sys-msg/meson.build
+index 9dc32621bf..93786c56cb 100644
+--- a/test/test-posix/test-sys-msg/meson.build
++++ b/test/test-posix/test-sys-msg/meson.build
+@@ -34,12 +34,9 @@
+ #
+ 
+ dir_tests = [
++  'test-msgctl',
++  'test-msgget',
+   'test-msgrcv',
++  'test-msgsnd',
+   'test-sys_msg_h',
+ ]
+-
+-# QEMU's user-mode emulation of 32-bit ARM misplaces the IPC_STAT
+-# fields, which the picolibc test notices but glibc's can't
+-if host_cpu_family == 'arm'
+-  test_skip_native += ['test-msgrcv']
+-endif
+diff --git a/test/test-posix/test-sys-msg/test-msgctl.c b/test/test-posix/test-sys-msg/test-msgctl.c
+new file mode 100644
+index 0000000000..5388872553
+--- /dev/null
++++ b/test/test-posix/test-sys-msg/test-msgctl.c
+@@ -0,0 +1,296 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                                \
++    || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0                             \
++        && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
++
++#include <errno.h>
++#include <signal.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/msg.h>
++#include <sys/wait.h>
++#include <time.h>
++
++/*
++ * msgctl reads and sets every member of msqid_ds. On 32-bit targets
++ * the library converts the kernel's structure, so each member is
++ * checked against a value that only the right field can hold.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* Every queue made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        msgctl(ids[--nids], IPC_RMID, NULL);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++
++#ifdef __arm__
++/* QEMU's user-mode emulation identifies itself through BogoMIPS */
++static bool
++is_qemu(void)
++{
++    FILE *f = fopen("/proc/cpuinfo", "r");
++    char  line[256];
++    bool  ret = false;
++
++    if (!f)
++        return false;
++    while (fgets(line, sizeof(line), f) != NULL) {
++        if (strncmp(line, "BogoMIPS", 8) == 0) {
++            ret = strstr(line, "100.00") != NULL;
++            break;
++        }
++    }
++    fclose(f);
++    return ret;
++}
++#endif
++
++/* Waits until the kernel's clock has passed t, so a new timestamp differs */
++static void
++pass_second(time_t t)
++{
++    struct timespec ts = { 0, 10 * 1000 * 1000 };
++
++    while (time(NULL) <= t + 1)
++        nanosleep(&ts, NULL);
++}
++
++struct msg {
++    long mtype;
++    char mtext[24];
++};
++
++int
++main(void)
++{
++    struct msqid_ds ds, set;
++    struct msg      m;
++    int             id, status;
++    time_t          before, sent, created;
++    pid_t           pid;
++    uid_t           other_uid;
++    gid_t           other_gid;
++    msglen_t        qbytes;
++
++    signal(SIGALRM, watchdog);
++    alarm(30);
++    check(atexit(cleanup) == 0, "atexit");
++
++    before = time(NULL);
++    id = keep(msgget(IPC_PRIVATE, IPC_CREAT | 0600));
++    if (id < 0 && errno == ENOSYS) {
++        printf("no System V IPC, skipping\n");
++        return 77;
++    }
++    check(id >= 0, "msgget");
++#ifdef __arm__
++    if (is_qemu()) {
++        printf("QEMU misplaces 32-bit ARM's msqid_ds fields, skipping\n");
++        return 77;
++    }
++#endif
++    check(msgctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    created = ds.msg_ctime;
++    check(created >= before - 1 && created <= time(NULL), "msg_ctime");
++    qbytes = ds.msg_qbytes;
++
++    /* Three messages from this process, so the times move apart */
++    pass_second(created);
++    m.mtype = 1;
++    memset(m.mtext, 'a', sizeof(m.mtext));
++    check(msgsnd(id, &m, 5, 0) == 0, "msgsnd");
++    check(msgsnd(id, &m, 7, 0) == 0, "msgsnd");
++    check(msgsnd(id, &m, 11, 0) == 0, "msgsnd");
++    check(msgctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    sent = ds.msg_stime;
++    check(sent > created && sent <= time(NULL), "msg_stime is the time of the send");
++    check(ds.msg_rtime == 0 && ds.msg_ctime == created, "rtime and ctime untouched by msgsnd");
++
++    /* One received by a child, so the two process IDs differ */
++    pass_second(sent);
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        _exit(msgrcv(id, &m, sizeof(m.mtext), 0, IPC_NOWAIT) == 5 ? 0 : 1);
++    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
++          "the child's msgrcv");
++
++    /* Every member holds its own value */
++    memset(&ds, 0x55, sizeof(ds));
++    check(msgctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    check(ds.msg_perm.uid == geteuid() && ds.msg_perm.cuid == geteuid(), "uid and cuid");
++    check(ds.msg_perm.gid == getegid() && ds.msg_perm.cgid == getegid(), "gid and cgid");
++    check((ds.msg_perm.mode & 0777) == 0600, "mode");
++    check(ds.msg_qnum == 2, "msg_qnum");
++    check(ds.msg_qbytes == qbytes, "msg_qbytes");
++    check(ds.msg_lspid == getpid(), "msg_lspid");
++    check(ds.msg_lrpid == pid, "msg_lrpid");
++    check(ds.msg_stime == sent, "msg_stime");
++    check(ds.msg_rtime > sent && ds.msg_rtime <= time(NULL), "msg_rtime");
++    check(ds.msg_ctime == created, "msg_ctime");
++
++    /* IPC_SET changes the mode, msg_qbytes, uid and gid, and msg_ctime */
++    pass_second(ds.msg_rtime);
++    set = ds;
++    set.msg_perm.mode = 0604;
++    set.msg_qbytes = qbytes / 2;
++    /* These are ignored */
++    set.msg_perm.cuid = set.msg_perm.uid + 1;
++    set.msg_perm.cgid = set.msg_perm.gid + 1;
++    set.msg_qnum = 99;
++    set.msg_lspid = 1;
++    set.msg_stime = 1;
++    set.msg_ctime = 1;
++    check(msgctl(id, IPC_SET, &set) == 0, "IPC_SET");
++    memset(&ds, 0x55, sizeof(ds));
++    check(msgctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    check((ds.msg_perm.mode & 0777) == 0604, "mode set");
++    check(ds.msg_qbytes == qbytes / 2, "msg_qbytes set");
++    check(ds.msg_perm.cuid == geteuid() && ds.msg_perm.cgid == getegid(),
++          "cuid and cgid don't change");
++    check(ds.msg_qnum == 2 && ds.msg_lspid == getpid() && ds.msg_stime == sent,
++          "the other members don't change");
++    check(ds.msg_ctime > created && ds.msg_ctime <= time(NULL), "msg_ctime set to now");
++
++    /* The owner can give the queue away and, as its creator, still change it */
++    other_uid = geteuid() == 65534 ? 65533 : 65534;
++    other_gid = getegid() == 65534 ? 65533 : 65534;
++    set = ds;
++    set.msg_perm.uid = other_uid;
++    set.msg_perm.gid = other_gid;
++    if (msgctl(id, IPC_SET, &set) == 0) {
++        check(msgctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++        check(ds.msg_perm.uid == other_uid && ds.msg_perm.gid == other_gid, "uid and gid set");
++        check(ds.msg_perm.cuid == geteuid() && ds.msg_perm.cgid == getegid(), "cuid and cgid stay");
++        set.msg_perm.uid = geteuid();
++        set.msg_perm.gid = getegid();
++        check(msgctl(id, IPC_SET, &set) == 0, "the creator sets the owner back");
++        check(msgctl(id, IPC_STAT, &ds) == 0 && ds.msg_perm.uid == geteuid()
++                  && ds.msg_perm.gid == getegid(),
++              "owner back");
++    } else {
++        /* An ID that doesn't map in this user namespace */
++        check(errno == EINVAL, "IPC_SET of another owner");
++        printf("uid %ld isn't valid here: not checking a change of owner\n", (long)other_uid);
++    }
++
++    if (geteuid() != 0) {
++        /* Only a privileged process can raise msg_qbytes past the limit */
++        set = ds;
++        set.msg_qbytes = qbytes + 1;
++        check(msgctl(id, IPC_SET, &set) == -1 && errno == EPERM, "EPERM raising msg_qbytes");
++        check(msgctl(id, IPC_STAT, &ds) == 0 && ds.msg_qbytes == qbytes / 2, "unchanged");
++
++        /* IPC_STAT needs read permission, and IPC_SET only ownership */
++        set = ds;
++        set.msg_perm.mode = 0200;
++        check(msgctl(id, IPC_SET, &set) == 0, "IPC_SET write-only");
++        check(msgctl(id, IPC_STAT, &ds) == -1 && errno == EACCES, "EACCES");
++        set.msg_perm.mode = 0600;
++        check(msgctl(id, IPC_SET, &set) == 0, "IPC_SET without read permission");
++        check(msgctl(id, IPC_STAT, &ds) == 0, "readable again");
++    } else {
++        printf("running as root: not checking EPERM and EACCES\n");
++    }
++
++    /* EINVAL for a command or an identifier that isn't valid */
++    check(msgctl(id, 0x7654, &ds) == -1 && errno == EINVAL, "EINVAL for the command");
++    check(msgctl(-1, IPC_STAT, &ds) == -1 && errno == EINVAL, "EINVAL for the id");
++
++    /* IPC_RMID destroys the queue and its messages */
++    check(msgctl(id, IPC_RMID, NULL) == 0, "IPC_RMID");
++    nids--;
++    check(msgctl(id, IPC_STAT, &ds) == -1 && errno == EINVAL, "gone");
++    check(msgrcv(id, &m, sizeof(m.mtext), 0, IPC_NOWAIT) == -1
++              && (errno == EINVAL || errno == EIDRM),
++          "no messages");
++    check(msgctl(id, IPC_RMID, NULL) == -1 && errno == EINVAL, "IPC_RMID twice");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-msg/test-msgget.c b/test/test-posix/test-sys-msg/test-msgget.c
+new file mode 100644
+index 0000000000..b75514d360
+--- /dev/null
++++ b/test/test-posix/test-sys-msg/test-msgget.c
+@@ -0,0 +1,235 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0)
++
++#include <errno.h>
++#include <signal.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/msg.h>
++#include <time.h>
++
++/* msgget creates and finds message queues, and initializes msqid_ds */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* Every queue made here, removed on every way out */
++static int  ids[8];
++static int  nids;
++static char dir[] = "/tmp/msgget-XXXXXX";
++static char path[sizeof(dir) + 8];
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        msgctl(ids[--nids], IPC_RMID, NULL);
++    unlink(path);
++    rmdir(dir);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++
++#ifdef __arm__
++/* QEMU's user-mode emulation identifies itself through BogoMIPS */
++static bool
++is_qemu(void)
++{
++    FILE *f = fopen("/proc/cpuinfo", "r");
++    char  line[256];
++    bool  ret = false;
++
++    if (!f)
++        return false;
++    while (fgets(line, sizeof(line), f) != NULL) {
++        if (strncmp(line, "BogoMIPS", 8) == 0) {
++            ret = strstr(line, "100.00") != NULL;
++            break;
++        }
++    }
++    fclose(f);
++    return ret;
++}
++#endif
++
++/* A value from /proc/sys/kernel, or -1 */
++static long
++kernel_limit(const char *name)
++{
++    char  file[64];
++    FILE *f;
++    long  v = -1;
++
++    snprintf(file, sizeof(file), "/proc/sys/kernel/%s", name);
++    f = fopen(file, "r");
++    if (f) {
++        if (fscanf(f, "%ld", &v) != 1)
++            v = -1;
++        fclose(f);
++    }
++    return v;
++}
++
++int
++main(void)
++{
++    struct msqid_ds ds;
++    key_t           key = -1;
++    int             a, b, id, proj;
++    time_t          before;
++    FILE           *f;
++    long            mnb;
++
++    signal(SIGALRM, watchdog);
++    alarm(30);
++    check(atexit(cleanup) == 0, "atexit");
++
++    a = keep(msgget(IPC_PRIVATE, IPC_CREAT | 0600));
++    if (a < 0 && errno == ENOSYS) {
++        printf("no System V IPC, skipping\n");
++        return 77;
++    }
++    check(a >= 0, "msgget");
++
++    /* IPC_PRIVATE always makes a new queue, with or without IPC_CREAT */
++    b = keep(msgget(IPC_PRIVATE, 0600));
++    check(b >= 0 && b != a, "a second private queue");
++
++    /* A key from a file of our own; take one nobody else is using */
++    check(mkdtemp(dir) != NULL, "mkdtemp");
++    snprintf(path, sizeof(path), "%s/key", dir);
++    f = fopen(path, "w");
++    check(f != NULL, "key file");
++    fclose(f);
++    for (proj = 1; proj < 256; proj++) {
++        key = ftok(path, proj);
++        check(key != (key_t)-1, "ftok");
++        if (msgget(key, 0600) == -1 && errno == ENOENT)
++            break;
++    }
++    check(proj < 256, "an unused key");
++
++    /* Without IPC_CREAT, a key without a queue is ENOENT */
++    check(msgget(key, 0600) == -1 && errno == ENOENT, "ENOENT");
++
++    /* IPC_CREAT makes it, initialized from the flags and the caller */
++    before = time(NULL);
++    id = keep(msgget(key, IPC_CREAT | IPC_EXCL | 0640));
++    check(id >= 0, "create with a key");
++    check(msgget(key, 0) == id, "found again with no flags");
++    check(msgget(key, 0600) == id, "found again asking for permissions granted");
++    check(msgget(key, IPC_CREAT | 0600) == id, "IPC_CREAT finds the existing queue");
++    check(msgget(key, IPC_CREAT | IPC_EXCL | 0600) == -1 && errno == EEXIST, "EEXIST");
++
++#ifdef __arm__
++    if (is_qemu()) {
++        /* QEMU's 32-bit ARM emulation misplaces the msqid_ds fields */
++        printf("QEMU: not checking the msqid_ds fields\n");
++        printf("success\n");
++        return 0;
++    }
++#endif
++    check(msgctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    check(ds.msg_perm.cuid == geteuid() && ds.msg_perm.uid == geteuid(), "cuid and uid");
++    check(ds.msg_perm.cgid == getegid() && ds.msg_perm.gid == getegid(), "cgid and gid");
++    check((ds.msg_perm.mode & 0777) == 0640, "the low 9 bits of the mode");
++    check(ds.msg_qnum == 0 && ds.msg_lspid == 0 && ds.msg_lrpid == 0,
++          "empty, no sender or receiver");
++    check(ds.msg_stime == 0 && ds.msg_rtime == 0, "no send or receive time");
++    /* The kernel's clock in seconds may trail time() by a tick */
++    check(ds.msg_ctime >= before - 1 && ds.msg_ctime <= time(NULL), "ctime is the current time");
++    mnb = kernel_limit("msgmnb");
++    if (mnb > 0)
++        check(ds.msg_qbytes == (msglen_t)mnb, "msg_qbytes is the system limit");
++    else
++        check(ds.msg_qbytes > 0, "msg_qbytes is the system limit");
++
++    /* EACCES when the queue doesn't grant the permissions asked for */
++    if (geteuid() != 0) {
++        ds.msg_perm.mode = 0400;
++        check(msgctl(id, IPC_SET, &ds) == 0, "IPC_SET");
++        check(msgget(key, 0200) == -1 && errno == EACCES, "EACCES for write");
++        check(msgget(key, 0600) == -1 && errno == EACCES, "EACCES for read and write");
++        check(msgget(key, 0400) == id, "read is still granted");
++        check(msgget(key, 0) == id, "asking for nothing is granted");
++    } else {
++        printf("running as root: not checking EACCES\n");
++    }
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-msg/test-msgrcv.c b/test/test-posix/test-sys-msg/test-msgrcv.c
+index 089c39168a..b7611cb0c5 100644
+--- a/test/test-posix/test-sys-msg/test-msgrcv.c
++++ b/test/test-posix/test-sys-msg/test-msgrcv.c
+@@ -39,16 +39,21 @@
+ #include <unistd.h>
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if !defined(__PICOLIBC__) || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0)
++#if !defined(__PICOLIBC__)                                                                \
++    || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0                             \
++        && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
+ 
+ #include <errno.h>
++#include <signal.h>
++#include <stdbool.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <sys/msg.h>
++#include <sys/wait.h>
+ #include <time.h>
+ 
+-/* msgget, msgsnd, msgrcv and msgctl pass messages through a System V queue */
++/* msgrcv picks messages by type, waits for them, and reports its errors */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -58,58 +63,301 @@
+         }                                              \
+     } while (0)
+ 
++/* Every queue made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        msgctl(ids[--nids], IPC_RMID, NULL);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++
++static void
++drop(int id)
++{
++    int i;
++
++    for (i = 0; i < nids; i++)
++        if (ids[i] == id)
++            ids[i] = ids[--nids];
++}
++
++#ifdef __arm__
++/* QEMU's user-mode emulation identifies itself through BogoMIPS */
++static bool
++is_qemu(void)
++{
++    FILE *f = fopen("/proc/cpuinfo", "r");
++    char  line[256];
++    bool  ret = false;
++
++    if (!f)
++        return false;
++    while (fgets(line, sizeof(line), f) != NULL) {
++        if (strncmp(line, "BogoMIPS", 8) == 0) {
++            ret = strstr(line, "100.00") != NULL;
++            break;
++        }
++    }
++    fclose(f);
++    return ret;
++}
++#endif
++
++/*
++ * Waits until the child, which has said through the pipe that it is
++ * about to block, is asleep in the kernel
++ */
++static bool
++wait_blocked(int fd, pid_t pid)
++{
++    struct timespec ts = { 0, 1000 * 1000 };
++    char            file[64], buf[512], *state;
++    int             i;
++    FILE           *f;
++    size_t          n;
++
++    if (read(fd, buf, 1) != 1)
++        return false;
++    snprintf(file, sizeof(file), "/proc/%ld/stat", (long)pid);
++    for (i = 0; i < 20000; i++) {
++        f = fopen(file, "r");
++        if (!f)
++            return false;
++        n = fread(buf, 1, sizeof(buf) - 1, f);
++        fclose(f);
++        buf[n] = '\0';
++        state = strrchr(buf, ')');
++        if (state && state[1] == ' ' && state[2] == 'S')
++            return true;
++        nanosleep(&ts, NULL);
++    }
++    return false;
++}
++
++static volatile sig_atomic_t caught;
++
++static void
++handler(int sig)
++{
++    caught = sig;
++}
++
+ struct msg {
+     long mtype;
+     char mtext[16];
+ };
+ 
++static struct msg m;
++
++static void
++put(int id, long type, const char *text)
++{
++    m.mtype = type;
++    memset(m.mtext, 0, sizeof(m.mtext));
++    strcpy(m.mtext, text);
++    check(msgsnd(id, &m, strlen(text) + 1, IPC_NOWAIT) == 0, "msgsnd");
++}
++
++/* Receives a message of the given type and checks its text */
++static bool
++received(int id, long type, long want_type, const char *want)
++{
++    ssize_t len = msgrcv(id, &m, sizeof(m.mtext), type, IPC_NOWAIT);
++
++    return len == (ssize_t)strlen(want) + 1 && m.mtype == want_type && strcmp(m.mtext, want) == 0;
++}
++
++/* A child that blocks receiving type 7; what it saw is its status */
++static pid_t
++blocked_receiver(int id, int *rfd, bool catch)
++{
++    int   fds[2];
++    pid_t pid;
++
++    check(pipe(fds) == 0, "pipe");
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct sigaction sa;
++        ssize_t          ret;
++
++        if (catch) {
++            /* Without SA_RESTART, the signal interrupts msgrcv */
++            memset(&sa, 0, sizeof(sa));
++            sa.sa_handler = handler;
++            sigemptyset(&sa.sa_mask);
++            sigaction(SIGUSR1, &sa, NULL);
++        }
++        close(fds[0]);
++        if (write(fds[1], "x", 1) != 1)
++            _exit(10);
++        ret = msgrcv(id, &m, sizeof(m.mtext), 7, 0);
++        if (ret == 6 && m.mtype == 7 && strcmp(m.mtext, "seven") == 0)
++            _exit(0);
++        if (ret >= 0)
++            _exit(13);
++        if (errno == EIDRM)
++            _exit(2);
++        if (errno == EINTR)
++            _exit(caught == SIGUSR1 ? 3 : 11);
++        _exit(12);
++    }
++    close(fds[1]);
++    *rfd = fds[0];
++    return pid;
++}
++
++static int
++child_status(pid_t pid)
++{
++    int status;
++
++    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status))
++        return -1;
++    return WEXITSTATUS(status);
++}
++
+ int
+ main(void)
+ {
+     struct msqid_ds ds;
+-    struct msg      m;
+-    int             id = msgget(IPC_PRIVATE, IPC_CREAT | 0600);
++    int             id, fd;
++    pid_t           pid;
++    time_t          before;
++    bool            stat_ok = true;
++
++    signal(SIGALRM, watchdog);
++    alarm(60);
++    check(atexit(cleanup) == 0, "atexit");
+ 
++    id = keep(msgget(IPC_PRIVATE, IPC_CREAT | 0600));
+     if (id < 0 && errno == ENOSYS) {
+         printf("no System V IPC, skipping\n");
+         return 77;
+     }
+     check(id >= 0, "msgget");
+-    m.mtype = 2;
+-    strcpy(m.mtext, "second");
+-    check(msgsnd(id, &m, sizeof(m.mtext), 0) == 0, "msgsnd 2");
+-    m.mtype = 1;
+-    strcpy(m.mtext, "first");
+-    check(msgsnd(id, &m, sizeof(m.mtext), 0) == 0, "msgsnd 1");
+-
+-    check(msgctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
+-    if (ds.msg_qnum == 2 * sizeof(m.mtext) && ds.msg_qbytes == 2) {
+-        /* QEMU's 32-bit ARM emulation returns each field a word early */
+-        printf("IPC_STAT fields misplaced by the system, skipping\n");
+-        return 77;
++#ifdef __arm__
++    if (is_qemu()) {
++        printf("QEMU misplaces 32-bit ARM's msqid_ds fields: not checking them\n");
++        stat_ok = false;
++    }
++#endif
++
++    /* msgtyp 0 takes the first message, > 0 the first of that type */
++    put(id, 2, "second");
++    put(id, 1, "first");
++    check(received(id, 1, 1, "first"), "msgrcv by type");
++    check(received(id, 0, 2, "second"), "msgrcv the first message");
++    check(msgrcv(id, &m, sizeof(m.mtext), 0, IPC_NOWAIT) == -1 && errno == ENOMSG, "ENOMSG");
++
++    /* msgtyp < 0 takes the lowest type up to its magnitude, the first of those */
++    put(id, 3, "three");
++    put(id, 5, "five");
++    put(id, 2, "two");
++    put(id, 1, "one");
++    put(id, 1, "uno");
++    check(msgrcv(id, &m, sizeof(m.mtext), 4, IPC_NOWAIT) == -1 && errno == ENOMSG,
++          "ENOMSG for a missing type");
++    check(received(id, -3, 1, "one"), "-3 gives the first of type 1");
++    check(received(id, -3, 1, "uno"), "then the next of type 1");
++    check(received(id, -3, 2, "two"), "then type 2");
++    check(received(id, -3, 3, "three"), "then type 3");
++    check(msgrcv(id, &m, sizeof(m.mtext), -4, IPC_NOWAIT) == -1 && errno == ENOMSG,
++          "nothing up to 4 left");
++    check(received(id, -5, 5, "five"), "-5 gives type 5");
++
++    /* The return value counts the bytes placed in mtext */
++    put(id, 1, "");
++    check(msgrcv(id, &m, sizeof(m.mtext), 0, IPC_NOWAIT) == 1, "a one-byte message");
++
++    /* Too big: E2BIG leaves the message; MSG_NOERROR truncates and drops the rest */
++    before = time(NULL);
++    put(id, 3, "truncated");
++    check(msgrcv(id, &m, 4, 0, IPC_NOWAIT) == -1 && errno == E2BIG, "E2BIG");
++    if (stat_ok)
++        check(msgctl(id, IPC_STAT, &ds) == 0 && ds.msg_qnum == 1 && ds.msg_lrpid == getpid(),
++              "E2BIG receives nothing");
++    memset(m.mtext, 0, sizeof(m.mtext));
++    check(msgrcv(id, &m, 4, 0, IPC_NOWAIT | MSG_NOERROR) == 4 && m.mtype == 3
++              && memcmp(m.mtext, "trun", 4) == 0 && m.mtext[4] == '\0',
++          "MSG_NOERROR truncates");
++    check(msgrcv(id, &m, sizeof(m.mtext), 0, IPC_NOWAIT) == -1 && errno == ENOMSG,
++          "the rest is lost");
++
++    /* A receive counts down msg_qnum, and sets msg_lrpid and msg_rtime */
++    if (stat_ok) {
++        put(id, 1, "x");
++        put(id, 1, "y");
++        fflush(stdout);
++        pid = fork();
++        check(pid >= 0, "fork");
++        if (pid == 0)
++            _exit(received(id, 0, 1, "x") ? 0 : 1);
++        check(child_status(pid) == 0, "the child's msgrcv");
++        check(msgctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++        check(ds.msg_qnum == 1 && ds.msg_lrpid == pid, "msg_qnum and msg_lrpid");
++        check(ds.msg_rtime >= before - 1 && ds.msg_rtime <= time(NULL), "msg_rtime");
++        check(received(id, 0, 1, "y"), "msgrcv");
+     }
+-    check(ds.msg_qnum == 2 && ds.msg_lspid == getpid(), "queue state");
+-    check((ds.msg_perm.mode & 0777) == 0600 && ds.msg_perm.uid == geteuid(), "permissions");
+-    check(ds.msg_stime > 1600000000 && ds.msg_stime <= time(NULL), "send time");
+-
+-    /* A type selects the message */
+-    check(msgrcv(id, &m, sizeof(m.mtext), 1, 0) == sizeof(m.mtext) && m.mtype == 1
+-              && strcmp(m.mtext, "first") == 0,
+-          "msgrcv by type");
+-    check(msgrcv(id, &m, sizeof(m.mtext), 0, 0) == sizeof(m.mtext) && m.mtype == 2, "msgrcv first");
+-    check(msgrcv(id, &m, sizeof(m.mtext), 0, IPC_NOWAIT) == -1 && errno == ENOMSG, "empty");
+-
+-    m.mtype = 3;
+-    check(msgsnd(id, &m, sizeof(m.mtext), 0) == 0, "msgsnd 3");
+-    check(msgrcv(id, &m, 4, 0, IPC_NOWAIT) == -1 && errno == E2BIG, "too big");
+-    check(msgrcv(id, &m, 4, 0, IPC_NOWAIT | MSG_NOERROR) == 4, "MSG_NOERROR truncates");
+-
+-    ds.msg_perm.mode = 0640;
+-    check(msgctl(id, IPC_SET, &ds) == 0, "IPC_SET");
+-    check(msgctl(id, IPC_STAT, &ds) == 0 && (ds.msg_perm.mode & 0777) == 0640, "mode set");
++
++    /* Without IPC_NOWAIT the receiver waits for a message of its type */
++    pid = blocked_receiver(id, &fd, false);
++    check(wait_blocked(fd, pid), "the receiver blocks");
++    close(fd);
++    put(id, 6, "six");
++    put(id, 7, "seven");
++    check(child_status(pid) == 0, "the waiting receiver got type 7");
++    check(received(id, 0, 6, "six"), "and left type 6");
++
++    /* A caught signal interrupts the wait with EINTR */
++    pid = blocked_receiver(id, &fd, true);
++    check(wait_blocked(fd, pid), "the receiver blocks");
++    close(fd);
++    check(kill(pid, SIGUSR1) == 0, "kill");
++    check(child_status(pid) == 3, "EINTR");
++
++    /* Removing the queue wakes the receiver with EIDRM */
++    pid = blocked_receiver(id, &fd, false);
++    check(wait_blocked(fd, pid), "the receiver blocks");
++    close(fd);
+     check(msgctl(id, IPC_RMID, NULL) == 0, "IPC_RMID");
+-    check(msgsnd(id, &m, sizeof(m.mtext), 0) == -1 && (errno == EINVAL || errno == EIDRM),
+-          "removed");
++    drop(id);
++    check(child_status(pid) == 2, "EIDRM");
++    check(msgrcv(id, &m, sizeof(m.mtext), 0, IPC_NOWAIT) == -1 && errno == EINVAL,
++          "EINVAL once removed");
++    check(msgrcv(-1, &m, sizeof(m.mtext), 0, IPC_NOWAIT) == -1 && errno == EINVAL,
++          "EINVAL for the id");
++
++    /* EACCES without read permission */
++    if (geteuid() != 0) {
++        id = keep(msgget(IPC_PRIVATE, IPC_CREAT | 0200));
++        check(id >= 0, "msgget");
++        put(id, 1, "secret");
++        check(msgrcv(id, &m, sizeof(m.mtext), 0, IPC_NOWAIT) == -1 && errno == EACCES, "EACCES");
++    } else {
++        printf("running as root: not checking EACCES\n");
++    }
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-sys-msg/test-msgsnd.c b/test/test-posix/test-sys-msg/test-msgsnd.c
+new file mode 100644
+index 0000000000..c7bc15bbc8
+--- /dev/null
++++ b/test/test-posix/test-sys-msg/test-msgsnd.c
+@@ -0,0 +1,381 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                                \
++    || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0                             \
++        && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
++
++#include <errno.h>
++#include <signal.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/msg.h>
++#include <sys/wait.h>
++#include <time.h>
++
++/* msgsnd queues messages, waits for room, and reports its errors */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* Every queue made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        msgctl(ids[--nids], IPC_RMID, NULL);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++
++static void
++drop(int id)
++{
++    int i;
++
++    for (i = 0; i < nids; i++)
++        if (ids[i] == id)
++            ids[i] = ids[--nids];
++}
++
++#ifdef __arm__
++/* QEMU's user-mode emulation identifies itself through BogoMIPS */
++static bool
++is_qemu(void)
++{
++    FILE *f = fopen("/proc/cpuinfo", "r");
++    char  line[256];
++    bool  ret = false;
++
++    if (!f)
++        return false;
++    while (fgets(line, sizeof(line), f) != NULL) {
++        if (strncmp(line, "BogoMIPS", 8) == 0) {
++            ret = strstr(line, "100.00") != NULL;
++            break;
++        }
++    }
++    fclose(f);
++    return ret;
++}
++#endif
++
++/* A value from /proc/sys/kernel, or -1 */
++static long
++kernel_limit(const char *name)
++{
++    char  file[64];
++    FILE *f;
++    long  v = -1;
++
++    snprintf(file, sizeof(file), "/proc/sys/kernel/%s", name);
++    f = fopen(file, "r");
++    if (f) {
++        if (fscanf(f, "%ld", &v) != 1)
++            v = -1;
++        fclose(f);
++    }
++    return v;
++}
++
++/*
++ * Waits until the child, which has said through the pipe that it is
++ * about to block, is asleep in the kernel
++ */
++static bool
++wait_blocked(int fd, pid_t pid)
++{
++    struct timespec ts = { 0, 1000 * 1000 };
++    char            file[64], buf[512], *state;
++    int             i;
++    FILE           *f;
++    size_t          n;
++
++    if (read(fd, buf, 1) != 1)
++        return false;
++    snprintf(file, sizeof(file), "/proc/%ld/stat", (long)pid);
++    for (i = 0; i < 20000; i++) {
++        f = fopen(file, "r");
++        if (!f)
++            return false;
++        n = fread(buf, 1, sizeof(buf) - 1, f);
++        fclose(f);
++        buf[n] = '\0';
++        state = strrchr(buf, ')');
++        if (state && state[1] == ' ' && state[2] == 'S')
++            return true;
++        nanosleep(&ts, NULL);
++    }
++    return false;
++}
++
++static volatile sig_atomic_t caught;
++
++static void
++handler(int sig)
++{
++    caught = sig;
++}
++
++struct msg {
++    long mtype;
++    char mtext[1024];
++};
++
++static struct msg m;
++
++/* Fills the queue, returning how many messages fit */
++static int
++fill(int id)
++{
++    int n = 0;
++
++    m.mtype = 9;
++    while (msgsnd(id, &m, sizeof(m.mtext), IPC_NOWAIT) == 0)
++        n++;
++    if (errno != EAGAIN)
++        return -1;
++    while (msgsnd(id, &m, 1, IPC_NOWAIT) == 0)
++        n++;
++    return errno == EAGAIN ? n : -1;
++}
++
++/* A child that blocks sending to a full queue; what it saw is its status */
++static pid_t
++blocked_sender(int id, int *rfd, bool catch)
++{
++    int   fds[2];
++    pid_t pid;
++
++    check(pipe(fds) == 0, "pipe");
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct sigaction sa;
++        int              ret;
++
++        if (catch) {
++            /* Without SA_RESTART, the signal interrupts msgsnd */
++            memset(&sa, 0, sizeof(sa));
++            sa.sa_handler = handler;
++            sigemptyset(&sa.sa_mask);
++            sigaction(SIGUSR1, &sa, NULL);
++        }
++        close(fds[0]);
++        m.mtype = 5;
++        if (write(fds[1], "x", 1) != 1)
++            _exit(10);
++        ret = msgsnd(id, &m, 1, 0);
++        if (ret == 0)
++            _exit(0);
++        if (errno == EIDRM)
++            _exit(2);
++        if (errno == EINTR)
++            _exit(caught == SIGUSR1 ? 3 : 11);
++        _exit(12);
++    }
++    close(fds[1]);
++    *rfd = fds[0];
++    return pid;
++}
++
++static int
++child_status(pid_t pid)
++{
++    int status;
++
++    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status))
++        return -1;
++    return WEXITSTATUS(status);
++}
++
++int
++main(void)
++{
++    struct msqid_ds ds;
++    int             id, fd, n;
++    long            max;
++    pid_t           pid;
++    time_t          before;
++    bool            stat_ok = true;
++
++    signal(SIGALRM, watchdog);
++    alarm(60);
++    check(atexit(cleanup) == 0, "atexit");
++
++    id = keep(msgget(IPC_PRIVATE, IPC_CREAT | 0600));
++    if (id < 0 && errno == ENOSYS) {
++        printf("no System V IPC, skipping\n");
++        return 77;
++    }
++    check(id >= 0, "msgget");
++#ifdef __arm__
++    if (is_qemu()) {
++        printf("QEMU misplaces 32-bit ARM's msqid_ds fields: not checking them\n");
++        stat_ok = false;
++    }
++#endif
++
++    /* A successful send counts the message and records the sender and time */
++    before = time(NULL);
++    m.mtype = 1;
++    memset(m.mtext, 'm', sizeof(m.mtext));
++    check(msgsnd(id, &m, 100, 0) == 0, "msgsnd");
++    check(msgsnd(id, &m, 0, 0) == 0, "an empty message");
++    if (stat_ok) {
++        check(msgctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++        check(ds.msg_qnum == 2 && ds.msg_lspid == getpid(), "msg_qnum and msg_lspid");
++        check(ds.msg_stime >= before - 1 && ds.msg_stime <= time(NULL), "msg_stime");
++    }
++    check(msgrcv(id, &m, sizeof(m.mtext), 0, 0) == 100, "the message");
++    check(msgrcv(id, &m, sizeof(m.mtext), 0, 0) == 0, "the empty message");
++
++    /* EINVAL: a type below 1, a size over the limit, or a bad identifier */
++    m.mtype = 0;
++    check(msgsnd(id, &m, 1, IPC_NOWAIT) == -1 && errno == EINVAL, "EINVAL for type 0");
++    m.mtype = -1;
++    check(msgsnd(id, &m, 1, IPC_NOWAIT) == -1 && errno == EINVAL, "EINVAL for type -1");
++    m.mtype = 1;
++    max = kernel_limit("msgmax");
++    if (max > 0 && (size_t)max < sizeof(m.mtext))
++        printf("msgmax %ld is small: not checking EINVAL for the size\n", max);
++    else if (max > 0) {
++        char *big = malloc(sizeof(long) + (size_t)max + 1);
++
++        check(big != NULL, "malloc");
++        memset(big, 0, sizeof(long) + (size_t)max + 1);
++        *(long *)(void *)big = 1;
++        check(msgsnd(id, big, (size_t)max + 1, IPC_NOWAIT) == -1 && errno == EINVAL,
++              "EINVAL past msgmax");
++        check(msgsnd(id, big, (size_t)max, IPC_NOWAIT) == 0, "msgmax itself fits");
++        check(msgrcv(id, big, (size_t)max, 0, 0) == max, "and comes back");
++        free(big);
++    }
++    check(msgsnd(-1, &m, 1, IPC_NOWAIT) == -1 && errno == EINVAL, "EINVAL for the id");
++    if (stat_ok)
++        check(msgctl(id, IPC_STAT, &ds) == 0 && ds.msg_qnum == 0, "nothing sent");
++
++    /* A full queue: EAGAIN with IPC_NOWAIT, and nothing sent */
++    n = fill(id);
++    check(n > 0, "fill the queue");
++    m.mtype = 5;
++    check(msgsnd(id, &m, 1, IPC_NOWAIT) == -1 && errno == EAGAIN, "EAGAIN");
++    if (stat_ok)
++        check(msgctl(id, IPC_STAT, &ds) == 0 && ds.msg_qnum == (msgqnum_t)n, "nothing sent");
++
++    /* Without IPC_NOWAIT the sender waits until there's room */
++    pid = blocked_sender(id, &fd, false);
++    check(wait_blocked(fd, pid), "the sender blocks");
++    close(fd);
++    check(msgrcv(id, &m, sizeof(m.mtext), 9, 0) > 0, "make room");
++    check(child_status(pid) == 0, "the waiting sender's message went");
++    check(msgrcv(id, &m, 1, 5, IPC_NOWAIT) == 1, "and arrived");
++    if (stat_ok)
++        check(msgctl(id, IPC_STAT, &ds) == 0 && ds.msg_lspid == pid, "msg_lspid is the child");
++
++    /* A caught signal interrupts the wait with EINTR, sending nothing */
++    check(fill(id) >= 0, "refill");
++    pid = blocked_sender(id, &fd, true);
++    check(wait_blocked(fd, pid), "the sender blocks");
++    close(fd);
++    check(kill(pid, SIGUSR1) == 0, "kill");
++    check(child_status(pid) == 3, "EINTR");
++    check(msgrcv(id, &m, 1, 5, IPC_NOWAIT) == -1 && errno == ENOMSG, "nothing sent");
++
++    /* Removing the queue wakes the sender with EIDRM */
++    pid = blocked_sender(id, &fd, false);
++    check(wait_blocked(fd, pid), "the sender blocks");
++    close(fd);
++    check(msgctl(id, IPC_RMID, NULL) == 0, "IPC_RMID");
++    drop(id);
++    check(child_status(pid) == 2, "EIDRM");
++    check(msgsnd(id, &m, 1, IPC_NOWAIT) == -1 && errno == EINVAL, "EINVAL once removed");
++
++    /* EACCES without write permission */
++    if (geteuid() != 0) {
++        id = keep(msgget(IPC_PRIVATE, IPC_CREAT | 0400));
++        check(id >= 0, "msgget");
++        check(msgsnd(id, &m, 1, IPC_NOWAIT) == -1 && errno == EACCES, "EACCES");
++    } else {
++        printf("running as root: not checking EACCES\n");
++    }
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

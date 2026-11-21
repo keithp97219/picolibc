@@ -1,0 +1,40 @@
+From 4cdaa795b546edf33eaf8982c7dc9f969d556ae4 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:55:46 +0000
+Subject: [PATCH 01/10] sys/mman.h: Define MAP_ANON and the shm_open flags in
+ strict mode
+
+POSIX.1-2024 adds MAP_ANON, with the value of MAP_ANONYMOUS, and has
+<sys/mman.h> define O_RDONLY, O_RDWR, O_CREAT, O_EXCL and O_TRUNC; it
+may make all of <fcntl.h> visible.
+---
+ libc/include/sys/mman.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/libc/include/sys/mman.h b/libc/include/sys/mman.h
+index d4282dd395..9cd6f09b86 100644
+--- a/libc/include/sys/mman.h
++++ b/libc/include/sys/mman.h
+@@ -38,6 +38,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+ #include <sys/cdefs.h>
+ #include <sys/_types.h>
++/* For O_RDONLY, O_RDWR, O_CREAT, O_EXCL and O_TRUNC */
++#include <fcntl.h>
+ 
+ _BEGIN_STD_C
+ 
+@@ -71,9 +73,7 @@ typedef __mode_t mode_t;
+ #define MAP_PRIVATE   0x002 /* changes are private */
+ #define MAP_FIXED     0x010 /* interpret addr exactly */
+ #define MAP_ANONYMOUS 0x020 /* not backed by any file */
+-#if __GNU_VISIBLE
+-#define MAP_ANON MAP_ANONYMOUS
+-#endif
++#define MAP_ANON      MAP_ANONYMOUS
+ 
+ /*
+  * Error return value from mmap().
+-- 
+2.47.3
+

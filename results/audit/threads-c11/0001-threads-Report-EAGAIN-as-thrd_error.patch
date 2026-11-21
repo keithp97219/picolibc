@@ -1,0 +1,74 @@
+From 5f348841b0d95eb6daafb5839f97001d9f5f8df3 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:53:29 +0000
+Subject: [PATCH 1/5] threads: Report EAGAIN as thrd_error
+
+pthread functions give EAGAIN when a limit is reached: the number of
+threads, or the lock count of a recursive mutex. That's thrd_error;
+mtx_lock, mtx_trylock and mtx_timedlock never return thrd_nomem, and
+POSIX names the thread limit as a thrd_create thrd_error case.
+mtx_init returns only thrd_success or thrd_error.
+---
+ libc/threads/local-threads.h |  7 +++++--
+ libc/threads/mtx_init.c      | 10 +++++-----
+ 2 files changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/libc/threads/local-threads.h b/libc/threads/local-threads.h
+index 9c06bf8bff..2b9212dbd5 100644
+--- a/libc/threads/local-threads.h
++++ b/libc/threads/local-threads.h
+@@ -41,7 +41,11 @@
+ #include <errno.h>
+ #include <pthread.h>
+ 
+-/* Maps a pthread error number to a C11 thread result */
++/*
++ * Maps a pthread error number to a C11 thread result. EAGAIN means a
++ * limit was reached, such as the number of threads or the lock count
++ * of a recursive mutex, so the request could not be honored.
++ */
+ static inline int
+ __thrd_result(int error)
+ {
+@@ -53,7 +57,6 @@ __thrd_result(int error)
+     case ETIMEDOUT:
+         return thrd_timedout;
+     case ENOMEM:
+-    case EAGAIN:
+         return thrd_nomem;
+     default:
+         return thrd_error;
+diff --git a/libc/threads/mtx_init.c b/libc/threads/mtx_init.c
+index 0245571813..7a547d8ca5 100644
+--- a/libc/threads/mtx_init.c
++++ b/libc/threads/mtx_init.c
+@@ -39,7 +39,7 @@ int
+ mtx_init(mtx_t *mtx, int type)
+ {
+     pthread_mutexattr_t attr;
+-    int                 ret;
++    int                 ret = 0;
+ 
+     switch (type) {
+     case mtx_plain:
+@@ -50,13 +50,13 @@ mtx_init(mtx_t *mtx, int type)
+     default:
+         return thrd_error;
+     }
+-    ret = pthread_mutexattr_init(&attr);
+-    if (ret)
+-        return __thrd_result(ret);
++    /* mtx_init reports only thrd_success or thrd_error */
++    if (pthread_mutexattr_init(&attr))
++        return thrd_error;
+     if (type & mtx_recursive)
+         ret = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+     if (!ret)
+         ret = pthread_mutex_init(mtx, &attr);
+     pthread_mutexattr_destroy(&attr);
+-    return __thrd_result(ret);
++    return ret ? thrd_error : thrd_success;
+ }
+-- 
+2.47.3
+

@@ -1,0 +1,2018 @@
+From a162ca2e6dfd91adc36aef79875f198fc0fcd151 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:58:02 +0000
+Subject: [PATCH 4/5] test-posix: Check threads.h, C11 thread results,
+ destructors and cancellation
+
+Check the header's types, constants and prototypes; which result the
+mtx_, cnd_ and thrd_ functions give; recursive lock counts; waits that
+signals interrupt; thrd_sleep's remaining time and errors; thrd_exit
+from the initial thread; tss destructor rounds; and cnd_wait,
+cnd_timedwait, thrd_join and thrd_sleep as the only cancellation
+points.
+---
+ test/test-posix/test-threads/CMakeLists.txt   |   7 +
+ test/test-posix/test-threads/meson.build      |   7 +
+ test/test-posix/test-threads/test-cnd_wait.c  | 323 ++++++++++++++++++
+ .../test-threads/test-mtx_trylock.c           | 321 +++++++++++++++++
+ test/test-posix/test-threads/test-thrd_exit.c | 175 ++++++++++
+ test/test-posix/test-threads/test-thrd_join.c | 254 ++++++++++++++
+ .../test-posix/test-threads/test-thrd_sleep.c | 272 +++++++++++++++
+ test/test-posix/test-threads/test-threads_h.c | 284 +++++++++++++++
+ .../test-posix/test-threads/test-tss_delete.c | 273 +++++++++++++++
+ 9 files changed, 1916 insertions(+)
+ create mode 100644 test/test-posix/test-threads/test-cnd_wait.c
+ create mode 100644 test/test-posix/test-threads/test-mtx_trylock.c
+ create mode 100644 test/test-posix/test-threads/test-thrd_exit.c
+ create mode 100644 test/test-posix/test-threads/test-thrd_join.c
+ create mode 100644 test/test-posix/test-threads/test-thrd_sleep.c
+ create mode 100644 test/test-posix/test-threads/test-threads_h.c
+ create mode 100644 test/test-posix/test-threads/test-tss_delete.c
+
+diff --git a/test/test-posix/test-threads/CMakeLists.txt b/test/test-posix/test-threads/CMakeLists.txt
+index 71d41ee681..c6e0d51306 100644
+--- a/test/test-posix/test-threads/CMakeLists.txt
++++ b/test/test-posix/test-threads/CMakeLists.txt
+@@ -36,9 +36,16 @@
+ set(tests
+   test-call_once
+   test-cnd_timedwait
++  test-cnd_wait
+   test-mtx_timedlock
++  test-mtx_trylock
+   test-thrd_create
++  test-thrd_exit
++  test-thrd_join
++  test-thrd_sleep
++  test-threads_h
+   test-tss_create
++  test-tss_delete
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-threads/meson.build b/test/test-posix/test-threads/meson.build
+index 2e0ab015b7..aa76124e46 100644
+--- a/test/test-posix/test-threads/meson.build
++++ b/test/test-posix/test-threads/meson.build
+@@ -39,7 +39,14 @@ dir_tests = []
+ dir_thread_tests = [
+   'test-call_once',
+   'test-cnd_timedwait',
++  'test-cnd_wait',
+   'test-mtx_timedlock',
++  'test-mtx_trylock',
+   'test-thrd_create',
++  'test-thrd_exit',
++  'test-thrd_join',
++  'test-thrd_sleep',
++  'test-threads_h',
+   'test-tss_create',
++  'test-tss_delete',
+ ]
+diff --git a/test/test-posix/test-threads/test-cnd_wait.c b/test/test-posix/test-threads/test-cnd_wait.c
+new file mode 100644
+index 0000000000..c4c1c02664
+--- /dev/null
++++ b/test/test-posix/test-threads/test-cnd_wait.c
+@@ -0,0 +1,323 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
++
++#include <errno.h>
++#include <pthread.h>
++#include <semaphore.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <threads.h>
++#include <time.h>
++
++/*
++ * cnd_ condition variables: which result each wait gives, the mutex
++ * after timeouts and errors, waits that signals interrupt, and
++ * cnd_wait and cnd_timedwait as cancellation points
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static mtx_t        mtx;
++static cnd_t        cnd;
++static sem_t        started;
++static volatile int ready;
++static volatile int signalled;
++static volatile int owned;
++static volatile int returned;
++
++static void
++handler(int sig)
++{
++    (void)sig;
++    signalled++;
++}
++
++static struct timespec
++deadline(long ms)
++{
++    struct timespec ts;
++
++    check(timespec_get(&ts, TIME_UTC) == TIME_UTC, "timespec_get");
++    ts.tv_sec += ms / 1000;
++    ts.tv_nsec += (ms % 1000) * 1000000L;
++    if (ts.tv_nsec >= 1000000000L) {
++        ts.tv_sec++;
++        ts.tv_nsec -= 1000000000L;
++    } else if (ts.tv_nsec < 0) {
++        ts.tv_sec--;
++        ts.tv_nsec += 1000000000L;
++    }
++    return ts;
++}
++
++static int
++after(const struct timespec *a, const struct timespec *b)
++{
++    return a->tv_sec > b->tv_sec || (a->tv_sec == b->tv_sec && a->tv_nsec >= b->tv_nsec);
++}
++
++static int
++try_other(void *arg)
++{
++    int ret = mtx_trylock(&mtx);
++
++    (void)arg;
++    if (ret == thrd_success && mtx_unlock(&mtx) != thrd_success)
++        return -1;
++    return ret;
++}
++
++/* Whether another thread finds mtx busy */
++static int
++held(void)
++{
++    thrd_t thr;
++    int    res = -2;
++
++    check(thrd_create(&thr, try_other, NULL) == thrd_success, "thrd_create");
++    check(thrd_join(thr, &res) == thrd_success, "thrd_join");
++    return res == thrd_busy;
++}
++
++/*
++ * Waits until ready while main sends signals. Each return is
++ * thrd_success: a signal either doesn't end the wait or ends it as a
++ * spurious wakeup.
++ */
++static int
++signal_waiter(void *arg)
++{
++    struct timespec ts = deadline(60000);
++    int             ret = thrd_success;
++
++    mtx_lock(&mtx);
++    sem_post(&started);
++    while (!ready && ret == thrd_success)
++        ret = arg ? cnd_timedwait(&cnd, &mtx, &ts) : cnd_wait(&cnd, &mtx);
++    mtx_unlock(&mtx);
++    return ret;
++}
++
++static void
++check_signals(int timed)
++{
++    struct timespec ts = { 0, 10000000 };
++    thrd_t          thr;
++    int             res = -2, i;
++
++    ready = 0;
++    signalled = 0;
++    check(thrd_create(&thr, signal_waiter, timed ? &mtx : NULL) == thrd_success, "thrd_create");
++    check(sem_wait(&started) == 0, "sem_wait");
++    /* The waiter has released the mutex in its wait */
++    check(mtx_lock(&mtx) == thrd_success, "mtx_lock");
++    check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++    for (i = 0; i < 5; i++) {
++        check(pthread_kill(thr, SIGUSR1) == 0, "pthread_kill");
++        thrd_sleep(&ts, NULL);
++    }
++    check(mtx_lock(&mtx) == thrd_success, "mtx_lock");
++    ready = 1;
++    check(cnd_broadcast(&cnd) == thrd_success, "cnd_broadcast");
++    check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++    check(thrd_join(thr, &res) == thrd_success, "thrd_join");
++    if (timed)
++        check(res == thrd_success, "cnd_timedwait interrupted by signals");
++    else
++        check(res == thrd_success, "cnd_wait interrupted by signals");
++    check(signalled > 0, "handler ran");
++}
++
++/*
++ * The cancellation tests use a recursive mutex, which the owner can
++ * relock with mtx_trylock: that shows the cleanup handler runs with
++ * the mutex held.
++ */
++static void
++cleanup(void *arg)
++{
++    (void)arg;
++    owned = mtx_trylock(&mtx) == thrd_success;
++    if (owned) {
++        mtx_unlock(&mtx);
++        mtx_unlock(&mtx);
++    }
++}
++
++/* Blocks in cnd_wait until cancelled */
++static void *
++blocked_waiter(void *arg)
++{
++    (void)arg;
++    mtx_lock(&mtx);
++    pthread_cleanup_push(cleanup, NULL);
++    sem_post(&started);
++    for (;;)
++        cnd_wait(&cnd, &mtx);
++    pthread_cleanup_pop(0);
++    return NULL;
++}
++
++/* Calls a wait with a cancellation request pending */
++static void *
++pending_waiter(void *arg)
++{
++    struct timespec ts = deadline(60000);
++
++    pthread_cancel(pthread_self());
++    mtx_lock(&mtx);
++    pthread_cleanup_push(cleanup, NULL);
++    if (arg)
++        (void)cnd_timedwait(&cnd, &mtx, &ts);
++    else
++        (void)cnd_wait(&cnd, &mtx);
++    returned = 1;
++    pthread_cleanup_pop(1);
++    return NULL;
++}
++
++static void
++check_pending(int timed)
++{
++    pthread_t thr;
++    void     *res = NULL;
++
++    owned = 0;
++    returned = 0;
++    check(pthread_create(&thr, NULL, pending_waiter, timed ? &mtx : NULL) == 0, "pthread_create");
++    check(pthread_join(thr, &res) == 0, "pthread_join");
++    if (timed)
++        check(res == PTHREAD_CANCELED && !returned, "cnd_timedwait is a cancellation point");
++    else
++        check(res == PTHREAD_CANCELED && !returned, "cnd_wait is a cancellation point");
++    check(owned, "mutex held in the cleanup handler");
++    check(!held(), "mutex released");
++}
++
++int
++main(void)
++{
++    struct sigaction act;
++    struct timespec  ts, now;
++    pthread_t        pthr;
++    void            *pres = NULL;
++
++    alarm(60);
++    check(sem_init(&started, 0, 0) == 0, "sem_init");
++    check(mtx_init(&mtx, mtx_timed) == thrd_success, "mtx_init");
++    check(cnd_init(&cnd) == thrd_success, "cnd_init");
++
++    /* With nothing waiting, these have no effect and succeed */
++    check(cnd_signal(&cnd) == thrd_success, "cnd_signal");
++    check(cnd_broadcast(&cnd) == thrd_success, "cnd_broadcast");
++
++    /* A timed out wait releases and reacquires the mutex */
++    check(mtx_lock(&mtx) == thrd_success, "mtx_lock");
++    ts = deadline(50);
++    check(cnd_timedwait(&cnd, &mtx, &ts) == thrd_timedout, "cnd_timedwait times out");
++    check(timespec_get(&now, TIME_UTC) == TIME_UTC && after(&now, &ts),
++          "no timeout before the deadline");
++    check(held(), "mutex held after a timeout");
++    ts = deadline(-1000);
++    check(cnd_timedwait(&cnd, &mtx, &ts) == thrd_timedout, "cnd_timedwait past deadline");
++    check(held(), "mutex held after a past deadline");
++    ts = deadline(1000);
++    ts.tv_nsec = 1000000000L;
++    check(cnd_timedwait(&cnd, &mtx, &ts) == thrd_error, "cnd_timedwait invalid deadline");
++    check(held(), "mutex held after an error");
++    check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++    check(!held(), "mutex released");
++
++    /* A destroyed condition variable can be initialized again */
++    cnd_destroy(&cnd);
++    check(cnd_init(&cnd) == thrd_success, "cnd_init again");
++
++    memset(&act, 0, sizeof(act));
++    act.sa_handler = handler;
++    sigemptyset(&act.sa_mask);
++    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
++    check_signals(0);
++    check_signals(1);
++    mtx_destroy(&mtx);
++
++    check(mtx_init(&mtx, mtx_plain | mtx_recursive) == thrd_success, "mtx_init recursive");
++
++    /* Cancelling a thread blocked in cnd_wait */
++    owned = 0;
++    check(pthread_create(&pthr, NULL, blocked_waiter, NULL) == 0, "pthread_create");
++    check(sem_wait(&started) == 0, "sem_wait");
++    check(mtx_lock(&mtx) == thrd_success, "mtx_lock");
++    check(pthread_cancel(pthr) == 0, "pthread_cancel");
++    check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++    check(pthread_join(pthr, &pres) == 0, "pthread_join");
++    check(pres == PTHREAD_CANCELED, "cnd_wait cancelled while blocked");
++    check(owned, "mutex reacquired before the cleanup handler");
++    check(!held(), "mutex released");
++
++    check_pending(0);
++    check_pending(1);
++
++    cnd_destroy(&cnd);
++    mtx_destroy(&mtx);
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-threads/test-mtx_trylock.c b/test/test-posix/test-threads/test-mtx_trylock.c
+new file mode 100644
+index 0000000000..a48d2fa4d5
+--- /dev/null
++++ b/test/test-posix/test-threads/test-mtx_trylock.c
+@@ -0,0 +1,321 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
++
++#include <errno.h>
++#include <limits.h>
++#include <pthread.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <threads.h>
++#include <time.h>
++
++/*
++ * mtx_ mutexes: which result each call gives (thrd_busy,
++ * thrd_timedout, thrd_error), mtx_trylock on a mutex the caller
++ * holds, lock counts of recursive mutexes, and waits that signals
++ * interrupt
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static mtx_t        mtx;
++static volatile int released;
++static volatile int signalled;
++
++static void
++handler(int sig)
++{
++    (void)sig;
++    signalled++;
++}
++
++/* The deadline ms milliseconds from now; negative values are in the past */
++static struct timespec
++deadline(long ms)
++{
++    struct timespec ts;
++
++    check(timespec_get(&ts, TIME_UTC) == TIME_UTC, "timespec_get");
++    ts.tv_sec += ms / 1000;
++    ts.tv_nsec += (ms % 1000) * 1000000L;
++    if (ts.tv_nsec >= 1000000000L) {
++        ts.tv_sec++;
++        ts.tv_nsec -= 1000000000L;
++    } else if (ts.tv_nsec < 0) {
++        ts.tv_sec--;
++        ts.tv_nsec += 1000000000L;
++    }
++    return ts;
++}
++
++static int
++after(const struct timespec *a, const struct timespec *b)
++{
++    return a->tv_sec > b->tv_sec || (a->tv_sec == b->tv_sec && a->tv_nsec >= b->tv_nsec);
++}
++
++/* mtx_trylock from another thread, which gives up the mutex again */
++static int
++try_other(void *arg)
++{
++    int ret = mtx_trylock(&mtx);
++
++    (void)arg;
++    if (ret == thrd_success && mtx_unlock(&mtx) != thrd_success)
++        return -1;
++    return ret;
++}
++
++static int
++other_trylock(void)
++{
++    thrd_t thr;
++    int    res = -2;
++
++    check(thrd_create(&thr, try_other, NULL) == thrd_success, "thrd_create");
++    check(thrd_join(thr, &res) == thrd_success, "thrd_join");
++    return res;
++}
++
++static int
++timed_other(void *arg)
++{
++    struct timespec ts = deadline(50), now;
++    int             ret = mtx_timedlock(&mtx, &ts);
++
++    (void)arg;
++    if (ret == thrd_success)
++        return mtx_unlock(&mtx) == thrd_success ? thrd_success : -1;
++    /* It waits until after the deadline, as TIME_UTC measures it */
++    check(timespec_get(&now, TIME_UTC) == TIME_UTC, "timespec_get");
++    if (ret == thrd_timedout && !after(&now, &ts))
++        return -3;
++    return ret;
++}
++
++static int
++past_other(void *arg)
++{
++    struct timespec ts = deadline(-1000);
++
++    (void)arg;
++    return mtx_timedlock(&mtx, &ts);
++}
++
++static int
++invalid_other(void *arg)
++{
++    struct timespec ts = deadline(1000);
++
++    (void)arg;
++    ts.tv_nsec = 1000000000L;
++    return mtx_timedlock(&mtx, &ts);
++}
++
++static int
++run(int (*func)(void *))
++{
++    thrd_t thr;
++    int    res = -2;
++
++    check(thrd_create(&thr, func, NULL) == thrd_success, "thrd_create");
++    check(thrd_join(thr, &res) == thrd_success, "thrd_join");
++    return res;
++}
++
++/* Waits for the mutex while main sends signals; it must keep waiting */
++static int
++lock_waiter(void *arg)
++{
++    struct timespec ts = deadline(60000);
++    int             ret;
++
++    ret = arg ? mtx_timedlock(&mtx, &ts) : mtx_lock(&mtx);
++    if (ret != thrd_success)
++        return ret;
++    ret = released ? thrd_success : -1;
++    mtx_unlock(&mtx);
++    return ret;
++}
++
++static void
++check_signals(int timed)
++{
++    struct timespec ts = { 0, 10000000 };
++    thrd_t          thr;
++    int             res = -2, i;
++
++    released = 0;
++    signalled = 0;
++    check(mtx_lock(&mtx) == thrd_success, "mtx_lock");
++    check(thrd_create(&thr, lock_waiter, timed ? &mtx : NULL) == thrd_success, "thrd_create");
++    for (i = 0; i < 5; i++) {
++        check(pthread_kill(thr, SIGUSR1) == 0, "pthread_kill");
++        thrd_sleep(&ts, NULL);
++    }
++    released = 1;
++    check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++    check(thrd_join(thr, &res) == thrd_success, "thrd_join");
++    if (timed)
++        check(res == thrd_success, "mtx_timedlock resumes waiting after a signal");
++    else
++        check(res == thrd_success, "mtx_lock resumes waiting after a signal");
++    check(signalled > 0, "handler ran");
++}
++
++int
++main(void)
++{
++    static const int plain_types[] = { mtx_plain, mtx_timed };
++    static const int recursive_types[] = { mtx_plain | mtx_recursive, mtx_timed | mtx_recursive };
++    struct sigaction act;
++    struct timespec  ts;
++    unsigned         i;
++    int              res;
++
++    alarm(60);
++
++    for (i = 0; i < 2; i++) {
++        check(mtx_init(&mtx, plain_types[i]) == thrd_success, "mtx_init");
++        check(mtx_trylock(&mtx) == thrd_success, "mtx_trylock unlocked");
++        /* A non-recursive mutex the caller holds is busy, without blocking */
++        check(mtx_trylock(&mtx) == thrd_busy, "mtx_trylock by the owner");
++        check(other_trylock() == thrd_busy, "mtx_trylock held by another thread");
++        check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++        check(other_trylock() == thrd_success, "mtx_trylock after unlock");
++        mtx_destroy(&mtx);
++        /* A destroyed mutex can be initialized again */
++        check(mtx_init(&mtx, plain_types[i]) == thrd_success, "mtx_init again");
++        mtx_destroy(&mtx);
++    }
++
++    for (i = 0; i < 2; i++) {
++        check(mtx_init(&mtx, recursive_types[i]) == thrd_success, "mtx_init recursive");
++        check(mtx_lock(&mtx) == thrd_success, "mtx_lock");
++        /* The owner's mtx_trylock adds one to the lock count */
++        check(mtx_trylock(&mtx) == thrd_success, "mtx_trylock by the owner");
++        check(mtx_lock(&mtx) == thrd_success, "mtx_lock by the owner");
++        if (recursive_types[i] & mtx_timed) {
++            ts = deadline(-1000);
++            check(mtx_timedlock(&mtx, &ts) == thrd_success, "mtx_timedlock by the owner");
++            check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++        }
++        check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock 3");
++        check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock 2");
++        check(other_trylock() == thrd_busy, "still held at a count of one");
++        check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock 1");
++        check(other_trylock() == thrd_success, "available at a count of zero");
++        mtx_destroy(&mtx);
++    }
++
++#ifdef __PICOLIBC__
++    /*
++     * Reaching the lock count limit takes UINT_MAX locks, too many to
++     * make; start just below it using picolibc's count, which holds
++     * the locks beyond the first. The limit isn't thrd_nomem, which
++     * these functions don't return.
++     */
++    check(mtx_init(&mtx, mtx_timed | mtx_recursive) == thrd_success, "mtx_init");
++    check(mtx_lock(&mtx) == thrd_success, "mtx_lock");
++    mtx.__count = UINT_MAX - 1;
++    check(mtx_lock(&mtx) == thrd_success, "mtx_lock to the limit");
++    check(mtx_lock(&mtx) == thrd_error, "mtx_lock past the lock count limit");
++    res = mtx_trylock(&mtx);
++    check(res == thrd_error || res == thrd_busy, "mtx_trylock past the lock count limit");
++    ts = deadline(1000);
++    check(mtx_timedlock(&mtx, &ts) == thrd_error, "mtx_timedlock past the lock count limit");
++    mtx.__count = 0;
++    check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++    check(other_trylock() == thrd_success, "available again");
++    mtx_destroy(&mtx);
++#endif
++
++    check(mtx_init(&mtx, mtx_timed) == thrd_success, "mtx_init timed");
++    /* Never a timeout when the mutex can be locked at once */
++    ts = deadline(-1000);
++    check(mtx_timedlock(&mtx, &ts) == thrd_success, "mtx_timedlock free, past deadline");
++    check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++    ts = deadline(1000);
++    ts.tv_nsec = -1;
++    res = mtx_timedlock(&mtx, &ts);
++    check(res == thrd_success || res == thrd_error, "mtx_timedlock free, invalid deadline");
++    if (res == thrd_success)
++        check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++
++    check(mtx_lock(&mtx) == thrd_success, "mtx_lock");
++    check(run(timed_other) == thrd_timedout, "mtx_timedlock times out");
++    check(run(past_other) == thrd_timedout, "mtx_timedlock with a past deadline");
++    check(run(invalid_other) == thrd_error, "mtx_timedlock with an invalid deadline");
++    check(mtx_unlock(&mtx) == thrd_success, "mtx_unlock");
++    check(run(timed_other) == thrd_success, "mtx_timedlock once unlocked");
++
++    memset(&act, 0, sizeof(act));
++    act.sa_handler = handler;
++    sigemptyset(&act.sa_mask);
++    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
++    check_signals(0);
++    check_signals(1);
++    mtx_destroy(&mtx);
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-threads/test-thrd_exit.c b/test/test-posix/test-threads/test-thrd_exit.c
+new file mode 100644
+index 0000000000..baad271095
+--- /dev/null
++++ b/test/test-posix/test-threads/test-thrd_exit.c
+@@ -0,0 +1,175 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
++
++#include <errno.h>
++#include <semaphore.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++#include <threads.h>
++#include <time.h>
++
++/*
++ * thrd_exit: called from the initial thread, the other threads keep
++ * running and the process exits with status 0 once the last one
++ * ends. Thread exit runs destructors, keeps mutexes locked and runs
++ * no atexit handlers.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static int   wfd;
++static tss_t key;
++static mtx_t mtx;
++static sem_t dtor_ran;
++static int   value;
++
++static void
++mark(char c)
++{
++    if (write(wfd, &c, 1) != 1)
++        _exit(13);
++}
++
++static void
++at_exit(void)
++{
++    mark('A');
++}
++
++static void
++dtor(void *p)
++{
++    mark(p == &value && tss_get(key) == NULL ? 'D' : 'd');
++    sem_post(&dtor_ran);
++}
++
++static int
++locker(void *arg)
++{
++    (void)arg;
++    mtx_lock(&mtx);
++    thrd_exit(3);
++}
++
++/* Runs after the initial thread has called thrd_exit */
++static int
++last(void *arg)
++{
++    (void)arg;
++    while (sem_wait(&dtor_ran) != 0)
++        ;
++    mark('T');
++    return 5;
++}
++
++static void
++child(void)
++{
++    thrd_t thr;
++    int    res = 0;
++
++    if (atexit(at_exit) != 0 || tss_create(&key, dtor) != thrd_success
++        || mtx_init(&mtx, mtx_plain) != thrd_success || sem_init(&dtor_ran, 0, 0) != 0)
++        _exit(10);
++
++    /* Thread exit keeps mutexes locked and runs no atexit handlers */
++    if (thrd_create(&thr, locker, NULL) != thrd_success || thrd_join(thr, &res) != thrd_success
++        || res != 3)
++        _exit(11);
++    mark(mtx_trylock(&mtx) == thrd_busy ? 'M' : 'm');
++
++    if (tss_set(key, &value) != thrd_success || thrd_create(&thr, last, NULL) != thrd_success)
++        _exit(12);
++    thrd_exit(7);
++}
++
++int
++main(void)
++{
++    char  buf[16];
++    int   fds[2], status;
++    pid_t pid;
++    long  n, len = 0;
++
++    alarm(60);
++    check(pipe(fds) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        close(fds[0]);
++        wfd = fds[1];
++        child();
++    }
++    close(fds[1]);
++    while ((n = read(fds[0], buf + len, sizeof(buf) - 1 - len)) > 0)
++        len += n;
++    buf[len] = '\0';
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    printf("events %s, status %#x\n", buf, status);
++    check(WIFEXITED(status), "process exited");
++    check(WEXITSTATUS(status) != 10 && WEXITSTATUS(status) != 11 && WEXITSTATUS(status) != 12,
++          "setup");
++    check(WEXITSTATUS(status) == 0, "exit status 0 after the last thread ends");
++    check(strcmp(buf, "MDTA") == 0, "order of events");
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-threads/test-thrd_join.c b/test/test-posix/test-threads/test-thrd_join.c
+new file mode 100644
+index 0000000000..df65f75ba4
+--- /dev/null
++++ b/test/test-posix/test-threads/test-thrd_join.c
+@@ -0,0 +1,254 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
++
++#include <errno.h>
++#include <limits.h>
++#include <pthread.h>
++#include <semaphore.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <threads.h>
++#include <time.h>
++
++/*
++ * thrd_join: exit statuses, waits that signals interrupt, and
++ * thrd_join as a cancellation point. The other <threads.h>
++ * functions are not cancellation points.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static sem_t        release, started;
++static volatile int signalled;
++static volatile int returned;
++static volatile int survived;
++static thrd_t       target;
++
++static void
++handler(int sig)
++{
++    (void)sig;
++    signalled++;
++}
++
++static int
++status(void *arg)
++{
++    return *(int *)arg;
++}
++
++/* Waits for main's go-ahead, then returns 99 */
++static int
++waiting(void *arg)
++{
++    (void)arg;
++    while (sem_wait(&release) != 0)
++        ;
++    return 99;
++}
++
++static int
++joiner(void *arg)
++{
++    int res = -1, ret;
++
++    (void)arg;
++    sem_post(&started);
++    ret = thrd_join(target, &res);
++    if (ret != thrd_success)
++        return 1000 + ret;
++    return res;
++}
++
++static void *
++cancelled_joiner(void *arg)
++{
++    int res;
++
++    (void)arg;
++    pthread_cancel(pthread_self());
++    (void)thrd_join(target, &res);
++    returned = 1;
++    return NULL;
++}
++
++static once_flag flag = ONCE_FLAG_INIT;
++
++static void
++init(void)
++{
++}
++
++static int
++nothing(void *arg)
++{
++    (void)arg;
++    return 0;
++}
++
++/* Calls every other <threads.h> function with a cancellation request pending */
++static void *
++not_points(void *arg)
++{
++    struct timespec ts;
++    mtx_t           mtx;
++    cnd_t           cnd;
++    thrd_t          thr;
++    tss_t           key;
++
++    (void)arg;
++    pthread_cancel(pthread_self());
++    call_once(&flag, init);
++    if (cnd_init(&cnd) != thrd_success || cnd_signal(&cnd) != thrd_success
++        || cnd_broadcast(&cnd) != thrd_success)
++        return NULL;
++    cnd_destroy(&cnd);
++    if (mtx_init(&mtx, mtx_timed) != thrd_success || mtx_lock(&mtx) != thrd_success
++        || mtx_unlock(&mtx) != thrd_success || mtx_trylock(&mtx) != thrd_success
++        || mtx_unlock(&mtx) != thrd_success)
++        return NULL;
++    if (timespec_get(&ts, TIME_UTC) != TIME_UTC)
++        return NULL;
++    ts.tv_sec += 10;
++    if (mtx_timedlock(&mtx, &ts) != thrd_success || mtx_unlock(&mtx) != thrd_success)
++        return NULL;
++    mtx_destroy(&mtx);
++    if (thrd_create(&thr, nothing, NULL) != thrd_success || thrd_detach(thr) != thrd_success)
++        return NULL;
++    if (!thrd_equal(thrd_current(), thrd_current()))
++        return NULL;
++    thrd_yield();
++    if (tss_create(&key, NULL) != thrd_success || tss_set(key, &key) != thrd_success
++        || tss_get(key) != &key)
++        return NULL;
++    tss_delete(key);
++    survived = 1;
++    pthread_testcancel();
++    returned = 1;
++    return NULL;
++}
++
++int
++main(void)
++{
++    static const int values[] = { 0, 1, -1, -12345, INT_MAX, INT_MIN };
++    struct sigaction act;
++    struct timespec  ts = { 0, 10000000 };
++    thrd_t           thr;
++    pthread_t        pthr;
++    void            *pres = NULL;
++    unsigned         i;
++    int              res;
++
++    alarm(60);
++    check(sem_init(&release, 0, 0) == 0 && sem_init(&started, 0, 0) == 0, "sem_init");
++
++    /* The whole int range comes back as the exit status */
++    for (i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
++        res = 42;
++        check(thrd_create(&thr, status, (void *)&values[i]) == thrd_success, "thrd_create");
++        check(thrd_join(thr, &res) == thrd_success, "thrd_join");
++        check(res == values[i], "exit status");
++    }
++    check(thrd_create(&thr, status, (void *)&values[1]) == thrd_success, "thrd_create");
++    check(thrd_join(thr, NULL) == thrd_success, "thrd_join with no status");
++
++#ifdef __PICOLIBC__
++    /* picolibc detects joining the calling thread, which must then be thrd_error */
++    check(thrd_join(thrd_current(), &res) == thrd_error, "thrd_join of itself");
++#endif
++
++    /* Signals to a thread blocked in thrd_join don't end the join */
++    memset(&act, 0, sizeof(act));
++    act.sa_handler = handler;
++    sigemptyset(&act.sa_mask);
++    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
++    check(thrd_create(&target, waiting, NULL) == thrd_success, "thrd_create");
++    check(thrd_create(&thr, joiner, NULL) == thrd_success, "thrd_create");
++    check(sem_wait(&started) == 0, "sem_wait");
++    for (i = 0; i < 5; i++) {
++        check(pthread_kill(thr, SIGUSR1) == 0, "pthread_kill");
++        thrd_sleep(&ts, NULL);
++    }
++    check(sem_post(&release) == 0, "sem_post");
++    check(thrd_join(thr, &res) == thrd_success, "thrd_join");
++    check(res == 99, "thrd_join interrupted by signals");
++    check(signalled > 0, "handler ran");
++
++    /* A cancellation point; the target stays joinable */
++    check(thrd_create(&target, waiting, NULL) == thrd_success, "thrd_create");
++    check(pthread_create(&pthr, NULL, cancelled_joiner, NULL) == 0, "pthread_create");
++    check(pthread_join(pthr, &pres) == 0, "pthread_join");
++    check(pres == PTHREAD_CANCELED && !returned, "thrd_join is a cancellation point");
++    check(sem_post(&release) == 0, "sem_post");
++    check(thrd_join(target, &res) == thrd_success && res == 99, "target still joinable");
++
++    /* No other <threads.h> function is a cancellation point */
++    returned = 0;
++    check(pthread_create(&pthr, NULL, not_points, NULL) == 0, "pthread_create");
++    check(pthread_join(pthr, &pres) == 0, "pthread_join");
++    check(survived, "<threads.h> functions with a cancellation request pending");
++    check(pres == PTHREAD_CANCELED && !returned, "request still pending");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-threads/test-thrd_sleep.c b/test/test-posix/test-threads/test-thrd_sleep.c
+new file mode 100644
+index 0000000000..488569c0bc
+--- /dev/null
++++ b/test/test-posix/test-threads/test-thrd_sleep.c
+@@ -0,0 +1,272 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
++
++#include <errno.h>
++#include <pthread.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <threads.h>
++#include <time.h>
++
++/*
++ * thrd_sleep: it sleeps at least the duration as TIME_UTC measures
++ * it, returns -1 with the remaining time when a caught signal
++ * interrupts it, a negative value with errno for invalid durations,
++ * and is a cancellation point
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define NSEC 1000000000LL
++
++static volatile int    signalled;
++static volatile int    done;
++static volatile int    returned;
++
++/* What the interrupted sleep reported */
++static struct timespec sleep_duration, sleep_remaining;
++static long long       sleep_elapsed;
++static int             sleep_ret, sleep_errno;
++
++static void
++handler(int sig)
++{
++    (void)sig;
++    signalled++;
++}
++
++static long long
++now_ns(void)
++{
++    struct timespec ts;
++
++    check(timespec_get(&ts, TIME_UTC) == TIME_UTC, "timespec_get");
++    return ts.tv_sec * NSEC + ts.tv_nsec;
++}
++
++static long long
++ns(const struct timespec *ts)
++{
++    return ts->tv_sec * NSEC + ts->tv_nsec;
++}
++
++/* Sleeps 30 s, which main's signals interrupt; arg asks for one timespec for both */
++static int
++sleeper(void *arg)
++{
++    struct timespec duration = { 30, 0 }, remaining = { -1, -1 };
++    long long       start = now_ns();
++
++    sleep_duration = duration;
++    if (arg) {
++        sleep_ret = thrd_sleep(&duration, &duration);
++        remaining = duration;
++    } else {
++        sleep_ret = thrd_sleep(&duration, &remaining);
++    }
++    sleep_errno = errno;
++    sleep_elapsed = now_ns() - start;
++    sleep_remaining = remaining;
++    __atomic_store_n(&done, 1, __ATOMIC_RELEASE);
++    return 0;
++}
++
++static void
++check_interrupted(int same)
++{
++    struct timespec ts = { 0, 20000000 };
++    thrd_t          thr;
++    int             i, res;
++    long long       remaining;
++
++    done = 0;
++    signalled = 0;
++    check(thrd_create(&thr, sleeper, same ? &thr : NULL) == thrd_success, "thrd_create");
++    /* A signal sent before the sleep starts doesn't end it, so keep sending */
++    for (i = 0; i < 1000 && !__atomic_load_n(&done, __ATOMIC_ACQUIRE); i++) {
++        check(pthread_kill(thr, SIGUSR1) == 0, "pthread_kill");
++        thrd_sleep(&ts, NULL);
++    }
++    check(thrd_join(thr, &res) == thrd_success, "thrd_join");
++    check(signalled > 0, "handler ran");
++    check(sleep_ret == -1, "thrd_sleep interrupted returns -1");
++#ifndef __GLIBC__
++    /* glibc's thrd_sleep leaves errno alone */
++    check(sleep_errno == EINTR, "errno is EINTR");
++#else
++    (void)sleep_errno;
++#endif
++    check(sleep_remaining.tv_nsec >= 0 && sleep_remaining.tv_nsec < NSEC,
++          "remaining time is valid");
++    remaining = ns(&sleep_remaining);
++    printf("%s timespec: interrupted after %lld ns with %lld ns remaining\n", same ? "one" : "two",
++           sleep_elapsed, remaining);
++    /*
++     * The requested interval minus the time actually slept. Linux
++     * computes it from the timer's expiry, which includes the
++     * thread's timer slack (50 us by default), so when the signal
++     * comes within the slack of the start it can exceed the request
++     * by up to that much; allow 1 ms.
++     */
++    check(remaining > 0 && remaining <= ns(&sleep_duration) + NSEC / 1000,
++          "remaining time in range");
++    check(remaining >= ns(&sleep_duration) - sleep_elapsed - NSEC / 10,
++          "remaining time accounts for the time slept");
++}
++
++static pthread_t main_thread;
++
++/* Sends main an ignored signal while it sleeps */
++static void *
++ignored_sender(void *arg)
++{
++    struct timespec ts = { 0, 10000000 };
++    int             i;
++
++    (void)arg;
++    for (i = 0; i < 5; i++) {
++        thrd_sleep(&ts, NULL);
++        pthread_kill(main_thread, SIGUSR2);
++    }
++    return NULL;
++}
++
++static void *
++cancelled_sleeper(void *arg)
++{
++    struct timespec duration = { 60, 0 };
++
++    (void)arg;
++    pthread_cancel(pthread_self());
++    (void)thrd_sleep(&duration, NULL);
++    returned = 1;
++    return NULL;
++}
++
++int
++main(void)
++{
++    struct sigaction act;
++    struct timespec  ts;
++    long long        start, elapsed;
++    pthread_t        pthr;
++    void            *pres = NULL;
++
++    alarm(120);
++
++    ts = (struct timespec) { 0, 0 };
++    check(thrd_sleep(&ts, NULL) == 0, "thrd_sleep zero");
++
++    /* Never shorter than requested */
++    ts = (struct timespec) { 0, 50000000 };
++    start = now_ns();
++    check(thrd_sleep(&ts, NULL) == 0, "thrd_sleep 50 ms");
++    elapsed = now_ns() - start;
++    check(elapsed >= ns(&ts), "slept at least 50 ms");
++
++    ts = (struct timespec) { 1, 0 };
++    start = now_ns();
++    check(thrd_sleep(&ts, &ts) == 0, "thrd_sleep 1 s");
++    elapsed = now_ns() - start;
++    check(elapsed >= NSEC, "slept at least 1 s");
++
++    /* A negative value, with errno set, for invalid durations */
++    ts = (struct timespec) { 0, -1 };
++    errno = 0;
++    check(thrd_sleep(&ts, NULL) < 0, "thrd_sleep negative nanoseconds");
++#ifndef __GLIBC__
++    /* glibc's thrd_sleep leaves errno alone */
++    check(errno == EINVAL, "errno for negative nanoseconds");
++#endif
++    ts = (struct timespec) { 0, 1000000000L };
++    errno = 0;
++    check(thrd_sleep(&ts, NULL) < 0, "thrd_sleep a billion nanoseconds");
++#ifndef __GLIBC__
++    check(errno == EINVAL, "errno for a billion nanoseconds");
++#endif
++
++    memset(&act, 0, sizeof(act));
++    act.sa_handler = handler;
++    sigemptyset(&act.sa_mask);
++    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
++    check_interrupted(0);
++    check_interrupted(1);
++
++    /* An ignored signal doesn't end the sleep */
++    act.sa_handler = SIG_IGN;
++    check(sigaction(SIGUSR2, &act, NULL) == 0, "sigaction");
++    ts = (struct timespec) { 0, 200000000 };
++    main_thread = pthread_self();
++    check(pthread_create(&pthr, NULL, ignored_sender, NULL) == 0, "pthread_create");
++    start = now_ns();
++    check(thrd_sleep(&ts, NULL) == 0, "ignored signals");
++    check(now_ns() - start >= ns(&ts), "slept at least 200 ms");
++    check(pthread_join(pthr, NULL) == 0, "pthread_join");
++
++    /* A cancellation point */
++    check(pthread_create(&pthr, NULL, cancelled_sleeper, NULL) == 0, "pthread_create");
++    check(pthread_join(pthr, &pres) == 0, "pthread_join");
++    check(pres == PTHREAD_CANCELED && !returned, "thrd_sleep is a cancellation point");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-threads/test-threads_h.c b/test/test-posix/test-threads/test-threads_h.c
+new file mode 100644
+index 0000000000..9ae9df3a79
+--- /dev/null
++++ b/test/test-posix/test-threads/test-threads_h.c
+@@ -0,0 +1,284 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <threads.h>
++
++/*
++ * The contents of <threads.h>: types, enumeration constants, macros
++ * and prototypes, the <time.h> symbols it makes visible, and names
++ * it must not declare
++ */
++
++/*
++ * <threads.h> may not declare these: the pthread_ prefix is reserved
++ * for <pthread.h> and sched_ for <sched.h>. A declaration would
++ * conflict with these definitions.
++ */
++static int
++pthread_create(void)
++{
++    return 1;
++}
++
++static int
++pthread_mutex_lock(void)
++{
++    return 2;
++}
++
++static int
++pthread_key_create(void)
++{
++    return 3;
++}
++
++static int
++sched_yield(void)
++{
++    return 4;
++}
++
++/* <time.h> symbols, with nothing else included yet */
++static struct timespec time_spec;
++static time_t          time_value;
++static clockid_t       clock_value = CLOCK_REALTIME;
++_Static_assert(TIME_UTC > 0, "TIME_UTC");
++
++/* Complete object types, and the function pointer types */
++_Static_assert(sizeof(cnd_t) > 0 && sizeof(mtx_t) > 0 && sizeof(once_flag) > 0 && sizeof(thrd_t) > 0
++                   && sizeof(tss_t) > 0,
++               "complete types");
++_Static_assert(_Generic((thrd_start_t)0, int (*)(void *): 1, default: 0), "thrd_start_t");
++_Static_assert(_Generic((tss_dtor_t)0, void (*)(void *): 1, default: 0), "tss_dtor_t");
++
++/* Enumeration constants, not macros */
++#if defined(mtx_plain) || defined(mtx_recursive) || defined(mtx_timed) || defined(thrd_busy) \
++    || defined(thrd_error) || defined(thrd_nomem) || defined(thrd_success)                   \
++    || defined(thrd_timedout)
++#error <threads.h> constants are macros
++#endif
++
++/* Duplicate case labels would fail to compile */
++static int
++thrd_result_distinct(int v)
++{
++    switch (v) {
++    case thrd_success:
++    case thrd_busy:
++    case thrd_error:
++    case thrd_nomem:
++    case thrd_timedout:
++        return 1;
++    }
++    return 0;
++}
++
++static int
++mtx_type_distinct(int v)
++{
++    switch (v) {
++    case mtx_plain:
++    case mtx_timed:
++    case mtx_plain | mtx_recursive:
++    case mtx_timed | mtx_recursive:
++        return 1;
++    }
++    return 0;
++}
++
++/* TSS_DTOR_ITERATIONS works in #if */
++#if TSS_DTOR_ITERATIONS < 4
++#error TSS_DTOR_ITERATIONS is below _POSIX_THREAD_DESTRUCTOR_ITERATIONS
++#endif
++
++#if !defined(__cplusplus) && __STDC_VERSION__ < 202311L
++#ifndef thread_local
++#error thread_local is not defined
++#endif
++#endif
++
++#define str(x)  #x
++#define xstr(x) str(x)
++
++static thread_local int per_thread = 1;
++
++#include <limits.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/types.h>
++#include <unistd.h>
++
++#if defined(PTHREAD_DESTRUCTOR_ITERATIONS) && TSS_DTOR_ITERATIONS != PTHREAD_DESTRUCTOR_ITERATIONS
++#error TSS_DTOR_ITERATIONS differs from PTHREAD_DESTRUCTOR_ITERATIONS
++#endif
++
++#if defined(__STDC_NO_THREADS__) && !defined(_POSIX_SUBPROFILE)
++#error __STDC_NO_THREADS__ is defined
++#endif
++
++/* thrd_t is pthread_t */
++_Static_assert(_Generic((thrd_t) { 0 }, pthread_t: 1, default: 0), "thrd_t is pthread_t");
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* The checks that need no library support */
++static void
++header_checks(void)
++{
++    (void)time_spec;
++    (void)time_value;
++    (void)clock_value;
++
++    check(pthread_create() == 1 && pthread_mutex_lock() == 2 && pthread_key_create() == 3
++              && sched_yield() == 4,
++          "names left to the application");
++
++    check(thrd_result_distinct(thrd_success) && mtx_type_distinct(mtx_plain), "constants");
++
++#if !defined(__cplusplus) && __STDC_VERSION__ < 202311L
++    check(strcmp(xstr(thread_local), "_Thread_local") == 0,
++          "thread_local expands to _Thread_local");
++#endif
++    check(per_thread == 1, "thread_local initializer");
++}
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
++
++static once_flag once = ONCE_FLAG_INIT;
++
++/* The prototypes, through pointers of the specified types */
++static void      (     *volatile p_call_once)(once_flag *, void (*)(void)) = call_once;
++static int       (      *volatile p_cnd_broadcast)(cnd_t *) = cnd_broadcast;
++static void      (     *volatile p_cnd_destroy)(cnd_t *) = cnd_destroy;
++static int       (      *volatile p_cnd_init)(cnd_t *) = cnd_init;
++static int       (      *volatile p_cnd_signal)(cnd_t *) = cnd_signal;
++static int       (      *volatile p_cnd_timedwait)(cnd_t       *restrict, mtx_t       *restrict,
++                                        const struct timespec       *restrict)
++    = cnd_timedwait;
++static int  ( *volatile p_cnd_wait)(cnd_t *, mtx_t *) = cnd_wait;
++static void (* volatile p_mtx_destroy)(mtx_t *) = mtx_destroy;
++static int  ( *volatile p_mtx_init)(mtx_t *, int) = mtx_init;
++static int  ( *volatile p_mtx_lock)(mtx_t *) = mtx_lock;
++static int  ( *volatile p_mtx_timedlock)(mtx_t  *restrict, const struct timespec  *restrict)
++    = mtx_timedlock;
++static int    (   *volatile p_mtx_trylock)(mtx_t *) = mtx_trylock;
++static int    (   *volatile p_mtx_unlock)(mtx_t *) = mtx_unlock;
++static int    (   *volatile p_thrd_create)(thrd_t *, thrd_start_t, void *) = thrd_create;
++static thrd_t (* volatile p_thrd_current)(void) = thrd_current;
++static int    (   *volatile p_thrd_detach)(thrd_t) = thrd_detach;
++static int    (   *volatile p_thrd_equal)(thrd_t, thrd_t) = thrd_equal;
++static void   (  *volatile p_thrd_exit)(int) = thrd_exit;
++static int    (   *volatile p_thrd_join)(thrd_t, int *) = thrd_join;
++static int    (   *volatile p_thrd_sleep)(const struct timespec *, struct timespec *) = thrd_sleep;
++static void   (  *volatile p_thrd_yield)(void) = thrd_yield;
++static int    (   *volatile p_tss_create)(tss_t *, tss_dtor_t) = tss_create;
++static void   (  *volatile p_tss_delete)(tss_t) = tss_delete;
++static void  *( *volatile p_tss_get)(tss_t) = tss_get;
++static int    (   *volatile p_tss_set)(tss_t, void *) = tss_set;
++
++static int    once_count;
++
++static void
++once_init(void)
++{
++    once_count++;
++}
++
++static int
++read_per_thread(void *arg)
++{
++    (void)arg;
++    return per_thread;
++}
++
++int
++main(void)
++{
++    thrd_t thr;
++    int    res = -1;
++    long   iterations;
++
++    /* <time.h> functions are declared too */
++    check(timespec_get(&time_spec, TIME_UTC) == TIME_UTC, "timespec_get");
++    check(clock_gettime(clock_value, &time_spec) == 0, "clock_gettime");
++    time_value = time(NULL);
++    check(time_value != (time_t)-1, "time");
++
++    header_checks();
++
++    iterations = sysconf(_SC_THREAD_DESTRUCTOR_ITERATIONS);
++    check(iterations == -1 || iterations >= TSS_DTOR_ITERATIONS,
++          "TSS_DTOR_ITERATIONS within sysconf's value");
++
++    check(p_call_once && p_cnd_broadcast && p_cnd_destroy && p_cnd_init && p_cnd_signal
++              && p_cnd_timedwait && p_cnd_wait && p_mtx_destroy && p_mtx_init && p_mtx_lock
++              && p_mtx_timedlock && p_mtx_trylock && p_mtx_unlock && p_thrd_create && p_thrd_current
++              && p_thrd_detach && p_thrd_equal && p_thrd_exit && p_thrd_join && p_thrd_sleep
++              && p_thrd_yield && p_tss_create && p_tss_delete && p_tss_get && p_tss_set,
++          "functions");
++
++    p_call_once(&once, once_init);
++    p_call_once(&once, once_init);
++    check(once_count == 1, "ONCE_FLAG_INIT");
++
++    /* A thread_local object is per thread */
++    per_thread = 2;
++    check(thrd_create(&thr, read_per_thread, NULL) == thrd_success, "thrd_create");
++    check(thrd_join(thr, &res) == thrd_success && res == 1, "thread_local");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++int
++main(void)
++{
++    header_checks();
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-threads/test-tss_delete.c b/test/test-posix/test-threads/test-tss_delete.c
+new file mode 100644
+index 0000000000..fc484024f4
+--- /dev/null
++++ b/test/test-posix/test-threads/test-tss_delete.c
+@@ -0,0 +1,273 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
++
++#include <errno.h>
++#include <limits.h>
++#include <pthread.h>
++#include <semaphore.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++#include <threads.h>
++#include <time.h>
++
++/*
++ * tss_ destructors: how often they run (TSS_DTOR_ITERATIONS), what
++ * tss_get says inside them, tss_delete and tss_set running none, and
++ * none running at process termination. Thread exit also runs
++ * pthread_key_create destructors.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static tss_t         key_always, key_twice, key_null, key_nodtor, key_deleted, key_late;
++static pthread_key_t pkey;
++static int           always_calls, twice_calls, null_calls, deleted_calls, pkey_calls;
++static int           bad_value, bad_get;
++static int           value, other;
++static sem_t         created, go;
++
++/* Sets its value again every time, so only the iteration limit stops it */
++static void
++dtor_always(void *p)
++{
++    always_calls++;
++    if (p != &value)
++        bad_value++;
++    if (tss_get(key_always) != NULL)
++        bad_get++;
++    tss_set(key_always, &value);
++}
++
++/* Sets its value again twice, so it runs three times */
++static void
++dtor_twice(void *p)
++{
++    if (p != &other)
++        bad_value++;
++    if (tss_get(key_twice) != NULL)
++        bad_get++;
++    if (++twice_calls < 3)
++        tss_set(key_twice, &other);
++}
++
++static void
++dtor_null(void *p)
++{
++    (void)p;
++    null_calls++;
++}
++
++static void
++dtor_deleted(void *p)
++{
++    (void)p;
++    deleted_calls++;
++}
++
++static void
++dtor_pkey(void *p)
++{
++    if (p == &value)
++        pkey_calls++;
++}
++
++static int
++user(void *arg)
++{
++    (void)arg;
++    if (tss_set(key_always, &value) != thrd_success || tss_set(key_twice, &other) != thrd_success
++        || tss_set(key_nodtor, &value) != thrd_success
++        || tss_set(key_deleted, &value) != thrd_success || pthread_setspecific(pkey, &value) != 0)
++        return 1;
++    /* tss_set doesn't run the destructor on the value it replaces */
++    if (tss_set(key_twice, &value) != thrd_success || tss_set(key_twice, &other) != thrd_success)
++        return 2;
++    /* key_null keeps its null value */
++    if (tss_get(key_null) != NULL)
++        return 3;
++    /* Deleting a key with a value runs no destructor, then or at exit */
++    tss_delete(key_deleted);
++    thrd_exit(0);
++}
++
++/* Started before key_late exists */
++static int
++early(void *arg)
++{
++    (void)arg;
++    sem_post(&created);
++    while (sem_wait(&go) != 0)
++        ;
++    return tss_get(key_late) == NULL ? 0 : 1;
++}
++
++static tss_t key_self;
++
++static void
++dtor_self(void *p)
++{
++    (void)p;
++    /* tss_delete can be called from a destructor */
++    tss_delete(key_self);
++    deleted_calls += 100;
++}
++
++static int
++self_deleter(void *arg)
++{
++    (void)arg;
++    return tss_set(key_self, &value) == thrd_success ? 0 : 1;
++}
++
++/* In a child: destructors don't run at process termination */
++static int   child_wfd;
++static tss_t key_child;
++
++static void
++dtor_child(void *p)
++{
++    char c = 'D';
++
++    (void)p;
++    if (write(child_wfd, &c, 1) != 1)
++        _exit(3);
++}
++
++static void
++child(int wfd)
++{
++    child_wfd = wfd;
++    if (tss_create(&key_child, dtor_child) != thrd_success
++        || tss_set(key_child, &value) != thrd_success)
++        _exit(2);
++    exit(0);
++}
++
++int
++main(void)
++{
++    thrd_t thr;
++    int    res = -1, fds[2], status;
++    pid_t  pid;
++    char   buf[4];
++
++    alarm(60);
++    check(sem_init(&created, 0, 0) == 0 && sem_init(&go, 0, 0) == 0, "sem_init");
++
++#if TSS_DTOR_ITERATIONS < 4
++#error TSS_DTOR_ITERATIONS is below _POSIX_THREAD_DESTRUCTOR_ITERATIONS
++#endif
++
++    check(tss_create(&key_always, dtor_always) == thrd_success, "tss_create");
++    check(tss_create(&key_twice, dtor_twice) == thrd_success, "tss_create");
++    check(tss_create(&key_null, dtor_null) == thrd_success, "tss_create");
++    check(tss_create(&key_nodtor, NULL) == thrd_success, "tss_create");
++    check(tss_create(&key_deleted, dtor_deleted) == thrd_success, "tss_create");
++    check(pthread_key_create(&pkey, dtor_pkey) == 0, "pthread_key_create");
++    check(key_always != key_twice && key_twice != key_null && key_null != key_nodtor,
++          "distinct keys");
++
++    check(thrd_create(&thr, user, NULL) == thrd_success, "thrd_create");
++    check(thrd_join(thr, &res) == thrd_success && res == 0, "user");
++    printf("TSS_DTOR_ITERATIONS %d, destructor that always sets a value ran %d times\n",
++           TSS_DTOR_ITERATIONS, always_calls);
++    check(always_calls >= TSS_DTOR_ITERATIONS && always_calls <= TSS_DTOR_ITERATIONS + 1,
++          "destructor rounds stop at TSS_DTOR_ITERATIONS");
++    check(twice_calls == 3, "destructor rounds repeat while values remain");
++    check(bad_value == 0, "destructors get the previous value");
++    check(bad_get == 0, "tss_get is null in the key's destructor");
++    check(null_calls == 0, "no destructor call for null values");
++    check(deleted_calls == 0, "tss_delete runs no destructor");
++    check(pkey_calls == 1, "thrd_exit runs pthread_key_create destructors");
++
++    /* tss_delete called from a destructor */
++    check(tss_create(&key_self, dtor_self) == thrd_success, "tss_create");
++    check(thrd_create(&thr, self_deleter, NULL) == thrd_success, "thrd_create");
++    check(thrd_join(thr, &res) == thrd_success && res == 0, "self_deleter");
++    check(deleted_calls == 100, "destructor that deletes its key ran once");
++
++    /* A new key is null in threads that already exist */
++    check(thrd_create(&thr, early, NULL) == thrd_success, "thrd_create");
++    check(sem_wait(&created) == 0, "sem_wait");
++    check(tss_create(&key_late, dtor_null) == thrd_success, "tss_create");
++    check(tss_set(key_late, &value) == thrd_success, "tss_set");
++    check(sem_post(&go) == 0, "sem_post");
++    check(thrd_join(thr, &res) == thrd_success && res == 0, "new key null in existing thread");
++    check(tss_get(key_late) == &value, "main's value");
++
++    /* Destructors don't run at process termination */
++    check(pipe(fds) == 0, "pipe");
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        close(fds[0]);
++        child(fds[1]);
++    }
++    close(fds[1]);
++    check(read(fds[0], buf, sizeof(buf)) == 0, "no destructor output");
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "child exit status");
++    check(null_calls == 0, "no destructor in the parent");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

@@ -1,0 +1,1343 @@
+From 5bef92cde28106cff6e5fa43206164811dd956b9 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:58:37 +0000
+Subject: [PATCH 6/7] test-posix: Check semget, semctl and semop
+
+Initialization of new sets, every semctl command and semid_ds
+member, semadj cleared by SETVAL and SETALL, ordered all-or-nothing
+arrays, waits counted in semncnt and semzcnt and ended by a change,
+a signal or removal, SEM_UNDO, and the errors.
+---
+ test/test-posix/test-sys-sem/CMakeLists.txt   |   3 +
+ test/test-posix/test-sys-sem/meson.build      |   3 +
+ test/test-posix/test-sys-sem/test-semctl.c    | 435 ++++++++++++++++++
+ test/test-posix/test-sys-sem/test-semget.c    | 213 +++++++++
+ .../test-sys-sem/test-semop-block.c           | 328 +++++++++++++
+ test/test-posix/test-sys-sem/test-semop.c     | 248 ++++++++--
+ 6 files changed, 1200 insertions(+), 30 deletions(-)
+ create mode 100644 test/test-posix/test-sys-sem/test-semctl.c
+ create mode 100644 test/test-posix/test-sys-sem/test-semget.c
+ create mode 100644 test/test-posix/test-sys-sem/test-semop-block.c
+
+diff --git a/test/test-posix/test-sys-sem/CMakeLists.txt b/test/test-posix/test-sys-sem/CMakeLists.txt
+index 358600dcbf..6cd5044c20 100644
+--- a/test/test-posix/test-sys-sem/CMakeLists.txt
++++ b/test/test-posix/test-sys-sem/CMakeLists.txt
+@@ -34,7 +34,10 @@
+ #
+ 
+ set(tests
++  test-semctl
++  test-semget
+   test-semop
++  test-semop-block
+   test-sys_sem_h
+   )
+ 
+diff --git a/test/test-posix/test-sys-sem/meson.build b/test/test-posix/test-sys-sem/meson.build
+index 773e2c8f66..b1a03b7432 100644
+--- a/test/test-posix/test-sys-sem/meson.build
++++ b/test/test-posix/test-sys-sem/meson.build
+@@ -34,6 +34,9 @@
+ #
+ 
+ dir_tests = [
++  'test-semctl',
++  'test-semget',
+   'test-semop',
++  'test-semop-block',
+   'test-sys_sem_h',
+ ]
+diff --git a/test/test-posix/test-sys-sem/test-semctl.c b/test/test-posix/test-sys-sem/test-semctl.c
+new file mode 100644
+index 0000000000..2cb1cdb1b7
+--- /dev/null
++++ b/test/test-posix/test-sys-sem/test-semctl.c
+@@ -0,0 +1,435 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                                \
++    || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0                             \
++        && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
++
++#include <errno.h>
++#include <limits.h>
++#include <signal.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/sem.h>
++#include <sys/wait.h>
++#include <time.h>
++
++/*
++ * semctl's commands, and every member of semid_ds. On 32-bit targets
++ * the library converts the kernel's structure, so each member is
++ * checked against a value that only the right field can hold.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* The application declares union semun */
++union semun {
++    int              val;
++    struct semid_ds *buf;
++    unsigned short  *array;
++};
++
++/* Every set made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        semctl(ids[--nids], 0, IPC_RMID);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++
++static void
++drop(int id)
++{
++    int i;
++
++    for (i = 0; i < nids; i++)
++        if (ids[i] == id)
++            ids[i] = ids[--nids];
++}
++/* Waits until the kernel's clock has passed t, so a new timestamp differs */
++static void
++pass_second(time_t t)
++{
++    struct timespec ts = { 0, 10 * 1000 * 1000 };
++
++    while (time(NULL) <= t + 1)
++        nanosleep(&ts, NULL);
++}
++
++/* Waits until semctl's count reaches want */
++static bool
++wait_count(int id, int num, int cmd, int want)
++{
++    struct timespec ts = { 0, 1000 * 1000 };
++    int             i;
++
++    for (i = 0; i < 20000; i++) {
++        if (semctl(id, num, cmd) == want)
++            return true;
++        nanosleep(&ts, NULL);
++    }
++    return false;
++}
++
++static int
++child_status(pid_t pid)
++{
++    int status;
++
++    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status))
++        return -1;
++    return WEXITSTATUS(status);
++}
++
++/* A child that does one operation, then waits for the parent before exiting */
++static pid_t
++child_op(int id, unsigned short num, short op, short flg, int *wfd)
++{
++    int   up[2], down[2];
++    pid_t pid;
++    char  c;
++
++    check(pipe(up) == 0 && pipe(down) == 0, "pipe");
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct sembuf sb = { num, op, flg };
++
++        close(up[0]);
++        close(down[1]);
++        if (semop(id, &sb, 1) != 0)
++            _exit(1);
++        if (write(up[1], "x", 1) != 1)
++            _exit(2);
++        /* EOF from the parent says go */
++        while (read(down[0], &c, 1) > 0)
++            ;
++        _exit(0);
++    }
++    close(up[1]);
++    close(down[0]);
++    check(read(up[0], &c, 1) == 1, "the child's operation");
++    close(up[0]);
++    *wfd = down[1];
++    return pid;
++}
++
++int
++main(void)
++{
++    struct semid_ds ds, set;
++    union semun     arg;
++    unsigned short  vals[3], got[3];
++    int             id, fd;
++    time_t          before, created, changed;
++    pid_t           pid, pid2;
++    uid_t           other_uid;
++    gid_t           other_gid;
++
++    signal(SIGALRM, watchdog);
++    alarm(60);
++    check(atexit(cleanup) == 0, "atexit");
++
++    before = time(NULL);
++    id = keep(semget(IPC_PRIVATE, 3, IPC_CREAT | 0600));
++    if (id < 0 && errno == ENOSYS) {
++        printf("no System V IPC, skipping\n");
++        return 77;
++    }
++    check(id >= 0, "semget");
++    arg.buf = &ds;
++    check(semctl(id, 0, IPC_STAT, arg) == 0, "IPC_STAT");
++    created = ds.sem_ctime;
++    check(created >= before - 1 && created <= time(NULL), "sem_ctime");
++
++    /* SETVAL and GETVAL, with sem_ctime set */
++    pass_second(created);
++    arg.val = 4;
++    check(semctl(id, 1, SETVAL, arg) == 0, "SETVAL returns 0");
++    check(semctl(id, 1, GETVAL) == 4, "GETVAL returns semval");
++    arg.buf = &ds;
++    check(semctl(id, 0, IPC_STAT, arg) == 0, "IPC_STAT");
++    check(ds.sem_ctime > created && ds.sem_ctime <= time(NULL), "SETVAL sets sem_ctime");
++    check(ds.sem_otime == 0, "SETVAL leaves sem_otime");
++    changed = ds.sem_ctime;
++
++    /* SETALL and GETALL, with sem_ctime set */
++    pass_second(changed);
++    vals[0] = 1;
++    vals[1] = 2;
++    vals[2] = 3;
++    arg.array = vals;
++    check(semctl(id, 0, SETALL, arg) == 0, "SETALL returns 0");
++    memset(got, 0, sizeof(got));
++    arg.array = got;
++    check(semctl(id, 0, GETALL, arg) == 0 && memcmp(got, vals, sizeof(got)) == 0, "GETALL");
++    arg.buf = &ds;
++    check(semctl(id, 0, IPC_STAT, arg) == 0, "IPC_STAT");
++    check(ds.sem_ctime > changed && ds.sem_ctime <= time(NULL), "SETALL sets sem_ctime");
++    changed = ds.sem_ctime;
++
++    /* GETPID: the last process to operate on each semaphore */
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct sembuf op = { 2, -1, 0 };
++
++        _exit(semop(id, &op, 1) == 0 ? 0 : 1);
++    }
++    check(child_status(pid) == 0, "child's semop");
++    check(semctl(id, 2, GETPID) == pid, "GETPID");
++    check(semctl(id, 0, GETPID) != pid, "the others untouched");
++
++    /* Every member of semid_ds holds its own value */
++    memset(&ds, 0x55, sizeof(ds));
++    arg.buf = &ds;
++    check(semctl(id, 0, IPC_STAT, arg) == 0, "IPC_STAT");
++    check(ds.sem_perm.uid == geteuid() && ds.sem_perm.cuid == geteuid(), "uid and cuid");
++    check(ds.sem_perm.gid == getegid() && ds.sem_perm.cgid == getegid(), "gid and cgid");
++    check((ds.sem_perm.mode & 0777) == 0600, "mode");
++    check(ds.sem_nsems == 3, "sem_nsems");
++    check(ds.sem_otime >= changed && ds.sem_otime <= time(NULL), "sem_otime");
++    check(ds.sem_ctime == changed, "sem_ctime");
++
++    /* GETNCNT and GETZCNT count the processes waiting */
++    arg.val = 0;
++    check(semctl(id, 0, SETVAL, arg) == 0, "SETVAL");
++    arg.val = 1;
++    check(semctl(id, 1, SETVAL, arg) == 0, "SETVAL");
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct sembuf op = { 0, -1, 0 };
++
++        _exit(semop(id, &op, 1) == 0 ? 0 : 1);
++    }
++    pid2 = fork();
++    check(pid2 >= 0, "fork");
++    if (pid2 == 0) {
++        struct sembuf op = { 1, 0, 0 };
++
++        _exit(semop(id, &op, 1) == 0 ? 0 : 1);
++    }
++    check(wait_count(id, 0, GETNCNT, 1), "GETNCNT");
++    check(wait_count(id, 1, GETZCNT, 1), "GETZCNT");
++    check(semctl(id, 0, GETZCNT) == 0 && semctl(id, 1, GETNCNT) == 0, "only those");
++    arg.val = 1;
++    check(semctl(id, 0, SETVAL, arg) == 0, "release the decrement");
++    arg.val = 0;
++    check(semctl(id, 1, SETVAL, arg) == 0, "release the wait for zero");
++    check(child_status(pid) == 0 && child_status(pid2) == 0, "both waiters done");
++    check(semctl(id, 0, GETNCNT) == 0 && semctl(id, 1, GETZCNT) == 0, "no one waiting");
++
++    /* SETVAL clears the semadj values: the child's undo doesn't happen */
++    arg.val = 5;
++    check(semctl(id, 0, SETVAL, arg) == 0, "SETVAL");
++    pid = child_op(id, 0, 1, SEM_UNDO, &fd);
++    check(semctl(id, 0, GETVAL) == 6, "the child's increment");
++    arg.val = 10;
++    check(semctl(id, 0, SETVAL, arg) == 0, "SETVAL");
++    close(fd);
++    check(child_status(pid) == 0, "child");
++    check(semctl(id, 0, GETVAL) == 10, "SETVAL cleared the semadj");
++
++    /* Without SETVAL the undo happens, for comparison */
++    pid = child_op(id, 0, 1, SEM_UNDO, &fd);
++    close(fd);
++    check(child_status(pid) == 0, "child");
++    check(semctl(id, 0, GETVAL) == 10, "the undo happens");
++
++    /* SETALL clears them too */
++    pid = child_op(id, 2, 2, SEM_UNDO, &fd);
++    vals[0] = 7;
++    vals[1] = 8;
++    vals[2] = 9;
++    arg.array = vals;
++    check(semctl(id, 0, SETALL, arg) == 0, "SETALL");
++    close(fd);
++    check(child_status(pid) == 0, "child");
++    check(semctl(id, 2, GETVAL) == 9, "SETALL cleared the semadj");
++
++    /* ERANGE past the system's limit, which is 32767 on Linux */
++    arg.val = INT_MAX;
++    check(semctl(id, 0, SETVAL, arg) == -1 && errno == ERANGE, "ERANGE for SETVAL");
++#ifdef __linux__
++    arg.val = 32768;
++    check(semctl(id, 0, SETVAL, arg) == -1 && errno == ERANGE, "ERANGE for SETVAL 32768");
++    arg.val = 32767;
++    check(semctl(id, 0, SETVAL, arg) == 0, "32767 is allowed");
++    vals[0] = 1;
++    vals[1] = 32768;
++    vals[2] = 1;
++    arg.array = vals;
++    check(semctl(id, 0, SETALL, arg) == -1 && errno == ERANGE, "ERANGE for SETALL");
++    check(semctl(id, 0, GETVAL) == 32767 && semctl(id, 2, GETVAL) == 9, "SETALL changed nothing");
++#endif
++
++    /* EINVAL for semnum out of range, a bad command or a bad identifier */
++    arg.val = 1;
++    check(semctl(id, 3, GETVAL) == -1 && errno == EINVAL, "EINVAL for semnum nsems");
++    check(semctl(id, -1, GETVAL) == -1 && errno == EINVAL, "EINVAL for semnum -1");
++    check(semctl(id, 3, SETVAL, arg) == -1 && errno == EINVAL, "EINVAL for SETVAL");
++    check(semctl(id, 3, GETPID) == -1 && errno == EINVAL, "EINVAL for GETPID");
++    check(semctl(id, 3, GETNCNT) == -1 && errno == EINVAL, "EINVAL for GETNCNT");
++    check(semctl(id, 3, GETZCNT) == -1 && errno == EINVAL, "EINVAL for GETZCNT");
++    check(semctl(id, 0, 0x7654) == -1 && errno == EINVAL, "EINVAL for the command");
++    check(semctl(-1, 0, GETVAL) == -1 && errno == EINVAL, "EINVAL for the identifier");
++
++    /* IPC_SET changes the owner and the mode bits, and sem_ctime */
++    arg.buf = &ds;
++    check(semctl(id, 0, IPC_STAT, arg) == 0, "IPC_STAT");
++    pass_second(ds.sem_ctime);
++    set = ds;
++    set.sem_perm.mode = 0604;
++    /* These are ignored */
++    set.sem_perm.cuid = set.sem_perm.uid + 1;
++    set.sem_perm.cgid = set.sem_perm.gid + 1;
++    set.sem_nsems = 1;
++    set.sem_otime = 1;
++    set.sem_ctime = 1;
++    arg.buf = &set;
++    check(semctl(id, 0, IPC_SET, arg) == 0, "IPC_SET");
++    memset(&ds, 0x55, sizeof(ds));
++    arg.buf = &ds;
++    check(semctl(id, 0, IPC_STAT, arg) == 0, "IPC_STAT");
++    check((ds.sem_perm.mode & 0777) == 0604, "mode set");
++    check(ds.sem_perm.cuid == geteuid() && ds.sem_perm.cgid == getegid(), "cuid and cgid stay");
++    check(ds.sem_nsems == 3 && ds.sem_otime != 1, "the other members stay");
++    check(ds.sem_ctime > changed && ds.sem_ctime <= time(NULL), "IPC_SET sets sem_ctime");
++
++    /* The owner can give the set away and, as its creator, still change it */
++    other_uid = geteuid() == 65534 ? 65533 : 65534;
++    other_gid = getegid() == 65534 ? 65533 : 65534;
++    set = ds;
++    set.sem_perm.uid = other_uid;
++    set.sem_perm.gid = other_gid;
++    arg.buf = &set;
++    if (semctl(id, 0, IPC_SET, arg) == 0) {
++        arg.buf = &ds;
++        check(semctl(id, 0, IPC_STAT, arg) == 0, "IPC_STAT");
++        check(ds.sem_perm.uid == other_uid && ds.sem_perm.gid == other_gid, "uid and gid set");
++        check(ds.sem_perm.cuid == geteuid() && ds.sem_perm.cgid == getegid(), "cuid and cgid stay");
++        set.sem_perm.uid = geteuid();
++        set.sem_perm.gid = getegid();
++        arg.buf = &set;
++        check(semctl(id, 0, IPC_SET, arg) == 0, "the creator sets the owner back");
++    } else {
++        check(errno == EINVAL, "IPC_SET of another owner");
++        printf("uid %ld isn't valid here: not checking a change of owner\n", (long)other_uid);
++    }
++
++    /* EACCES: reading needs read permission, and setting alter permission */
++    if (geteuid() != 0) {
++        set.sem_perm.mode = 0200;
++        arg.buf = &set;
++        check(semctl(id, 0, IPC_SET, arg) == 0, "IPC_SET write-only");
++        arg.buf = &ds;
++        check(semctl(id, 0, IPC_STAT, arg) == -1 && errno == EACCES, "EACCES for IPC_STAT");
++        check(semctl(id, 0, GETVAL) == -1 && errno == EACCES, "EACCES for GETVAL");
++        check(semctl(id, 0, GETPID) == -1 && errno == EACCES, "EACCES for GETPID");
++        check(semctl(id, 0, GETNCNT) == -1 && errno == EACCES, "EACCES for GETNCNT");
++        check(semctl(id, 0, GETZCNT) == -1 && errno == EACCES, "EACCES for GETZCNT");
++        arg.array = got;
++        check(semctl(id, 0, GETALL, arg) == -1 && errno == EACCES, "EACCES for GETALL");
++        set.sem_perm.mode = 0400;
++        arg.buf = &set;
++        check(semctl(id, 0, IPC_SET, arg) == 0, "IPC_SET read-only");
++        arg.val = 1;
++        check(semctl(id, 0, SETVAL, arg) == -1 && errno == EACCES, "EACCES for SETVAL");
++        arg.array = vals;
++        check(semctl(id, 0, SETALL, arg) == -1 && errno == EACCES, "EACCES for SETALL");
++    } else {
++        printf("running as root: not checking EACCES\n");
++    }
++
++    /* IPC_RMID removes the set */
++    check(semctl(id, 0, IPC_RMID) == 0, "IPC_RMID returns 0");
++    drop(id);
++    arg.buf = &ds;
++    check(semctl(id, 0, IPC_STAT, arg) == -1 && errno == EINVAL, "gone");
++    check(semctl(id, 0, IPC_RMID) == -1 && errno == EINVAL, "IPC_RMID twice");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-sem/test-semget.c b/test/test-posix/test-sys-sem/test-semget.c
+new file mode 100644
+index 0000000000..f69565c4cb
+--- /dev/null
++++ b/test/test-posix/test-sys-sem/test-semget.c
+@@ -0,0 +1,213 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0)
++
++#include <errno.h>
++#include <limits.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/sem.h>
++#include <time.h>
++
++/* semget creates and finds semaphore sets, and initializes them */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* The application declares union semun */
++union semun {
++    int              val;
++    struct semid_ds *buf;
++    unsigned short  *array;
++};
++
++/* Every set made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        semctl(ids[--nids], 0, IPC_RMID);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++
++static char dir[] = "/tmp/semget-XXXXXX";
++static char path[sizeof(dir) + 8];
++
++static void
++remove_key_file(void)
++{
++    unlink(path);
++    rmdir(dir);
++}
++
++int
++main(void)
++{
++    struct semid_ds ds;
++    union semun     arg;
++    unsigned short  vals[3];
++    key_t           key = -1;
++    int             a, b, id, proj, i;
++    time_t          before;
++    FILE           *f;
++
++    signal(SIGALRM, watchdog);
++    alarm(30);
++    check(atexit(remove_key_file) == 0 && atexit(cleanup) == 0, "atexit");
++
++    a = keep(semget(IPC_PRIVATE, 1, IPC_CREAT | 0600));
++    if (a < 0 && errno == ENOSYS) {
++        printf("no System V IPC, skipping\n");
++        return 77;
++    }
++    check(a >= 0, "semget");
++
++    /* IPC_PRIVATE always makes a new set, with or without IPC_CREAT */
++    b = keep(semget(IPC_PRIVATE, 1, 0600));
++    check(b >= 0 && b != a, "a second private set");
++
++    /* EINVAL when creating with nsems <= 0 or past the limit */
++    check(semget(IPC_PRIVATE, 0, IPC_CREAT | 0600) == -1 && errno == EINVAL, "EINVAL for 0");
++    check(semget(IPC_PRIVATE, -1, IPC_CREAT | 0600) == -1 && errno == EINVAL, "EINVAL for -1");
++    check(semget(IPC_PRIVATE, INT_MAX, IPC_CREAT | 0600) == -1 && errno == EINVAL,
++          "EINVAL past the limit");
++
++    /* A key from a file of our own; take one nobody else is using */
++    check(mkdtemp(dir) != NULL, "mkdtemp");
++    snprintf(path, sizeof(path), "%s/key", dir);
++    f = fopen(path, "w");
++    check(f != NULL, "key file");
++    fclose(f);
++    for (proj = 1; proj < 256; proj++) {
++        key = ftok(path, proj);
++        check(key != (key_t)-1, "ftok");
++        if (semget(key, 0, 0600) == -1 && errno == ENOENT)
++            break;
++    }
++    check(proj < 256, "an unused key");
++
++    /* Without IPC_CREAT, a key without a set is ENOENT */
++    check(semget(key, 3, 0600) == -1 && errno == ENOENT, "ENOENT");
++
++    before = time(NULL);
++    id = keep(semget(key, 3, IPC_CREAT | IPC_EXCL | 0640));
++    check(id >= 0, "create with a key");
++    check(semget(key, 3, 0600) == id, "found again");
++    check(semget(key, 0, 0) == id, "found with nsems 0");
++    check(semget(key, 2, IPC_CREAT | 0600) == id, "found asking for fewer semaphores");
++    check(semget(key, 4, 0600) == -1 && errno == EINVAL, "EINVAL asking for more");
++    check(semget(key, 3, IPC_CREAT | IPC_EXCL | 0600) == -1 && errno == EEXIST, "EEXIST");
++
++    /* The new set's semid_ds comes from the flags and the caller */
++    arg.buf = &ds;
++    check(semctl(id, 0, IPC_STAT, arg) == 0, "IPC_STAT");
++    check(ds.sem_perm.cuid == geteuid() && ds.sem_perm.uid == geteuid(), "cuid and uid");
++    check(ds.sem_perm.cgid == getegid() && ds.sem_perm.gid == getegid(), "cgid and gid");
++    check((ds.sem_perm.mode & 0777) == 0640, "the low 9 bits of the mode");
++    check(ds.sem_nsems == 3, "sem_nsems");
++    check(ds.sem_otime == 0, "sem_otime");
++    /* The kernel's clock in seconds may trail time() by a tick */
++    check(ds.sem_ctime >= before - 1 && ds.sem_ctime <= time(NULL), "sem_ctime");
++
++    /* Each semaphore starts with semval, sempid, semncnt and semzcnt zero */
++    vals[0] = vals[1] = vals[2] = 0xffff;
++    arg.array = vals;
++    check(semctl(id, 0, GETALL, arg) == 0 && vals[0] == 0 && vals[1] == 0 && vals[2] == 0,
++          "semval");
++    for (i = 0; i < 3; i++) {
++        check(semctl(id, i, GETVAL) == 0, "GETVAL");
++        check(semctl(id, i, GETPID) == 0, "sempid");
++        check(semctl(id, i, GETNCNT) == 0, "semncnt");
++        check(semctl(id, i, GETZCNT) == 0, "semzcnt");
++    }
++
++    /* EACCES when the set doesn't grant the permissions asked for */
++    if (geteuid() != 0) {
++        ds.sem_perm.mode = 0400;
++        arg.buf = &ds;
++        check(semctl(id, 0, IPC_SET, arg) == 0, "IPC_SET");
++        check(semget(key, 0, 0200) == -1 && errno == EACCES, "EACCES for alter");
++        check(semget(key, 0, 0400) == id, "read is still granted");
++    } else {
++        printf("running as root: not checking EACCES\n");
++    }
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-sem/test-semop-block.c b/test/test-posix/test-sys-sem/test-semop-block.c
+new file mode 100644
+index 0000000000..cd0b436a4c
+--- /dev/null
++++ b/test/test-posix/test-sys-sem/test-semop-block.c
+@@ -0,0 +1,328 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                                \
++    || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0                             \
++        && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
++
++#include <errno.h>
++#include <signal.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/sem.h>
++#include <sys/wait.h>
++#include <time.h>
++
++/*
++ * semop waits: for semval to change, for the set to go away, or for a
++ * signal, keeping semncnt and semzcnt; and SEM_UNDO undoes on exit
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* The application declares union semun */
++union semun {
++    int              val;
++    struct semid_ds *buf;
++    unsigned short  *array;
++};
++
++/* Every set made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        semctl(ids[--nids], 0, IPC_RMID);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++
++static void
++drop(int id)
++{
++    int i;
++
++    for (i = 0; i < nids; i++)
++        if (ids[i] == id)
++            ids[i] = ids[--nids];
++}
++/* Waits until semctl's count reaches want */
++static bool
++wait_count(int id, int num, int cmd, int want)
++{
++    struct timespec ts = { 0, 1000 * 1000 };
++    int             i;
++
++    for (i = 0; i < 20000; i++) {
++        if (semctl(id, num, cmd) == want)
++            return true;
++        nanosleep(&ts, NULL);
++    }
++    return false;
++}
++
++static int
++child_status(pid_t pid)
++{
++    int status;
++
++    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status))
++        return -1;
++    return WEXITSTATUS(status);
++}
++
++static void
++set_all(int id, unsigned short a, unsigned short b)
++{
++    unsigned short vals[2] = { a, b };
++    union semun    arg;
++
++    arg.array = vals;
++    check(semctl(id, 0, SETALL, arg) == 0, "SETALL");
++}
++
++static int
++value(int id, int num)
++{
++    return semctl(id, num, GETVAL);
++}
++
++static volatile sig_atomic_t caught;
++
++static void
++handler(int sig)
++{
++    caught = sig;
++}
++
++/* A child that waits in one semop; what it saw is its status */
++static pid_t
++waiter(int id, const struct sembuf *ops, size_t nops, bool catch)
++{
++    pid_t pid;
++
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct sembuf    mine[2];
++        struct sigaction sa;
++
++        if (catch) {
++            /* Without SA_RESTART, the signal interrupts semop */
++            memset(&sa, 0, sizeof(sa));
++            sa.sa_handler = handler;
++            sigemptyset(&sa.sa_mask);
++            sigaction(SIGUSR1, &sa, NULL);
++        }
++        memcpy(mine, ops, nops * sizeof(*ops));
++        if (semop(id, mine, nops) == 0)
++            _exit(0);
++        if (errno == EIDRM)
++            _exit(2);
++        if (errno == EINTR)
++            _exit(caught == SIGUSR1 ? 3 : 11);
++        _exit(12);
++    }
++    return pid;
++}
++
++int
++main(void)
++{
++    struct sembuf ops[2];
++    pid_t         pid;
++    int           id, fds[2];
++    char          c;
++
++    signal(SIGALRM, watchdog);
++    alarm(60);
++    check(atexit(cleanup) == 0, "atexit");
++
++    id = keep(semget(IPC_PRIVATE, 2, IPC_CREAT | 0600));
++    if (id < 0 && errno == ENOSYS) {
++        printf("no System V IPC, skipping\n");
++        return 77;
++    }
++    check(id >= 0, "semget");
++
++    /* A decrement waits, counted in semncnt, until semval is large enough */
++    set_all(id, 0, 0);
++    ops[0] = (struct sembuf) { 0, -2, 0 };
++    pid = waiter(id, ops, 1, false);
++    check(wait_count(id, 0, GETNCNT, 1), "semncnt counts the waiter");
++    check(semctl(id, 0, GETZCNT) == 0, "and semzcnt doesn't");
++    ops[0] = (struct sembuf) { 0, 1, 0 };
++    check(semop(id, ops, 1) == 0, "not enough yet");
++    check(semop(id, ops, 1) == 0, "enough now");
++    check(child_status(pid) == 0, "the decrement went through");
++    check(value(id, 0) == 0 && semctl(id, 0, GETNCNT) == 0, "semval and semncnt");
++
++    /* A wait for zero, counted in semzcnt, until semval is zero */
++    set_all(id, 0, 2);
++    ops[0] = (struct sembuf) { 1, 0, 0 };
++    pid = waiter(id, ops, 1, false);
++    check(wait_count(id, 1, GETZCNT, 1), "semzcnt counts the waiter");
++    check(semctl(id, 1, GETNCNT) == 0, "and semncnt doesn't");
++    ops[0] = (struct sembuf) { 1, -1, 0 };
++    check(semop(id, ops, 1) == 0, "not zero yet");
++    check(semop(id, ops, 1) == 0, "zero now");
++    check(child_status(pid) == 0, "the wait for zero ended");
++    check(semctl(id, 1, GETZCNT) == 0, "semzcnt");
++
++    /*
++     * A blocked array keeps nothing of what came before the blocking
++     * operation, and is retried as a whole
++     */
++    set_all(id, 0, 0);
++    ops[0] = (struct sembuf) { 1, 1, 0 };
++    ops[1] = (struct sembuf) { 0, -1, 0 };
++    pid = waiter(id, ops, 2, false);
++    check(wait_count(id, 0, GETNCNT, 1), "blocked on the second operation");
++    check(value(id, 1) == 0, "the first operation was undone while blocked");
++    ops[0] = (struct sembuf) { 0, 1, 0 };
++    check(semop(id, ops, 1) == 0, "release");
++    check(child_status(pid) == 0, "the array went through");
++    check(value(id, 0) == 0 && value(id, 1) == 1, "both operations done");
++
++    /* A caught signal ends the wait with EINTR and takes the waiter off semncnt */
++    set_all(id, 0, 0);
++    ops[0] = (struct sembuf) { 0, -1, 0 };
++    pid = waiter(id, ops, 1, true);
++    check(wait_count(id, 0, GETNCNT, 1), "waiting");
++    check(kill(pid, SIGUSR1) == 0, "kill");
++    check(child_status(pid) == 3, "EINTR");
++    check(semctl(id, 0, GETNCNT) == 0, "semncnt back down");
++    check(value(id, 0) == 0, "nothing done");
++
++    /* So does a caught signal during a wait for zero, with semzcnt */
++    set_all(id, 0, 1);
++    ops[0] = (struct sembuf) { 1, 0, 0 };
++    pid = waiter(id, ops, 1, true);
++    check(wait_count(id, 1, GETZCNT, 1), "waiting");
++    check(kill(pid, SIGUSR1) == 0, "kill");
++    check(child_status(pid) == 3, "EINTR");
++    check(semctl(id, 1, GETZCNT) == 0, "semzcnt back down");
++
++    /* SEM_UNDO: the changes are undone when the process exits */
++    set_all(id, 5, 5);
++    check(pipe(fds) == 0, "pipe");
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        struct sembuf undo[2] = {
++            { 0, -3, SEM_UNDO },
++            { 1, 2,  SEM_UNDO }
++        };
++        struct sembuf plain = { 1, 1, 0 };
++
++        close(fds[0]);
++        if (semop(id, undo, 2) != 0 || semop(id, &plain, 1) != 0)
++            _exit(1);
++        if (write(fds[1], "x", 1) != 1)
++            _exit(2);
++        _exit(0);
++    }
++    close(fds[1]);
++    check(read(fds[0], &c, 1) == 1, "the child's operations");
++    close(fds[0]);
++    check(child_status(pid) == 0, "child");
++    check(value(id, 0) == 5, "the decrement was undone");
++    check(value(id, 1) == 6, "the increment was undone, and the plain one kept");
++
++    /* Removing the set ends every wait with EIDRM */
++    set_all(id, 0, 1);
++    ops[0] = (struct sembuf) { 0, -1, 0 };
++    pid = waiter(id, ops, 1, false);
++    check(wait_count(id, 0, GETNCNT, 1), "waiting to decrement");
++    {
++        struct sembuf zero = { 1, 0, 0 };
++        pid_t         pid2 = waiter(id, &zero, 1, false);
++
++        check(wait_count(id, 1, GETZCNT, 1), "waiting for zero");
++        check(semctl(id, 0, IPC_RMID) == 0, "IPC_RMID");
++        drop(id);
++        check(child_status(pid) == 2, "EIDRM for the decrement");
++        check(child_status(pid2) == 2, "EIDRM for the wait for zero");
++    }
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-sem/test-semop.c b/test/test-posix/test-sys-sem/test-semop.c
+index b32229b571..cead151f3a 100644
+--- a/test/test-posix/test-sys-sem/test-semop.c
++++ b/test/test-posix/test-sys-sem/test-semop.c
+@@ -44,12 +44,16 @@
+         && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
+ 
+ #include <errno.h>
++#include <signal.h>
++#include <stdint.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <sys/sem.h>
+ #include <sys/wait.h>
++#include <time.h>
+ 
+-/* semget, semctl and semop manage a System V semaphore set */
++/* semop applies arrays of operations atomically, in order */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -59,60 +63,244 @@
+         }                                              \
+     } while (0)
+ 
++/* The application declares union semun */
+ union semun {
+     int              val;
+     struct semid_ds *buf;
+     unsigned short  *array;
+ };
+ 
++/* Every set made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        semctl(ids[--nids], 0, IPC_RMID);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++
++static void
++drop(int id)
++{
++    int i;
++
++    for (i = 0; i < nids; i++)
++        if (ids[i] == id)
++            ids[i] = ids[--nids];
++}
++static int
++child_status(pid_t pid)
++{
++    int status;
++
++    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status))
++        return -1;
++    return WEXITSTATUS(status);
++}
++
++static void
++set_all(int id, unsigned short a, unsigned short b)
++{
++    unsigned short vals[2] = { a, b };
++    union semun    arg;
++
++    arg.array = vals;
++    check(semctl(id, 0, SETALL, arg) == 0, "SETALL");
++}
++
++static int
++value(int id, int num)
++{
++    return semctl(id, num, GETVAL);
++}
++
++/* The third field of /proc/sys/kernel/sem is the most operations per call */
++static long
++semopm(void)
++{
++    FILE *f = fopen("/proc/sys/kernel/sem", "r");
++    long  msl, mns, opm = -1;
++
++    if (f) {
++        if (fscanf(f, "%ld %ld %ld", &msl, &mns, &opm) != 3)
++            opm = -1;
++        fclose(f);
++    }
++    return opm;
++}
++
+ int
+ main(void)
+ {
+     struct semid_ds ds;
+-    struct sembuf   op;
++    struct sembuf   ops[3], copy[3];
+     union semun     arg;
+-    unsigned short  vals[2] = { 3, 5 }, got[2];
+     pid_t           pid;
+-    int             id = semget(IPC_PRIVATE, 2, IPC_CREAT | 0600), status;
++    time_t          before;
++    long            opm;
++    int             id;
++
++    signal(SIGALRM, watchdog);
++    alarm(30);
++    check(atexit(cleanup) == 0, "atexit");
+ 
++    id = keep(semget(IPC_PRIVATE, 2, IPC_CREAT | 0600));
+     if (id < 0 && errno == ENOSYS) {
+         printf("no System V IPC, skipping\n");
+         return 77;
+     }
+     check(id >= 0, "semget");
+     arg.buf = &ds;
+-    check(semctl(id, 0, IPC_STAT, arg) == 0 && ds.sem_nsems == 2, "IPC_STAT");
+-    check((ds.sem_perm.mode & 0777) == 0600, "permissions");
+-    arg.array = vals;
+-    check(semctl(id, 0, SETALL, arg) == 0, "SETALL");
+-    arg.array = got;
+-    check(semctl(id, 0, GETALL, arg) == 0 && got[0] == 3 && got[1] == 5, "GETALL");
+-    arg.val = 1;
+-    check(semctl(id, 1, SETVAL, arg) == 0 && semctl(id, 1, GETVAL) == 1, "SETVAL");
+-
+-    op.sem_num = 0;
+-    op.sem_op = -3;
+-    op.sem_flg = 0;
+-    check(semop(id, &op, 1) == 0 && semctl(id, 0, GETVAL) == 0, "decrement");
+-    check(semctl(id, 0, GETPID) == getpid(), "GETPID");
+-    op.sem_flg = IPC_NOWAIT;
+-    op.sem_op = -1;
+-    check(semop(id, &op, 1) == -1 && errno == EAGAIN, "would block");
+-
+-    /* Another process's increment wakes the waiter */
++    check(semctl(id, 0, IPC_STAT, arg) == 0 && ds.sem_otime == 0, "no sem_otime yet");
++
++    /* A negative sem_op subtracts, a positive one adds, zero waits for zero */
++    set_all(id, 3, 0);
++    ops[0] = (struct sembuf) { 0, -2, 0 };
++    check(semop(id, ops, 1) == 0 && value(id, 0) == 1, "subtract");
++    ops[0] = (struct sembuf) { 1, 5, 0 };
++    check(semop(id, ops, 1) == 0 && value(id, 1) == 5, "add");
++    ops[0] = (struct sembuf) { 0, -1, 0 };
++    ops[1] = (struct sembuf) { 0, 0, 0 };
++    check(semop(id, ops, 2) == 0 && value(id, 0) == 0, "subtract to zero, then zero");
++
++    /* IPC_NOWAIT gives EAGAIN instead of waiting */
++    ops[0] = (struct sembuf) { 0, -1, IPC_NOWAIT };
++    check(semop(id, ops, 1) == -1 && errno == EAGAIN, "EAGAIN for a decrement");
++    ops[0] = (struct sembuf) { 1, 0, IPC_NOWAIT };
++    check(semop(id, ops, 1) == -1 && errno == EAGAIN, "EAGAIN waiting for zero");
++
++    /* The array is done in order: an increment lets a later decrement through */
++    set_all(id, 0, 0);
++    ops[0] = (struct sembuf) { 0, 1, 0 };
++    ops[1] = (struct sembuf) { 0, -1, IPC_NOWAIT };
++    check(semop(id, ops, 2) == 0 && value(id, 0) == 0, "increment, then decrement");
++    ops[0] = (struct sembuf) { 0, -1, IPC_NOWAIT };
++    ops[1] = (struct sembuf) { 0, 1, 0 };
++    check(semop(id, ops, 2) == -1 && errno == EAGAIN && value(id, 0) == 0,
++          "a decrement first can't wait for the increment after it");
++
++    /* All or nothing: a failure undoes the operations before it */
++    ops[0] = (struct sembuf) { 0, 2, 0 };
++    ops[1] = (struct sembuf) { 1, 3, 0 };
++    ops[2] = (struct sembuf) { 1, -4, IPC_NOWAIT };
++    memcpy(copy, ops, sizeof(ops));
++    check(semop(id, ops, 3) == -1 && errno == EAGAIN, "the last operation fails");
++    check(value(id, 0) == 0 && value(id, 1) == 0, "nothing changed");
++    check(memcmp(copy, ops, sizeof(ops)) == 0, "the array is not modified");
++
++    /* Success sets sempid for each semaphore named, and sem_otime */
++    set_all(id, 0, 0);
++    before = time(NULL);
++    fflush(stdout);
+     pid = fork();
+     check(pid >= 0, "fork");
+     if (pid == 0) {
+-        struct sembuf up = { 0, 1, 0 };
++        struct sembuf both[2] = {
++            { 0, 1, 0 },
++            { 1, 1, 0 }
++        };
+ 
+-        _exit(semop(id, &up, 1) == 0 ? 0 : 1);
++        _exit(semop(id, both, 2) == 0 ? 0 : 1);
+     }
+-    op.sem_flg = 0;
+-    check(semop(id, &op, 1) == 0, "waited");
+-    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+-          "child");
++    check(child_status(pid) == 0, "the child's semop");
++    check(semctl(id, 0, GETPID) == pid && semctl(id, 1, GETPID) == pid, "sempid");
++    arg.buf = &ds;
++    check(semctl(id, 0, IPC_STAT, arg) == 0, "IPC_STAT");
++    /* The kernel's clock in seconds may trail time() by a tick */
++    check(ds.sem_otime >= before - 1 && ds.sem_otime <= time(NULL), "sem_otime");
++
++    /* A failed semop leaves sempid alone */
++    ops[0] = (struct sembuf) { 0, -5, IPC_NOWAIT };
++    check(semop(id, ops, 1) == -1 && errno == EAGAIN, "EAGAIN");
++    check(semctl(id, 0, GETPID) == pid, "sempid unchanged");
++
++    /* EFBIG for a semaphore number past the set */
++    ops[0] = (struct sembuf) { 2, 1, 0 };
++    check(semop(id, ops, 1) == -1 && errno == EFBIG, "EFBIG");
++
++    /* E2BIG for more operations than the system allows */
++    opm = semopm();
++    if (opm > 0 && opm < 100000) {
++        struct sembuf *many = calloc((size_t)opm + 1, sizeof(*many));
++
++        check(many != NULL, "calloc");
++        check(semop(id, many, (size_t)opm + 1) == -1 && errno == E2BIG, "E2BIG");
++        free(many);
++    } else {
++        printf("no SEMOPM: not checking E2BIG past it\n");
++    }
++#if SIZE_MAX > 0xffffffff && !defined(__GLIBC__)
++    /* A count the kernel's 32 bits can't hold; glibc 2.43 truncates it */
++    ops[0] = (struct sembuf) { 0, 1, 0 };
++    check(semop(id, ops, ((size_t)1 << 32) | 1) == -1 && errno == E2BIG, "E2BIG past 32 bits");
++    check(value(id, 0) == 1, "nothing done");
++#endif
++
++    /* ERANGE when semval would pass the limit, 32767 on Linux */
++#ifdef __linux__
++    set_all(id, 32767, 0);
++    ops[0] = (struct sembuf) { 0, 1, 0 };
++    check(semop(id, ops, 1) == -1 && errno == ERANGE && value(id, 0) == 32767, "ERANGE for semval");
++
++    /* or when semadj would pass it */
++    set_all(id, 0, 0);
++    ops[0] = (struct sembuf) { 1, 32767, SEM_UNDO };
++    ops[1] = (struct sembuf) { 1, -32767, 0 };
++    check(semop(id, ops, 2) == 0, "semadj -32767");
++    ops[0] = (struct sembuf) { 1, 2, SEM_UNDO };
++    check(semop(id, ops, 1) == -1 && errno == ERANGE && value(id, 1) == 0, "ERANGE for semadj");
++    ops[0] = (struct sembuf) { 1, 1, SEM_UNDO };
++    ops[1] = (struct sembuf) { 1, -1, 0 };
++    check(semop(id, ops, 2) == 0, "semadj -32768 is allowed");
++#endif
++
++    /* EINVAL for an identifier that isn't valid */
++    ops[0] = (struct sembuf) { 0, 1, 0 };
++    check(semop(-1, ops, 1) == -1 && errno == EINVAL, "EINVAL");
++
++    /* EACCES: decrements and increments need alter permission, zero read */
++    if (geteuid() != 0) {
++        int ro = keep(semget(IPC_PRIVATE, 1, IPC_CREAT | 0400));
++        int wo = keep(semget(IPC_PRIVATE, 1, IPC_CREAT | 0200));
++
++        check(ro >= 0 && wo >= 0, "semget");
++        ops[0] = (struct sembuf) { 0, 1, IPC_NOWAIT };
++        check(semop(ro, ops, 1) == -1 && errno == EACCES, "EACCES to add");
++        ops[0] = (struct sembuf) { 0, -1, IPC_NOWAIT };
++        check(semop(ro, ops, 1) == -1 && errno == EACCES, "EACCES to subtract");
++        ops[0] = (struct sembuf) { 0, 0, IPC_NOWAIT };
++        check(semop(ro, ops, 1) == 0, "read is enough to wait for zero");
++        check(semop(wo, ops, 1) == -1 && errno == EACCES, "EACCES to wait for zero");
++        ops[0] = (struct sembuf) { 0, 1, IPC_NOWAIT };
++        check(semop(wo, ops, 1) == 0, "alter is enough to add");
++    } else {
++        printf("running as root: not checking EACCES\n");
++    }
++
++    /* Removed: EINVAL or EIDRM */
+     check(semctl(id, 0, IPC_RMID) == 0, "IPC_RMID");
+-    check(semop(id, &op, 1) == -1 && (errno == EINVAL || errno == EIDRM), "removed");
++    drop(id);
++    ops[0] = (struct sembuf) { 0, 1, 0 };
++    check(semop(id, ops, 1) == -1 && (errno == EINVAL || errno == EIDRM), "removed");
++
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

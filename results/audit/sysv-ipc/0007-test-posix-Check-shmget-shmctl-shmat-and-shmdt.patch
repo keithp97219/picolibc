@@ -1,0 +1,997 @@
+From 7a81c40f8d147a6c913311b58bf9b3bc5738b1ac Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:58:37 +0000
+Subject: [PATCH 7/7] test-posix: Check shmget, shmctl, shmat and shmdt
+
+Creation and zero fill, every shmid_ds member through IPC_STAT and
+IPC_SET, IPC_RMID with and without attachments, attaching at a given
+or rounded address and read-only, detaching only at the start
+address, and the errors.
+---
+ test/test-posix/test-sys-shm/CMakeLists.txt |   3 +
+ test/test-posix/test-sys-shm/meson.build    |   3 +
+ test/test-posix/test-sys-shm/test-shmat.c   | 193 ++++++++++++-
+ test/test-posix/test-sys-shm/test-shmctl.c  | 285 ++++++++++++++++++++
+ test/test-posix/test-sys-shm/test-shmdt.c   | 176 ++++++++++++
+ test/test-posix/test-sys-shm/test-shmget.c  | 221 +++++++++++++++
+ 6 files changed, 872 insertions(+), 9 deletions(-)
+ create mode 100644 test/test-posix/test-sys-shm/test-shmctl.c
+ create mode 100644 test/test-posix/test-sys-shm/test-shmdt.c
+ create mode 100644 test/test-posix/test-sys-shm/test-shmget.c
+
+diff --git a/test/test-posix/test-sys-shm/CMakeLists.txt b/test/test-posix/test-sys-shm/CMakeLists.txt
+index 4aacc7a20f..0a4225f2e3 100644
+--- a/test/test-posix/test-sys-shm/CMakeLists.txt
++++ b/test/test-posix/test-sys-shm/CMakeLists.txt
+@@ -35,6 +35,9 @@
+ 
+ set(tests
+   test-shmat
++  test-shmctl
++  test-shmdt
++  test-shmget
+   test-sys_shm_h
+   )
+ 
+diff --git a/test/test-posix/test-sys-shm/meson.build b/test/test-posix/test-sys-shm/meson.build
+index 9210898c8b..08d1bf250c 100644
+--- a/test/test-posix/test-sys-shm/meson.build
++++ b/test/test-posix/test-sys-shm/meson.build
+@@ -35,5 +35,8 @@
+ 
+ dir_tests = [
+   'test-shmat',
++  'test-shmctl',
++  'test-shmdt',
++  'test-shmget',
+   'test-sys_shm_h',
+ ]
+diff --git a/test/test-posix/test-sys-shm/test-shmat.c b/test/test-posix/test-sys-shm/test-shmat.c
+index c3a154e564..28f9550adc 100644
+--- a/test/test-posix/test-sys-shm/test-shmat.c
++++ b/test/test-posix/test-sys-shm/test-shmat.c
+@@ -44,13 +44,18 @@
+         && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
+ 
+ #include <errno.h>
++#include <signal.h>
++#include <stdint.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <sys/mman.h>
++#include <sys/resource.h>
+ #include <sys/shm.h>
+ #include <sys/wait.h>
++#include <time.h>
+ 
+-/* shmget, shmat, shmdt and shmctl share System V memory segments */
++/* shmat attaches segments where asked, read-only or not */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -60,25 +65,109 @@
+         }                                              \
+     } while (0)
+ 
++/* Every segment made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        shmctl(ids[--nids], IPC_RMID, NULL);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++static void
++drop(int id)
++{
++    int i;
++
++    for (i = 0; i < nids; i++)
++        if (ids[i] == id)
++            ids[i] = ids[--nids];
++}
++
++static int
++child_status(pid_t pid)
++{
++    int status;
++
++    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status))
++        return -1;
++    return WEXITSTATUS(status);
++}
++
++/* SHM_FAILED is new in POSIX.1-2024 */
++#ifndef SHM_FAILED
++#define SHM_FAILED ((void *)-1)
++#endif
++
++/* The size of this process's address space, from /proc/self/statm */
++static long
++address_space(void)
++{
++    FILE *f = fopen("/proc/self/statm", "r");
++    long  pages = -1;
++
++    if (f) {
++        if (fscanf(f, "%ld", &pages) != 1)
++            pages = -1;
++        fclose(f);
++    }
++    return pages < 0 ? -1 : pages * sysconf(_SC_PAGESIZE);
++}
++
++#define SIZE 8192
++
+ int
+ main(void)
+ {
+     struct shmid_ds ds;
+-    char           *p;
++    char           *p, *q, *area;
++    uintptr_t       aligned;
++    size_t          span;
+     pid_t           pid;
+-    int             id = shmget(IPC_PRIVATE, 8192, IPC_CREAT | 0600), status;
++    time_t          before;
++    int             id, status;
++
++    signal(SIGALRM, watchdog);
++    alarm(30);
++    check(atexit(cleanup) == 0, "atexit");
+ 
++    id = keep(shmget(IPC_PRIVATE, SIZE, IPC_CREAT | 0600));
+     if (id < 0 && errno == ENOSYS) {
+         printf("no System V IPC, skipping\n");
+         return 77;
+     }
+     check(id >= 0, "shmget");
++
++    /* A null address lets the system choose; shm_nattch, shm_atime and shm_lpid follow */
++    before = time(NULL);
+     p = shmat(id, NULL, 0);
+-    check(p != (void *)-1, "shmat");
++    check(p != SHM_FAILED, "shmat");
+     strcpy(p, "parent");
+     check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
+-    check(ds.shm_segsz == 8192 && ds.shm_nattch == 1 && ds.shm_cpid == getpid(), "segment");
++    check(ds.shm_segsz == SIZE && ds.shm_nattch == 1 && ds.shm_cpid == getpid(), "segment");
++    check(ds.shm_lpid == getpid(), "shm_lpid");
++    /* The kernel's clock in seconds may trail time() by a tick */
++    check(ds.shm_atime >= before - 1 && ds.shm_atime <= time(NULL), "shm_atime");
+ 
++    /* The memory is shared with a child */
++    fflush(stdout);
+     pid = fork();
+     check(pid >= 0, "fork");
+     if (pid == 0) {
+@@ -87,17 +176,103 @@ main(void)
+         strcpy(p, "child");
+         _exit(ok ? 0 : 1);
+     }
+-    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+-          "child saw the data");
++    check(child_status(pid) == 0, "child saw the data");
+     check(strcmp(p, "child") == 0, "child's change seen");
+ 
++    /* A second attachment of the same segment sees the same memory */
++    q = shmat(id, NULL, 0);
++    check(q != SHM_FAILED && q != p && strcmp(q, "child") == 0, "a second attachment");
++    check(shmctl(id, IPC_STAT, &ds) == 0 && ds.shm_nattch == 2, "shm_nattch counts both");
++    check(shmdt(q) == 0, "shmdt");
+     check(shmdt(p) == 0, "shmdt");
+     check(shmctl(id, IPC_STAT, &ds) == 0 && ds.shm_nattch == 0, "detached");
++
++    /* SHM_RDONLY attaches for reading; writing faults */
+     p = shmat(id, NULL, SHM_RDONLY);
+-    check(p != (void *)-1 && strcmp(p, "child") == 0, "read-only attach");
++    check(p != SHM_FAILED && strcmp(p, "child") == 0, "read-only attach");
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        signal(SIGSEGV, SIG_DFL);
++        *(volatile char *)p = 'x';
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid && WIFSIGNALED(status) && WTERMSIG(status) == SIGSEGV,
++          "a write faults");
++    check(shmdt(p) == 0, "shmdt");
++
++    /*
++     * An address of our choosing: find room for the segment at a
++     * multiple of SHMLBA, then give it back to the system
++     */
++    span = SIZE + 2 * (size_t)SHMLBA;
++    area = mmap(NULL, span, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++    check(area != MAP_FAILED, "mmap");
++    aligned = ((uintptr_t)area + SHMLBA - 1) / SHMLBA * SHMLBA;
++    check(munmap(area, span) == 0, "munmap");
++
++    /* Without SHM_RND it goes exactly there */
++    p = shmat(id, (void *)aligned, 0);
++    check(p == (void *)aligned && strcmp(p, "child") == 0, "attached at the address");
+     check(shmdt(p) == 0, "shmdt");
++
++    /* With SHM_RND the address is rounded down to a multiple of SHMLBA */
++    p = shmat(id, (char *)aligned + 123, SHM_RND);
++    check(p == (char *)aligned + 123 - (aligned + 123) % SHMLBA, "rounded down to SHMLBA");
++    check(shmdt(p) == 0, "shmdt");
++
++    /* Without SHM_RND, an address that isn't page aligned is EINVAL */
++    p = shmat(id, (char *)aligned + 123, 0);
++    check(p == SHM_FAILED && errno == EINVAL, "EINVAL for an unaligned address");
++
++    /* EINVAL for an identifier that isn't valid */
++    check(shmat(-1, NULL, 0) == SHM_FAILED && errno == EINVAL, "EINVAL for the identifier");
++    check(shmctl(id, IPC_STAT, &ds) == 0 && ds.shm_nattch == 0, "no attachment left behind");
++
++    /* ENOMEM when the address space has no room: a child with a small limit */
++    if (address_space() > 0) {
++        int big = keep(shmget(IPC_PRIVATE, 64 * 1024 * 1024, IPC_CREAT | 0600));
++
++        check(big >= 0, "shmget");
++        fflush(stdout);
++        pid = fork();
++        check(pid >= 0, "fork");
++        if (pid == 0) {
++            struct rlimit rl;
++
++            rl.rlim_cur = rl.rlim_max = (rlim_t)address_space() + 16 * 1024 * 1024;
++            if (setrlimit(RLIMIT_AS, &rl) != 0)
++                _exit(3);
++            if (shmat(big, NULL, 0) != SHM_FAILED)
++                _exit(1);
++            _exit(errno == ENOMEM ? 0 : 2);
++        }
++        check(child_status(pid) == 0, "ENOMEM");
++    } else {
++        printf("no /proc/self/statm: not checking ENOMEM\n");
++    }
++
++    /* EACCES: a read-write attach needs both, a read-only one read */
++    if (geteuid() != 0) {
++        int ro = keep(shmget(IPC_PRIVATE, SIZE, IPC_CREAT | 0400));
++        int wo = keep(shmget(IPC_PRIVATE, SIZE, IPC_CREAT | 0200));
++
++        check(ro >= 0 && wo >= 0, "shmget");
++        check(shmat(ro, NULL, 0) == SHM_FAILED && errno == EACCES, "EACCES read-write");
++        p = shmat(ro, NULL, SHM_RDONLY);
++        check(p != SHM_FAILED, "read-only attach of a read-only segment");
++        check(shmdt(p) == 0, "shmdt");
++        check(shmat(wo, NULL, SHM_RDONLY) == SHM_FAILED && errno == EACCES, "EACCES read-only");
++        check(shmat(wo, NULL, 0) == SHM_FAILED && errno == EACCES, "EACCES without read");
++    } else {
++        printf("running as root: not checking EACCES\n");
++    }
++
++    /* A removed segment can't be attached */
+     check(shmctl(id, IPC_RMID, NULL) == 0, "IPC_RMID");
+-    check(shmat(id, NULL, 0) == (void *)-1, "removed");
++    drop(id);
++    check(shmat(id, NULL, 0) == SHM_FAILED && errno == EINVAL, "removed");
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-sys-shm/test-shmctl.c b/test/test-posix/test-sys-shm/test-shmctl.c
+new file mode 100644
+index 0000000000..59b45cc60d
+--- /dev/null
++++ b/test/test-posix/test-sys-shm/test-shmctl.c
+@@ -0,0 +1,285 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                                \
++    || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0                             \
++        && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
++
++#include <errno.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/shm.h>
++#include <sys/wait.h>
++#include <time.h>
++
++/*
++ * shmctl reads and sets every member of shmid_ds. On 32-bit targets
++ * the library converts the kernel's structure, so each member is
++ * checked against a value that only the right field can hold.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* Every segment made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        shmctl(ids[--nids], IPC_RMID, NULL);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++static void
++drop(int id)
++{
++    int i;
++
++    for (i = 0; i < nids; i++)
++        if (ids[i] == id)
++            ids[i] = ids[--nids];
++}
++
++/* Waits until the kernel's clock has passed t, so a new timestamp differs */
++static void
++pass_second(time_t t)
++{
++    struct timespec ts = { 0, 10 * 1000 * 1000 };
++
++    while (time(NULL) <= t + 1)
++        nanosleep(&ts, NULL);
++}
++
++static int
++child_status(pid_t pid)
++{
++    int status;
++
++    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status))
++        return -1;
++    return WEXITSTATUS(status);
++}
++
++#define SIZE 12345
++
++int
++main(void)
++{
++    struct shmid_ds ds, set;
++    int             id, fds[2];
++    time_t          before, created, attached, detached;
++    pid_t           pid;
++    uid_t           other_uid;
++    gid_t           other_gid;
++    char           *p, c;
++
++    signal(SIGALRM, watchdog);
++    alarm(60);
++    check(atexit(cleanup) == 0, "atexit");
++
++    before = time(NULL);
++    id = keep(shmget(IPC_PRIVATE, SIZE, IPC_CREAT | 0600));
++    if (id < 0 && errno == ENOSYS) {
++        printf("no System V IPC, skipping\n");
++        return 77;
++    }
++    check(id >= 0, "shmget");
++    check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    created = ds.shm_ctime;
++    check(created >= before - 1 && created <= time(NULL), "shm_ctime");
++
++    /* Attached here a second later */
++    pass_second(created);
++    p = shmat(id, NULL, 0);
++    check(p != (void *)-1, "shmat");
++    check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    check(ds.shm_atime > created && ds.shm_atime <= time(NULL), "shm_atime");
++    check(ds.shm_dtime == 0 && ds.shm_nattch == 1 && ds.shm_lpid == getpid(), "attached");
++
++    /*
++     * A child inherits the attachment, which Linux counts as an attach,
++     * and a second later detaches it
++     */
++    check(pipe(fds) == 0, "pipe");
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        close(fds[1]);
++        while (read(fds[0], &c, 1) > 0)
++            ;
++        _exit(shmdt(p) == 0 ? 0 : 1);
++    }
++    close(fds[0]);
++    check(shmctl(id, IPC_STAT, &ds) == 0 && ds.shm_nattch == 2, "the child is attached");
++    attached = ds.shm_atime;
++    pass_second(attached);
++    close(fds[1]);
++    check(child_status(pid) == 0, "the child detached");
++
++    /* Every member holds its own value */
++    memset(&ds, 0x55, sizeof(ds));
++    check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    check(ds.shm_perm.uid == geteuid() && ds.shm_perm.cuid == geteuid(), "uid and cuid");
++    check(ds.shm_perm.gid == getegid() && ds.shm_perm.cgid == getegid(), "gid and cgid");
++    check((ds.shm_perm.mode & 0777) == 0600, "mode");
++    check(ds.shm_segsz == SIZE, "shm_segsz");
++    check(ds.shm_lpid == pid, "shm_lpid is the child, which detached last");
++    check(ds.shm_cpid == getpid(), "shm_cpid");
++    check(ds.shm_nattch == 1, "shm_nattch");
++    check(ds.shm_atime == attached, "shm_atime");
++    detached = ds.shm_dtime;
++    check(detached > attached && detached <= time(NULL), "shm_dtime");
++    check(ds.shm_ctime == created, "shm_ctime");
++
++    /* IPC_SET changes the owner and the low nine mode bits, and shm_ctime */
++    pass_second(detached);
++    set = ds;
++    set.shm_perm.mode = 0604;
++    /* These are ignored */
++    set.shm_perm.cuid = set.shm_perm.uid + 1;
++    set.shm_perm.cgid = set.shm_perm.gid + 1;
++    set.shm_segsz = 1;
++    set.shm_lpid = 1;
++    set.shm_cpid = 1;
++    set.shm_nattch = 9;
++    set.shm_atime = 1;
++    set.shm_dtime = 1;
++    set.shm_ctime = 1;
++    check(shmctl(id, IPC_SET, &set) == 0, "IPC_SET");
++    memset(&ds, 0x55, sizeof(ds));
++    check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    check((ds.shm_perm.mode & 0777) == 0604, "mode set");
++    check(ds.shm_perm.cuid == geteuid() && ds.shm_perm.cgid == getegid(), "cuid and cgid stay");
++    check(ds.shm_segsz == SIZE && ds.shm_lpid == pid && ds.shm_cpid == getpid()
++              && ds.shm_nattch == 1 && ds.shm_atime == attached && ds.shm_dtime == detached,
++          "the other members stay");
++    check(ds.shm_ctime > detached && ds.shm_ctime <= time(NULL), "IPC_SET sets shm_ctime");
++
++    /* The owner can give the segment away and, as its creator, still change it */
++    other_uid = geteuid() == 65534 ? 65533 : 65534;
++    other_gid = getegid() == 65534 ? 65533 : 65534;
++    set = ds;
++    set.shm_perm.uid = other_uid;
++    set.shm_perm.gid = other_gid;
++    if (shmctl(id, IPC_SET, &set) == 0) {
++        check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++        check(ds.shm_perm.uid == other_uid && ds.shm_perm.gid == other_gid, "uid and gid set");
++        check(ds.shm_perm.cuid == geteuid() && ds.shm_perm.cgid == getegid(), "cuid and cgid stay");
++        set.shm_perm.uid = geteuid();
++        set.shm_perm.gid = getegid();
++        check(shmctl(id, IPC_SET, &set) == 0, "the creator sets the owner back");
++    } else {
++        check(errno == EINVAL, "IPC_SET of another owner");
++        printf("uid %ld isn't valid here: not checking a change of owner\n", (long)other_uid);
++    }
++
++    /* EACCES: IPC_STAT needs read permission, IPC_SET only ownership */
++    if (geteuid() != 0) {
++        set.shm_perm.mode = 0200;
++        check(shmctl(id, IPC_SET, &set) == 0, "IPC_SET write-only");
++        check(shmctl(id, IPC_STAT, &ds) == -1 && errno == EACCES, "EACCES");
++        set.shm_perm.mode = 0600;
++        check(shmctl(id, IPC_SET, &set) == 0, "IPC_SET without read permission");
++    } else {
++        printf("running as root: not checking EACCES\n");
++    }
++
++    /* EINVAL for a command or an identifier that isn't valid */
++    check(shmctl(id, 0x7654, &ds) == -1 && errno == EINVAL, "EINVAL for the command");
++    check(shmctl(-1, IPC_STAT, &ds) == -1 && errno == EINVAL, "EINVAL for the identifier");
++
++    /* IPC_RMID while attached: the memory stays until the last detach */
++    strcpy(p, "still here");
++    check(shmctl(id, IPC_RMID, NULL) == 0, "IPC_RMID");
++    drop(id);
++    check(strcmp(p, "still here") == 0, "still attached");
++    check(shmdt(p) == 0, "shmdt");
++    check(shmctl(id, IPC_STAT, &ds) == -1 && errno == EINVAL, "destroyed at the last detach");
++
++    /* IPC_RMID with nothing attached destroys it at once */
++    id = keep(shmget(IPC_PRIVATE, SIZE, IPC_CREAT | 0600));
++    check(id >= 0, "shmget");
++    check(shmctl(id, IPC_RMID, NULL) == 0, "IPC_RMID");
++    drop(id);
++    check(shmctl(id, IPC_STAT, &ds) == -1 && errno == EINVAL, "destroyed at once");
++    check(shmat(id, NULL, 0) == (void *)-1 && errno == EINVAL, "can't attach");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-shm/test-shmdt.c b/test/test-posix/test-sys-shm/test-shmdt.c
+new file mode 100644
+index 0000000000..9278f0bf11
+--- /dev/null
++++ b/test/test-posix/test-sys-shm/test-shmdt.c
+@@ -0,0 +1,176 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                                \
++    || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0                             \
++        && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0)
++
++#include <errno.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/mman.h>
++#include <sys/shm.h>
++#include <sys/wait.h>
++#include <time.h>
++
++/* shmdt detaches a segment only from its start address */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* Every segment made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        shmctl(ids[--nids], IPC_RMID, NULL);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++#define SIZE (3 * 4096)
++
++int
++main(void)
++{
++    struct shmid_ds ds;
++    char           *p, *other;
++    pid_t           pid;
++    time_t          before;
++    long            page = sysconf(_SC_PAGESIZE);
++    int             id, status;
++
++    signal(SIGALRM, watchdog);
++    alarm(30);
++    check(atexit(cleanup) == 0, "atexit");
++
++    id = keep(shmget(IPC_PRIVATE, SIZE, IPC_CREAT | 0600));
++    if (id < 0 && errno == ENOSYS) {
++        printf("no System V IPC, skipping\n");
++        return 77;
++    }
++    check(id >= 0, "shmget");
++    p = shmat(id, NULL, 0);
++    check(p != (void *)-1, "shmat");
++    strcpy(p, "attached");
++
++    /* EINVAL for anything but the start address, detaching nothing */
++    check(shmdt(p + 1) == -1 && errno == EINVAL, "EINVAL inside the first page");
++    if (page < SIZE)
++        check(shmdt(p + page) == -1 && errno == EINVAL, "EINVAL at a later page");
++    check(shmdt(NULL) == -1 && errno == EINVAL, "EINVAL for a null pointer");
++    other = mmap(NULL, (size_t)page, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++    check(other != MAP_FAILED, "mmap");
++    check(shmdt(other) == -1 && errno == EINVAL, "EINVAL for memory that isn't shared");
++    check(munmap(other, (size_t)page) == 0, "munmap");
++    check(shmctl(id, IPC_STAT, &ds) == 0 && ds.shm_nattch == 1, "still attached");
++    check(strcmp(p, "attached") == 0, "and readable");
++
++    /* Success: shm_nattch counts down, shm_dtime and shm_lpid are set */
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0)
++        _exit(shmdt(p) == 0 ? 0 : 1);
++    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
++          "the child's shmdt");
++    before = time(NULL);
++    check(shmdt(p) == 0, "shmdt returns 0");
++    check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    check(ds.shm_nattch == 0, "shm_nattch");
++    check(ds.shm_lpid == getpid(), "shm_lpid");
++    /* The kernel's clock in seconds may trail time() by a tick */
++    check(ds.shm_dtime >= before - 1 && ds.shm_dtime <= time(NULL), "shm_dtime");
++
++    /* Once detached, the address is no longer a segment's */
++    check(shmdt(p) == -1 && errno == EINVAL, "EINVAL detaching twice");
++
++    /* The memory is gone: touching it faults */
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        signal(SIGSEGV, SIG_DFL);
++        (void)*(volatile char *)p;
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid && WIFSIGNALED(status) && WTERMSIG(status) == SIGSEGV,
++          "detached memory faults");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-sys-shm/test-shmget.c b/test/test-posix/test-sys-shm/test-shmget.c
+new file mode 100644
+index 0000000000..19df053792
+--- /dev/null
++++ b/test/test-posix/test-sys-shm/test-shmget.c
+@@ -0,0 +1,221 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(__PICOLIBC_XSI_IPC) && __PICOLIBC_XSI_IPC > 0)
++
++#include <errno.h>
++#include <signal.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/shm.h>
++#include <time.h>
++
++/* shmget creates and finds segments, initialized to zero */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* Every segment made here, removed on every way out */
++static int ids[8];
++static int nids;
++
++static void
++cleanup(void)
++{
++    while (nids > 0)
++        shmctl(ids[--nids], IPC_RMID, NULL);
++}
++
++static void
++watchdog(int sig)
++{
++    (void)sig;
++    cleanup();
++    _exit(1);
++}
++
++static int
++keep(int id)
++{
++    if (id >= 0)
++        ids[nids++] = id;
++    return id;
++}
++static char dir[] = "/tmp/shmget-XXXXXX";
++static char path[sizeof(dir) + 8];
++
++static void
++remove_key_file(void)
++{
++    unlink(path);
++    rmdir(dir);
++}
++
++/* shmmax from /proc/sys/kernel, or 0 */
++static unsigned long long
++shmmax(void)
++{
++    FILE              *f = fopen("/proc/sys/kernel/shmmax", "r");
++    unsigned long long v = 0;
++
++    if (f) {
++        if (fscanf(f, "%llu", &v) != 1)
++            v = 0;
++        fclose(f);
++    }
++    return v;
++}
++
++#define SIZE 5000
++
++int
++main(void)
++{
++    struct shmid_ds    ds;
++    key_t              key = -1;
++    int                a, b, id, proj;
++    time_t             before;
++    FILE              *f;
++    unsigned char     *p;
++    size_t             i;
++    unsigned long long max;
++
++    signal(SIGALRM, watchdog);
++    alarm(30);
++    check(atexit(remove_key_file) == 0 && atexit(cleanup) == 0, "atexit");
++
++    a = keep(shmget(IPC_PRIVATE, SIZE, IPC_CREAT | 0600));
++    if (a < 0 && errno == ENOSYS) {
++        printf("no System V IPC, skipping\n");
++        return 77;
++    }
++    check(a >= 0, "shmget");
++
++    /* IPC_PRIVATE always makes a new segment, with or without IPC_CREAT */
++    b = keep(shmget(IPC_PRIVATE, SIZE, 0600));
++    check(b >= 0 && b != a, "a second private segment");
++
++    /* EINVAL for a size below the minimum, or above the maximum */
++    check(shmget(IPC_PRIVATE, 0, IPC_CREAT | 0600) == -1 && errno == EINVAL, "EINVAL for 0");
++    max = shmmax();
++    if (max > 0 && max < SIZE_MAX)
++        check(shmget(IPC_PRIVATE, SIZE_MAX, IPC_CREAT | 0600) == -1 && errno == EINVAL,
++              "EINVAL past shmmax");
++    else
++        printf("shmmax %llu: not checking EINVAL past it\n", max);
++
++    /* A key from a file of our own; take one nobody else is using */
++    check(mkdtemp(dir) != NULL, "mkdtemp");
++    snprintf(path, sizeof(path), "%s/key", dir);
++    f = fopen(path, "w");
++    check(f != NULL, "key file");
++    fclose(f);
++    for (proj = 1; proj < 256; proj++) {
++        key = ftok(path, proj);
++        check(key != (key_t)-1, "ftok");
++        if (shmget(key, 0, 0600) == -1 && errno == ENOENT)
++            break;
++    }
++    check(proj < 256, "an unused key");
++
++    /* Without IPC_CREAT, a key without a segment is ENOENT */
++    check(shmget(key, SIZE, 0600) == -1 && errno == ENOENT, "ENOENT");
++
++    before = time(NULL);
++    id = keep(shmget(key, SIZE, IPC_CREAT | IPC_EXCL | 0640));
++    check(id >= 0, "create with a key");
++    check(shmget(key, SIZE, 0600) == id, "found again");
++    check(shmget(key, 0, 0) == id, "found with size 0");
++    check(shmget(key, 100, IPC_CREAT | 0600) == id, "found asking for less");
++    check(shmget(key, SIZE + 1, 0600) == -1 && errno == EINVAL, "EINVAL asking for more");
++    check(shmget(key, SIZE, IPC_CREAT | IPC_EXCL | 0600) == -1 && errno == EEXIST, "EEXIST");
++
++    /* The new segment's shmid_ds comes from the flags, the size and the caller */
++    check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
++    check(ds.shm_perm.cuid == geteuid() && ds.shm_perm.uid == geteuid(), "cuid and uid");
++    check(ds.shm_perm.cgid == getegid() && ds.shm_perm.gid == getegid(), "cgid and gid");
++    check((ds.shm_perm.mode & 0777) == 0640, "the low 9 bits of the mode");
++    check(ds.shm_segsz == SIZE, "shm_segsz is the size asked for");
++    check(ds.shm_lpid == 0 && ds.shm_nattch == 0, "shm_lpid and shm_nattch");
++    check(ds.shm_atime == 0 && ds.shm_dtime == 0, "shm_atime and shm_dtime");
++    check(ds.shm_cpid == getpid(), "shm_cpid");
++    /* The kernel's clock in seconds may trail time() by a tick */
++    check(ds.shm_ctime >= before - 1 && ds.shm_ctime <= time(NULL), "shm_ctime");
++
++    /* The segment starts out zero */
++    p = shmat(id, NULL, 0);
++    check(p != (void *)-1, "shmat");
++    for (i = 0; i < SIZE; i++)
++        check(p[i] == 0, "zero");
++    check(shmdt(p) == 0, "shmdt");
++
++    /* EACCES when the segment doesn't grant the permissions asked for */
++    if (geteuid() != 0) {
++        ds.shm_perm.mode = 0400;
++        check(shmctl(id, IPC_SET, &ds) == 0, "IPC_SET");
++        check(shmget(key, 0, 0600) == -1 && errno == EACCES, "EACCES for write");
++        check(shmget(key, 0, 0400) == id, "read is still granted");
++    } else {
++        printf("running as root: not checking EACCES\n");
++    }
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

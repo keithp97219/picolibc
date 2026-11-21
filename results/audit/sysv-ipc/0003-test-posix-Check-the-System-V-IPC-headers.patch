@@ -1,0 +1,537 @@
+From a8d47fc647a58725dbe4497a4c50163a5324c705 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:58:36 +0000
+Subject: [PATCH 3/7] test-posix: Check the System V IPC headers
+
+Types, structure members, constants and prototypes of <sys/ipc.h>,
+<sys/msg.h>, <sys/sem.h> and <sys/shm.h>, including SHM_FAILED.
+---
+ test/test-posix/test-sys-ipc/CMakeLists.txt   |   1 +
+ test/test-posix/test-sys-ipc/meson.build      |   1 +
+ test/test-posix/test-sys-ipc/test-sys_ipc_h.c |  85 ++++++++++++++
+ test/test-posix/test-sys-msg/CMakeLists.txt   |   1 +
+ test/test-posix/test-sys-msg/meson.build      |   1 +
+ test/test-posix/test-sys-msg/test-sys_msg_h.c |  89 ++++++++++++++
+ test/test-posix/test-sys-sem/CMakeLists.txt   |   1 +
+ test/test-posix/test-sys-sem/meson.build      |   1 +
+ test/test-posix/test-sys-sem/test-sys_sem_h.c | 109 +++++++++++++++++
+ test/test-posix/test-sys-shm/CMakeLists.txt   |   1 +
+ test/test-posix/test-sys-shm/meson.build      |   1 +
+ test/test-posix/test-sys-shm/test-sys_shm_h.c | 111 ++++++++++++++++++
+ 12 files changed, 402 insertions(+)
+ create mode 100644 test/test-posix/test-sys-ipc/test-sys_ipc_h.c
+ create mode 100644 test/test-posix/test-sys-msg/test-sys_msg_h.c
+ create mode 100644 test/test-posix/test-sys-sem/test-sys_sem_h.c
+ create mode 100644 test/test-posix/test-sys-shm/test-sys_shm_h.c
+
+diff --git a/test/test-posix/test-sys-ipc/CMakeLists.txt b/test/test-posix/test-sys-ipc/CMakeLists.txt
+index 1d7a9e347c..ae94d647af 100644
+--- a/test/test-posix/test-sys-ipc/CMakeLists.txt
++++ b/test/test-posix/test-sys-ipc/CMakeLists.txt
+@@ -35,6 +35,7 @@
+ 
+ set(tests
+   test-ftok
++  test-sys_ipc_h
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-sys-ipc/meson.build b/test/test-posix/test-sys-ipc/meson.build
+index 306382740b..e4571270c3 100644
+--- a/test/test-posix/test-sys-ipc/meson.build
++++ b/test/test-posix/test-sys-ipc/meson.build
+@@ -35,4 +35,5 @@
+ 
+ dir_tests = [
+   'test-ftok',
++  'test-sys_ipc_h',
+ ]
+diff --git a/test/test-posix/test-sys-ipc/test-sys_ipc_h.c b/test/test-posix/test-sys-ipc/test-sys_ipc_h.c
+new file mode 100644
+index 0000000000..95c2982ece
+--- /dev/null
++++ b/test/test-posix/test-sys-ipc/test-sys_ipc_h.c
+@@ -0,0 +1,85 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/* What <sys/ipc.h> provides */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <sys/ipc.h>
++
++#define same_type(a, T)       _Generic((a), T: 1, default: 0)
++#define member_is(type, m, T) same_type(((type *)0)->m, T)
++
++/* The types, without any other header */
++_Static_assert((uid_t)-1 > 0 || (uid_t)-1 < 0, "uid_t");
++_Static_assert((gid_t)-1 > 0 || (gid_t)-1 < 0, "gid_t");
++_Static_assert((mode_t)-1 > 0 || (mode_t)-1 < 0, "mode_t");
++_Static_assert((key_t)-1 > 0 || (key_t)-1 < 0, "key_t");
++
++/* struct ipc_perm */
++_Static_assert(member_is(struct ipc_perm, uid, uid_t) && member_is(struct ipc_perm, gid, gid_t)
++                   && member_is(struct ipc_perm, cuid, uid_t)
++                   && member_is(struct ipc_perm, cgid, gid_t)
++                   && member_is(struct ipc_perm, mode, mode_t),
++               "struct ipc_perm members");
++
++/* The mode bits are distinct from each other and from the permission bits */
++_Static_assert((IPC_CREAT & IPC_EXCL) == 0 && (IPC_CREAT & IPC_NOWAIT) == 0
++                   && (IPC_EXCL & IPC_NOWAIT) == 0,
++               "mode bits are distinct");
++_Static_assert(((IPC_CREAT | IPC_EXCL | IPC_NOWAIT) & 0777) == 0,
++               "mode bits are outside the permission bits");
++_Static_assert(IPC_CREAT != 0 && IPC_EXCL != 0 && IPC_NOWAIT != 0, "mode bits are set");
++
++/* The key and the commands */
++_Static_assert(same_type(IPC_PRIVATE, key_t), "IPC_PRIVATE is a key_t");
++_Static_assert(IPC_RMID != IPC_SET && IPC_RMID != IPC_STAT && IPC_SET != IPC_STAT,
++               "commands are distinct");
++#if IPC_CREAT == 0 || IPC_EXCL == 0 || IPC_NOWAIT == 0 || IPC_RMID == IPC_SET
++#error the constants can be used in #if
++#endif
++
++/* The prototype */
++_Static_assert(same_type(&ftok, key_t (*)(const char *, int)), "ftok");
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-sys-msg/CMakeLists.txt b/test/test-posix/test-sys-msg/CMakeLists.txt
+index 21f192153d..d0d53cf733 100644
+--- a/test/test-posix/test-sys-msg/CMakeLists.txt
++++ b/test/test-posix/test-sys-msg/CMakeLists.txt
+@@ -35,6 +35,7 @@
+ 
+ set(tests
+   test-msgrcv
++  test-sys_msg_h
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-sys-msg/meson.build b/test/test-posix/test-sys-msg/meson.build
+index b3a3686be5..9dc32621bf 100644
+--- a/test/test-posix/test-sys-msg/meson.build
++++ b/test/test-posix/test-sys-msg/meson.build
+@@ -35,6 +35,7 @@
+ 
+ dir_tests = [
+   'test-msgrcv',
++  'test-sys_msg_h',
+ ]
+ 
+ # QEMU's user-mode emulation of 32-bit ARM misplaces the IPC_STAT
+diff --git a/test/test-posix/test-sys-msg/test-sys_msg_h.c b/test/test-posix/test-sys-msg/test-sys_msg_h.c
+new file mode 100644
+index 0000000000..6bf35bf368
+--- /dev/null
++++ b/test/test-posix/test-sys-msg/test-sys_msg_h.c
+@@ -0,0 +1,89 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/* What <sys/msg.h> provides */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <sys/msg.h>
++
++#define same_type(a, T)       _Generic((a), T: 1, default: 0)
++#define member_is(type, m, T) same_type(((type *)0)->m, T)
++
++/* msgqnum_t and msglen_t are unsigned and hold at least an unsigned short */
++_Static_assert((msgqnum_t)-1 > 0 && (msgqnum_t)-1 >= (unsigned short)-1, "msgqnum_t");
++_Static_assert((msglen_t)-1 > 0 && (msglen_t)-1 >= (unsigned short)-1, "msglen_t");
++
++/* The other types, without any other header */
++_Static_assert((pid_t)-1 < 0, "pid_t");
++_Static_assert((size_t)-1 > 0 && (ssize_t)-1 < 0, "size_t and ssize_t");
++_Static_assert((time_t)1 / 2 == 0 || (time_t)1 / 2 > 0, "time_t");
++
++/* MSG_NOERROR is a flag apart from IPC_NOWAIT and the permission bits */
++_Static_assert(MSG_NOERROR != 0 && (MSG_NOERROR & (IPC_NOWAIT | 0777)) == 0, "MSG_NOERROR");
++#if MSG_NOERROR == 0
++#error MSG_NOERROR can be used in #if
++#endif
++
++/* struct msqid_ds */
++_Static_assert(member_is(struct msqid_ds, msg_perm, struct ipc_perm)
++                   && member_is(struct msqid_ds, msg_qnum, msgqnum_t)
++                   && member_is(struct msqid_ds, msg_qbytes, msglen_t)
++                   && member_is(struct msqid_ds, msg_lspid, pid_t)
++                   && member_is(struct msqid_ds, msg_lrpid, pid_t)
++                   && member_is(struct msqid_ds, msg_stime, time_t)
++                   && member_is(struct msqid_ds, msg_rtime, time_t)
++                   && member_is(struct msqid_ds, msg_ctime, time_t),
++               "struct msqid_ds members");
++
++/* <sys/msg.h> includes <sys/ipc.h> */
++_Static_assert(IPC_CREAT != IPC_EXCL && IPC_RMID != IPC_STAT, "<sys/ipc.h> constants");
++_Static_assert(same_type(&ftok, key_t (*)(const char *, int)), "ftok");
++
++/* The prototypes */
++_Static_assert(same_type(&msgctl, int (*)(int, int, struct msqid_ds *)), "msgctl");
++_Static_assert(same_type(&msgget, int (*)(key_t, int)), "msgget");
++_Static_assert(same_type(&msgrcv, ssize_t (*)(int, void *, size_t, long, int)), "msgrcv");
++_Static_assert(same_type(&msgsnd, int (*)(int, const void *, size_t, int)), "msgsnd");
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-sys-sem/CMakeLists.txt b/test/test-posix/test-sys-sem/CMakeLists.txt
+index 34c8f9ee21..358600dcbf 100644
+--- a/test/test-posix/test-sys-sem/CMakeLists.txt
++++ b/test/test-posix/test-sys-sem/CMakeLists.txt
+@@ -35,6 +35,7 @@
+ 
+ set(tests
+   test-semop
++  test-sys_sem_h
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-sys-sem/meson.build b/test/test-posix/test-sys-sem/meson.build
+index 99159110db..773e2c8f66 100644
+--- a/test/test-posix/test-sys-sem/meson.build
++++ b/test/test-posix/test-sys-sem/meson.build
+@@ -35,4 +35,5 @@
+ 
+ dir_tests = [
+   'test-semop',
++  'test-sys_sem_h',
+ ]
+diff --git a/test/test-posix/test-sys-sem/test-sys_sem_h.c b/test/test-posix/test-sys-sem/test-sys_sem_h.c
+new file mode 100644
+index 0000000000..2d422b6934
+--- /dev/null
++++ b/test/test-posix/test-sys-sem/test-sys_sem_h.c
+@@ -0,0 +1,109 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/* What <sys/sem.h> provides */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <sys/sem.h>
++
++#define same_type(a, T)       _Generic((a), T: 1, default: 0)
++#define member_is(type, m, T) same_type(((type *)0)->m, T)
++
++/* The types, without any other header */
++_Static_assert((pid_t)-1 < 0, "pid_t");
++_Static_assert((size_t)-1 > 0, "size_t");
++_Static_assert((time_t)1 / 2 == 0 || (time_t)1 / 2 > 0, "time_t");
++
++/* SEM_UNDO goes in sem_flg next to IPC_NOWAIT, so it fits in a short */
++_Static_assert(SEM_UNDO != 0 && (SEM_UNDO & IPC_NOWAIT) == 0, "SEM_UNDO");
++_Static_assert((short)SEM_UNDO == SEM_UNDO && (short)IPC_NOWAIT == IPC_NOWAIT,
++               "the flags fit sem_flg");
++
++/* The commands are distinct, from each other and from <sys/ipc.h>'s */
++static const int commands[]
++    = { GETNCNT, GETPID, GETVAL, GETALL, GETZCNT, SETVAL, SETALL, IPC_RMID, IPC_SET, IPC_STAT };
++#if GETNCNT == GETPID || SEM_UNDO == 0
++#error the constants can be used in #if
++#endif
++
++/* struct semid_ds; glibc 2.43's sem_nsems is an unsigned long */
++#ifndef __GLIBC__
++_Static_assert(member_is(struct semid_ds, sem_nsems, unsigned short), "sem_nsems");
++#endif
++_Static_assert(member_is(struct semid_ds, sem_perm, struct ipc_perm)
++                   && member_is(struct semid_ds, sem_otime, time_t)
++                   && member_is(struct semid_ds, sem_ctime, time_t),
++               "struct semid_ds members");
++
++/* struct sembuf */
++_Static_assert(member_is(struct sembuf, sem_num, unsigned short)
++                   && member_is(struct sembuf, sem_op, short)
++                   && member_is(struct sembuf, sem_flg, short),
++               "struct sembuf members");
++
++/* <sys/sem.h> includes <sys/ipc.h> */
++_Static_assert(IPC_CREAT != IPC_EXCL, "<sys/ipc.h> constants");
++_Static_assert(same_type(&ftok, key_t (*)(const char *, int)), "ftok");
++
++/* The prototypes */
++_Static_assert(same_type(&semctl, int (*)(int, int, int, ...)), "semctl");
++_Static_assert(same_type(&semget, int (*)(key_t, int, int)), "semget");
++_Static_assert(same_type(&semop, int (*)(int, struct sembuf *, size_t)), "semop");
++
++/* The application declares union semun; the header must not */
++union semun {
++    int              val;
++    struct semid_ds *buf;
++    unsigned short  *array;
++};
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    size_t i, j;
++
++    for (i = 0; i < sizeof(commands) / sizeof(commands[0]); i++)
++        for (j = 0; j < i; j++)
++            if (commands[i] == commands[j]) {
++                printf("commands %zu and %zu are both %d\n", j, i, commands[i]);
++                return 1;
++            }
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-sys-shm/CMakeLists.txt b/test/test-posix/test-sys-shm/CMakeLists.txt
+index c88b892d62..4aacc7a20f 100644
+--- a/test/test-posix/test-sys-shm/CMakeLists.txt
++++ b/test/test-posix/test-sys-shm/CMakeLists.txt
+@@ -35,6 +35,7 @@
+ 
+ set(tests
+   test-shmat
++  test-sys_shm_h
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-sys-shm/meson.build b/test/test-posix/test-sys-shm/meson.build
+index f5053895f5..9210898c8b 100644
+--- a/test/test-posix/test-sys-shm/meson.build
++++ b/test/test-posix/test-sys-shm/meson.build
+@@ -35,4 +35,5 @@
+ 
+ dir_tests = [
+   'test-shmat',
++  'test-sys_shm_h',
+ ]
+diff --git a/test/test-posix/test-sys-shm/test-sys_shm_h.c b/test/test-posix/test-sys-shm/test-sys_shm_h.c
+new file mode 100644
+index 0000000000..db9970d1ff
+--- /dev/null
++++ b/test/test-posix/test-sys-shm/test-sys_shm_h.c
+@@ -0,0 +1,111 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/* What <sys/shm.h> provides */
++
++#define _POSIX_C_SOURCE 202405L
++/* System V IPC is XSI */
++#define _XOPEN_SOURCE 800
++#include <sys/shm.h>
++
++#define same_type(a, T)       _Generic((a), T: 1, default: 0)
++#define member_is(type, m, T) same_type(((type *)0)->m, T)
++
++/* The types, without any other header */
++_Static_assert((pid_t)-1 < 0, "pid_t");
++_Static_assert((size_t)-1 > 0, "size_t");
++_Static_assert((time_t)1 / 2 == 0 || (time_t)1 / 2 > 0, "time_t");
++/* glibc 2.43 doesn't define intptr_t here (new in POSIX.1-2024) */
++#ifndef __GLIBC__
++_Static_assert((intptr_t)-1 < 0 && sizeof(intptr_t) >= sizeof(void *), "intptr_t");
++#endif
++
++/* shmatt_t is unsigned and holds at least an unsigned short */
++_Static_assert((shmatt_t)-1 > 0 && (shmatt_t)-1 >= (unsigned short)-1, "shmatt_t");
++
++/* The flags are distinct, and apart from the permission bits */
++_Static_assert(SHM_RDONLY != 0 && SHM_RND != 0 && (SHM_RDONLY & SHM_RND) == 0
++                   && ((SHM_RDONLY | SHM_RND) & 0777) == 0,
++               "SHM_RDONLY and SHM_RND");
++
++/* SHM_FAILED is ((void *)(intptr_t)-1); new in POSIX.1-2024 */
++#ifdef SHM_FAILED
++_Static_assert(same_type(SHM_FAILED, void *), "SHM_FAILED is a pointer");
++#endif
++
++/* struct shmid_ds */
++_Static_assert(member_is(struct shmid_ds, shm_perm, struct ipc_perm)
++                   && member_is(struct shmid_ds, shm_segsz, size_t)
++                   && member_is(struct shmid_ds, shm_lpid, pid_t)
++                   && member_is(struct shmid_ds, shm_cpid, pid_t)
++                   && member_is(struct shmid_ds, shm_nattch, shmatt_t)
++                   && member_is(struct shmid_ds, shm_atime, time_t)
++                   && member_is(struct shmid_ds, shm_dtime, time_t)
++                   && member_is(struct shmid_ds, shm_ctime, time_t),
++               "struct shmid_ds members");
++
++/* <sys/shm.h> includes <sys/ipc.h> */
++_Static_assert(IPC_CREAT != IPC_EXCL, "<sys/ipc.h> constants");
++_Static_assert(same_type(&ftok, key_t (*)(const char *, int)), "ftok");
++
++/* The prototypes */
++_Static_assert(same_type(&shmat, void *(*)(int, const void *, int)), "shmat");
++_Static_assert(same_type(&shmctl, int (*)(int, int, struct shmid_ds *)), "shmctl");
++_Static_assert(same_type(&shmdt, int (*)(const void *)), "shmdt");
++_Static_assert(same_type(&shmget, int (*)(key_t, size_t, int)), "shmget");
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    /* glibc 2.43 doesn't have SHM_FAILED */
++#ifdef SHM_FAILED
++    if (SHM_FAILED != (void *)(intptr_t)-1) {
++        printf("SHM_FAILED is %p\n", SHM_FAILED);
++        return 1;
++    }
++#elif !defined(__GLIBC__)
++    printf("no SHM_FAILED\n");
++    return 1;
++#endif
++    /* SHMLBA is positive */
++    if (SHMLBA <= 0) {
++        printf("SHMLBA %ld\n", (long)SHMLBA);
++        return 1;
++    }
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

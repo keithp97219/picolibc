@@ -1,0 +1,48 @@
+From bb35b858a8682c4b440ffa9e88b2a4c2cfea919a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:55:46 +0000
+Subject: [PATCH 05/10] libos/linux: Reject unknown msync flags
+
+The flag mapping dropped unknown bits, so msync accepted invalid flags
+instead of failing with EINVAL. The check runs inside the cancellation
+point.
+---
+ libos/linux/msync.c | 16 +++++++++++-----
+ 1 file changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/libos/linux/msync.c b/libos/linux/msync.c
+index 2b55252372..b95ccc5d7b 100644
+--- a/libos/linux/msync.c
++++ b/libos/linux/msync.c
+@@ -40,7 +40,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ int
+ msync(void *addr, size_t len, int flags)
+ {
+-    int linux_flags = 0;
++    int   linux_flags = 0;
++    void *cancel = _cancel_enter();
++    long  ret;
+ 
+     if (flags & MS_ASYNC)
+         linux_flags |= LINUX_MS_ASYNC;
+@@ -49,9 +51,13 @@ msync(void *addr, size_t len, int flags)
+     if (flags & MS_INVALIDATE)
+         linux_flags |= LINUX_MS_INVALIDATE;
+ 
+-    void *cancel = _cancel_enter();
+-    long  ret = (int)_syscall(LINUX_SYS_msync, addr, len, linux_flags);
+-
++    /* The mapping above would drop unknown flags; check them in the cancellation point */
++    if (flags & ~(MS_ASYNC | MS_SYNC | MS_INVALIDATE)) {
++        errno = EINVAL;
++        ret = -1;
++    } else {
++        ret = _syscall(LINUX_SYS_msync, addr, len, linux_flags);
++    }
+     _cancel_leave(cancel);
+-    return ret;
++    return (int)ret;
+ }
+-- 
+2.47.3
+

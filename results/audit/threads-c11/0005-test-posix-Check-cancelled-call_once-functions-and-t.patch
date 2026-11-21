@@ -1,0 +1,343 @@
+From 6c5c3b18bb80f887314f9931d89fa55c45fa68ff Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:58:02 +0000
+Subject: [PATCH 5/5] test-posix: Check cancelled call_once functions and
+ thrd_create errors
+
+A cancelled call_once function leaves the flag unused, callers using
+another flag don't wait for it, and thrd_create reports a stack it
+can't map as thrd_nomem and the thread limit as thrd_error.
+---
+ test/test-posix/test-threads/test-call_once.c | 132 +++++++++++++++++-
+ .../test-threads/test-thrd_create.c           | 125 ++++++++++++++++-
+ 2 files changed, 253 insertions(+), 4 deletions(-)
+
+diff --git a/test/test-posix/test-threads/test-call_once.c b/test/test-posix/test-threads/test-call_once.c
+index fab76ef3fb..42c02fb263 100644
+--- a/test/test-posix/test-threads/test-call_once.c
++++ b/test/test-posix/test-threads/test-call_once.c
+@@ -40,12 +40,21 @@
+ #if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
+ 
+ #include <errno.h>
++#include <pthread.h>
++#include <semaphore.h>
++#include <signal.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <threads.h>
+ #include <time.h>
+ 
+-/* call_once runs its function exactly once across threads */
++/*
++ * call_once runs its function exactly once across threads. A
++ * function cancelled at a cancellation point leaves the flag as if
++ * call_once had never been called, callers using other flags don't
++ * wait for it, and a signal handler doesn't disturb it.
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -72,11 +81,99 @@ child(void *arg)
+     return count;
+ }
+ 
++static once_flag    cancel_flag = ONCE_FLAG_INIT;
++static once_flag    outer_flag = ONCE_FLAG_INIT;
++static once_flag    inner_flag = ONCE_FLAG_INIT;
++static once_flag    signal_flag = ONCE_FLAG_INIT;
++static sem_t        in_init, waiter_go;
++static volatile int cancel_count, inner_count, outer_ok, signalled, signal_count;
++static volatile int returned;
++
++/* Blocks at a cancellation point until cancelled */
++static void
++init_blocking(void)
++{
++    sem_post(&in_init);
++    for (;;)
++        pause();
++}
++
++static void
++init_count(void)
++{
++    cancel_count++;
++}
++
++static void *
++cancelled_caller(void *arg)
++{
++    (void)arg;
++    call_once(&cancel_flag, init_blocking);
++    returned = 1;
++    return NULL;
++}
++
++static void *
++waiting_caller(void *arg)
++{
++    (void)arg;
++    while (sem_wait(&waiter_go) != 0)
++        ;
++    call_once(&cancel_flag, init_count);
++    return NULL;
++}
++
++static void
++init_inner(void)
++{
++    inner_count++;
++}
++
++static int
++inner_caller(void *arg)
++{
++    (void)arg;
++    call_once(&inner_flag, init_inner);
++    return inner_count;
++}
++
++/* Waits for another thread using a different flag */
++static void
++init_outer(void)
++{
++    thrd_t thr;
++    int    res = 0;
++
++    if (thrd_create(&thr, inner_caller, NULL) == thrd_success
++        && thrd_join(thr, &res) == thrd_success && res == 1)
++        outer_ok = 1;
++}
++
++static void
++handler(int sig)
++{
++    (void)sig;
++    signalled++;
++}
++
++static void
++init_signal(void)
++{
++    raise(SIGUSR1);
++    signal_count++;
++}
++
+ int
+ main(void)
+ {
+-    thrd_t thr[4];
+-    int    i, res;
++    struct sigaction act;
++    struct timespec  ts = { 0, 20000000 };
++    pthread_t        cancelled, waiter;
++    void            *pres = NULL;
++    thrd_t           thr[4];
++    int              i, res;
++
++    alarm(60);
+ 
+     for (i = 0; i < 4; i++)
+         check(thrd_create(&thr[i], child, NULL) == thrd_success, "thrd_create");
+@@ -84,6 +181,35 @@ main(void)
+     for (i = 0; i < 4; i++)
+         check(thrd_join(thr[i], &res) == thrd_success && res == 1, "ran before return");
+     check(count == 1, "once");
++
++    /* A cancelled function leaves the flag unused; a waiting caller runs its own */
++    check(sem_init(&in_init, 0, 0) == 0 && sem_init(&waiter_go, 0, 0) == 0, "sem_init");
++    check(pthread_create(&cancelled, NULL, cancelled_caller, NULL) == 0, "pthread_create");
++    check(sem_wait(&in_init) == 0, "sem_wait");
++    check(pthread_create(&waiter, NULL, waiting_caller, NULL) == 0, "pthread_create");
++    check(sem_post(&waiter_go) == 0, "sem_post");
++    /* Give the waiter time to start waiting; under load it may only call later */
++    thrd_sleep(&ts, NULL);
++    check(pthread_cancel(cancelled) == 0, "pthread_cancel");
++    check(pthread_join(cancelled, &pres) == 0, "pthread_join");
++    check(pres == PTHREAD_CANCELED && !returned, "function cancelled");
++    check(pthread_join(waiter, NULL) == 0, "pthread_join");
++    check(cancel_count == 1, "waiting caller ran its function");
++    call_once(&cancel_flag, init_count);
++    check(cancel_count == 1, "flag used once the function returned");
++
++    /* Callers using another flag don't wait for a function that is running */
++    call_once(&outer_flag, init_outer);
++    check(outer_ok, "call_once on another flag from within a function");
++
++    /* A signal handler run during the call doesn't affect it */
++    memset(&act, 0, sizeof(act));
++    act.sa_handler = handler;
++    sigemptyset(&act.sa_mask);
++    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
++    call_once(&signal_flag, init_signal);
++    call_once(&signal_flag, init_signal);
++    check(signalled == 1 && signal_count == 1, "signal during call_once");
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-threads/test-thrd_create.c b/test/test-posix/test-threads/test-thrd_create.c
+index 6a4b346a18..de7631fbd9 100644
+--- a/test/test-posix/test-threads/test-thrd_create.c
++++ b/test/test-posix/test-threads/test-thrd_create.c
+@@ -34,18 +34,28 @@
+  */
+ 
+ #define _POSIX_C_SOURCE 202405L
++/* RLIMIT_NPROC, which limits the number of threads on Linux, is an extension */
++#define _DEFAULT_SOURCE
+ #include <unistd.h>
+ 
+ /* Without the system support this test needs, it is skipped */
+ #if !defined(__PICOLIBC__) || (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)
+ 
+ #include <errno.h>
++#include <stdbool.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
++#include <sys/resource.h>
++#include <sys/wait.h>
+ #include <threads.h>
+ #include <time.h>
+ 
+-/* thrd_create starts threads that thrd_join, thrd_exit and thrd_detach manage */
++/*
++ * thrd_create starts threads that thrd_join, thrd_exit and thrd_detach
++ * manage, and reports the thread limit as thrd_error and a lack of
++ * memory as thrd_nomem
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -73,6 +83,92 @@ exiter(void *arg)
+     thrd_exit(42);
+ }
+ 
++#ifndef __GLIBC__
++/* qemu-user ignores RLIMIT_AS; it shows a BogoMIPS of 100.00 */
++static bool
++is_qemu(void)
++{
++    FILE *f = fopen("/proc/cpuinfo", "r");
++    char  line[256];
++    bool  ret = false;
++
++    if (!f)
++        return false;
++    while (fgets(line, sizeof(line), f) != NULL) {
++        if (strncmp(line, "BogoMIPS", 8) == 0) {
++            ret = strstr(line, "100.00") != NULL;
++            break;
++        }
++    }
++    fclose(f);
++    return ret;
++}
++#endif
++
++/* The address space in use, in bytes, or 0 if unknown */
++static unsigned long
++vm_size(void)
++{
++    FILE         *f = fopen("/proc/self/status", "r");
++    char          line[256];
++    unsigned long kb = 0;
++
++    if (!f)
++        return 0;
++    while (fgets(line, sizeof(line), f) != NULL)
++        if (strncmp(line, "VmSize:", 7) == 0)
++            kb = strtoul(line + 7, NULL, 10);
++    fclose(f);
++    return kb * 1024;
++}
++
++static int
++nothing(void *arg)
++{
++    (void)arg;
++    return 0;
++}
++
++/*
++ * In a child, lower a resource limit so thrd_create fails, and
++ * return its result as the exit status (or 100 + a setup failure)
++ */
++static int
++limited_create(int resource)
++{
++    struct rlimit rl;
++    thrd_t        thr;
++    pid_t         pid;
++    int           status;
++
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        void *p = malloc(64);
++
++        /* Leave thrd_create's own small allocation room to succeed */
++        free(p);
++        if (getrlimit(resource, &rl) != 0)
++            _exit(100);
++        if (resource == RLIMIT_AS) {
++            unsigned long size = vm_size();
++
++            if (size == 0)
++                _exit(101);
++            rl.rlim_cur = size + 32 * 1024;
++        } else {
++            rl.rlim_cur = 0;
++        }
++        if (setrlimit(resource, &rl) != 0)
++            _exit(102);
++        _exit(thrd_create(&thr, nothing, NULL));
++    }
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFEXITED(status), "child exited");
++    check(WEXITSTATUS(status) < 100, "child setup");
++    return WEXITSTATUS(status);
++}
++
+ int
+ main(void)
+ {
+@@ -93,6 +189,33 @@ main(void)
+     check(thrd_detach(thr) == thrd_success, "thrd_detach");
+ 
+     check(thrd_sleep(&ts, NULL) == 0, "thrd_sleep");
++
++    /*
++     * The limit on the number of threads is thrd_error, not
++     * thrd_nomem. Linux counts threads against RLIMIT_NPROC, which
++     * doesn't bind a privileged user; picolibc doesn't provide it.
++     */
++#ifdef RLIMIT_NPROC
++    if (getuid() != 0) {
++        res = limited_create(RLIMIT_NPROC);
++        printf("thrd_create beyond RLIMIT_NPROC: %d\n", res);
++        check(res == thrd_error, "thrd_create at the thread limit");
++    } else {
++        printf("running as root, RLIMIT_NPROC check skipped\n");
++    }
++#endif
++
++#ifndef __GLIBC__
++    /* glibc reports a stack it can't map as EAGAIN, so thrd_error */
++    if (!is_qemu()) {
++        res = limited_create(RLIMIT_AS);
++        printf("thrd_create with no address space left: %d\n", res);
++        check(res == thrd_nomem, "thrd_create without memory");
++    } else {
++        printf("qemu ignores RLIMIT_AS, thrd_nomem check skipped\n");
++    }
++#endif
++
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

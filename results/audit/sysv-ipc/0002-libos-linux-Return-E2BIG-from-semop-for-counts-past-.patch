@@ -1,0 +1,51 @@
+From 198fbc482392178a49a1dc6f2ef42d6b99602a4e Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:57:59 +0000
+Subject: [PATCH 2/7] libos/linux: Return E2BIG from semop for counts past 32
+ bits
+
+The kernel takes nsops as an unsigned int, so on 64-bit targets a
+count of 2^32 + 1 became 1 and semop did one operation instead of
+failing with E2BIG.
+---
+ libos/linux/semop.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/libos/linux/semop.c b/libos/linux/semop.c
+index 0ac39b288d..b613aff814 100644
+--- a/libos/linux/semop.c
++++ b/libos/linux/semop.c
+@@ -35,6 +35,7 @@
+ 
+ #include "local-ipc.h"
+ #include "local-cancel.h"
++#include <limits.h>
+ #include <sys/sem.h>
+ 
+ /* struct sembuf matches the kernel's */
+@@ -42,10 +43,20 @@ int
+ semop(int id, struct sembuf *ops, size_t nops)
+ {
+     void *cancel = _cancel_enter();
++    long  ret;
++
++#if __SIZEOF_SIZE_T__ > __SIZEOF_INT__
++    /* The kernel's count is an unsigned int; don't let a larger one wrap */
++    if (nops > UINT_MAX) {
++        _cancel_leave(cancel);
++        errno = E2BIG;
++        return -1;
++    }
++#endif
+ #ifdef LINUX_SYS_semop
+-    long ret = _syscall(LINUX_SYS_semop, id, ops, nops);
++    ret = _syscall(LINUX_SYS_semop, id, ops, nops);
+ #else
+-    long ret = _syscall(LINUX_SYS_semtimedop_time64, id, ops, nops, NULL);
++    ret = _syscall(LINUX_SYS_semtimedop_time64, id, ops, nops, NULL);
+ #endif
+ 
+     _cancel_leave(cancel);
+-- 
+2.47.3
+

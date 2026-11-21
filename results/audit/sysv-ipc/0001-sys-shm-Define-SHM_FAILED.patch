@@ -1,0 +1,47 @@
+From d0c5e220fa62030f058722d51efc5cbfd9866a92 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:57:59 +0000
+Subject: [PATCH 1/7] sys/shm: Define SHM_FAILED
+
+POSIX.1-2024 adds SHM_FAILED, ((void *)(intptr_t)-1), as shmat's
+error return, and requires <sys/shm.h> to define intptr_t.
+---
+ libc/include/sys/shm.h | 4 ++++
+ libos/linux/shmat.c    | 2 +-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/libc/include/sys/shm.h b/libc/include/sys/shm.h
+index fbba5a45f4..da33cb50ae 100644
+--- a/libc/include/sys/shm.h
++++ b/libc/include/sys/shm.h
+@@ -38,12 +38,16 @@
+ 
+ #include <sys/cdefs.h>
+ #include <sys/ipc.h>
++#include <sys/_stdint.h>
+ 
+ _BEGIN_STD_C
+ 
+ #define SHM_RDONLY 010000 /* Attach read-only (else read-write) */
+ #define SHM_RND    020000 /* Round attach address to SHMLBA */
+ 
++/* What shmat returns on failure */
++#define SHM_FAILED ((void *)(intptr_t)-1)
++
+ /* Segment low boundary address multiple; ARM Linux needs four pages */
+ #ifdef __arm__
+ #define SHMLBA 16384
+diff --git a/libos/linux/shmat.c b/libos/linux/shmat.c
+index b215c647b0..480c9e94b7 100644
+--- a/libos/linux/shmat.c
++++ b/libos/linux/shmat.c
+@@ -41,5 +41,5 @@ shmat(int id, const void *addr, int flags)
+ {
+     long ret = _syscall(LINUX_SYS_shmat, id, addr, flags);
+ 
+-    return ret == -1 ? (void *)-1 : (void *)ret;
++    return ret == -1 ? SHM_FAILED : (void *)ret;
+ }
+-- 
+2.47.3
+

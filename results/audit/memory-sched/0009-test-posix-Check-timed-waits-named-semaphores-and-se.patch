@@ -1,0 +1,719 @@
+From ddd9bb95245a68f1cc0cf1897997c0bd8c7c1c43 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Fri, 20 Nov 2026 23:55:54 +0000
+Subject: [PATCH 09/10] test-posix: Check timed waits, named semaphores and
+ <semaphore.h>
+
+Deadlines on each clock, deadline and clock errors, sem_post from a
+signal handler, the waits as cancellation points and the named calls as
+not; named semaphore creation, permissions, unlinking while open, atomic
+creation and long names; and the header's names and member namespace.
+---
+ test/test-posix/test-semaphore/CMakeLists.txt |   3 +
+ test/test-posix/test-semaphore/meson.build    |   3 +
+ .../test-semaphore/test-sem_timedwait.c       | 248 ++++++++++++++++
+ .../test-semaphore/test-sem_unlink.c          | 271 ++++++++++++++++++
+ .../test-semaphore/test-semaphore_h.c         | 126 ++++++++
+ 5 files changed, 651 insertions(+)
+ create mode 100644 test/test-posix/test-semaphore/test-sem_timedwait.c
+ create mode 100644 test/test-posix/test-semaphore/test-sem_unlink.c
+ create mode 100644 test/test-posix/test-semaphore/test-semaphore_h.c
+
+diff --git a/test/test-posix/test-semaphore/CMakeLists.txt b/test/test-posix/test-semaphore/CMakeLists.txt
+index 34c5220683..0c1e8641f9 100644
+--- a/test/test-posix/test-semaphore/CMakeLists.txt
++++ b/test/test-posix/test-semaphore/CMakeLists.txt
+@@ -36,6 +36,9 @@
+ set(tests
+   test-sem_init
+   test-sem_open
++  test-sem_timedwait
++  test-sem_unlink
++  test-semaphore_h
+   )
+ 
+ foreach(test IN LISTS tests)
+diff --git a/test/test-posix/test-semaphore/meson.build b/test/test-posix/test-semaphore/meson.build
+index e0f04b4768..a0ffc843de 100644
+--- a/test/test-posix/test-semaphore/meson.build
++++ b/test/test-posix/test-semaphore/meson.build
+@@ -34,10 +34,13 @@
+ #
+ 
+ dir_tests = [
++  'test-semaphore_h',
+ ]
+ 
+ # These use threads, so lock-valid.c doesn't apply
+ dir_thread_tests = [
+   'test-sem_init',
+   'test-sem_open',
++  'test-sem_timedwait',
++  'test-sem_unlink',
+ ]
+diff --git a/test/test-posix/test-semaphore/test-sem_timedwait.c b/test/test-posix/test-semaphore/test-sem_timedwait.c
+new file mode 100644
+index 0000000000..c939be22aa
+--- /dev/null
++++ b/test/test-posix/test-semaphore/test-sem_timedwait.c
+@@ -0,0 +1,248 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* glibc declares sem_clockwait only with _GNU_SOURCE */
++#ifdef TEST_GLIBC
++#define _GNU_SOURCE
++#endif
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                  \
++    || ((defined(_POSIX_SEMAPHORES) && _POSIX_SEMAPHORES > 0)               \
++        && (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                  \
++        && (defined(_POSIX_TIMEOUTS) && _POSIX_TIMEOUTS > 0)                \
++        && (defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK > 0))
++
++#include <errno.h>
++#include <pthread.h>
++#include <semaphore.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <time.h>
++
++/* Timed semaphore waits: when they time out, argument checks, signals and cancellation */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static sem_t sem;
++
++static void
++timeout_in(clockid_t clock, struct timespec *ts, long ms)
++{
++    check(clock_gettime(clock, ts) == 0, "clock_gettime");
++    ts->tv_nsec += ms * 1000 * 1000;
++    while (ts->tv_nsec >= 1000000000L) {
++        ts->tv_nsec -= 1000000000L;
++        ts->tv_sec++;
++    }
++}
++
++/* a >= b */
++static int
++not_before(const struct timespec *a, const struct timespec *b)
++{
++    return a->tv_sec > b->tv_sec || (a->tv_sec == b->tv_sec && a->tv_nsec >= b->tv_nsec);
++}
++
++static int
++value(void)
++{
++    int v;
++
++    check(sem_getvalue(&sem, &v) == 0, "sem_getvalue");
++    return v;
++}
++
++/* Wait on clock until 30ms from now; it must time out no earlier than that */
++static void
++times_out(clockid_t clock, int use_clockwait)
++{
++    struct timespec deadline, now;
++    int             ret;
++
++    timeout_in(clock, &deadline, 30);
++    if (use_clockwait)
++        ret = sem_clockwait(&sem, clock, &deadline);
++    else
++        ret = sem_timedwait(&sem, &deadline);
++    check(ret == -1 && errno == ETIMEDOUT, "times out");
++    check(clock_gettime(clock, &now) == 0, "clock_gettime");
++    check(not_before(&now, &deadline), "not before the deadline");
++    check(value() == 0, "value unchanged");
++}
++
++static void
++post_handler(int sig)
++{
++    (void)sig;
++    sem_post(&sem);
++}
++
++static pthread_t main_thread;
++
++static void *
++signaller(void *arg)
++{
++    (void)arg;
++    pthread_kill(main_thread, SIGUSR1);
++    return NULL;
++}
++
++static void *
++cancelled_wait(void *arg)
++{
++    struct timespec ts;
++    int             which = *(int *)arg;
++
++    timeout_in(CLOCK_REALTIME, &ts, 60 * 1000);
++    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
++    pthread_cancel(pthread_self());
++    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
++    if (which == 0)
++        sem_timedwait(&sem, &ts);
++    else if (which == 1)
++        sem_clockwait(&sem, CLOCK_REALTIME, &ts);
++    else
++        sem_wait(&sem);
++    return NULL;
++}
++
++int
++main(void)
++{
++    struct timespec  ts;
++    struct sigaction act;
++    pthread_t        thread;
++    void            *result;
++    int              ret;
++
++    check(sem_init(&sem, 0, 0) == 0, "sem_init");
++
++    /* Timeouts on each clock */
++    times_out(CLOCK_REALTIME, 0);
++    times_out(CLOCK_REALTIME, 1);
++    times_out(CLOCK_MONOTONIC, 1);
++
++    /* A deadline that has passed times out at once when the semaphore is locked */
++    ts.tv_sec = 0;
++    ts.tv_nsec = 0;
++    check(sem_timedwait(&sem, &ts) == -1 && errno == ETIMEDOUT, "past deadline");
++    check(sem_clockwait(&sem, CLOCK_MONOTONIC, &ts) == -1 && errno == ETIMEDOUT,
++          "past monotonic deadline");
++
++    /* ... and never when it can be locked */
++    check(sem_post(&sem) == 0, "sem_post");
++    check(sem_timedwait(&sem, &ts) == 0, "past deadline, unlocked");
++    check(sem_post(&sem) == 0, "sem_post");
++    check(sem_clockwait(&sem, CLOCK_MONOTONIC, &ts) == 0, "past monotonic deadline, unlocked");
++
++    /* picolibc doesn't check the deadline when it needn't wait, which POSIX allows */
++#ifdef __PICOLIBC__
++    ts.tv_nsec = -1;
++    check(sem_post(&sem) == 0, "sem_post");
++    check(sem_timedwait(&sem, &ts) == 0, "bad deadline, unlocked");
++#endif
++
++    /* Bad deadlines and clocks when it would block; the value stays the same */
++    timeout_in(CLOCK_REALTIME, &ts, 1000);
++    ts.tv_nsec = -1;
++    errno = 0;
++    check(sem_timedwait(&sem, &ts) == -1 && errno == EINVAL, "negative nanoseconds");
++    errno = 0;
++    check(sem_clockwait(&sem, CLOCK_REALTIME, &ts) == -1 && errno == EINVAL,
++          "sem_clockwait negative nanoseconds");
++    ts.tv_nsec = 1000000000L;
++    errno = 0;
++    check(sem_clockwait(&sem, CLOCK_MONOTONIC, &ts) == -1 && errno == EINVAL,
++          "sem_clockwait a billion nanoseconds");
++    timeout_in(CLOCK_REALTIME, &ts, 1000);
++    errno = 0;
++    check(sem_clockwait(&sem, (clockid_t)0x7fff, &ts) == -1 && errno == EINVAL, "unknown clock");
++    errno = 0;
++    check(sem_clockwait(&sem, CLOCK_PROCESS_CPUTIME_ID, &ts) == -1 && errno == EINVAL,
++          "CPU-time clock");
++    check(value() == 0, "value unchanged");
++
++    /* sem_post is async-signal-safe, and wakes a waiter from a handler */
++    memset(&act, 0, sizeof(act));
++    act.sa_handler = post_handler;
++    sigemptyset(&act.sa_mask);
++    check(sigaction(SIGUSR1, &act, NULL) == 0, "sigaction");
++    main_thread = pthread_self();
++    check(pthread_create(&thread, NULL, signaller, NULL) == 0, "pthread_create");
++    ret = sem_wait(&sem);
++    /* An interrupted wait leaves the posted value for the next one */
++    if (ret == -1) {
++        check(errno == EINTR, "interrupted");
++        check(sem_trywait(&sem) == 0, "posted by the handler");
++    }
++    check(pthread_join(thread, NULL) == 0, "pthread_join");
++    check(value() == 0, "value");
++
++    /* The waits are cancellation points */
++    for (int which = 0; which < 3; which++) {
++        check(pthread_create(&thread, NULL, cancelled_wait, &which) == 0, "pthread_create");
++        check(pthread_join(thread, &result) == 0, "pthread_join");
++        check(result == PTHREAD_CANCELED, "cancelled");
++    }
++    check(value() == 0, "value");
++
++    check(sem_destroy(&sem) == 0, "sem_destroy");
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-semaphore/test-sem_unlink.c b/test/test-posix/test-semaphore/test-sem_unlink.c
+new file mode 100644
+index 0000000000..8006759882
+--- /dev/null
++++ b/test/test-posix/test-semaphore/test-sem_unlink.c
+@@ -0,0 +1,271 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <unistd.h>
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__)                                                                  \
++    || ((defined(_POSIX_SEMAPHORES) && _POSIX_SEMAPHORES > 0)                               \
++        && (defined(_POSIX_THREADS) && _POSIX_THREADS > 0)                                  \
++        && (defined(_POSIX_SHARED_MEMORY_OBJECTS) && _POSIX_SHARED_MEMORY_OBJECTS > 0)      \
++        && (defined(__PICOLIBC_POSIX_MULTI_PROCESS) && __PICOLIBC_POSIX_MULTI_PROCESS > 0))
++
++#include <errno.h>
++#include <fcntl.h>
++#include <limits.h>
++#include <pthread.h>
++#include <semaphore.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <sys/wait.h>
++
++/* Named semaphores: creation, permissions, unlinking, names, and cancellation */
++
++static char name[64];
++static char name2[64];
++static char shm_name[64];
++
++static void
++cleanup(void)
++{
++    if (name[0])
++        (void)sem_unlink(name);
++    if (name2[0])
++        (void)sem_unlink(name2);
++    if (shm_name[0])
++        (void)shm_unlink(shm_name);
++}
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            cleanup();                                 \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static int
++value(sem_t *sem)
++{
++    int v;
++
++    check(sem_getvalue(sem, &v) == 0, "sem_getvalue");
++    return v;
++}
++
++/* None of these is a cancellation point; run them with a request pending */
++static void *
++not_cancellation_points(void *arg)
++{
++    sem_t *sem;
++    int    fd;
++
++    (void)arg;
++    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
++    pthread_cancel(pthread_self());
++    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
++
++    sem = sem_open(name2, O_CREAT | O_EXCL, 0600, 1);
++    if (sem == SEM_FAILED)
++        return (void *)1;
++    if (sem_trywait(sem) != 0 || sem_post(sem) != 0 || sem_close(sem) != 0)
++        return (void *)2;
++    if (sem_unlink(name2) != 0)
++        return (void *)3;
++    fd = shm_open(shm_name, O_RDWR | O_CREAT | O_EXCL, 0600);
++    if (fd < 0)
++        return (void *)4;
++    if (shm_unlink(shm_name) != 0)
++        return (void *)5;
++    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
++    close(fd);
++    return NULL;
++}
++
++#define NCHILD 8
++
++int
++main(void)
++{
++    static char long_name[NAME_MAX + 2];
++    struct stat st;
++    char        path[128];
++    sem_t      *sem, *old;
++    sem_t       unnamed;
++    pthread_t   thread;
++    void       *result;
++    pid_t       pids[NCHILD];
++    mode_t      mask;
++    int         status, created;
++    size_t      len;
++
++    snprintf(name, sizeof(name), "/picolibc-test-sem_unlink-%ld", (long)getpid());
++    snprintf(name2, sizeof(name2), "/picolibc-test-sem_unlink-%ld-2", (long)getpid());
++    snprintf(shm_name, sizeof(shm_name), "/picolibc-test-sem_unlink-%ld-shm", (long)getpid());
++    cleanup();
++
++    /* The initial value is checked */
++    errno = 0;
++    check(sem_open(name, O_CREAT, 0600, (unsigned)SEM_VALUE_MAX + 1) == SEM_FAILED
++              && errno == EINVAL,
++          "value above SEM_VALUE_MAX");
++
++    /* Creation applies the umask; an existing semaphore keeps its mode and value */
++    mask = umask(027);
++    sem = sem_open(name, O_CREAT | O_EXCL, 0666, 3);
++    umask(mask);
++    check(sem != SEM_FAILED, "create");
++    check(value(sem) == 3, "initial value");
++    /* Where the name is visible in the file system, as on Linux, check its mode */
++    snprintf(path, sizeof(path), "/dev/shm/sem.%s", name + 1);
++    if (stat(path, &st) == 0) {
++        check((st.st_mode & 0777) == 0640, "mode less the umask");
++        check(st.st_uid == geteuid(), "owner");
++    }
++    old = sem_open(name, O_CREAT, 0600, 7);
++    check(old == sem, "O_CREAT of an existing semaphore");
++    check(value(sem) == 3, "value kept");
++    check(sem_close(old) == 0, "sem_close");
++
++    /* Permissions, when they apply to this process */
++    if (geteuid() != 0) {
++        sem_t *denied;
++
++        check(sem_unlink(name2) == -1, "no second semaphore");
++        denied = sem_open(name2, O_CREAT | O_EXCL, 0, 0);
++        check(denied != SEM_FAILED, "create with mode 0");
++        check(sem_close(denied) == 0, "sem_close");
++        errno = 0;
++        check(sem_open(name2, 0) == SEM_FAILED && errno == EACCES, "no permission");
++        check(sem_unlink(name2) == 0, "sem_unlink");
++    } else {
++        printf("running as root, skipping EACCES\n");
++    }
++
++    /* Unlinking leaves open semaphores working, and the name makes a new one */
++    check(sem_unlink(name) == 0, "sem_unlink open semaphore");
++    errno = 0;
++    check(sem_open(name, 0) == SEM_FAILED && errno == ENOENT, "name removed");
++    check(sem_post(sem) == 0 && value(sem) == 4, "still usable");
++    fflush(stdout);
++    pids[0] = fork();
++    check(pids[0] >= 0, "fork");
++    if (pids[0] == 0)
++        _exit(sem_post(sem) == 0 ? 0 : 1);
++    check(waitpid(pids[0], &status, 0) == pids[0] && WIFEXITED(status) && WEXITSTATUS(status) == 0,
++          "child");
++    check(value(sem) == 5, "shared with the child after unlink");
++    old = sem;
++    sem = sem_open(name, O_CREAT | O_EXCL, 0600, 0);
++    check(sem != SEM_FAILED && sem != old, "new semaphore with the old name");
++    check(value(sem) == 0 && value(old) == 5, "separate semaphores");
++    check(sem_close(old) == 0, "sem_close old");
++    check(sem_close(sem) == 0, "sem_close new");
++    check(sem_unlink(name) == 0, "sem_unlink");
++
++    /* O_CREAT | O_EXCL is atomic: exactly one of several processes creates it */
++    fflush(stdout);
++    for (int i = 0; i < NCHILD; i++) {
++        pids[i] = fork();
++        check(pids[i] >= 0, "fork");
++        if (pids[i] == 0) {
++            if (sem_open(name, O_CREAT | O_EXCL, 0600, 0) != SEM_FAILED)
++                _exit(0);
++            _exit(errno == EEXIST ? 1 : 2);
++        }
++    }
++    created = 0;
++    for (int i = 0; i < NCHILD; i++) {
++        check(waitpid(pids[i], &status, 0) == pids[i] && WIFEXITED(status), "child");
++        check(WEXITSTATUS(status) != 2, "child error");
++        if (WEXITSTATUS(status) == 0)
++            created++;
++    }
++    check(created == 1, "one creator");
++    check(sem_unlink(name) == 0, "sem_unlink");
++    errno = 0;
++    check(sem_unlink(name) == -1 && errno == ENOENT, "sem_unlink missing");
++
++    /* A name sem_open accepted never gives ENAMETOOLONG to sem_unlink */
++    memset(long_name, 'n', sizeof(long_name) - 1);
++    long_name[0] = '/';
++    for (len = sizeof(long_name) - 1; len > 1; len--) {
++        long_name[len] = '\0';
++        sem = sem_open(long_name, O_CREAT | O_EXCL, 0600, 0);
++        if (sem != SEM_FAILED)
++            break;
++        check(errno == ENAMETOOLONG || errno == EINVAL, "long name");
++    }
++    check(len > 1, "some long name works");
++    check(sem_close(sem) == 0, "sem_close");
++    check(sem_unlink(long_name) == 0, "sem_unlink of the longest name");
++
++    /* sem_close of an unnamed semaphore, which picolibc reports */
++#ifdef __PICOLIBC__
++    check(sem_init(&unnamed, 0, 0) == 0, "sem_init");
++    errno = 0;
++    check(sem_close(&unnamed) == -1 && errno == EINVAL, "sem_close unnamed");
++    check(sem_destroy(&unnamed) == 0, "sem_destroy");
++#else
++    (void)unnamed;
++#endif
++
++    /* The named semaphore and shared memory calls aren't cancellation points */
++    check(pthread_create(&thread, NULL, not_cancellation_points, NULL) == 0, "pthread_create");
++    check(pthread_join(thread, &result) == 0, "pthread_join");
++    check(result == NULL, "not cancelled");
++
++    name[0] = name2[0] = shm_name[0] = '\0';
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-semaphore/test-semaphore_h.c b/test/test-posix/test-semaphore/test-semaphore_h.c
+new file mode 100644
+index 0000000000..fc24da258a
+--- /dev/null
++++ b/test/test-posix/test-semaphore/test-semaphore_h.c
+@@ -0,0 +1,126 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/*
++ * Application macros with plain names, defined before the header, must
++ * not break it: POSIX reserves only sem_ names for <semaphore.h>.
++ * ("value" would break <time.h>'s timer_gettime prototype, which
++ * <semaphore.h> may include.)
++ */
++#define waiters         +
++#define pshared         +
++#define count           +
++#define lock            +
++
++#define _POSIX_C_SOURCE 202405L
++/* glibc declares sem_clockwait only with _GNU_SOURCE */
++#ifdef TEST_GLIBC
++#define _GNU_SOURCE
++#endif
++#include <semaphore.h>
++#include <unistd.h>
++
++#undef waiters
++#undef pshared
++#undef count
++#undef lock
++
++/* Without the system support this test needs, it is skipped */
++#if !defined(__PICOLIBC__) || (defined(_POSIX_SEMAPHORES) && _POSIX_SEMAPHORES > 0)
++
++/* The <semaphore.h> header: types, constants and prototypes */
++
++#define same_type(a, T) _Generic((a), T: 1, default: 0)
++
++static sem_t           sem;
++static struct timespec ts;
++_Static_assert(same_type(SEM_FAILED, sem_t *), "SEM_FAILED is a sem_t *");
++_Static_assert(same_type(ts.tv_sec, time_t) && same_type(ts.tv_nsec, long), "timespec");
++
++/* glibc 2.43 leaves O_CREAT and O_EXCL to <fcntl.h> */
++#ifndef __GLIBC__
++_Static_assert(O_CREAT != O_EXCL && O_CREAT && O_EXCL, "O_CREAT and O_EXCL");
++#endif
++
++static int (* const p_sem_clockwait)(sem_t * restrict, clockid_t, const struct timespec * restrict)
++    = sem_clockwait;
++static int    (   *const p_sem_close)(sem_t *) = sem_close;
++static int    (   *const p_sem_destroy)(sem_t *) = sem_destroy;
++static int    (   *const p_sem_getvalue)(sem_t    *restrict, int    *restrict) = sem_getvalue;
++static int    (   *const p_sem_init)(sem_t *, int, unsigned) = sem_init;
++static sem_t *(* const p_sem_open)(const char *, int, ...) = sem_open;
++static int    (   *const p_sem_post)(sem_t *) = sem_post;
++static int    (   *const p_sem_timedwait)(sem_t    *restrict, const struct timespec    *restrict)
++    = sem_timedwait;
++static int (* const p_sem_trywait)(sem_t *) = sem_trywait;
++static int (* const p_sem_unlink)(const char *) = sem_unlink;
++static int (* const p_sem_wait)(sem_t *) = sem_wait;
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    int v;
++
++    if (!p_sem_clockwait || !p_sem_close || !p_sem_destroy || !p_sem_getvalue || !p_sem_init
++        || !p_sem_open || !p_sem_post || !p_sem_timedwait || !p_sem_trywait || !p_sem_unlink
++        || !p_sem_wait) {
++        printf("functions\n");
++        return 1;
++    }
++    /* An unnamed semaphore works through the pointers too */
++    if (p_sem_init(&sem, 0, 1) != 0 || p_sem_getvalue(&sem, &v) != 0 || v != 1
++        || p_sem_trywait(&sem) != 0 || p_sem_post(&sem) != 0 || p_sem_destroy(&sem) != 0) {
++        printf("semaphore\n");
++        return 1;
++    }
++    (void)ts;
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+
