@@ -160,7 +160,7 @@ int swscanf(const wchar_t * __restrict, const wchar_t * __restrict, ...) __picol
 #if __GNU_VISIBLE
 int __d_swprintf(wchar_t * __restrict, size_t, const wchar_t * __restrict, ...) __picolibc_export;
 #endif
-wint_t ungetwc(wint_t wc, __FILE *) __picolibc_export;
+wint_t ungetwc(wint_t, __FILE *) __picolibc_export;
 #if __ISO_C_VISIBLE >= 1999 || __XSI_VISIBLE >= 500
 int vfwprintf(__FILE * __restrict, const wchar_t * __restrict, __gnuc_va_list) __picolibc_export;
 int vfwscanf(__FILE * __restrict, const wchar_t * __restrict, __gnuc_va_list) __picolibc_export;
@@ -181,7 +181,7 @@ int wcscasecmp(const wchar_t *, const wchar_t *) __picolibc_export;
 int wcscasecmp_l(const wchar_t *, const wchar_t *, locale_t) __picolibc_export;
 #endif
 wchar_t *wcscat(wchar_t * __restrict, const wchar_t * __restrict) __picolibc_export;
-wchar_t *wcschr(const wchar_t *s, wchar_t c) __picolibc_export;
+wchar_t *wcschr(const wchar_t *, wchar_t) __picolibc_export;
 int      wcscmp(const wchar_t *, const wchar_t *) __picolibc_export;
 int      wcscoll(const wchar_t *, const wchar_t *) __picolibc_export;
 #if __POSIX_VISIBLE >= 200809
@@ -191,8 +191,8 @@ wchar_t *wcscpy(wchar_t * __restrict, const wchar_t * __restrict) __picolibc_exp
 size_t   wcscspn(const wchar_t *, const wchar_t *) __picolibc_export;
 
 #if __POSIX_VISIBLE >= 200809
-void     free(void *) __nothrow __picolibc_export;
-wchar_t *wcsdup(const wchar_t *) __malloc_like __warn_unused_result __picolibc_export;
+wchar_t *wcsdup(const wchar_t *) __malloc_like_with_free(__builtin_free, 1) __warn_unused_result
+__picolibc_export;
 #endif
 size_t wcsftime(wchar_t * __restrict, size_t, const wchar_t * __restrict,
                 const struct tm * __restrict) __picolibc_export;
@@ -201,8 +201,8 @@ size_t wcsftime_l(wchar_t * __restrict, size_t, const wchar_t * __restrict,
                   const struct tm * __restrict, locale_t) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || __POSIX_VISIBLE >= 202405
-size_t wcslcat(wchar_t *, const wchar_t *, size_t) __picolibc_export;
-size_t wcslcpy(wchar_t *, const wchar_t *, size_t) __picolibc_export;
+size_t wcslcat(wchar_t * __restrict, const wchar_t * __restrict, size_t) __picolibc_export;
+size_t wcslcpy(wchar_t * __restrict, const wchar_t * __restrict, size_t) __picolibc_export;
 #endif
 size_t wcslen(const wchar_t *) __picolibc_export;
 #if __POSIX_VISIBLE >= 200809
@@ -217,12 +217,12 @@ size_t wcsnlen(const wchar_t *, size_t) __picolibc_export;
 size_t wcsnrtombs(char * __restrict, const wchar_t ** __restrict, size_t, size_t,
                   mbstate_t * __restrict) __picolibc_export;
 #endif
-wchar_t *wcspbrk(const wchar_t *s, const wchar_t *a) __picolibc_export;
-wchar_t *wcsrchr(const wchar_t *s, wchar_t c) __picolibc_export;
+wchar_t *wcspbrk(const wchar_t *, const wchar_t *) __picolibc_export;
+wchar_t *wcsrchr(const wchar_t *, wchar_t) __picolibc_export;
 size_t   wcsrtombs(char   *__restrict, const wchar_t   **__restrict, size_t, mbstate_t   *__restrict)
     __picolibc_export;
 size_t   wcsspn(const wchar_t *, const wchar_t *) __picolibc_export;
-wchar_t *wcsstr(const wchar_t * __restrict h, const wchar_t * __restrict n) __picolibc_export;
+wchar_t *wcsstr(const wchar_t * __restrict, const wchar_t * __restrict) __picolibc_export;
 double   wcstod(const wchar_t   *__restrict, wchar_t   **__restrict) __picolibc_export;
 #if __GNU_VISIBLE
 double wcstod_l(const wchar_t *, wchar_t **, locale_t) __picolibc_export;
@@ -277,7 +277,7 @@ int wctob(wint_t) __picolibc_export;
 #if __XSI_VISIBLE
 int wcwidth(const wchar_t) __picolibc_export;
 #endif
-wchar_t *wmemchr(const wchar_t *s, wchar_t c, size_t n) __picolibc_export;
+wchar_t *wmemchr(const wchar_t *, wchar_t, size_t) __picolibc_export;
 int      wmemcmp(const wchar_t *, const wchar_t *, size_t) __picolibc_export;
 wchar_t *wmemcpy(wchar_t * __restrict, const wchar_t * __restrict, size_t) __picolibc_export;
 wchar_t *wmemmove(wchar_t *, const wchar_t *, size_t) __picolibc_export;
