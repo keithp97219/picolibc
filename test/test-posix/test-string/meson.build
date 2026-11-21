@@ -33,5 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 dir_tests = [
+  'test-memchr-pages',
   'test-string_h',
+  'test-strnlen-pages',
 ]

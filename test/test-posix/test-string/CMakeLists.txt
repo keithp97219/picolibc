@@ -33,7 +33,9 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 set(tests
+  test-memchr-pages
   test-string_h
+  test-strnlen-pages
   )
 
 foreach(test IN LISTS tests)
