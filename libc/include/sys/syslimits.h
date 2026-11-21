@@ -54,11 +54,32 @@
 #define PATH_MAX  1024       /* max bytes in pathname */
 #define PIPE_BUF  512        /* max bytes for atomic pipe writes */
 
-/* Runtime increasable values */
-#define COLL_WEIGHTS_MAX                    2    /* max weights for order keyword */
-#define EXPR_NEST_MAX                       32   /* max expressions nested in expr(1) */
-#define LINE_MAX                            2048 /* max bytes in an input line */
-#define RE_DUP_MAX                          255  /* max RE's in interval notation */
+/*
+ * Runtime increasable values; sysconf reports the value a system
+ * actually has, which may be larger
+ */
+#define BC_BASE_MAX        99   /* max obase in bc(1) */
+#define BC_DIM_MAX         2048 /* max array elements in bc(1) */
+#define BC_SCALE_MAX       99   /* max scale in bc(1) */
+#define BC_STRING_MAX      1000 /* max string constant in bc(1) */
+#define CHARCLASS_NAME_MAX 14   /* max bytes in a character class name */
+#define COLL_WEIGHTS_MAX   2    /* max weights for order keyword */
+#define EXPR_NEST_MAX      32   /* max expressions nested in expr(1) */
+#define LINE_MAX           2048 /* max bytes in an input line */
+#define NGROUPS_MAX        8    /* max supplementary group IDs */
+#define RE_DUP_MAX         255  /* max RE's in interval notation */
+
+/* Other invariant values; catopen never opens a catalog */
+#define NL_MSGMAX  32767 /* max message number */
+#define NL_SETMAX  255   /* max set number */
+#define NL_TEXTMAX 2048  /* max bytes in a message */
+
+/* Numerical limits POSIX adds */
+#define LONG_BIT (__SIZEOF_LONG__ * 8) /* bits in a long */
+#define WORD_BIT (__SIZEOF_INT__ * 8)  /* bits in an int */
+
+/* The coarsest CLOCK_REALTIME and CLOCK_MONOTONIC resolution allowed */
+#define _POSIX_CLOCKRES_MIN                 20000000
 
 #define AIO_LISTIO_MAX                      64 /* max requests in one lio_listio */
 #define AIO_PRIO_DELTA_MAX                  20 /* max aio_reqprio; accepted but unused */
@@ -124,7 +145,8 @@
 #endif
 
 #if __XSI_VISIBLE
-#define NZERO 20 /* default nice value; Linux nice values run from -20 to 19 */
+#define NZERO      20 /* default nice value; Linux nice values run from -20 to 19 */
+#define NL_LANGMAX 14 /* max bytes in a LANG name */
 #endif
 
 #endif
