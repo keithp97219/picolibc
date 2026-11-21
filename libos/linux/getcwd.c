@@ -39,9 +39,24 @@
 char *
 getcwd(char *buf, size_t size)
 {
-    int ret;
+    long ret;
+
+    /* Linux gives ERANGE for a zero size */
+    if (size == 0) {
+        errno = EINVAL;
+        return NULL;
+    }
     ret = _syscall(LINUX_SYS_getcwd, buf, size);
     if (ret < 0)
         return NULL;
+    /*
+     * A directory outside the root (after chroot or in another mount
+     * namespace) comes back as "(unreachable)/...", which isn't an
+     * absolute pathname
+     */
+    if (buf[0] != '/') {
+        errno = ENOENT;
+        return NULL;
+    }
     return buf;
 }
