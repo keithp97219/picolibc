@@ -35,4 +35,5 @@
 
 dir_tests = [
   'test-catopen',
+  'test-catopen-files',
 ]

@@ -35,6 +35,7 @@
 
 set(tests
   test-catopen
+  test-catopen-files
   )
 
 foreach(test IN LISTS tests)
