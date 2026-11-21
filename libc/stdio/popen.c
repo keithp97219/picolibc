@@ -38,6 +38,24 @@
 #include <stdbool.h>
 #include <sys/wait.h>
 
+/* Open popen streams, closed in each new child. Protected by __LIBC_LOCK */
+static struct __file_pipe *__popen_list;
+
+static void
+__popen_remove(struct __file_pipe *pf)
+{
+    struct __file_pipe **prev;
+
+    __LIBC_LOCK();
+    for (prev = &__popen_list; *prev; prev = &(*prev)->next_pipe) {
+        if (*prev == pf) {
+            *prev = pf->next_pipe;
+            break;
+        }
+    }
+    __LIBC_UNLOCK();
+}
+
 static int
 __pipe_close(FILE *file)
 {
@@ -46,9 +64,15 @@ __pipe_close(FILE *file)
     pid_t               child = pf->child;
     int                 ret;
 
+    __popen_remove(pf);
+
     ret = __bufio_close(file);
-    if (waitpid(child, wstatus, 0) < 0)
-        return _FDEV_ERR;
+
+    /* Don't return before the child has terminated */
+    while (waitpid(child, wstatus, 0) < 0) {
+        if (errno != EINTR)
+            return _FDEV_ERR;
+    }
     return ret;
 }
 
@@ -63,27 +87,40 @@ extern char **environ;
 FILE *
 popen(const char *command, const char *type)
 {
-    char               *argv[4];
+    char               *argv[5];
     char               *shell;
     int                 pipe_fd[2];
     int                 my_fd;
     int                 stdio_flags;
+    bool                cloexec = false;
     struct __file_pipe *pf;
+    struct __file_pipe *other;
     char               *buf;
     size_t              buf_size;
 
-    if (strchr(type, 'r')) {
+    switch (type[0]) {
+    case 'r':
         my_fd = 0;
         stdio_flags = __SRD;
-    } else if (strchr(type, 'w')) {
+        break;
+    case 'w':
         my_fd = 1;
         stdio_flags = __SWR;
-    } else {
+        break;
+    default:
         errno = EINVAL;
         return NULL;
     }
 
-    if (pipe(pipe_fd) < 0)
+    /* 'e' leaves FD_CLOEXEC set on the stream's descriptor */
+    if (strchr(type, 'e'))
+        cloexec = true;
+
+    /*
+     * Both ends start with FD_CLOEXEC so that children started by
+     * other threads don't keep them open.
+     */
+    if (pipe2(pipe_fd, O_CLOEXEC) < 0)
         return NULL;
 
     buf_size = BUFSIZ;
@@ -101,31 +138,49 @@ popen(const char *command, const char *type)
     pf->bfile.xfile.cfile.close = __pipe_close;
     pf->wstatus = NULL;
 
+    /*
+     * List the stream before forking. fork holds __LIBC_LOCK while it
+     * runs, so the child sees a consistent list.
+     */
+    __LIBC_LOCK();
+    pf->next_pipe = __popen_list;
+    __popen_list = pf;
+    __LIBC_UNLOCK();
+
     switch (pf->child = fork()) {
     case -1:
+        __popen_remove(pf);
         goto bail;
     case 0:
-        /* Close parent end */
-        close(pipe_fd[my_fd]);
+        /* Close the streams from popen calls, including this one's end */
+        for (other = __popen_list; other; other = other->next_pipe)
+            close(_FDEV_BUFIO_FD(&other->bfile));
 
-        /* Move child end to correct fd */
+        /* Move child end to correct fd, without FD_CLOEXEC */
         my_fd = 1 - my_fd;
         if (pipe_fd[my_fd] != my_fd) {
             dup2(pipe_fd[my_fd], my_fd);
             close(pipe_fd[my_fd]);
+        } else {
+            fcntl(my_fd, F_SETFD, 0);
         }
 
         /* Set up argv */
         shell = "/bin/sh";
-        argv[0] = shell + 4;
+        argv[0] = shell + 5;
         argv[1] = "-c";
-        argv[2] = (char *)command;
-        argv[3] = NULL;
+        argv[2] = "--";
+        argv[3] = (char *)command;
+        argv[4] = NULL;
 
         /* And we're off */
         execve(shell, argv, environ);
-        _exit(1);
+
+        /* As if the shell had exited with 127 */
+        _exit(127);
     default:
+        if (!cloexec)
+            fcntl(pipe_fd[my_fd], F_SETFD, 0);
         close(pipe_fd[1 - my_fd]);
         bufio_add_file(&pf->bfile.xfile.cfile.file);
         return &pf->bfile.xfile.cfile.file;
