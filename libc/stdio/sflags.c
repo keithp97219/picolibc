@@ -60,8 +60,8 @@ __stdio_flags(const char *mode, int *optr)
         case 'e': /* close on exec */
             o |= O_CLOEXEC;
             break;
-        case 'x': /* fail if the file exists */
-            if (o & O_TRUNC)
+        case 'x': /* with 'w' or 'a', fail if the file exists */
+            if (o & O_CREAT)
                 o |= O_EXCL;
             break;
         default:
