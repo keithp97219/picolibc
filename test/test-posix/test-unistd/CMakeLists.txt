@@ -41,6 +41,7 @@ set(tests
   test-confstr
   test-dup3
   test-execl
+  test-execl-thread
   test-execle
   test-execvp
   test-faccessat

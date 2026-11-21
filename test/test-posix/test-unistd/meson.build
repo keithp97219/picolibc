@@ -96,6 +96,7 @@ dir_tests = [
 
 # These check credentials across threads
 dir_thread_tests = [
+  'test-execl-thread',
   'test-setuid-thread',
 ]
 
