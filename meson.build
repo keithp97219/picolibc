@@ -1132,7 +1132,16 @@ foreach params : [default_target] + targets
       endif
     endif
 
-    if cc.get_linker_id() == 'ld.eld'
+    # Meson recognizes eld only by a version string starting with
+    # 'eld'; eld 24 prints 'GNU ld compatible linker - eld 24.0',
+    # which meson takes for ld.bfd. eld accepts --trace-lto, ld.bfd
+    # rejects it.
+    linker_is_eld = cc.get_linker_id() == 'ld.eld'
+    if not linker_is_eld and cc.get_linker_id() == 'ld.bfd'
+      linker_is_eld = cc.has_link_argument('-Wl,--trace-lto')
+    endif
+
+    if linker_is_eld
       picolibc_ld_data.set('TLS_PHDRS', 'tls PT_TLS;')
       picolibc_ld_data.set('TLS_INIT_PHDR', 'tls')
     endif
