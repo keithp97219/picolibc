@@ -23,7 +23,12 @@ nearbyintf(float x)
     fegetenv(&env);
     fedisableexcept(FE_INEXACT);
 #endif
-    x = rintf(x);
+    /*
+     * Keep rint between the environment changes: the barriers stop the
+     * compiler from moving it, which clang does on targets without
+     * strict floating point support
+     */
+    x = opt_barrier_float(rintf(opt_barrier_float(x)));
 #if defined(FE_INEXACT)
     fesetenv(&env);
 #endif
