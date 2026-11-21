@@ -39,11 +39,13 @@
 /* Without the system support this test needs, it is skipped */
 #if defined(__PICOLIBC_POSIX_USER_GROUPS)
 
+#include <errno.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-/* setgid to the current value succeeds */
+/* setgid accepts the real ID, refuses an invalid one, and refuses others without privileges */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -53,10 +55,42 @@
         }                                              \
     } while (0)
 
+/* Returns an ID the process holds in none of its real, effective or saved IDs */
+static gid_t
+other_id(gid_t a, gid_t b, gid_t c)
+{
+    gid_t id = a + 1;
+
+    while (id == a || id == b || id == c || id == (gid_t)-1 || id == 0)
+        id++;
+    return id;
+}
+
 int
 main(void)
 {
-    check(setgid(getgid()) == 0, "setgid");
+    gid_t r = getgid(), e = getegid();
+    gid_t before[256], after[256];
+    int   nbefore, nafter;
+
+    nbefore = getgroups(256, before);
+    check(nbefore >= 0, "getgroups");
+    check(setgid(r) == 0, "setgid to the real ID");
+    check(getgid() == r && getegid() == r, "IDs after setgid");
+    /* setgid doesn't touch the supplementary groups */
+    nafter = getgroups(256, after);
+    check(nafter == nbefore && memcmp(before, after, (size_t)nbefore * sizeof(gid_t)) == 0,
+          "supplementary groups kept");
+
+    errno = 0;
+    check(setgid((gid_t)-1) == -1 && errno == EINVAL, "an invalid ID gives EINVAL");
+    if (geteuid() == 0) {
+        printf("privileged, skipping the EPERM check\n");
+    } else {
+        errno = 0;
+        check(setgid(other_id(r, e, r)) == -1 && errno == EPERM, "another ID gives EPERM");
+        check(getgid() == r && getegid() == r, "IDs kept after EPERM");
+    }
 
     printf("success\n");
     return 0;

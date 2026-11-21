@@ -39,12 +39,13 @@
 /* Without the system support this test needs, it is skipped */
 #if defined(__PICOLIBC_POSIX_USER_GROUPS)
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-/* getgroups reports the count and fills in every entry completely */
+/* getgroups reports the count, fills in every entry completely and checks the size */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -70,6 +71,20 @@ main(void)
     check(getgroups(ngroups, groups) == ngroups, "getgroups");
     for (int i = 0; i < ngroups; i++)
         check((groups[i] >> 16) != 0xffff, "getgroups entry filled in");
+
+    /* A size of zero only counts, leaving the array alone */
+    memset(groups, 0xab, sizeof(groups));
+    check(getgroups(0, groups) == ngroups, "count");
+    for (size_t i = 0; i < sizeof(groups); i++)
+        check(((unsigned char *)groups)[i] == 0xab, "array untouched");
+
+    /* An array too small for the list */
+    if (ngroups >= 2) {
+        errno = 0;
+        check(getgroups(ngroups - 1, groups) == -1 && errno == EINVAL, "EINVAL");
+    } else {
+        printf("%d groups, skipping the EINVAL check\n", ngroups);
+    }
 
     printf("success\n");
     return 0;

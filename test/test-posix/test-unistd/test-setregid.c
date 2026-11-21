@@ -55,15 +55,38 @@
         }                                              \
     } while (0)
 
+/* Returns an ID the process holds in none of its real, effective or saved IDs */
+static gid_t
+other_id(gid_t a, gid_t b, gid_t c)
+{
+    gid_t id = a + 1;
+
+    while (id == a || id == b || id == c || id == (gid_t)-1 || id == 0)
+        id++;
+    return id;
+}
+
 int
 main(void)
 {
-    gid_t r = getgid(), e = getegid();
+    gid_t r = getgid(), e = getegid(), other = other_id(r, e, r);
 
-    /* Setting the ids to their current values is always allowed */
-    check(setregid(r, e) == 0, "same ids");
+    /* Setting the IDs to their current values is always allowed */
+    check(setregid(r, e) == 0, "same IDs");
     check(setregid((gid_t)-1, (gid_t)-1) == 0, "unchanged");
-    check(getgid() == r && getegid() == e, "ids kept");
+    check(getgid() == r && getegid() == e, "IDs kept");
+    /* Either may be set to the other */
+    check(setregid(e, r) == 0 && setregid(r, e) == 0, "swap");
+    if (geteuid() == 0) {
+        printf("privileged, skipping the EPERM checks\n");
+    } else {
+        errno = 0;
+        check(setregid((gid_t)-1, other) == -1 && errno == EPERM, "another effective ID");
+        errno = 0;
+        check(setregid(other, (gid_t)-1) == -1 && errno == EPERM, "another real ID");
+        check(getgid() == r && getegid() == e, "IDs kept after EPERM");
+    }
+
     printf("success\n");
     return 0;
 }
