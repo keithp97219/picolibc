@@ -72,6 +72,8 @@ posix_test_dirs = [
   'test-stdatomic',
   'test-stdio',
   'test-stdlib',
+  'test-string',
+  'test-strings',
   'test-sys-ipc',
   'test-sys-mman',
   'test-sys-msg',
