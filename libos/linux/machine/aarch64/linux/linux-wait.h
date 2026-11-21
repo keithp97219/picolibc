@@ -34,6 +34,9 @@
  */
 #ifndef _LINUX_WAIT_H_
 #define _LINUX_WAIT_H_
+#define LINUX_P_ALL      0
+#define LINUX_P_PGID     2
+#define LINUX_P_PID      1
 #define LINUX_WCONTINUED 0x8
 #define LINUX_WEXITED    0x4
 #define LINUX_WNOHANG    0x1

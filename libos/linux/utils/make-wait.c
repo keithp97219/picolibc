@@ -45,6 +45,9 @@ main(void)
     printf("#define LINUX_WEXITED 0x%x\n", WEXITED);
     printf("#define LINUX_WSTOPPED 0x%x\n", WSTOPPED);
     printf("#define LINUX_WNOWAIT 0x%x\n", WNOWAIT);
+    printf("#define LINUX_P_ALL %d\n", P_ALL);
+    printf("#define LINUX_P_PID %d\n", P_PID);
+    printf("#define LINUX_P_PGID %d\n", P_PGID);
 
     /* should check status macros somehow */
 

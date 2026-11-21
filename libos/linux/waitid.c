@@ -45,6 +45,29 @@ waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     int                     koptions = 0;
     void                   *cancel;
     long                    ret;
+    int                     kidtype;
+
+    switch (idtype) {
+    case P_ALL:
+        kidtype = LINUX_P_ALL;
+        break;
+    case P_PID:
+        kidtype = LINUX_P_PID;
+        break;
+    case P_PGID:
+        /*
+         * No process group has ID 0, but Linux takes 0 to mean the
+         * caller's group
+         */
+        kidtype = id == 0 ? -1 : LINUX_P_PGID;
+        break;
+    default:
+        /* Linux gives other values meanings of its own, such as P_PIDFD */
+        kidtype = -1;
+        break;
+    }
+    if (options & ~(WEXITED | WSTOPPED | WCONTINUED | WNOHANG | WNOWAIT))
+        kidtype = -1;
 
     if (options & WEXITED)
         koptions |= LINUX_WEXITED;
@@ -59,8 +82,14 @@ waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 
     /* With WNOHANG and no child ready, the kernel leaves this zero */
     memset(&kinfo, 0, sizeof(kinfo));
+    /* A pending cancellation acts even when the arguments are bad */
     cancel = _cancel_enter();
-    ret = _syscall(LINUX_SYS_waitid, idtype, id, &kinfo, koptions, NULL);
+    if (kidtype < 0) {
+        _cancel_leave(cancel);
+        errno = EINVAL;
+        return -1;
+    }
+    ret = _syscall(LINUX_SYS_waitid, kidtype, id, &kinfo, koptions, NULL);
     _cancel_leave(cancel);
     if (ret < 0)
         return -1;
