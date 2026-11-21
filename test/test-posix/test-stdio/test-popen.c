@@ -124,7 +124,10 @@ main(void)
     /* 'r': the command's standard output is the pipe */
     p = popen("echo hello", "r");
     check(p != NULL, "popen r");
-    check((fcntl(fileno(p), F_GETFL) & O_ACCMODE) == O_RDONLY, "readable end");
+    /* The pipe may also be open the other way (FreeBSD's pipes are) */
+    check((fcntl(fileno(p), F_GETFL) & O_ACCMODE) == O_RDONLY
+              || (fcntl(fileno(p), F_GETFL) & O_ACCMODE) == O_RDWR,
+          "readable end");
     check(!(fcntl(fileno(p), F_GETFD) & FD_CLOEXEC), "no FD_CLOEXEC without e");
     check(strcmp(read_line(p), "hello\n") == 0, "read the output");
     check(pclose(p) == 0, "pclose r");
@@ -132,7 +135,10 @@ main(void)
     /* 'w': the command's standard input is the pipe */
     p = popen("cat > out", "w");
     check(p != NULL, "popen w");
-    check((fcntl(fileno(p), F_GETFL) & O_ACCMODE) == O_WRONLY, "writable end");
+    /* The pipe may also be open the other way (FreeBSD's pipes are) */
+    check((fcntl(fileno(p), F_GETFL) & O_ACCMODE) == O_WRONLY
+              || (fcntl(fileno(p), F_GETFL) & O_ACCMODE) == O_RDWR,
+          "writable end");
     check(fputs("to the command\n", p) >= 0, "write");
     check(pclose(p) == 0, "pclose w");
     q = fopen("out", "r");
@@ -175,13 +181,23 @@ main(void)
     check(strcmp(read_line(p), "ran\n") == 0, "command starting with -");
     check(pclose(p) == 0, "pclose -cmd");
 
-    /* A shell that can't be run gives status 127; a huge environment string makes execve fail */
+    /*
+     * A shell that can't be run gives status 127; an environment
+     * string longer than {ARG_MAX} makes execve fail on any system
+     */
     other = fork();
     check(other >= 0, "fork");
     if (other == 0) {
-        static char big[200 * 1024];
+        long  arg_max = sysconf(_SC_ARG_MAX);
+        char *big;
 
-        memset(big, 'b', sizeof(big) - 1);
+        if (arg_max <= 0 || arg_max > 64L * 1024 * 1024)
+            arg_max = 64L * 1024 * 1024;
+        big = malloc((size_t)arg_max + 1);
+        if (big == NULL)
+            _exit(2);
+        memset(big, 'b', (size_t)arg_max);
+        big[arg_max] = '\0';
         if (setenv("BIG", big, 1) != 0)
             _exit(2);
         p = popen("true", "r");
