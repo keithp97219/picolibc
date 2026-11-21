@@ -59,7 +59,9 @@ SUCH DAMAGE.
 
 _BEGIN_STD_C
 
+#if __POSIX_VISIBLE
 #include <sys/_wait.h>
+#endif
 
 #if __POSIX_VISIBLE >= 202405
 /* The open flags for mkostemp, which may make all of <fcntl.h> visible */

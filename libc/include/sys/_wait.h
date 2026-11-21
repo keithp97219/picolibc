@@ -54,5 +54,8 @@ SUCH DAMAGE.
 #define WIFSTOPPED(w)      (((w) & 0xff) == 0x7f)
 #define __W_EXITCODE(e, s) (((e) << 8) | (s))
 #define __W_COREFLAG       0x80
+#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
+#define WCOREDUMP(w) ((w) & __W_COREFLAG)
+#endif
 
 #endif

@@ -36,8 +36,6 @@ _BEGIN_STD_C
 #include <sys/types.h>
 #include <sys/_wait.h>
 
-#define WCOREDUMP(w) ((w) & __W_COREFLAG)
-
 pid_t wait(int *);
 pid_t waitpid(pid_t, int *, int);
 #if __MISC_VISIBLE
