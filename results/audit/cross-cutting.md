@@ -462,3 +462,14 @@ Append yours under a heading naming the unit.
 - `test/test-math/test-tgmath.c`: against glibc, `dadd`, `dsub`, `dmul`, `ddiv`, `dfma` and `dsqrt` are undeclared and `__STDC_VERSION_TGMATH_H__` has the wrong value. clang 21 also crashes in the aarch64 backend at test-tgmath.c:294 ("Cannot select: i32 = setcc ... Constant:i128<0>"), which is a clang bug, so the test may need to avoid that expression on aarch64 clang.
 
 Until those are fixed, the arm64 units check their own new or changed files with `/tmp/arm64run/clang-check` (clang `-fsyntax-only -Werror` with meson's gcc flags, for the picolibc and `-native` entries) rather than a full clang build.
+
+## From the arm64 coordinator: clang native build of claude/fix-clang-native (8b8b1780b2) on aarch64
+
+`CC=clang CXX=clang++ scripts/do-native-configure -Dwerror=true`, `ninja -k 0`, Debian clang 21.1.8 with libclang-rt-21-dev, glibc 2.43, real aarch64 hardware:
+
+- **Build:** one failure left. clang 21's aarch64 backend crashes on `test/test-math/test-tgmath.c:303` ("fatal error: error in backend: Cannot select: i32 = setcc ..., Constant:i128<0>, seteq"). f292931a18 skips test-tgmath only when `<tgmath.h>` isn't C23, and picolibc's is, so the picolibc build still compiles the `__int128` comparison. This is a clang bug that x86_64 doesn't hit; the test needs to avoid that comparison (or skip it) for clang on aarch64.
+- **CXX:** with `CC=clang` alone, meson picks g++ for C++, and 52b2f08287's `-fno-sanitize-link-runtime` reaches g++ ("unrecognized command-line option"), failing 4 C++ compiles. With `CXX=clang++` they build. Checking the C++ compiler for that flag separately would make mixed setups work.
+- **Runtime:** without libclang-rt-21-dev every `-native` test link fails (no `libclang_rt.ubsan_standalone.a` for `-fsanitize=bounds`). CI hosts need that package.
+- **Tests** (everything but test-tgmath, `meson test -t 4`): Ok 615, Expected Fail 6, Fail 2, Skipped 38.
+  - `test-math-errhandling` (picolibc build) fails with clang only; gcc passes it on the same commit. It reports "Exceptions are not supposed to be supported, but 0/0 raises FE_INVALID" (and FE_DIVBYZERO, FE_UNDERFLOW, FE_OVERFLOW, and FE_INVALID from the sNaN cases), so under clang the build's idea of whether exceptions are supported disagrees with what aarch64 does.
+  - `test-mktemp` (picolibc build) fails with both clang and gcc ("contents: (char)c == *s"), so it's a native-configuration problem on aarch64, not a clang one.
