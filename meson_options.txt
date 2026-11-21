@@ -182,13 +182,13 @@ option('fast-bufio', type: 'boolean', value: false,
 option('io-wchar', type: 'boolean', value: false,
        description: 'enable wide character support in printf/scanf (requires multi-byte support)')
 option('stdio-locking', type: 'boolean', value: false,
-       description: 'perform POSIX-conforming file locking for all stdio operations')
+       description: 'perform POSIX-conforming file locking for all stdio operations (always on with os-linux)')
 option('have-fcntl', type: 'boolean', value: false,
        description: 'system provides fcntl function')
 option('fstat-bufsiz', type: 'boolean', value: false,
        description: 'use fstat to detect optimum buffer sizes for stdio')
 option('stdio-exit-flush', type: 'boolean', value: false,
-       description: 'flush all runtime allocated bufio files at exit and fflush(NULL)')
+       description: 'flush all runtime allocated bufio files at exit and fflush(NULL) (always on with os-linux)')
 
 #
 # Internationalization options

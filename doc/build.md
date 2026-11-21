@@ -182,7 +182,7 @@ locking as described in [locking.md](locking.md).
 | Option                      | Default | Description                                                                          |
 | ------                      | ------- | -----------                                                                          |
 | single-thread               | false   | Disable support for locks                                                            |
-| stdio-locking               | false   | Perform POSIX-conforming per-file locking for all stdio operations (ignored when single-thread is true) |
+| stdio-locking               | false   | Perform POSIX-conforming per-file locking for all stdio operations (ignored when single-thread is true; always on with os-linux) |
 | posix-threads               | auto    | Provide POSIX threads (`<pthread.h>`) and real library locks from the OS layer. 'auto' enables them for os-linux on machines with thread support (currently x86); requires thread local storage and not single-thread |
 | network                     | auto    | Networking API and ABI: 'linux' uses the linux OS layer's sockets; 'auto' selects it when that layer is built, and 'none' otherwise |
 | network-dns                 | auto    | Look up host names missing from /etc/hosts with DNS, configured by /etc/resolv.conf. 'auto' enables it with network=linux |

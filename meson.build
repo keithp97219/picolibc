@@ -642,7 +642,12 @@ printf_percent_n = get_option('printf-percent-n')
 minimal_io_long_long = get_option('minimal-io-long-long')
 fast_bufio = get_option('fast-bufio')
 io_wchar = get_option('io-wchar')
-stdio_locking = get_option('stdio-locking') and not get_option('single-thread')
+# Linux builds get the POSIX stream behaviour: a lock for each stream
+# (XSH 2.5) and every stream flushed at exit (ISO C exit)
+stdio_posix_streams = get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
+stdio_locking = ((get_option('stdio-locking') or stdio_posix_streams)
+                 and not get_option('single-thread'))
+stdio_exit_flush = get_option('stdio-exit-flush') or stdio_posix_streams
 
 foreach format : ['d', 'f', 'l', 'i', 'm']
 
@@ -1597,7 +1602,7 @@ conf_data.set('__IO_PERCENT_B', io_percent_b)
 conf_data.set('__IO_LENGTH_W', io_length_w)
 conf_data.set('__IO_LONG_DOUBLE', io_long_double)
 conf_data.set('__IO_WCHAR', io_wchar)
-conf_data.set('__STDIO_EXIT_FLUSH', get_option('stdio-exit-flush'))
+conf_data.set('__STDIO_EXIT_FLUSH', stdio_exit_flush)
 conf_data.set('__ASSERT_VERBOSE', get_option('assert-verbose'), description: 'assert() is verbose by default')
 conf_data.set('__SINGLE_THREAD', get_option('single-thread'), description: 'Disable multi-thread support')
 conf_data.set('__HAVE_FCNTL', get_option('have-fcntl'), description: 'System provides fcntl function')
