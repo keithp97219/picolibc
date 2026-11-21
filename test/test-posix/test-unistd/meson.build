@@ -99,6 +99,7 @@ dir_tests = [
   'test-unistd_h-names',
   'test-unistd_h-process',
   'test-unlinkat',
+  'test-write',
 ]
 
 # These check credentials across threads

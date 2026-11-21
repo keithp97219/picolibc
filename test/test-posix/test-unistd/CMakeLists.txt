@@ -102,6 +102,7 @@ set(tests
   test-unistd_h-names
   test-unistd_h-process
   test-unlinkat
+  test-write
   )
 
 foreach(test IN LISTS tests)

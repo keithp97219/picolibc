@@ -271,7 +271,8 @@ do_cond_wait(void)
 static void
 do_pwrite(void)
 {
-    (void)pwrite(-1, buf, 1, 0);
+    /* A bad offset as well: argument checks mustn't skip the cancellation point */
+    (void)pwrite(-1, buf, 1, -1);
 }
 
 static void
