@@ -31,6 +31,7 @@
 #define _FNOFOLLOW  0x100000
 #define _FDIRECTORY 0x200000
 #define _FEXECSRCH  0x400000
+#define _FNOFORK    0x800000
 
 /* O_EXEC and O_SEARCH are file access modes too */
 #define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR | _FEXECSRCH)
@@ -66,6 +67,7 @@
 #if __POSIX_VISIBLE >= 202405
 /* Zero, as POSIX allows; terminals start in whatever state the OS gives them */
 #define O_TTY_INIT 0
+#define O_CLOFORK  _FNOFORK
 #endif
 
 #if __BSD_VISIBLE

@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-clofork',
   'test-creat',
   'test-fcntl',
   'test-fcntl_h',

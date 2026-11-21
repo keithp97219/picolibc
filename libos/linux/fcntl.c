@@ -192,6 +192,12 @@ fcntl(int fd, int op, ...)
         op = LINUX_F_SETFD;
         arg = 1;
         break;
+#ifdef F_DUPFD_CLOFORK
+    /* Linux has no close-on-fork */
+    case F_DUPFD_CLOFORK:
+        errno = EINVAL;
+        return -1;
+#endif
     case F_GETFL:
         op = LINUX_F_GETFL;
         break;
@@ -259,6 +265,12 @@ fcntl(int fd, int op, ...)
         arg = va_arg(ap, int);
     va_end(ap);
 
+#ifdef FD_CLOFORK
+    if (op == LINUX_F_SETFD && (arg & FD_CLOFORK)) {
+        errno = EINVAL;
+        return -1;
+    }
+#endif
     /* The file status flags have different values in Linux */
     if (op == LINUX_F_SETFL)
         arg = _open_flags_to_linux(arg);

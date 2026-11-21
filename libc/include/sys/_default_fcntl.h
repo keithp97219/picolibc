@@ -64,6 +64,9 @@ typedef __pid_t pid_t; /* process id */
 
 /* XXX close on exec request; must match UF_EXCLOSE in user.h */
 #define FD_CLOEXEC 1 /* posix */
+#if __POSIX_VISIBLE >= 202405
+#define FD_CLOFORK 2 /* close in the child of fork */
+#endif
 
 /* fcntl(2) requests */
 #define F_DUPFD 0 /* Duplicate fildes */
@@ -88,11 +91,12 @@ typedef __pid_t pid_t; /* process id */
 #define F_DUPFD_CLOEXEC 14 /* As F_DUPFD, but set close-on-exec flag */
 #endif
 #if __POSIX_VISIBLE >= 202405
-#define F_OFD_GETLK  15 /* As F_GETLK, for open file description locks */
-#define F_OFD_SETLK  16 /* As F_SETLK, for open file description locks */
-#define F_OFD_SETLKW 17 /* As F_SETLKW, for open file description locks */
-#define F_GETOWN_EX  18 /* As F_GETOWN, using struct f_owner_ex */
-#define F_SETOWN_EX  19 /* As F_SETOWN, using struct f_owner_ex */
+#define F_OFD_GETLK     15 /* As F_GETLK, for open file description locks */
+#define F_OFD_SETLK     16 /* As F_SETLK, for open file description locks */
+#define F_OFD_SETLKW    17 /* As F_SETLKW, for open file description locks */
+#define F_GETOWN_EX     18 /* As F_GETOWN, using struct f_owner_ex */
+#define F_SETOWN_EX     19 /* As F_SETOWN, using struct f_owner_ex */
+#define F_DUPFD_CLOFORK 20 /* As F_DUPFD, but set close-on-fork flag */
 
 /* f_owner_ex type values */
 #define F_OWNER_PID  1 /* pid is a process ID */

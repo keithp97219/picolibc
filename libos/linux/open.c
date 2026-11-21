@@ -48,6 +48,13 @@ open(const char *path, int flags, ...)
     mode = va_arg(ap, int);
     va_end(ap);
 
+#ifdef O_CLOFORK
+    /* Linux has no close-on-fork */
+    if (flags & O_CLOFORK) {
+        errno = EINVAL;
+        return -1;
+    }
+#endif
     linux_flags = _open_flags_to_linux(flags);
     void *cancel = _cancel_enter();
     long  ret = _syscall(LINUX_SYS_openat, LINUX_AT_FDCWD, path, linux_flags, mode);

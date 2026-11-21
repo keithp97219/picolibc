@@ -49,6 +49,13 @@ openat(int dirfd, const char *path, int flags, ...)
     mode = va_arg(ap, int);
     va_end(ap);
 
+#ifdef O_CLOFORK
+    /* Linux has no close-on-fork */
+    if (flags & O_CLOFORK) {
+        errno = EINVAL;
+        return -1;
+    }
+#endif
     cancel = _cancel_enter();
     ret = _syscall(LINUX_SYS_openat, _at_fd_to_linux(dirfd), path, _open_flags_to_linux(flags),
                    mode);
