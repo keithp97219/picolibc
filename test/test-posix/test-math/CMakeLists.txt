@@ -34,8 +34,10 @@
 #
 
 set(tests
+  test-j0-errors
   test-math_h
   test-math_h-names
+  test-y0-errors
   )
 
 foreach(test IN LISTS tests)
