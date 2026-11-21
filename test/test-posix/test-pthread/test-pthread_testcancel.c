@@ -240,7 +240,8 @@ do_poll(void)
 static void
 do_pread(void)
 {
-    (void)pread(-1, buf, 1, 0);
+    /* A bad offset as well: argument checks mustn't skip the cancellation point */
+    (void)pread(-1, buf, 1, -1);
 }
 
 static void

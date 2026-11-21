@@ -1,0 +1,233 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright © 2026 Keith Packard
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above
+ *    copyright notice, this list of conditions and the following
+ *    disclaimer in the documentation and/or other materials provided
+ *    with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#define _POSIX_C_SOURCE 202405L
+#include "../posix-groups.h"
+
+/* Without the system support this test needs, it is skipped */
+#if defined(__PICOLIBC_POSIX_DEVICE_IO) && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
+    && defined(__PICOLIBC_POSIX_FD_MGMT) && defined(__PICOLIBC_POSIX_PIPE)       \
+    && defined(__PICOLIBC_POSIX_SIGNALS) && defined(__PICOLIBC_POSIX_NETWORKING) \
+    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+/*
+ * read and pread: offsets, end-of-file, pipes with and without
+ * O_NONBLOCK, signals, sockets and the errors
+ */
+
+static char dir[] = "tmp-XXXXXX";
+
+static void
+cleanup(void)
+{
+    (void)unlink("file");
+    (void)rmdir("sub");
+    if (chdir("..") == 0)
+        (void)rmdir(dir);
+}
+
+#define check(condition, message)                                                      \
+    do {                                                                               \
+        if (!(condition)) {                                                            \
+            printf("%d: %s: %s (errno %d)\n", __LINE__, (message), #condition, errno); \
+            cleanup();                                                                 \
+            exit(1);                                                                   \
+        }                                                                              \
+    } while (0)
+
+#define check_err(expr, err, message) check((errno = 0, (expr) == -1) && errno == (err), message)
+
+static volatile sig_atomic_t got_alarm;
+
+static void
+on_alarm(int sig)
+{
+    (void)sig;
+    got_alarm = 1;
+}
+
+int
+main(void)
+{
+    char             buf[64];
+    int              fd, wfd, p[2], s[2], i;
+    pid_t            pid;
+    int              status;
+    struct sigaction sa;
+
+    check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
+    fd = open("file", O_RDWR | O_CREAT | O_EXCL, 0600);
+    check(fd >= 0, "create");
+    check(write(fd, "0123456789", 10) == 10, "write");
+
+    /* A zero count returns 0 and changes nothing */
+    check(lseek(fd, 2, SEEK_SET) == 2, "lseek");
+    check(read(fd, buf, 0) == 0, "zero count");
+    check(lseek(fd, 0, SEEK_CUR) == 2, "zero count keeps the offset");
+
+    /* Reads start at the offset and advance it by the count read */
+    memset(buf, 0, sizeof(buf));
+    check(read(fd, buf, 3) == 3 && memcmp(buf, "234", 3) == 0, "read at the offset");
+    check(lseek(fd, 0, SEEK_CUR) == 5, "offset advanced");
+
+    /* Short read at the end of the file, then 0 at and after it */
+    check(read(fd, buf, sizeof(buf)) == 5 && memcmp(buf, "56789", 5) == 0, "short read");
+    check(read(fd, buf, sizeof(buf)) == 0, "read at end-of-file");
+    check(lseek(fd, 100, SEEK_SET) == 100 && read(fd, buf, sizeof(buf)) == 0,
+          "read after end-of-file");
+
+    /* Bytes never written read as zero */
+    check(lseek(fd, 20, SEEK_SET) == 20 && write(fd, "x", 1) == 1, "write past the end");
+    memset(buf, 'z', sizeof(buf));
+    check(pread(fd, buf, 12, 9) == 12, "read the gap");
+    check(buf[0] == '9' && buf[11] == 'x', "gap ends");
+    for (i = 1; i < 11; i++)
+        check(buf[i] == 0, "gap reads as zero");
+
+    /* pread reads at the offset without moving the file offset */
+    check(lseek(fd, 1, SEEK_SET) == 1, "lseek");
+    check(pread(fd, buf, 4, 3) == 4 && memcmp(buf, "3456", 4) == 0, "pread");
+    check(lseek(fd, 0, SEEK_CUR) == 1, "pread keeps the offset");
+    check(pread(fd, buf, 4, 21) == 0, "pread at end-of-file");
+    check_err(pread(fd, buf, 4, -1), EINVAL, "pread with a negative offset");
+    check(lseek(fd, 0, SEEK_CUR) == 1, "failed pread keeps the offset");
+
+    /* EBADF: not open, or not open for reading */
+    wfd = open("file", O_WRONLY);
+    check(wfd >= 0, "open for writing");
+    check_err(read(wfd, buf, 1), EBADF, "read on a write-only descriptor");
+    check_err(pread(wfd, buf, 1, 0), EBADF, "pread on a write-only descriptor");
+    check(close(wfd) == 0, "close");
+    check_err(read(wfd, buf, 1), EBADF, "read on a closed descriptor");
+    check_err(pread(wfd, buf, 1, 0), EBADF, "pread on a closed descriptor");
+
+    /* EISDIR: Linux doesn't read directories with read */
+    check(mkdir("sub", 0700) == 0, "mkdir");
+    wfd = open("sub", O_RDONLY);
+    check(wfd >= 0, "open directory");
+    check_err(read(wfd, buf, sizeof(buf)), EISDIR, "read on a directory");
+    check(close(wfd) == 0 && rmdir("sub") == 0, "remove directory");
+
+    /* Pipes */
+    check(pipe(p) == 0, "pipe");
+    check(write(p[1], "abc", 3) == 3, "write pipe");
+    check(read(p[0], buf, sizeof(buf)) == 3 && memcmp(buf, "abc", 3) == 0,
+          "short read from a pipe");
+
+    /* ESPIPE from pread on a pipe, whatever the offset */
+    check_err(pread(p[0], buf, 1, 0), ESPIPE, "pread on a pipe");
+#ifndef __GLIBC__ /* glibc passes Linux's EINVAL through */
+    check_err(pread(p[0], buf, 1, -1), ESPIPE, "pread on a pipe with a negative offset");
+#endif
+
+    /* O_NONBLOCK: EAGAIN when empty, no effect when there is data */
+    check(fcntl(p[0], F_SETFL, fcntl(p[0], F_GETFL) | O_NONBLOCK) == 0, "O_NONBLOCK");
+    check_err(read(p[0], buf, 1), EAGAIN, "empty non-blocking pipe");
+    check(write(p[1], "de", 2) == 2, "write pipe");
+    check(read(p[0], buf, sizeof(buf)) == 2, "non-blocking pipe with data");
+    check(fcntl(p[0], F_SETFL, fcntl(p[0], F_GETFL) & ~O_NONBLOCK) == 0, "clear O_NONBLOCK");
+
+    /* A blocked read returns what another process writes */
+    pid = fork();
+    check(pid >= 0, "fork");
+    if (pid == 0) {
+        (void)close(p[0]);
+        _exit(write(p[1], "late", 4) == 4 ? 0 : 1);
+    }
+    memset(buf, 0, sizeof(buf));
+    check(read(p[0], buf, 4) == 4 && memcmp(buf, "late", 4) == 0, "read waits for data");
+    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+          "writer");
+
+    /* A caught signal interrupts a blocked read before any data: EINTR */
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = on_alarm;
+    sigemptyset(&sa.sa_mask);
+    check(sigaction(SIGALRM, &sa, NULL) == 0, "sigaction");
+    alarm(1);
+    check_err(read(p[0], buf, sizeof(buf)), EINTR, "interrupted read");
+    check(got_alarm, "handler ran");
+
+    /* No writers: end-of-file, even with O_NONBLOCK */
+    check(close(p[1]) == 0, "close write end");
+    check(read(p[0], buf, sizeof(buf)) == 0, "read from a pipe with no writer");
+    check(fcntl(p[0], F_SETFL, O_NONBLOCK) == 0 && read(p[0], buf, sizeof(buf)) == 0,
+          "non-blocking read from a pipe with no writer");
+    check(close(p[0]) == 0, "close read end");
+
+    /* Sockets: read is recv with no flags */
+    check(socketpair(AF_UNIX, SOCK_STREAM, 0, s) == 0, "socketpair");
+    check(send(s[1], "sock", 4, 0) == 4, "send");
+    check(read(s[0], buf, sizeof(buf)) == 4 && memcmp(buf, "sock", 4) == 0, "read a socket");
+    check(fcntl(s[0], F_SETFL, O_NONBLOCK) == 0, "non-blocking socket");
+    check((errno = 0, read(s[0], buf, 1)) == -1 && (errno == EAGAIN || errno == EWOULDBLOCK),
+          "empty non-blocking socket");
+    check_err(pread(s[0], buf, 1, 0), ESPIPE, "pread on a socket");
+    check(close(s[0]) == 0 && close(s[1]) == 0, "close sockets");
+    /* (Linux gives EINVAL for AF_UNIX stream sockets, so use TCP) */
+    wfd = socket(AF_INET, SOCK_STREAM, 0);
+    check(wfd >= 0, "socket");
+    check_err(read(wfd, buf, 1), ENOTCONN, "read an unconnected socket");
+    check(close(wfd) == 0, "close socket");
+
+    check(close(fd) == 0, "close");
+    cleanup();
+    printf("success\n");
+    return 0;
+}
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif
