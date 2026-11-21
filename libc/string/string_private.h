@@ -41,4 +41,9 @@
 
 char *_strerror_r(int errnum, int internal, int *errptr);
 
+/* Room for "Unknown signal", a space, a sign, ten digits and a null */
+#define __STRSIGNAL_BUF 32
+
+char *__strsignal_r(int signal, char buf[__STRSIGNAL_BUF]);
+
 #endif // STRING_PRIVATE_H_

@@ -51,6 +51,7 @@ QUICKREF
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "string_private.h"
 
 static const char * const signames[] = {
 #ifdef SIGHUP
@@ -162,15 +163,12 @@ static const char * const signames[] = {
 
 #define NSIGNAMES (sizeof(signames) / sizeof(signames[0]))
 
-/* Room for the longer head, a space, a sign, ten digits and a null */
-static __THREAD_LOCAL char _signal_buf[32];
-
-static inline char *
-_intsig(const char *head, int i)
+static char *
+_intsig(char *buf, const char *head, int i)
 {
     char     digits[12];
     char    *d = digits + sizeof(digits);
-    char    *buf = _signal_buf;
+    char    *b = buf;
     unsigned u = i < 0 ? -(unsigned)i : (unsigned)i;
 
     *--d = '\0';
@@ -180,23 +178,36 @@ _intsig(const char *head, int i)
     } while (u);
     if (i < 0)
         *--d = '-';
-    buf = stpcpy(buf, head);
-    *buf++ = ' ';
-    strcpy(buf, d);
-    return _signal_buf;
+    b = stpcpy(b, head);
+    *b++ = ' ';
+    strcpy(b, d);
+    return buf;
 }
 
+/*
+ * The message for signal, using buf for the ones that hold a number.
+ * psignal calls this with its own buffer, as nothing may overwrite
+ * the string strsignal returned.
+ */
 char *
-strsignal(int signal)
+__strsignal_r(int signal, char buf[__STRSIGNAL_BUF])
 {
 #if defined(SIGRTMIN) && defined(SIGRTMAX)
     if ((signal >= SIGRTMIN) && (signal <= SIGRTMAX)) {
-        return _intsig("Real-time signal", signal - SIGRTMIN);
+        return _intsig(buf, "Real-time signal", signal - SIGRTMIN);
     }
 #endif
 
     if ((unsigned)signal < NSIGNAMES && signames[(unsigned)signal])
         return (char *)signames[(unsigned)signal];
 
-    return _intsig("Unknown signal", signal);
+    return _intsig(buf, "Unknown signal", signal);
+}
+
+static __THREAD_LOCAL char _signal_buf[__STRSIGNAL_BUF];
+
+char *
+strsignal(int signal)
+{
+    return __strsignal_r(signal, _signal_buf);
 }
