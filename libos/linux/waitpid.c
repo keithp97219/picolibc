@@ -61,7 +61,8 @@ waitpid(pid_t pid, int *wstatus, int options)
     /* With WNOHANG, 0 means no child changed state and there's no status */
     if (ret > 0 && wstatus) {
         if (WIFSIGNALED(kstatus))
-            kstatus = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus)));
+            kstatus
+                = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus))) | (kstatus & __W_COREFLAG);
         else if (WIFSTOPPED(kstatus))
             kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
         *wstatus = kstatus;

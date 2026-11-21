@@ -69,7 +69,8 @@ wait3(int *wstatus, int options, struct rusage *rusage)
     _cancel_leave(cancel);
     if (ret != (pid_t)-1) {
         if (WIFSIGNALED(kstatus))
-            kstatus = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus)));
+            kstatus
+                = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus))) | (kstatus & __W_COREFLAG);
         else if (WIFSTOPPED(kstatus))
             kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
         *wstatus = kstatus;

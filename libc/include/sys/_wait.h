@@ -53,5 +53,6 @@ SUCH DAMAGE.
 #define WIFSIGNALED(w)     (((signed char)(((w) & 0x7f) + 1) >> 1) > 0)
 #define WIFSTOPPED(w)      (((w) & 0xff) == 0x7f)
 #define __W_EXITCODE(e, s) (((e) << 8) | (s))
+#define __W_COREFLAG       0x80
 
 #endif
