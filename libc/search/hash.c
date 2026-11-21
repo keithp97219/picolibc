@@ -885,6 +885,7 @@ alloc_segs(HTAB *hashp, int nsegs)
         return (-1);
     }
     hashp->dir[0] = store;
+    hashp->nsegs = 1;
     for (i = 1; i < nsegs; i++, hashp->nsegs++)
         hashp->dir[i] = &store[i << hashp->SSHIFT];
     return (0);
