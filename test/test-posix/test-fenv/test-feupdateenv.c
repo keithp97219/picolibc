@@ -43,6 +43,8 @@
 
 /* gcc doesn't know FENV_ACCESS; the build uses -frounding-math -ftrapping-math */
 #ifdef __clang__
+/* Some clang targets, such as hexagon, ignore it */
+#pragma clang diagnostic ignored "-Wignored-pragmas"
 #pragma STDC FENV_ACCESS ON
 #endif
 

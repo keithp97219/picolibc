@@ -89,7 +89,6 @@ struct elem {
 static struct elem elems[NELEM];
 static const void *cmp_key;
 static int         cmp_bad;
-static long        cmp_calls;
 
 /*
  * Returns a large magnitude rather than -1/1, so the functions have to
@@ -101,7 +100,6 @@ cmp(const void *a, const void *b)
 {
     const struct elem *ea = a, *eb = b;
 
-    cmp_calls++;
     if (cmp_key != NULL && a != cmp_key && b != cmp_key)
         cmp_bad++;
     if (ea->value < eb->value)
