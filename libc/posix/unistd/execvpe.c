@@ -84,6 +84,7 @@ execvpe(const char *file, char * const argv[], char * const env[])
     ptrdiff_t   dir_len;
     const char *exec_path;
     bool        denied = false;
+    bool        too_long = false;
 
     /* Without PATH, search the directories confstr(_CS_PATH) names */
     p = getenv("PATH");
@@ -114,9 +115,12 @@ execvpe(const char *file, char * const argv[], char * const env[])
             default:
                 return -1;
             }
+        } else {
+            too_long = true;
         }
         if (!*colon) {
-            errno = denied ? EACCES : ENOENT;
+            /* Report a name that was too long to try, rather than ENOENT */
+            errno = denied ? EACCES : too_long ? ENAMETOOLONG : ENOENT;
             return -1;
         }
         p = colon + 1;
