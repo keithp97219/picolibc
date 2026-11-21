@@ -478,9 +478,21 @@ __fallback_sysconf(int name)
 #else
         return -1;
 #endif
+    case _SC_V8_ILP32_OFF32:
+#ifdef _POSIX_V8_ILP32_OFF32
+        return _POSIX_V8_ILP32_OFF32;
+#else
+        return -1;
+#endif
     case _SC_V7_ILP32_OFFBIG:
 #ifdef _POSIX_V7_ILP32_OFFBIG
         return _POSIX_V7_ILP32_OFFBIG;
+#else
+        return -1;
+#endif
+    case _SC_V8_ILP32_OFFBIG:
+#ifdef _POSIX_V8_ILP32_OFFBIG
+        return _POSIX_V8_ILP32_OFFBIG;
 #else
         return -1;
 #endif
@@ -490,9 +502,21 @@ __fallback_sysconf(int name)
 #else
         return -1;
 #endif
+    case _SC_V8_LP64_OFF64:
+#ifdef _POSIX_V8_LP64_OFF64
+        return _POSIX_V8_LP64_OFF64;
+#else
+        return -1;
+#endif
     case _SC_V7_LPBIG_OFFBIG:
 #ifdef _POSIX_V7_LPBIG_OFFBIG
         return _POSIX_V7_LPBIG_OFFBIG;
+#else
+        return -1;
+#endif
+    case _SC_V8_LPBIG_OFFBIG:
+#ifdef _POSIX_V8_LPBIG_OFFBIG
+        return _POSIX_V8_LPBIG_OFFBIG;
 #else
         return -1;
 #endif

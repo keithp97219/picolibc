@@ -54,21 +54,31 @@
      && FITS(ptrdiff_t) && FITS(size_t) && FITS(speed_t) && FITS(ssize_t) && FITS(suseconds_t) \
      && FITS(tcflag_t) && FITS(wchar_t) && FITS(wint_t))
 
-/* The programming environments picolibc was built for */
-static const char envs[] = ""
+/* The programming environments picolibc was built for, in V7 and V8 */
+#define ENVS(v) ENV_ILP32_OFF32(v) ENV_ILP32_OFFBIG(v) ENV_LP64_OFF64(v) ENV_LPBIG_OFFBIG(v)
 #ifdef _POSIX_V8_ILP32_OFF32
-                           "POSIX_V8_ILP32_OFF32\n"
+#define ENV_ILP32_OFF32(v) "POSIX_" v "_ILP32_OFF32\n"
+#else
+#define ENV_ILP32_OFF32(v)
 #endif
 #ifdef _POSIX_V8_ILP32_OFFBIG
-                           "POSIX_V8_ILP32_OFFBIG\n"
+#define ENV_ILP32_OFFBIG(v) "POSIX_" v "_ILP32_OFFBIG\n"
+#else
+#define ENV_ILP32_OFFBIG(v)
 #endif
 #ifdef _POSIX_V8_LP64_OFF64
-                           "POSIX_V8_LP64_OFF64\n"
+#define ENV_LP64_OFF64(v) "POSIX_" v "_LP64_OFF64\n"
+#else
+#define ENV_LP64_OFF64(v)
 #endif
 #ifdef _POSIX_V8_LPBIG_OFFBIG
-                           "POSIX_V8_LPBIG_OFFBIG\n"
+#define ENV_LPBIG_OFFBIG(v) "POSIX_" v "_LPBIG_OFFBIG\n"
+#else
+#define ENV_LPBIG_OFFBIG(v)
 #endif
-    ;
+
+static const char envs_v7[] = "" ENVS("V7");
+static const char envs_v8[] = "" ENVS("V8");
 
 /*
  * _CS_PATH and the width-restricted environments have values. The
@@ -86,13 +96,17 @@ confstr(int name, char *buf, size_t len)
         value = "/bin:/usr/bin";
         size = strlen(value) + 1;
         break;
-    case _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS:
+    case _CS_POSIX_V7_WIDTH_RESTRICTED_ENVS:
         /* Newline-separated, without a newline at the end */
-        value = envs;
-        size = WIDTH_RESTRICTED && sizeof(envs) > 1 ? sizeof(envs) - 1 : 1;
+        value = envs_v7;
+        size = WIDTH_RESTRICTED && sizeof(envs_v7) > 1 ? sizeof(envs_v7) - 1 : 1;
+        break;
+    case _CS_POSIX_V8_WIDTH_RESTRICTED_ENVS:
+        value = envs_v8;
+        size = WIDTH_RESTRICTED && sizeof(envs_v8) > 1 ? sizeof(envs_v8) - 1 : 1;
         break;
     default:
-        if (name < 0 || name > _CS_LFS_LINTFLAGS) {
+        if (name < 0 || name > _CS_V8_ENV) {
             errno = EINVAL;
             return 0;
         }
