@@ -85,6 +85,7 @@ static int   p_simp_re(struct parse *p, int starordinary);
 static int   p_count(struct parse *p);
 static void  p_bracket(struct parse *p);
 static void  p_b_term(struct parse *p, cset *cs);
+static void  p_b_range(struct parse *p, cset *cs, char start);
 static void  p_b_cclass(struct parse *p, cset *cs);
 static void  p_b_eclass(struct parse *p, cset *cs);
 static char  p_b_symbol(struct parse *p);
@@ -691,7 +692,11 @@ p_bracket(struct parse *p)
         invert++; /* make note to invert set at end */
     if (EAT(']'))
         CHadd(cs, ']');
-    else if (EAT('-'))
+    else if (SEE('-') && MORE2() && PEEK2() == '-' && p->next + 2 < p->end && p->next[2] != ']') {
+        /* A range starting at '-', such as [--@] (XBD 9.3.5) */
+        NEXT();
+        p_b_range(p, cs, '-');
+    } else if (EAT('-'))
         CHadd(cs, '-');
     while (MORE() && PEEK() != ']' && !SEETWO('-', ']'))
         p_b_term(p, cs);
@@ -746,8 +751,7 @@ static void
 p_b_term(struct parse *p, cset *cs)
 {
     char c;
-    char start, finish;
-    int  i;
+    char start;
 
     /* classify what we've got */
     switch ((MORE()) ? PEEK() : '\0') {
@@ -785,31 +789,45 @@ p_b_term(struct parse *p, cset *cs)
     default: /* symbol, ordinary character, or range */
              /* xxx revision needed for multichar stuff */
         start = p_b_symbol(p);
-        if (SEE('-') && MORE2() && PEEK2() != ']') {
-            /* range */
-            NEXT();
-            if (EAT('-'))
-                finish = '-';
-            else
-                finish = p_b_symbol(p);
-        } else
-            finish = start;
-        if (start == finish)
-            CHadd(cs, start);
-        else {
-#ifdef __HAVE_REAL_STRCOLL
-            (void)REQUIRE(__collate_range_cmp(start, finish) <= 0, REG_ERANGE);
-            for (i = CHAR_MIN; i <= CHAR_MAX; i++) {
-                if (__collate_range_cmp(start, i) <= 0 && __collate_range_cmp(i, finish) <= 0)
-                    CHadd(cs, i);
-            }
-#else
-            (void)REQUIRE((uch)start <= (uch)finish, REG_ERANGE);
-            for (i = (uch)start; i <= (uch)finish; i++)
-                CHadd(cs, i);
-#endif
-        }
+        p_b_range(p, cs, start);
         break;
+    }
+}
+
+/*
+ - p_b_range - parse the rest of a term that starts with start, which
+ - may be the first point of a range
+ == static void p_b_range(struct parse *p, cset *cs, char start);
+ */
+static void
+p_b_range(struct parse *p, cset *cs, char start)
+{
+    char finish;
+    int  i;
+
+    if (SEE('-') && MORE2() && PEEK2() != ']') {
+        /* range */
+        NEXT();
+        if (EAT('-'))
+            finish = '-';
+        else
+            finish = p_b_symbol(p);
+    } else
+        finish = start;
+    if (start == finish)
+        CHadd(cs, start);
+    else {
+#ifdef __HAVE_REAL_STRCOLL
+        (void)REQUIRE(__collate_range_cmp(start, finish) <= 0, REG_ERANGE);
+        for (i = CHAR_MIN; i <= CHAR_MAX; i++) {
+            if (__collate_range_cmp(start, i) <= 0 && __collate_range_cmp(i, finish) <= 0)
+                CHadd(cs, i);
+        }
+#else
+        (void)REQUIRE((uch)start <= (uch)finish, REG_ERANGE);
+        for (i = (uch)start; i <= (uch)finish; i++)
+            CHadd(cs, i);
+#endif
     }
 }
 
