@@ -513,6 +513,9 @@ without them:
 
  * `<net/_if.h>`, for `<net/if.h>`: `IF_NAMESIZE`.
 
+`<arpa/inet.h>` declares the address functions (`inet_addr`,
+`inet_ntoa`, `inet_ntop`, `inet_pton`) when the OS provides
+`<netinet/_in.h>`, and only the byte order functions otherwise.
 picolibc's resolver (`getaddrinfo` and friends) is built on these.
 
 ## Linking with System Library
