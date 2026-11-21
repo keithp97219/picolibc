@@ -37,6 +37,7 @@
 #include "local-cancel.h"
 #include "local-time.h"
 #include <sys/wait.h>
+#include <sys/resource.h>
 
 pid_t
 wait3(int *wstatus, int options, struct rusage *rusage)
