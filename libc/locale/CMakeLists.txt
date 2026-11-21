@@ -40,6 +40,7 @@ picolibc_sources(
   localedata.c
   locale_ctype_ptr.c
   locale_ctype_ptr_l.c
+  locale_env.c
   localedata.c
   locale_mb_cur_max.c
   locale_names.c
