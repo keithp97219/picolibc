@@ -43,6 +43,10 @@ c16rtomb(char *s, char16_t c16, mbstate_t *ps)
     if (ps == NULL)
         ps = &c16rtomb_state;
 
+    /* A null s is the same as converting a null character */
+    if (s == NULL)
+        c16 = 0;
+
 #if __SIZEOF_WCHAR_T__ == 2
     return wcrtomb(s, (wchar_t)c16, ps);
 #elif __SIZEOF_WCHAR_T__ == 4

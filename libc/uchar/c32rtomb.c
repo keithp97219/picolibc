@@ -43,6 +43,10 @@ c32rtomb(char *s, char32_t c32, mbstate_t *ps)
     if (ps == NULL)
         ps = &c32rtomb_state;
 
+    /* A null s is the same as converting a null character */
+    if (s == NULL)
+        c32 = 0;
+
     if (!char32_is_valid(c32)) {
         errno = EILSEQ;
         return (size_t)-1;
