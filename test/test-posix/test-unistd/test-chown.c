@@ -136,7 +136,7 @@ main(void)
         { 1000, 0 }
     };
     uid_t uid = geteuid();
-    gid_t gid = getegid(), mine, theirs;
+    gid_t gid = getegid(), mine, theirs, link_gid;
     int   fd, dfd, n, root = uid == 0;
 
     n = getgroups(0, NULL);
@@ -149,11 +149,16 @@ main(void)
     theirs = foreign_group(n);
 
     check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
-    /* A set-group-ID parent passes its bit on; new files take the effective group */
+    /*
+     * A set-group-ID parent passes its bit on. New files take the
+     * effective group or, on BSD, the directory's; the link keeps the
+     * one it got
+     */
     check(chmod(".", 0700) == 0, "clear set-group-ID");
     fd = open("file", O_RDWR | O_CREAT | O_EXCL, 0700);
     check(fd >= 0, "create");
     check(symlink("file", "link") == 0, "symlink");
+    link_gid = info("link", 1).st_gid;
 
     /* The owner may set its own uid and group, and -1 changes nothing */
     check(chown("file", uid, gid) == 0, "chown to the same owner");
@@ -172,7 +177,8 @@ main(void)
         check(fchown(fd, uid, gid) == 0 && info("file", 0).st_gid == gid, "fchown back");
         /* chown follows the link, lchown changes the link itself */
         check(chown("link", (uid_t)-1, mine) == 0, "chown through a link");
-        check(info("file", 0).st_gid == mine && info("link", 1).st_gid == gid, "target changed");
+        check(info("file", 0).st_gid == mine && info("link", 1).st_gid == link_gid,
+              "target changed");
         check(chown("file", (uid_t)-1, gid) == 0, "restore");
         check(lchown("link", (uid_t)-1, mine) == 0, "lchown");
         check(info("link", 1).st_gid == mine && info("file", 0).st_gid == gid, "link changed");
@@ -189,11 +195,21 @@ main(void)
     if (!root) {
         check(chmod("file", 06755) == 0, "set-ID bits");
         if ((info("file", 0).st_mode & 06000) == 06000) {
-            check(chown("file", (uid_t)-1, gid) == 0, "chown");
+            /*
+             * Change the group when there's another to change to;
+             * FreeBSD's UFS clears the bits only on a real change
+             */
+            gid_t to = mine != (gid_t)-1 ? mine : gid;
+
+            check(chown("file", (uid_t)-1, to) == 0, "chown");
             check((info("file", 0).st_mode & 06000) == 0, "chown clears the set-ID bits");
+            check(chown("file", (uid_t)-1, gid) == 0, "restore the group");
         }
-        check(chmod("file", 06755) == 0 && fchown(fd, uid, (gid_t)-1) == 0, "fchown");
+        check(chmod("file", 06755) == 0
+                  && fchown(fd, uid, mine != (gid_t)-1 ? mine : (gid_t)-1) == 0,
+              "fchown");
         check((info("file", 0).st_mode & S_ISUID) == 0, "fchown clears set-user-ID");
+        check(fchown(fd, (uid_t)-1, gid) == 0, "restore the group");
         check(chmod("file", 0700) == 0, "chmod");
     }
 
