@@ -61,6 +61,8 @@ posix_fadvise(int fd, off_t offset, off_t len, int advice)
 #elif defined(__i386__)
     ret = _syscall_raw(LINUX_SYS_fadvise64_64, fd, olo, ohi, llo, lhi, advice);
 #else
+    /* No argument order is known for this architecture yet */
+    (void)fd;
     (void)olo;
     (void)ohi;
     (void)llo;
