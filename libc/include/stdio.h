@@ -90,7 +90,7 @@ typedef __uint16_t __ungetc_t;
 
 struct __file {
     __ungetc_t unget;                  /* ungetc() buffer */
-    __uint8_t  flags;                  /* flags, see below */
+    __uint16_t flags;                  /* flags, see below */
 #define __SRD    0x0001                /* OK to read */
 #define __SWR    0x0002                /* OK to write */
 #define __SERR   0x0004                /* found error */
@@ -335,7 +335,7 @@ void __fseterr(FILE *__stream) __nonnull((1)) __picolibc_export;
 #endif
 
 /* fast inlined versions */
-#define __clearerr_unlocked(s)  ((s)->flags &= (__uint8_t) ~(__SERR | __SEOF))
+#define __clearerr_unlocked(s)  ((s)->flags &= (__uint16_t) ~(__SERR | __SEOF))
 #define __ferror_unlocked(s)    ((s)->flags & __SERR)
 #define __feof_unlocked(s)      ((s)->flags & __SEOF)
 #define ____fseterr_unlocked(s) ((s)->flags |= __SERR)
