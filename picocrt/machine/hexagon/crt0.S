@@ -47,6 +47,9 @@ _start:
     r30 = #0
     r0 = r29
     r29 = and(r29, #-16)
+    // Setup GP register for small data area, as compiler-rt uses it
+    r1 = ##_SDA_BASE_
+    gp = r1
     call _cstart
 #else
 #ifdef CRT0_SEMIHOST
