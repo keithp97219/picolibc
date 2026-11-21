@@ -55,7 +55,6 @@
 
 /* Options */
 #define _POSIX_ADVISORY_INFO                202405L
-#define _POSIX_CLOCK_SELECTION              202405L
 #define _POSIX_CPUTIME                      202405L
 #define _POSIX_FSYNC                        202405L
 #define _POSIX_MAPPED_FILES                 202405L
@@ -68,12 +67,16 @@
 #define _POSIX_REALTIME_SIGNALS             202405L
 #define _POSIX_SHARED_MEMORY_OBJECTS        202405L
 #define _POSIX_SYNCHRONIZED_IO              202405L
-#define _POSIX_TIMEOUTS                     202405L
 #define _POSIX_TIMERS                       202405L
 
-/* Options built on the libos/linux threads */
+/*
+ * Options built on the libos/linux threads. Clock selection and
+ * timeouts include pthread_condattr_setclock and the timed locks, so
+ * they need the threads too
+ */
 #ifdef __PICOLIBC_PTHREADS
 #define _POSIX_BARRIERS                     202405L
+#define _POSIX_CLOCK_SELECTION              202405L
 #define _POSIX_READER_WRITER_LOCKS          202405L
 #define _POSIX_SEMAPHORES                   202405L
 #define _POSIX_SPIN_LOCKS                   202405L
@@ -87,6 +90,7 @@
 #define _POSIX_THREAD_PROCESS_SHARED        202405L
 #define _POSIX_THREAD_ROBUST_PRIO_INHERIT   202405L
 #define _POSIX_THREAD_ROBUST_PRIO_PROTECT   202405L
+#define _POSIX_TIMEOUTS                     202405L
 #endif
 
 /* Option groups; POSIX_DYNAMIC_LINKING is missing */
