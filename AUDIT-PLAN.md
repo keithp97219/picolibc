@@ -46,8 +46,8 @@ rather than stopping when one finishes. The x86_64 host applies each
 round's results and then writes the next request, usually within an hour
 or two of the results landing.
 
-1. unistd-config, logging-misc, stdio (current request)
-2. stdlib, strings, locale
+1. unistd-config, logging-misc, stdio (done; being merged)
+2. stdlib, strings, locale (current request)
 3. wide, search-dbm, math
 
 The plan is complete after round 3; this section will say so.
@@ -222,6 +222,14 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   so new files take the directory's group, not the process's. Tests that
 >   check file groups clear the bit on their scratch directory first
 >   (`chmod(dir, 0700)`), as test-chown does from 6edd04ce22.
+> - **ABI and `<sys/_posix.h>`:** picolibc's ABI must not depend on what
+>   an OS's `<sys/_posix.h>` defines. No type, structure layout or library
+>   code may change with the `_POSIX_*` option macros, the
+>   `__PICOLIBC_POSIX_<GROUP>` macros or the profile macros; key such
+>   things on picolibc's build configuration (`picolibc.h`) instead. Only
+>   a weak fallback that the OS replaces, such as libos/fallback's
+>   sysconf, may test them. Record any existing violation in
+>   `cross-cutting.md`.
 > - **Configurations without threads:** also build the native
 >   configuration (`scripts/do-native-configure`, `ninja` only). It has no
 >   threads, so a test whose statics or helpers are only used inside its
