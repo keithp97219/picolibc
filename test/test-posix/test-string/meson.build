@@ -34,8 +34,11 @@
 
 dir_tests = [
   'test-memchr-pages',
+  'test-strcoll_l',
   'test-strerror_r',
   'test-string_h',
+  'test-strndup',
   'test-strnlen-pages',
   'test-strsignal',
+  'test-strtok_r',
 ]
