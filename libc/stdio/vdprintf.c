@@ -44,8 +44,20 @@ vdprintf(int fd, const char *fmt, va_list ap)
     struct __file_bufio bf
         = FDEV_SETUP_BUFIO(fd, buf, sizeof(buf), NULL, write, NULL, NULL, __SWR, 0);
 
-    int printf_ret = vfprintf(&bf.xfile.cfile.file, fmt, ap);
-    int flush_ret = __bufio_flush(&bf.xfile.cfile.file);
+    FILE *f = &bf.xfile.cfile.file;
+
+#ifdef __STDIO_LOCKING
+    /* No other thread can see this FILE, so it needs no lock */
+    f->lock = __LOCK_NONE;
+#endif
+
+    int printf_ret = vfprintf(f, fmt, ap);
+    int flush_ret = __bufio_flush(f);
+
+    /* Free any lock the bufio code allocated */
+    __bufio_lock(f);
+    __bufio_lock_close(f);
+
     if (flush_ret != 0)
         return flush_ret;
     return printf_ret;
