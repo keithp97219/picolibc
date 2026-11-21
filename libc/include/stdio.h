@@ -565,10 +565,10 @@ void funlockfile(FILE *) __nonnull((1)) __picolibc_export;
 int putc_unlocked(int, FILE *) __nonnull((2)) __picolibc_export;
 int putchar_unlocked(int) __picolibc_export;
 #ifndef __STDIO_LOCKING
-#define getc_unlocked(f)       getc(f)
-#define getchar_unlocked(f)    getc(stdin)
-#define putc_unlocked(c, f)    putc(c, f)
-#define putchar_unlocked(c, f) putc(c, stdout)
+#define getc_unlocked(f)    getc(f)
+#define getchar_unlocked()  getc(stdin)
+#define putc_unlocked(c, f) putc(c, f)
+#define putchar_unlocked(c) putc(c, stdout)
 #endif
 #endif
 
