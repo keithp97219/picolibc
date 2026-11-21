@@ -175,7 +175,13 @@ main(void)
     check(sizeof(getc(stdin)) == sizeof(int) && sizeof(putc('x', stdout)) == sizeof(int),
           "getc and putc");
 
-    check(ctermid(buf) == buf && ctermid(NULL) != NULL, "ctermid");
+    /*
+     * LLVM assumes ctermid doesn't capture its argument and folds
+     * ctermid(buf) == buf to false (see test-ctermid.c), so check that
+     * the name lands in buf instead
+     */
+    buf[0] = '\0';
+    check(ctermid(buf) != NULL && buf[0] != '\0' && ctermid(NULL) != NULL, "ctermid");
 
     printf("success\n");
     return 0;
