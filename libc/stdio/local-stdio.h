@@ -199,6 +199,26 @@ bufio_lseek(struct __file_bufio *bf, __off_t offset, int whence)
     return _FDEV_ERR;
 }
 
+/*
+ * Streams set up for descriptors which may already have been used
+ * (fdopen, the standard streams) start with __BSYNC set: read the
+ * descriptor's offset before the stream first reads, writes or seeks.
+ * Until then the descriptor is the only handle in use, so its offset
+ * is where the stream starts.
+ */
+static inline void
+bufio_sync_pos(struct __file_bufio *bf)
+{
+    if (bf->bflags & __BSYNC) {
+        int     save_errno = errno;
+        __off_t cur = bufio_lseek(bf, 0, SEEK_CUR);
+        if (cur >= 0)
+            bf->pos = cur;
+        errno = save_errno;
+        bf->bflags &= ~__BSYNC;
+    }
+}
+
 static inline bool
 bufio_seekable(struct __file_bufio *bf)
 {

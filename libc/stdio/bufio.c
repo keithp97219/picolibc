@@ -57,6 +57,8 @@ __bufio_flush_locked(FILE *f)
     switch (bf->dir) {
     case __SWR:
         /* Flush everything, drop contents if that doesn't work */
+        if (bf->len)
+            bufio_sync_pos(bf);
         buf = bf->buf;
         while (bf->len) {
             ssize_t this = bufio_write(bf, buf, bf->len);
@@ -71,6 +73,7 @@ __bufio_flush_locked(FILE *f)
         break;
     case __SRD:
         /* Move the FD back to the current read position */
+        bufio_sync_pos(bf);
         backup = bf->len - bf->off;
         if (__atomic_load_ungetc(&f->unget) != 0) {
             if (backup < bf->pos)
@@ -101,6 +104,7 @@ __bufio_fill_locked(FILE *f)
     ssize_t              len;
 
     /* Reset read pointer, read some data */
+    bufio_sync_pos(bf);
     bf->off = 0;
     len = bufio_read(bf, bf->buf, bf->size);
 
@@ -234,6 +238,8 @@ __bufio_seek(FILE *f, off_t offset, int whence)
         errno = ESPIPE;
         goto exit;
     }
+
+    bufio_sync_pos(bf);
 
     if (bf->dir == __SWR) {
 

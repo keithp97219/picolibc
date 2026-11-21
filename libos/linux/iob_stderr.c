@@ -43,7 +43,7 @@
 static char                write_buf[__PICOLIBC_STDERR_BUFSIZ];
 
 static struct __file_bufio __stderr
-    = FDEV_SETUP_POSIX(2, write_buf, __PICOLIBC_STDERR_BUFSIZ, __SWR, __BLBF);
+    = FDEV_SETUP_POSIX(2, write_buf, __PICOLIBC_STDERR_BUFSIZ, __SWR, __BLBF | __BSYNC);
 
 FILE * const __linux_stderr = &__stderr.xfile.cfile.file;
 
