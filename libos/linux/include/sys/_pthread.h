@@ -34,14 +34,14 @@
  */
 
 /*
- * POSIX thread types. These are part of picolibc's OS-independent ABI;
- * an OS layer implements them, translating to its own kernel interface.
- * <sys/types.h> includes this header when it is available, so an OS
- * providing its own threads can supply a replacement.
+ * libos/linux's threads: the types behind <pthread.h>, <semaphore.h>
+ * and <threads.h>, their static initializers, and the implementation's
+ * limits. picolibc's public headers include this; an OS that provides
+ * threads supplies its own <sys/_pthread.h> defining the same names.
  */
 
-#ifndef _SYS__PTHREADTYPES_H_
-#define _SYS__PTHREADTYPES_H_
+#ifndef _SYS__PTHREAD_H_
+#define _SYS__PTHREAD_H_
 
 #include <sys/_types.h>
 
@@ -134,4 +134,30 @@ typedef int          pthread_once_t;
 
 typedef unsigned int pthread_key_t;
 
-#endif /* _SYS__PTHREADTYPES_H_ */
+typedef struct {
+    unsigned int __value;
+    unsigned int __waiters;
+    int          __pshared;
+} sem_t;
+
+/*
+ * Static initializers. They use <pthread.h>'s constants and
+ * CLOCK_REALTIME, which are defined wherever they're expanded.
+ */
+#define PTHREAD_MUTEX_INITIALIZER \
+    { 0,                          \
+      PTHREAD_MUTEX_DEFAULT,      \
+      PTHREAD_PROCESS_PRIVATE,    \
+      PTHREAD_PRIO_NONE,          \
+      0,                          \
+      0,                          \
+      0,                          \
+      PTHREAD_MUTEX_STALLED,      \
+      0,                          \
+      0,                          \
+      0 }
+#define PTHREAD_COND_INITIALIZER   { 0, CLOCK_REALTIME, PTHREAD_PROCESS_PRIVATE }
+#define PTHREAD_ONCE_INIT          0
+#define PTHREAD_RWLOCK_INITIALIZER { 0, 0, 0, 0, PTHREAD_PROCESS_PRIVATE }
+
+#endif /* _SYS__PTHREAD_H_ */

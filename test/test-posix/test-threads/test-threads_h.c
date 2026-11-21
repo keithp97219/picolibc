@@ -34,6 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if _POSIX_THREADS > 0
 #include <threads.h>
 
 /*
@@ -182,9 +186,6 @@ header_checks(void)
     check(per_thread == 1, "thread_local initializer");
 }
 
-/* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0
-
 static once_flag once = ONCE_FLAG_INIT;
 
 /* The prototypes, through pointers of the specified types */
@@ -273,10 +274,11 @@ main(void)
 
 #else
 
+#include <stdio.h>
+
 int
 main(void)
 {
-    header_checks();
     printf("no system support, skipping\n");
     return 77;
 }

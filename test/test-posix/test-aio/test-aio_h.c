@@ -38,9 +38,9 @@
 #define _POSIX_C_SOURCE 202405L
 #include <aio.h>
 
-/* off_t, pthread_attr_t, size_t, ssize_t and struct timespec */
-_Static_assert(sizeof(off_t) > 0 && sizeof(pthread_attr_t) > 0 && sizeof(size_t) > 0
-                   && sizeof(ssize_t) > 0 && sizeof(struct timespec) > 0,
+/* off_t, size_t, ssize_t and struct timespec; pthread_attr_t is below */
+_Static_assert(sizeof(off_t) > 0 && sizeof(size_t) > 0 && sizeof(ssize_t) > 0
+                   && sizeof(struct timespec) > 0,
                "<aio.h> types");
 
 /* struct sigevent and union sigval, as in <signal.h> */
@@ -48,8 +48,7 @@ _Static_assert(sizeof(struct sigevent) > 0 && sizeof(union sigval) > 0, "sigeven
 #define sigevent_is(member, type) _Generic(((struct sigevent *)0)->member, type: 1, default: 0)
 _Static_assert(sigevent_is(sigev_notify, int) && sigevent_is(sigev_signo, int)
                    && sigevent_is(sigev_value, union sigval)
-                   && sigevent_is(sigev_notify_function, void (*)(union sigval))
-                   && sigevent_is(sigev_notify_attributes, pthread_attr_t *),
+                   && sigevent_is(sigev_notify_function, void (*)(union sigval)),
                "struct sigevent members");
 #define sigval_is(member, type) _Generic(((union sigval *)0)->member, type: 1, default: 0)
 _Static_assert(sigval_is(sival_int, int) && sigval_is(sival_ptr, void *), "union sigval members");
@@ -78,6 +77,14 @@ _Static_assert(SIGEV_NONE != SIGEV_SIGNAL && SIGEV_NONE != SIGEV_THREAD
 #endif
 
 #include "../posix-groups.h"
+#include <unistd.h>
+
+/* pthread_attr_t, from <aio.h> and in struct sigevent, exists with threads */
+#if _POSIX_THREADS > 0
+_Static_assert(sizeof(pthread_attr_t) > 0, "<aio.h> pthread_attr_t");
+_Static_assert(sigevent_is(sigev_notify_attributes, pthread_attr_t *), "sigev_notify_attributes");
+#endif
+
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>

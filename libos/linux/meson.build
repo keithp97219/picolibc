@@ -485,6 +485,10 @@ if fs.is_dir(machine_dir)
   if really_install
     install_headers(['include/sys/_posix.h', 'include/sys/_signal.h'],
                     install_dir: include_dir / 'sys')
+    # The types and limits behind picolibc's thread headers
+    if posix_threads
+      install_headers('include/sys/_pthread.h', install_dir: include_dir / 'sys')
+    endif
     # The socket ABI for picolibc's networking headers
     if network == 'linux'
       install_headers(['include/sys/_socket.h', 'include/sys/_un.h'],

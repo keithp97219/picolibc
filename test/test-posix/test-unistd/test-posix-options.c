@@ -55,11 +55,15 @@
 #include <monetary.h>
 #include <mqueue.h>
 #include <poll.h>
+#if _POSIX_THREADS > 0
 #include <pthread.h>
+#endif
 #include <pwd.h>
 #include <regex.h>
 #include <sched.h>
+#if _POSIX_SEMAPHORES > 0
 #include <semaphore.h>
+#endif
 #include <setjmp.h>
 #include <signal.h>
 #include <spawn.h>

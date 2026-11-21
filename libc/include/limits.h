@@ -34,8 +34,8 @@
 
 /* POSIX thread limits, when the C library or the OS provides threads */
 #if __POSIX_VISIBLE && defined(__has_include)
-#if __has_include(<sys/_pthreadtypes.h>)
-#include <sys/_pthreadtypes.h>
+#if __has_include(<sys/_pthread.h>)
+#include <sys/_pthread.h>
 #define PTHREAD_DESTRUCTOR_ITERATIONS __PTHREAD_DESTRUCTOR_ITERATIONS
 #define PTHREAD_KEYS_MAX              __PTHREAD_KEYS_MAX
 #define PTHREAD_STACK_MIN             __PTHREAD_STACK_MIN

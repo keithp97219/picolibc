@@ -36,6 +36,10 @@
 /* The synchronization part of what <pthread.h> provides */
 
 #define _POSIX_C_SOURCE 202405L
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if _POSIX_THREADS > 0
 #include <pthread.h>
 
 /*
@@ -82,11 +86,6 @@ static pthread_condattr_t    s_condattr;
 static pthread_mutexattr_t   s_mutexattr;
 static pthread_rwlockattr_t  s_rwlockattr;
 static pthread_spinlock_t    s_spinlock;
-
-#include <unistd.h>
-
-/* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0
 
 #define proto(name, ret, ...) static ret (* const p_##name)(__VA_ARGS__) = name
 
@@ -259,15 +258,6 @@ main(void)
 int
 main(void)
 {
-    (void)s_mutex;
-    (void)s_cond;
-    (void)s_rwlock;
-    (void)s_barrier;
-    (void)s_barrierattr;
-    (void)s_condattr;
-    (void)s_mutexattr;
-    (void)s_rwlockattr;
-    (void)s_spinlock;
     printf("no system support, skipping\n");
     return 77;
 }

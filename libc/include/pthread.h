@@ -37,6 +37,13 @@
 #define _PTHREAD_H_
 
 #include <sys/cdefs.h>
+/* The OS supplies the thread types, initializers and limits */
+#if defined(__has_include)
+#if !__has_include(<sys/_pthread.h>)
+#error "<pthread.h> needs threads, which this system doesn't provide"
+#endif
+#endif
+#include <sys/_pthread.h>
 #include <sys/types.h>
 #include <sched.h>
 #include <time.h>
@@ -69,24 +76,8 @@ _BEGIN_STD_C
 #define PTHREAD_PRIO_PROTECT 2
 
 /* Mutex robustness */
-#define PTHREAD_MUTEX_STALLED 0
-#define PTHREAD_MUTEX_ROBUST  1
-
-#define PTHREAD_MUTEX_INITIALIZER \
-    { 0,                          \
-      PTHREAD_MUTEX_DEFAULT,      \
-      PTHREAD_PROCESS_PRIVATE,    \
-      PTHREAD_PRIO_NONE,          \
-      0,                          \
-      0,                          \
-      0,                          \
-      PTHREAD_MUTEX_STALLED,      \
-      0,                          \
-      0,                          \
-      0 }
-#define PTHREAD_COND_INITIALIZER      { 0, CLOCK_REALTIME, PTHREAD_PROCESS_PRIVATE }
-#define PTHREAD_ONCE_INIT             0
-#define PTHREAD_RWLOCK_INITIALIZER    { 0, 0, 0, 0, PTHREAD_PROCESS_PRIVATE }
+#define PTHREAD_MUTEX_STALLED         0
+#define PTHREAD_MUTEX_ROBUST          1
 
 #define PTHREAD_BARRIER_SERIAL_THREAD (-1)
 

@@ -36,6 +36,10 @@
 /* The thread-management part of what <pthread.h> provides */
 
 #define _POSIX_C_SOURCE 202405L
+#include <unistd.h>
+
+/* Without the system support this test needs, it is skipped */
+#if _POSIX_THREADS > 0
 #include <pthread.h>
 
 #ifndef __GLIBC__
@@ -56,11 +60,6 @@ _Static_assert(PTHREAD_CANCEL_DEFERRED != PTHREAD_CANCEL_ASYNCHRONOUS, "cancelab
 _Static_assert(PTHREAD_CREATE_DETACHED != PTHREAD_CREATE_JOINABLE, "detach states");
 _Static_assert(PTHREAD_EXPLICIT_SCHED != PTHREAD_INHERIT_SCHED, "inheritsched values");
 _Static_assert(PTHREAD_SCOPE_PROCESS != PTHREAD_SCOPE_SYSTEM, "contention scopes");
-
-#include <unistd.h>
-
-/* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0
 
 /* The initializers are constant expressions for objects with static storage */
 static pthread_once_t s_once = PTHREAD_ONCE_INIT;

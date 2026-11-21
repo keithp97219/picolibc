@@ -255,11 +255,11 @@ typedef __int64_t sbintime_t;
 #include <machine/types.h>
 
 /*
- * POSIX thread types, when the C library or the OS provides them
+ * POSIX thread types, when the OS provides threads
  */
 #if defined(__has_include)
-#if __has_include(<sys/_pthreadtypes.h>)
-#include <sys/_pthreadtypes.h>
+#if __has_include(<sys/_pthread.h>)
+#include <sys/_pthread.h>
 #endif
 #endif
 

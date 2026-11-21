@@ -37,7 +37,13 @@
 #define _THREADS_H_
 
 #include <sys/cdefs.h>
-#include <sys/_pthreadtypes.h>
+/* The OS supplies the thread types, initializers and limits */
+#if defined(__has_include)
+#if !__has_include(<sys/_pthread.h>)
+#error "<threads.h> needs threads, which this system doesn't provide"
+#endif
+#endif
+#include <sys/_pthread.h>
 #include <time.h>
 
 _BEGIN_STD_C

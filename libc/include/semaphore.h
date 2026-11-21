@@ -38,17 +38,17 @@
 
 #include <sys/cdefs.h>
 #include <sys/_types.h>
+/* The OS supplies the thread types, initializers and limits */
+#if defined(__has_include)
+#if !__has_include(<sys/_pthread.h>)
+#error "<semaphore.h> needs threads, which this system doesn't provide"
+#endif
+#endif
+#include <sys/_pthread.h>
 #include <fcntl.h>
 #include <time.h>
 
 _BEGIN_STD_C
-
-/* Part of picolibc's OS-independent ABI, implemented by the OS layer */
-typedef struct {
-    unsigned int __value;
-    unsigned int __waiters;
-    int          __pshared;
-} sem_t;
 
 #define SEM_FAILED ((sem_t *)0)
 

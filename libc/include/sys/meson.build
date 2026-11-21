@@ -88,10 +88,6 @@ inc_sys_headers_all = [
   '_wait.h'
 ]
 
-if posix_threads
-  inc_sys_headers_all += ['_pthreadtypes.h']
-endif
-
 if network != 'none'
   inc_sys_headers_all += ['socket.h', 'un.h']
 endif

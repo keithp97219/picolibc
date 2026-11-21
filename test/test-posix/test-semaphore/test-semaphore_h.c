@@ -49,8 +49,10 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include <semaphore.h>
 #include <unistd.h>
+#if _POSIX_SEMAPHORES > 0
+#include <semaphore.h>
+#endif
 
 #undef waiters
 #undef pshared
