@@ -45,7 +45,7 @@ fgetgrent(FILE *stream)
     struct group *grp_ret;
     int           ret;
 
-    ret = fgetgrent_r(stream, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
+    ret = __gr_find(stream, __gr_match_any, NULL, 0, &__group_data, NULL, 0, &grp_ret);
     /* The end of the file leaves errno alone */
     if (ret != 0 && ret != ENOENT)
         errno = ret;

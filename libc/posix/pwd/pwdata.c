@@ -37,5 +37,5 @@
 #include <stdio.h>
 #include "local-pwd.h"
 
-char          __passwd_buffer[BUFSIZ];
+char         *__passwd_buffer;
 struct passwd __passwd_data;

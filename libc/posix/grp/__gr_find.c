@@ -75,8 +75,8 @@ __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct
     ssize_t      len;
     off_t        start;
     struct group ent;
-    char        *members, *m, **mem;
-    size_t       nmem, array, need;
+    char        *members, *m, **mem, *grown;
+    size_t       nmem, array, need, name_off, members_off;
     int          ret;
 
     *result = NULL;
@@ -109,6 +109,21 @@ __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct
                     nmem++;
         }
 
+        name_off = (size_t)(ent.gr_name - line);
+        members_off = members ? (size_t)(members - line) : 0;
+
+        if (!buf) {
+            /* Grow the line to hold the members for the non-reentrant functions */
+            size = (size_t)len + sizeof(char *) + (nmem + 1) * sizeof(char *);
+            grown = realloc(line, size);
+            if (!grown) {
+                ret = ENOMEM;
+                break;
+            }
+            line = grown;
+            buf = grown;
+        }
+
         /* The line, then the aligned, null-terminated array of members */
         array = (size_t)len + 1;
         array += (sizeof(char *) - ((uintptr_t)buf + array) % sizeof(char *)) % sizeof(char *);
@@ -122,13 +137,20 @@ __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct
             ret = ERANGE;
             break;
         }
-        memcpy(buf, line, (size_t)len + 1);
-        grbuf->gr_name = buf + (ent.gr_name - line);
+        if (buf == line) {
+            /* Keep the line for the non-reentrant functions */
+            free(__group_buffer);
+            __group_buffer = line;
+            line = NULL;
+        } else {
+            memcpy(buf, line, (size_t)len + 1);
+        }
+        grbuf->gr_name = buf + name_off;
         grbuf->gr_gid = ent.gr_gid;
         mem = (char **)(void *)(buf + array);
         grbuf->gr_mem = mem;
         if (nmem) {
-            for (m = buf + (members - line);;) {
+            for (m = buf + members_off;;) {
                 *mem++ = m;
                 m = strchr(m, ',');
                 if (!m)

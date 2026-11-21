@@ -43,12 +43,17 @@
 struct passwd *
 getpwuid(uid_t uid)
 {
-    struct passwd *pwd_ret;
+    struct passwd *pwd_ret = NULL;
+    FILE          *file;
     int            saved_errno = errno;
     int            ret;
 
-    ret = getpwuid_r(uid, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
+    file = fopen(_PATH_PASSWD, "re");
+    if (!file)
+        return NULL;
+    ret = __pw_find(file, __pw_match_uid, NULL, uid, &__passwd_data, NULL, 0, &pwd_ret);
+    fclose(file);
     /* errno changes only for an error */
-    errno = ret ? ret : saved_errno;
+    errno = ret && ret != ENOENT ? ret : saved_errno;
     return pwd_ret;
 }

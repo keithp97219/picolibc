@@ -38,7 +38,8 @@
 #include <stdio.h>
 #include <pwd.h>
 
-extern char          __passwd_buffer[BUFSIZ];
+/* The non-reentrant functions' entry, in memory allocated to fit it */
+extern char         *__passwd_buffer;
 extern struct passwd __passwd_data;
 extern FILE         *__passwd_file;
 
@@ -54,7 +55,8 @@ enum __pw_match {
  * valid entries. Returns 0 with the entry stored in buf, ENOENT at the
  * end of the file, ERANGE when the matching entry doesn't fit (leaving
  * a seekable file positioned to read it again), or another error. errno
- * is left alone.
+ * is left alone. With a null buf, the entry goes in memory allocated to
+ * fit it, which replaces the non-reentrant functions' buffer.
  */
 int __pw_find(FILE *file, enum __pw_match match, const char *name, uid_t uid, struct passwd *pwbuf,
               char *buf, size_t size, struct passwd **result);

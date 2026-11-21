@@ -46,7 +46,7 @@ fgetpwent(FILE *stream)
     struct passwd *pwd_ret;
     int            ret;
 
-    ret = fgetpwent_r(stream, &__passwd_data, __passwd_buffer, sizeof(__passwd_buffer), &pwd_ret);
+    ret = __pw_find(stream, __pw_match_any, NULL, 0, &__passwd_data, NULL, 0, &pwd_ret);
     /* The end of the file leaves errno alone */
     if (ret != 0 && ret != ENOENT)
         errno = ret;

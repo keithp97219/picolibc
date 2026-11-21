@@ -43,12 +43,17 @@
 struct group *
 getgrgid(gid_t gid)
 {
-    struct group *grp_ret;
+    struct group *grp_ret = NULL;
+    FILE         *file;
     int           saved_errno = errno;
     int           ret;
 
-    ret = getgrgid_r(gid, &__group_data, __group_buffer, sizeof(__group_buffer), &grp_ret);
+    file = fopen(_PATH_GROUP, "re");
+    if (!file)
+        return NULL;
+    ret = __gr_find(file, __gr_match_gid, NULL, gid, &__group_data, NULL, 0, &grp_ret);
+    fclose(file);
     /* errno changes only for an error */
-    errno = ret ? ret : saved_errno;
+    errno = ret && ret != ENOENT ? ret : saved_errno;
     return grp_ret;
 }

@@ -96,6 +96,16 @@ __pw_find(FILE *file, enum __pw_match match, const char *name, uid_t uid, struct
             continue;
         if (match == __pw_match_uid && ent.pw_uid != uid)
             continue;
+        if (!buf) {
+            /* Keep the line for the non-reentrant functions */
+            free(__passwd_buffer);
+            __passwd_buffer = line;
+            line = NULL;
+            *pwbuf = ent;
+            *result = pwbuf;
+            ret = 0;
+            break;
+        }
         /* Only the entry found has to fit */
         if ((size_t)len >= size) {
             /* Leave the entry to be read again with a larger buffer */

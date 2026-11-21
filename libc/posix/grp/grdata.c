@@ -37,5 +37,5 @@
 #include <stdio.h>
 #include "local-grp.h"
 
-char         __group_buffer[BUFSIZ];
+char        *__group_buffer;
 struct group __group_data;

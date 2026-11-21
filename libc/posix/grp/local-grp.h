@@ -38,7 +38,8 @@
 #include <stdio.h>
 #include <grp.h>
 
-extern char         __group_buffer[BUFSIZ];
+/* The non-reentrant functions' entry, in memory allocated to fit it */
+extern char        *__group_buffer;
 extern struct group __group_data;
 extern FILE        *__group_file;
 
@@ -54,7 +55,8 @@ enum __gr_match {
  * valid entries. Returns 0 with the entry stored in buf, ENOENT at the
  * end of the file, ERANGE when the matching entry doesn't fit (leaving
  * a seekable file positioned to read it again), or another error. errno
- * is left alone.
+ * is left alone. With a null buf, the entry goes in memory allocated to
+ * fit it, which replaces the non-reentrant functions' buffer.
  */
 int __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct group *grbuf,
               char *buf, size_t size, struct group **result);
