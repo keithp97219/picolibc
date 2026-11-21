@@ -40,6 +40,7 @@ set(tests
   test-alarm
   test-chown
   test-confstr
+  test-crypt
   test-dup2
   test-dup3
   test-execl
@@ -101,6 +102,7 @@ set(tests
   test-setuid-thread
   test-symlink
   test-symlinkat
+  test-swab
   test-sync
   test-sysconf
   test-sysconf-arg_max

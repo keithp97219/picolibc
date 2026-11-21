@@ -40,6 +40,7 @@ dir_tests = [
   'test-alarm',
   'test-chown',
   'test-confstr',
+  'test-crypt',
   'test-dup2',
   'test-dup3',
   'test-execl',
@@ -98,6 +99,7 @@ dir_tests = [
   'test-sleep',
   'test-symlink',
   'test-symlinkat',
+  'test-swab',
   'test-sync',
   'test-sysconf',
   'test-sysconf-arg_max',
@@ -123,3 +125,5 @@ dir_thread_tests = [
 
 # glibc's sysconf disagrees with its <unistd.h> about robust mutexes
 test_skip_native += ['test-sysconf']
+# glibc keeps crypt in libcrypt and no longer links encrypt or setkey
+test_skip_native += ['test-crypt']
