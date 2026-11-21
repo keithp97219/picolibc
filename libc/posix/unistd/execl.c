@@ -40,14 +40,17 @@
 
 extern char **environ;
 
+/*
+ * execl and execle must be async-signal-safe, so build argv on the
+ * stack where possible: malloc can't be used from a signal handler or
+ * the child of a multi-threaded fork
+ */
 int
 execl(const char *path, const char *arg, ...)
 {
     va_list      ap;
-    int          argc = 1;
+    size_t       argc = 1;
     const char **argv;
-    const char  *a;
-    int          ret;
 
     /* count args */
     va_start(ap, arg);
@@ -55,25 +58,28 @@ execl(const char *path, const char *arg, ...)
         argc++;
     va_end(ap);
 
-    /* allocate argv */
+#ifdef __HAVE_BUILTIN_ALLOCA
+    argv = __builtin_alloca((argc + 1) * sizeof(char *));
+#else
     argv = calloc(argc + 1, sizeof(char *));
     if (!argv) {
         errno = ENOMEM;
         return -1;
     }
+#endif
 
     /* fill in argv */
     va_start(ap, arg);
-    argc = 0;
-    argv[argc++] = arg;
-    for (;;) {
-        a = va_arg(ap, const char *);
-        argv[argc++] = a;
-        if (a == NULL)
-            break;
-    }
+    argv[0] = arg;
+    for (size_t i = 1; i <= argc; i++)
+        argv[i] = va_arg(ap, const char *);
     va_end(ap);
-    ret = execve(path, (char * const *)argv, environ);
+
+#ifdef __HAVE_BUILTIN_ALLOCA
+    return execve(path, (char * const *)argv, environ);
+#else
+    int ret = execve(path, (char * const *)argv, environ);
     free(argv);
     return ret;
+#endif
 }
