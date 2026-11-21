@@ -36,6 +36,8 @@
 set(tests
   test-regcomp
   test-regerror
+  test-regexec
+  test-regex_h
   )
 
 foreach(test IN LISTS tests)
