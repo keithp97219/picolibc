@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-strfmon-posix
   test-strfmon_l
   )
 

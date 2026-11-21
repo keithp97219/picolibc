@@ -34,5 +34,6 @@
 #
 
 dir_tests = [
+  'test-strfmon-posix',
   'test-strfmon_l',
 ]
