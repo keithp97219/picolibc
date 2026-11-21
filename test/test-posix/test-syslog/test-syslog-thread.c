@@ -57,6 +57,7 @@
 #include <syslog.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
+#include "../is-qemu.h"
 
 /*
  * A thread cancelled inside syslog, whether or not syslog is a
@@ -177,6 +178,11 @@ main(void)
     int   status;
 
     fflush(stdout);
+#ifdef __hexagon__
+    /* qemu-hexagon can abort a forked child that creates threads; check here */
+    if (is_qemu())
+        child();
+#endif
     pid = fork();
     check(pid >= 0, "fork");
     if (pid == 0)
