@@ -133,9 +133,12 @@ main(void)
               "the new directory is empty");
     check(closedir(d) == 0, "closedir");
     check(rmdir(path) == 0, "rmdir");
-    /* S_ISVTX comes from mode too */
+    /*
+     * What S_ISVTX in mode does is implementation-defined (Linux keeps
+     * it, FreeBSD drops it); the permission bits still come from mode
+     */
     check(mkdir(name("sub"), S_ISVTX | 0755) == 0 && stat(path, &st) == 0
-              && (st.st_mode & 07777) == (S_ISVTX | 0755),
+              && ((st.st_mode & 07777) == (S_ISVTX | 0755) || (st.st_mode & 07777) == 0755),
           "mkdir S_ISVTX");
     check(rmdir(path) == 0, "rmdir");
     umask(077);

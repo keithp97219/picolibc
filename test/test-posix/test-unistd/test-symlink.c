@@ -148,7 +148,10 @@ main(void)
     check(symlink("x", "new/") == -1 && (errno == ENOENT || errno == ENOTDIR),
           "trailing slash on a new name");
     check(!exists("new"), "nothing made");
-    check_err(symlink("x", "file/"), EEXIST, "trailing slash on an existing file");
+    /* "file/" both names an existing file and fails to resolve; either error fits */
+    errno = 0;
+    check(symlink("x", "file/") == -1 && (errno == EEXIST || errno == ENOTDIR),
+          "trailing slash on an existing file");
     check(symlink("loop", "loop") == 0, "symlink loop");
     check_err(symlink("x", "loop/x"), ELOOP, "loop in the prefix");
     memset(long_name, 'n', NAME_MAX + 1);

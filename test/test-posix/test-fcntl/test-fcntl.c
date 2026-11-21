@@ -59,7 +59,7 @@
 int
 main(void)
 {
-    int  fds[2], fd, fd2, fd3, flags;
+    int  fds[2], fd, fd2, fd3, flags, accmode;
     long open_max;
     char buf[1];
 
@@ -67,8 +67,12 @@ main(void)
 
     flags = fcntl(fds[0], F_GETFL);
     check(flags >= 0, "F_GETFL");
-    check((flags & O_ACCMODE) == O_RDONLY, "read end access mode");
-    check((fcntl(fds[1], F_GETFL) & O_ACCMODE) == O_WRONLY, "write end access mode");
+    /* Either end may also be open the other way (FreeBSD's pipes are) */
+    accmode = flags & O_ACCMODE;
+    check(accmode == O_RDONLY || accmode == O_RDWR, "read end access mode");
+    check((fcntl(fds[1], F_GETFL) & O_ACCMODE) == O_WRONLY
+              || (fcntl(fds[1], F_GETFL) & O_ACCMODE) == O_RDWR,
+          "write end access mode");
     check(!(flags & O_NONBLOCK), "blocking");
 
     check(fcntl(fds[0], F_SETFL, flags | O_NONBLOCK) == 0, "F_SETFL");
@@ -102,7 +106,7 @@ main(void)
     /* F_SETFL ignores the access mode and creation flags */
     check(fcntl(fds[0], F_SETFL, O_RDWR | O_CREAT | O_TRUNC | O_NONBLOCK) == 0, "F_SETFL ignored");
     flags = fcntl(fds[0], F_GETFL);
-    check((flags & O_ACCMODE) == O_RDONLY && (flags & O_NONBLOCK), "access mode unchanged");
+    check((flags & O_ACCMODE) == accmode && (flags & O_NONBLOCK), "access mode unchanged");
 
     /* F_DUPFD returns the lowest available descriptor at or above arg */
     fd = fcntl(fds[1], F_DUPFD, 20);
