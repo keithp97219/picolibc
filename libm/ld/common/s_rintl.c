@@ -99,7 +99,12 @@ nearbyintl(long double x)
     fegetenv(&env);
     fedisableexcept(FE_INEXACT);
 #endif
-    ret = rintl(x);
+    /*
+     * Keep rint between the environment changes: the barriers stop the
+     * compiler from moving it, which clang does on targets without
+     * strict floating point support
+     */
+    ret = opt_barrier_float(rintl(opt_barrier_float(x)));
 #if defined(FE_INEXACT) && !defined(__LONG_DOUBLE_NOEXCEPT)
     fesetenv(&env);
 #endif

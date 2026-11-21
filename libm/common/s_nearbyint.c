@@ -62,7 +62,12 @@ nearbyint64(__float64 x)
     fegetenv(&env);
     fedisableexcept(FE_INEXACT);
 #endif
-    x = rint64(x);
+    /*
+     * Keep rint between the environment changes: the barriers stop the
+     * compiler from moving it, which clang does on targets without
+     * strict floating point support
+     */
+    x = opt_barrier_float(rint64(opt_barrier_float(x)));
 #if defined(FE_INEXACT) && !defined(__DOUBLE_NOEXCEPT)
     fesetenv(&env);
 #endif
