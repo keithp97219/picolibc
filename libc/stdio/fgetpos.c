@@ -65,7 +65,7 @@ No supporting OS subroutines are required.
 int
 fgetpos(FILE * __restrict fp, fpos_t * __restrict pos)
 {
-    *pos = ftell(fp);
+    *pos = ftello(fp);
 
     if (*pos != -1) {
         return 0;
