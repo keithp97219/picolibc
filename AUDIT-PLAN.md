@@ -39,6 +39,19 @@ it. Lessons folded into the brief below:
   a kernel error to a POSIX answer, check the kernel source for every error
   the path can return.
 
+## Queue
+
+More requests are coming; keep polling `AUDIT-REQUEST` after each round
+rather than stopping when one finishes. The x86_64 host applies each
+round's results and then writes the next request, usually within an hour
+or two of the results landing.
+
+1. unistd-config, logging-misc, stdio (current request)
+2. stdlib, strings, locale
+3. wide, search-dbm, math
+
+The plan is complete after round 3; this section will say so.
+
 ## Base and outputs
 
 - **Base:** the branch `AUDIT-REQUEST` names, `claude/posix-spec-audit` on
