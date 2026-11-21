@@ -34,9 +34,11 @@
 #
 
 dir_tests = [
+  'test-fgetpwent',
   'test-getpwent',
   'test-getpwnam',
   'test-getpwnam_r',
   'test-getpwuid_r',
   'test-pwd_h',
+  'test-setpwent',
 ]
