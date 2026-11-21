@@ -59,7 +59,7 @@ Supporting OS subroutines required: <<close>>, <<fstat>>, <<isatty>>,
 int
 fsetpos(FILE *iop, const fpos_t *pos)
 {
-    int x = fseek(iop, *pos, SEEK_SET);
+    int x = fseeko(iop, *pos, SEEK_SET);
 
     if (x != 0)
         return 1;

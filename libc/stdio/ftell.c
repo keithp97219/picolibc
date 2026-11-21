@@ -46,10 +46,15 @@ FTELL(FILE *stream)
     struct __file_ext *xf = (struct __file_ext *)stream;
     __flockfile(stream);
     if ((stream->flags & __SEXT) && xf->seek) {
-        FTELL_TYPE ret = (FTELL_TYPE)(xf->seek)(stream, 0, SEEK_CUR);
+        __off_t ret = (xf->seek)(stream, 0, SEEK_CUR);
         if (ret > 0 && __atomic_load_ungetc(&stream->unget) != 0)
             ret--;
-        __funlock_return(stream, ret);
+        /* ftell's result must fit in a long */
+        if ((__off_t)(FTELL_TYPE)ret != ret) {
+            errno = EOVERFLOW;
+            ret = -1;
+        }
+        __funlock_return(stream, (FTELL_TYPE)ret);
     }
     errno = ESPIPE;
     __funlock_return(stream, -1);

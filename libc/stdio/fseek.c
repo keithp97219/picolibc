@@ -73,6 +73,11 @@ FSEEK(FILE *stream, FSEEK_TYPE offset, int whence)
         if (ret >= 0) {
             stream->flags &= ~__SEOF;
             __atomic_store_ungetc(&stream->unget, 0);
+            /* fseek's result must fit in a long */
+            if ((__off_t)(FSEEK_TYPE)ret != ret) {
+                errno = EOVERFLOW;
+                __funlock_return(stream, -1);
+            }
             __funlock_return(stream, 0);
         }
         __funlock_return(stream, -1);
