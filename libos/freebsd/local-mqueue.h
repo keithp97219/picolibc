@@ -96,6 +96,8 @@ _mq_timeout(struct __freebsd_timespec *kts, const struct timespec *ts)
  * mq_notify's SIGEV_THREAD, which needs threads; this libos's version
  * fails with EINVAL until the threads layer replaces it
  */
-int _mq_notify_thread(mqd_t mqdes, const struct sigevent *sev);
+int  _mq_notify_thread(mqd_t mqdes, const struct sigevent *sev);
+/* The registration for mqdes is gone; a SIGEV_THREAD helper for it ends */
+void _mq_notify_cancel(mqd_t mqdes);
 
 #endif /* _LOCAL_MQUEUE_H_ */

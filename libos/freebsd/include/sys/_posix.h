@@ -126,8 +126,10 @@
 #define __PICOLIBC_OS_VDISABLE 0xff
 
 /*
- * Options. Message passing (mq_*) is there too, but FreeBSD needs the
- * mqueuefs module loaded for it
+ * Options. Message passing (mq_*) is there too, with the mqueuefs
+ * module loaded, but FreeBSD notifies for every message sent while no
+ * one waits to receive, and at once when registering on a non-empty
+ * queue, where POSIX notifies only when a message reaches an empty one
  */
 #define __PICOLIBC_OS_MAPPED_FILES          202405L
 #define __PICOLIBC_OS_MEMLOCK               202405L

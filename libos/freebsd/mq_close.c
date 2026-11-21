@@ -43,5 +43,9 @@ mq_close(mqd_t mqdes)
 
     if (_mq_check() < 0 || _syscall(FREEBSD_SYS_kmq_setattr, mqdes, NULL, &kattr) < 0)
         return -1;
-    return (int)_syscall(FREEBSD_SYS_close, mqdes);
+    if (_syscall(FREEBSD_SYS_close, mqdes) < 0)
+        return -1;
+    /* Closing removes this process's notification request */
+    _mq_notify_cancel(mqdes);
+    return 0;
 }

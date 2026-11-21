@@ -46,8 +46,12 @@ mq_notify(mqd_t mqdes, const struct sigevent *sev)
     if (_mq_check() < 0)
         return -1;
     /* No sigevent removes this process's registration */
-    if (!sev)
-        return (int)_syscall(FREEBSD_SYS_kmq_notify, mqdes, NULL);
+    if (!sev) {
+        if (_syscall(FREEBSD_SYS_kmq_notify, mqdes, NULL) < 0)
+            return -1;
+        _mq_notify_cancel(mqdes);
+        return 0;
+    }
     memset(&kev, 0, sizeof(kev));
     switch (sev->sigev_notify) {
     case SIGEV_NONE:
