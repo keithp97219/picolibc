@@ -43,4 +43,5 @@ picolibc_sources(
   sigismember.c
   sigjmp_getsigs.c
   sigjmp_setsigs.c
+  siglongjmp.c
   )  

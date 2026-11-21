@@ -43,6 +43,7 @@ srcs_signal = [
     'sigismember.c',
     'sigjmp_getsigs.c',
     'sigjmp_setsigs.c',
+    'siglongjmp.c',
 ]
 
 srcs_signal_use = []
