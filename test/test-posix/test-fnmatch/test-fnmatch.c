@@ -73,7 +73,7 @@ main(void)
 
     /* The flags are separate bits; FNM_NOMATCH isn't success */
     if (FNM_NOMATCH == 0 || (FNM_NOESCAPE & FNM_PATHNAME) || (FNM_NOESCAPE & FNM_PERIOD)
-        || (FNM_PATHNAME & FNM_PERIOD) || !FNM_NOESCAPE || !FNM_PATHNAME || !FNM_PERIOD)
+        || (FNM_PATHNAME & FNM_PERIOD) || FNM_NOESCAPE == 0 || FNM_PATHNAME == 0 || FNM_PERIOD == 0)
         result |= fail(512, __LINE__);
     if (fnmatch_p("a", "a", 0) != 0)
         result |= fail(512, __LINE__);
