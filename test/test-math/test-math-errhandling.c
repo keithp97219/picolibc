@@ -195,6 +195,15 @@ e_to_str(int e)
 #define SKIP_SNAN_CHECKS
 #endif
 
+/*
+ * clang's fpclassify and isinf builtins raise FE_INVALID for a
+ * signaling NaN, and clang can't be told otherwise. picolibc's <math.h>
+ * avoids them with clang; other C libraries' may not
+ */
+#if defined(__clang__) && !defined(__PICOLIBC__)
+#define SKIP_SNAN_CLASSIFY
+#endif
+
 #ifdef __RX__
 /* GCC hangs when building these tests? */
 #undef _TEST_LONG_DOUBLE
