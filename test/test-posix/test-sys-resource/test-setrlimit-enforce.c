@@ -297,7 +297,12 @@ main(int argc, char **argv)
         status = in_child(as);
         check(exited_ok(status), "RLIMIT_AS");
         status = in_child(stack);
-        check(WIFSIGNALED(status) && WTERMSIG(status) == SIGSEGV, "RLIMIT_STACK sends SIGSEGV");
+        /*
+         * The overflow raises SIGSEGV, whose handler has no stack to run
+         * on; Linux then kills with SIGSEGV, FreeBSD with SIGILL
+         */
+        check(WIFSIGNALED(status) && (WTERMSIG(status) == SIGSEGV || WTERMSIG(status) == SIGILL),
+              "RLIMIT_STACK kills with SIGSEGV");
     }
 
     len = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
