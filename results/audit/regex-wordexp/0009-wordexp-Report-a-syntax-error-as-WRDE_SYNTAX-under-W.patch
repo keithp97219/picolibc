@@ -1,0 +1,116 @@
+From 3478801e903cb4a67c77b7e7fdd67e2ebb93d4c8 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:34:16 +0000
+Subject: [PATCH 09/12] wordexp: Report a syntax error as WRDE_SYNTAX under
+ WRDE_UNDEF
+
+With WRDE_UNDEF, any failure of the shell was WRDE_BADVAL, so "$((1+))"
+was reported as an undefined variable. When the words hold no command
+substitution, run them again without set -u to tell the two apart.
+---
+ libc/posix/wordexp/wordexp.c | 40 ++++++++++++++++++++++++++++++------
+ 1 file changed, 34 insertions(+), 6 deletions(-)
+
+diff --git a/libc/posix/wordexp/wordexp.c b/libc/posix/wordexp/wordexp.c
+index 7281af10b9..afc9feb687 100644
+--- a/libc/posix/wordexp/wordexp.c
++++ b/libc/posix/wordexp/wordexp.c
+@@ -48,7 +48,7 @@
+  * quotes, and command substitution when it isn't allowed.
+  */
+ static int
+-__wordexp_check(const char *words, int flags)
++__wordexp_check(const char *words, int flags, bool *cmdsub)
+ {
+     /*
+      * What each open bracket began: a for $((, c for $(, b for ${ and
+@@ -89,6 +89,7 @@ __wordexp_check(const char *words, int flags)
+         case '`':
+             if (flags & WRDE_NOCMD)
+                 return WRDE_CMDSUB;
++            *cmdsub = true;
+             bq = !bq;
+             continue;
+         case '$':
+@@ -98,6 +99,7 @@ __wordexp_check(const char *words, int flags)
+             } else if (words[1] == '(') {
+                 if (flags & WRDE_NOCMD)
+                     return WRDE_CMDSUB;
++                *cmdsub = true;
+                 PUSH('c');
+                 words++;
+             } else if (words[1] == '{') {
+@@ -139,8 +141,11 @@ __wordexp_check(const char *words, int flags)
+         case '>':
+         case '\n':
+             /* Arithmetic has no use for these, but a command would */
+-            if (top == 'a' && (c == ';' || c == '\n') && (flags & WRDE_NOCMD))
+-                return WRDE_CMDSUB;
++            if (top == 'a' && (c == ';' || c == '\n')) {
++                if (flags & WRDE_NOCMD)
++                    return WRDE_CMDSUB;
++                *cmdsub = true;
++            }
+             if (!depth && !dq && !bq)
+                 return WRDE_BADCHAR;
+             continue;
+@@ -233,12 +238,20 @@ __wordexp_shell(const char *words, int flags, char **out, size_t *len)
+     return status;
+ }
+ 
++/* Whether the shell's output shows that it expanded the words */
++static bool
++__wordexp_ok(int status, size_t len)
++{
++    return WIFEXITED(status) && WEXITSTATUS(status) == 0 && len >= 2;
++}
++
+ int
+ wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
+ {
+     char  *out, *p, **wordv;
+     size_t len, count = 0, offs, i;
+     int    status, ret;
++    bool   cmdsub = false;
+ 
+     /* REUSE is as if wordfree, then wordexp, so even an error frees the words */
+     if (flags & WRDE_REUSE) {
+@@ -251,7 +264,7 @@ wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
+         if (!(flags & WRDE_DOOFFS))
+             we->we_offs = 0;
+     }
+-    ret = __wordexp_check(words, flags);
++    ret = __wordexp_check(words, flags, &cmdsub);
+     if (ret)
+         return ret;
+ 
+@@ -260,9 +273,24 @@ wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
+         return WRDE_NOSPACE;
+     if (status < 0)
+         return WRDE_SYNTAX;
+-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0 || len < 2) {
++    if (!__wordexp_ok(status, len)) {
+         free(out);
+-        return (flags & WRDE_UNDEF) ? WRDE_BADVAL : WRDE_SYNTAX;
++        if (!(flags & WRDE_UNDEF))
++            return WRDE_SYNTAX;
++        /*
++         * set -u failed the shell, or something else did. Without
++         * commands to repeat, try again without it to tell which.
++         */
++        if (!cmdsub) {
++            status = __wordexp_shell(words, flags & ~WRDE_UNDEF, &out, &len);
++            if (status == -2)
++                return WRDE_NOSPACE;
++            if (status >= 0)
++                free(out);
++            if (status < 0 || !__wordexp_ok(status, len))
++                return WRDE_SYNTAX;
++        }
++        return WRDE_BADVAL;
+     }
+ 
+     /* Count the fields after the leading x */
+-- 
+2.47.3
+

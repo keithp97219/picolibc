@@ -1,0 +1,38 @@
+From 99aa935b8cd85f395c0fc6c5f51b4ec7105c333d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:34:15 +0000
+Subject: [PATCH 07/12] wordexp: Hide the script's positional parameters from
+ the words
+
+wordexp passes the words to the shell as $2, so "$1 $2" expanded to
+the WRDE_UNDEF switch and the words themselves, and WRDE_UNDEF didn't
+report $1 as unset. Clear them with set -- before the expansion.
+---
+ libc/posix/wordexp/wordexp.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/libc/posix/wordexp/wordexp.c b/libc/posix/wordexp/wordexp.c
+index c5e2d1f68c..4dc815cdce 100644
+--- a/libc/posix/wordexp/wordexp.c
++++ b/libc/posix/wordexp/wordexp.c
+@@ -159,11 +159,13 @@ static int
+ __wordexp_shell(const char *words, int flags, char **out, size_t *len)
+ {
+     /*
+-     * $1 turns on set -u, $2 holds the words; printf ends each field
+-     * with a null byte, and the leading x keeps an empty expansion
+-     * from looking like one empty field.
++     * $1 turns on set -u and $2 holds the words. set -- clears the
++     * positional parameters before the words are expanded, so $1 and
++     * the rest aren't the script's. printf ends each field with a null
++     * byte, and the leading x keeps an empty expansion from looking
++     * like one empty field.
+      */
+-    static const char script[] = "[ -n \"$1\" ] && set -u; eval \"printf '%s\\\\0' x $2\"";
++    static const char script[] = "[ -n \"$1\" ] && set -u; eval \"set --; printf '%s\\\\0' x $2\"";
+     char  *argv[] = { "sh",          "-c", (char *)script, "sh", (flags & WRDE_UNDEF) ? "1" : "",
+                       (char *)words, NULL };
+     char  *buf = NULL;
+-- 
+2.47.3
+

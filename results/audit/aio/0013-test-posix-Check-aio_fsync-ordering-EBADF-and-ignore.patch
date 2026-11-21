@@ -1,0 +1,125 @@
+From 78732a7101ccce265db343766bb9f30129483180 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:50:16 +0000
+Subject: [PATCH 13/15] test-posix: Check aio_fsync ordering, EBADF and ignored
+ members
+
+---
+ test/test-posix/test-aio/test-aio_fsync.c | 84 ++++++++++++++++++++++-
+ 1 file changed, 81 insertions(+), 3 deletions(-)
+
+diff --git a/test/test-posix/test-aio/test-aio_fsync.c b/test/test-posix/test-aio/test-aio_fsync.c
+index 5174a6603e..f9dfda7afb 100644
+--- a/test/test-posix/test-aio/test-aio_fsync.c
++++ b/test/test-posix/test-aio/test-aio_fsync.c
+@@ -38,7 +38,8 @@
+ 
+ /* Without the system support this test needs, it is skipped */
+ #if _POSIX_ASYNCHRONOUS_IO > 0 && _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
+-    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)
++    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && defined(__PICOLIBC_POSIX_PIPE)            \
++    && defined(__PICOLIBC_POSIX_SIGNALS)
+ 
+ #include <aio.h>
+ #include <errno.h>
+@@ -93,11 +94,46 @@ wait_for(struct aiocb *cb)
+         check(aio_suspend(list, 1, NULL) == 0 || errno == EINTR, "aio_suspend");
+ }
+ 
++/* Fills a pipe, so that the next write to it blocks; returns the count */
++static size_t
++fill(int fd)
++{
++    static char buf[4096];
++    size_t      total = 0;
++    ssize_t     n;
++    int         flags = fcntl(fd, F_GETFL);
++
++    check(flags >= 0 && fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0, "set O_NONBLOCK");
++    while ((n = write(fd, buf, sizeof(buf))) > 0)
++        total += n;
++    while ((n = write(fd, buf, 1)) > 0)
++        total += n;
++    check(errno == EAGAIN && fcntl(fd, F_SETFL, flags) == 0, "pipe full");
++    return total;
++}
++
++/* Reads 'len' bytes, or to the end of the file */
++static void
++drain(int fd, size_t len)
++{
++    static char buf[4096];
++    ssize_t     n;
++
++    while (len > 0 && (n = read(fd, buf, len < sizeof(buf) ? len : sizeof(buf))) > 0)
++        len -= n;
++}
++
+ int
+ main(void)
+ {
+-    struct aiocb cb;
+-    int          fd = scratch("data");
++    struct aiocb        cb, wr;
++    const struct aiocb *list[1] = { &cb };
++    struct timespec     brief = { 0, 100000000 };
++    int                 fd = scratch("data"), pipefd[2];
++    size_t              filled;
++
++    /* A request that hangs ends the test */
++    alarm(60);
+ 
+     memset(&cb, 0, sizeof(cb));
+     cb.aio_fildes = fd;
+@@ -109,6 +145,48 @@ main(void)
+     wait_for(&cb);
+     check(aio_error(&cb) == 0 && aio_return(&cb) == 0, "status");
+     check(aio_fsync(O_RDWR, &cb) == -1 && errno == EINVAL, "bad op");
++
++#ifndef __GLIBC__
++    /* Only aio_fildes and aio_sigevent matter (glibc checks aio_reqprio) */
++    cb.aio_reqprio = -1;
++    cb.aio_lio_opcode = 42;
++    check(aio_fsync(O_SYNC, &cb) == 0, "aio_reqprio ignored");
++    wait_for(&cb);
++    check(aio_error(&cb) == 0 && aio_return(&cb) == 0, "status");
++    cb.aio_reqprio = 0;
++#endif
++
++    /* A bad descriptor fails at once */
++    cb.aio_fildes = -1;
++    check(aio_fsync(O_SYNC, &cb) == -1 && errno == EBADF, "EBADF");
++    check(pipe(pipefd) == 0, "pipe");
++    check(close(pipefd[1]) == 0, "close");
++    cb.aio_fildes = pipefd[1];
++    check(aio_fsync(O_DSYNC, &cb) == -1 && errno == EBADF, "EBADF after close");
++
++    /*
++     * aio_fsync completes the requests queued before it, so it can't
++     * finish while a write to a full pipe blocks. A pipe can't be
++     * synchronized, so then it reports EINVAL.
++     */
++    check(pipe(pipefd) == 0, "pipe");
++    filled = fill(pipefd[1]);
++    memset(&wr, 0, sizeof(wr));
++    wr.aio_fildes = pipefd[1];
++    wr.aio_buf = "data";
++    wr.aio_nbytes = 4;
++    wr.aio_sigevent.sigev_notify = SIGEV_NONE;
++    check(aio_write(&wr) == 0, "aio_write to a full pipe");
++    cb.aio_fildes = pipefd[1];
++    check(aio_fsync(O_SYNC, &cb) == 0, "aio_fsync after it");
++    check(aio_suspend(list, 1, &brief) == -1 && errno == EAGAIN, "waits for the write");
++    check(aio_error(&wr) == EINPROGRESS && aio_error(&cb) == EINPROGRESS, "both waiting");
++    drain(pipefd[0], filled + 4);
++    wait_for(&wr);
++    wait_for(&cb);
++    check(aio_return(&wr) == 4, "write");
++    check(aio_error(&cb) == EINVAL && aio_return(&cb) == -1, "fsync on a pipe");
++    check(close(pipefd[0]) == 0 && close(pipefd[1]) == 0, "close the pipe");
+     cleanup(fd);
+     printf("success\n");
+     return 0;
+-- 
+2.47.3
+

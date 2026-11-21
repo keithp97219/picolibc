@@ -1,0 +1,286 @@
+From 464ed65a52151a15d1f12c54687ad5e9f66b6ec1 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:51:23 +0000
+Subject: [PATCH 14/15] test-posix: Check sleep, and alarm(0) and pause ending
+ the process
+
+---
+ test/test-posix/test-unistd/CMakeLists.txt |   1 +
+ test/test-posix/test-unistd/meson.build    |   1 +
+ test/test-posix/test-unistd/test-alarm.c   |  28 ++++
+ test/test-posix/test-unistd/test-pause.c   |  23 +++-
+ test/test-posix/test-unistd/test-sleep.c   | 150 +++++++++++++++++++++
+ 5 files changed, 202 insertions(+), 1 deletion(-)
+ create mode 100644 test/test-posix/test-unistd/test-sleep.c
+
+diff --git a/test/test-posix/test-unistd/CMakeLists.txt b/test/test-posix/test-unistd/CMakeLists.txt
+index 83881d3dde..3b08516113 100644
+--- a/test/test-posix/test-unistd/CMakeLists.txt
++++ b/test/test-posix/test-unistd/CMakeLists.txt
+@@ -90,6 +90,7 @@ set(tests
+   test-setreuid
+   test-setsid
+   test-setuid
++  test-sleep
+   test-setuid-thread
+   test-symlinkat
+   test-sync
+diff --git a/test/test-posix/test-unistd/meson.build b/test/test-posix/test-unistd/meson.build
+index eb6494c4b3..da739e589d 100644
+--- a/test/test-posix/test-unistd/meson.build
++++ b/test/test-posix/test-unistd/meson.build
+@@ -88,6 +88,7 @@ dir_tests = [
+   'test-setreuid',
+   'test-setsid',
+   'test-setuid',
++  'test-sleep',
+   'test-symlinkat',
+   'test-sync',
+   'test-sysconf',
+diff --git a/test/test-posix/test-unistd/test-alarm.c b/test/test-posix/test-unistd/test-alarm.c
+index a5115a8976..288bcf5226 100644
+--- a/test/test-posix/test-unistd/test-alarm.c
++++ b/test/test-posix/test-unistd/test-alarm.c
+@@ -39,6 +39,7 @@
+ /* Without the system support this test needs, it is skipped */
+ #if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS)
+ 
++#include <limits.h>
+ #include <unistd.h>
+ #include <stdio.h>
+ #include <signal.h>
+@@ -100,6 +101,33 @@ main(void)
+         break;
+     }
+ 
++    /* alarm(0) cancels the request and reports the time that was left */
++    alarm(5);
++    prev = alarm(0);
++    if (prev < 4 || prev > 5) {
++        printf("alarm(0) returned %u instead of 4 or 5\n", prev);
++        ret = 1;
++    }
++    prev = alarm(0);
++    if (prev != 0) {
++        printf("alarm(0) after cancelling returned %u\n", prev);
++        ret = 1;
++    }
++
++    /*
++     * The longest request still reports time left. On 32-bit targets
++     * glibc's setitimer fails with EOVERFLOW for UINT_MAX seconds, so
++     * its alarm sets nothing
++     */
++#if !defined(__GLIBC__) || __SIZEOF_LONG__ > 4
++    alarm(UINT_MAX);
++    prev = alarm(0);
++    if (prev == 0) {
++        printf("alarm(0) after alarm(UINT_MAX) returned 0\n");
++        ret = 1;
++    }
++#endif
++
+     return ret;
+ }
+ 
+diff --git a/test/test-posix/test-unistd/test-pause.c b/test/test-posix/test-unistd/test-pause.c
+index ddcec75df3..9953f3274e 100644
+--- a/test/test-posix/test-unistd/test-pause.c
++++ b/test/test-posix/test-unistd/test-pause.c
+@@ -46,8 +46,11 @@
+ #include <string.h>
+ #include <time.h>
+ #include <unistd.h>
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++#include <sys/wait.h>
++#endif
+ 
+-/* pause returns once a handler has run */
++/* pause returns once a handler has run, and never when the signal ends the process */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -82,6 +85,24 @@ main(void)
+     check(pause() == -1 && errno == EINTR, "pause");
+     check(caught == SIGALRM, "pause woken by SIGALRM");
+ 
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
++    {
++        pid_t pid;
++        int   status;
++
++        fflush(stdout);
++        pid = fork();
++        check(pid >= 0, "fork");
++        if (pid == 0) {
++            pause();
++            _exit(1);
++        }
++        check(kill(pid, SIGTERM) == 0, "kill");
++        check(waitpid(pid, &status, 0) == pid, "waitpid");
++        check(WIFSIGNALED(status) && WTERMSIG(status) == SIGTERM, "pause didn't return");
++    }
++#endif
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-unistd/test-sleep.c b/test/test-posix/test-unistd/test-sleep.c
+new file mode 100644
+index 0000000000..aa8f4517b2
+--- /dev/null
++++ b/test/test-posix/test-unistd/test-sleep.c
+@@ -0,0 +1,150 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS)
++
++#include <errno.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++#include <time.h>
++#include <unistd.h>
++
++/*
++ * sleep waits the full time unless a signal is caught or ends the
++ * process, and then returns the time it didn't sleep
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static volatile sig_atomic_t caught;
++
++static void
++handler(int sig)
++{
++    caught = sig;
++}
++
++static double
++now(void)
++{
++    struct timespec ts;
++
++    clock_gettime(CLOCK_MONOTONIC, &ts);
++    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
++}
++
++int
++main(void)
++{
++    struct sigaction  sa;
++    struct sigevent   sev;
++    struct itimerspec its;
++    timer_t           timer;
++    double            start, elapsed;
++    unsigned          left;
++    pid_t             pid;
++    int               status;
++
++    check(sleep(0) == 0, "sleep(0)");
++
++    /* A signal that is ignored doesn't end the sleep */
++    signal(SIGUSR1, SIG_IGN);
++    memset(&sev, 0, sizeof(sev));
++    sev.sigev_notify = SIGEV_SIGNAL;
++    sev.sigev_signo = SIGUSR1;
++    check(timer_create(CLOCK_MONOTONIC, &sev, &timer) == 0, "timer_create");
++    memset(&its, 0, sizeof(its));
++    its.it_value.tv_nsec = 200000000;
++    check(timer_settime(timer, 0, &its, NULL) == 0, "timer_settime");
++    start = now();
++    check(sleep(1) == 0, "sleep(1)");
++    elapsed = now() - start;
++    check(elapsed >= 1.0, "slept a second");
++    check(timer_delete(timer) == 0, "timer_delete");
++
++    /* A caught signal ends it early; the rest is returned */
++    memset(&sa, 0, sizeof(sa));
++    sigemptyset(&sa.sa_mask);
++    sa.sa_handler = handler;
++    check(sigaction(SIGALRM, &sa, NULL) == 0, "sigaction");
++    alarm(1);
++    start = now();
++    left = sleep(10);
++    elapsed = now() - start;
++    check(caught == SIGALRM, "the handler ran");
++    check(elapsed < 5.0, "woken by the signal");
++    check(left >= 8 && left <= 9, "the time left");
++
++    /* A signal whose action is to end the process ends it during the sleep */
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        sleep(30);
++        _exit(1);
++    }
++    check(kill(pid, SIGTERM) == 0, "kill");
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFSIGNALED(status) && WTERMSIG(status) == SIGTERM, "terminated");
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+-- 
+2.47.3
+

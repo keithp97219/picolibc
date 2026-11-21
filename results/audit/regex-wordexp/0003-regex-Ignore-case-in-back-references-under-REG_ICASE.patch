@@ -1,0 +1,56 @@
+From e7357cd6d0b0fd9bff560cb69b4659ca21aa9441 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:27:24 +0000
+Subject: [PATCH 03/12] regex: Ignore case in back-references under REG_ICASE
+
+regcomp's REG_ICASE makes all matching case-insensitive, so "\(.\)\1"
+matches "aA". The back-reference compared the bytes exactly.
+---
+ libc/posix/regex/engine.c  |  2 +-
+ libc/posix/regex/regexec.c | 17 +++++++++++++++++
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/libc/posix/regex/engine.c b/libc/posix/regex/engine.c
+index 397e613ff0..09c63760bd 100644
+--- a/libc/posix/regex/engine.c
++++ b/libc/posix/regex/engine.c
+@@ -624,7 +624,7 @@ backref(struct match *m, char *start, char *stop, sopno startst, sopno stopst,
+         if (sp > stop - len)
+             return (NULL); /* not enough left to match */
+         ssp = m->offp + m->pmatch[i].rm_so;
+-        if (memcmp(sp, ssp, len) != 0)
++        if (backcmp(m->g, sp, ssp, len) != 0)
+             return (NULL);
+         while (m->g->strip[ss] != (sop)SOP(O_BACK, i))
+             ss++;
+diff --git a/libc/posix/regex/regexec.c b/libc/posix/regex/regexec.c
+index 46eb897932..6de0cc22a5 100644
+--- a/libc/posix/regex/regexec.c
++++ b/libc/posix/regex/regexec.c
+@@ -61,6 +61,23 @@ static char sccsid[] = "@(#)regexec.c	8.3 (Berkeley) 3/20/94";
+ static int nope = 0; /* for use in asserts; shuts lint up */
+ #endif
+ 
++/*
++ * Compares a back-reference with the string, ignoring case under
++ * REG_ICASE (XBD 9.2 and 4.1)
++ */
++static int
++backcmp(const struct re_guts *g, const char *a, const char *b, size_t len)
++{
++    size_t i;
++
++    if (!(g->cflags & REG_ICASE))
++        return memcmp(a, b, len);
++    for (i = 0; i < len; i++)
++        if (a[i] != b[i] && tolower((unsigned char)a[i]) != tolower((unsigned char)b[i]))
++            return 1;
++    return 0;
++}
++
+ /* macros for manipulating states, small version */
+ #define states           long
+ #define states1          states /* for later use in regexec() decision */
+-- 
+2.47.3
+

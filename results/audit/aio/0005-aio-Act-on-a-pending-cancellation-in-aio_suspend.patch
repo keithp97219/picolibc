@@ -1,0 +1,28 @@
+From cf52b2cd5d0963791eead9c6fa51a6c1cba02866 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:31:04 +0000
+Subject: [PATCH 05/15] aio: Act on a pending cancellation in aio_suspend
+
+aio_suspend is a cancellation point, which must act on a pending
+request before returning, but it reached one only when it had to
+wait.
+---
+ libc/posix/aio/aio_suspend.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/libc/posix/aio/aio_suspend.c b/libc/posix/aio/aio_suspend.c
+index d1456e32bc..db28bc8e25 100644
+--- a/libc/posix/aio/aio_suspend.c
++++ b/libc/posix/aio/aio_suspend.c
+@@ -63,6 +63,8 @@ aio_suspend(const struct aiocb * const list[], int nent, const struct timespec *
+     struct timespec     end;
+     int                 ret = 0;
+ 
++    /* A cancellation point acts on a pending request even if it doesn't wait */
++    pthread_testcancel();
+     if (nent < 0) {
+         errno = EINVAL;
+         return -1;
+-- 
+2.47.3
+

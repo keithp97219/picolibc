@@ -1,0 +1,172 @@
+From 53f4a6ebafb29573ead082851d41d6f0d736cbe6 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:29:42 +0000
+Subject: [PATCH 04/12] regex: Don't use a stale inner match in a
+ back-reference
+
+XBD 9.3.6: a back-reference to a subexpression inside another one
+matches only what the inner one matched within the outer one's last
+match, so "\(a\(b\)*\)*\2" fails to match "abab". The back-reference
+matcher kept the inner match from the earlier pass, both for the
+reference and in pmatch. Record which subexpression contains each of
+1 to 9 and check it.
+---
+ libc/posix/regex/engine.c  | 12 ++++++++++-
+ libc/posix/regex/regcomp.c | 43 ++++++++++++++++++++++++++++++++++++++
+ libc/posix/regex/regex2.h  |  5 +++++
+ libc/posix/regex/regexec.c | 18 ++++++++++++++++
+ 4 files changed, 77 insertions(+), 1 deletion(-)
+
+diff --git a/libc/posix/regex/engine.c b/libc/posix/regex/engine.c
+index 09c63760bd..18eb390620 100644
+--- a/libc/posix/regex/engine.c
++++ b/libc/posix/regex/engine.c
+@@ -305,6 +305,16 @@ matcher(struct re_guts *g, char *string, size_t nmatch, regmatch_t pmatch[], int
+         assert(start <= stop);
+     }
+ 
++    /*
++     * The back-reference matcher can leave a contained subexpression's
++     * match from an earlier pass through the one containing it; that
++     * one didn't take part in the reported match
++     */
++    if (nmatch > 1 && (g->backrefs || (m->eflags & REG_BACKR)))
++        for (i = 1; i < NBPARENT && i <= m->g->nsub; i++)
++            if (!backvalid(m->g, m->pmatch, i))
++                m->pmatch[i].rm_so = m->pmatch[i].rm_eo = -1;
++
+     /* fill in the details if requested */
+     if (nmatch > 0) {
+         pmatch[0].rm_so = m->coldp - m->offp;
+@@ -616,7 +626,7 @@ backref(struct match *m, char *start, char *stop, sopno startst, sopno stopst,
+     case OBACK_: /* the vilest depths */
+         i = OPND(s);
+         assert(0 < i && i <= m->g->nsub);
+-        if (m->pmatch[i].rm_eo == -1)
++        if (!backvalid(m->g, m->pmatch, i))
+             return (NULL);
+         assert(m->pmatch[i].rm_so != -1);
+         len = m->pmatch[i].rm_eo - m->pmatch[i].rm_so;
+diff --git a/libc/posix/regex/regcomp.c b/libc/posix/regex/regcomp.c
+index 6f620e2edb..edbb441850 100644
+--- a/libc/posix/regex/regcomp.c
++++ b/libc/posix/regex/regcomp.c
+@@ -86,6 +86,7 @@ static int   p_count(struct parse *p);
+ static void  p_bracket(struct parse *p);
+ static void  p_b_term(struct parse *p, cset *cs);
+ static void  p_b_range(struct parse *p, cset *cs, char start);
++static void  findparents(struct re_guts *g);
+ static void  p_b_cclass(struct parse *p, cset *cs);
+ static void  p_b_eclass(struct parse *p, cset *cs);
+ static char  p_b_symbol(struct parse *p);
+@@ -273,6 +274,8 @@ regcomp(regex_t * __restrict preg, const char * __restrict pattern, int cflags)
+         }
+     }
+     g->nplus = pluscount(p, g);
++    if (p->error == 0)
++        findparents(g);
+     g->magic = MAGIC2;
+     preg->re_nsub = g->nsub;
+     preg->re_g = g;
+@@ -1965,6 +1968,46 @@ computematchjumps(struct parse *p, struct re_guts *g)
+     free(pmatches);
+ }
+ 
++/*
++ - findparents - note which subexpression contains each of 1 to 9
++ == static void findparents(struct re_guts *g);
++ *
++ * A back-reference to a subexpression inside another one only refers
++ * to a match within the containing subexpression's last match (XBD
++ * 9.3.6), so the matcher needs to know the nesting. Subexpressions past
++ * 9 can't contain those, so they are skipped.
++ */
++static void
++findparents(struct re_guts *g)
++{
++    sopno ss;
++    sop   s;
++    int   open = 0, i;
++
++    memset(g->bparent, 0, sizeof(g->bparent));
++    for (ss = g->firststate; ss < g->laststate; ss++) {
++        s = g->strip[ss];
++        i = (int)OPND(s);
++        switch (OP(s)) {
++        case OLPAREN:
++            if (i < NBPARENT) {
++                g->bparent[i] = (unsigned char)open;
++                open = i;
++            }
++            break;
++        case ORPAREN:
++            if (i < NBPARENT)
++                open = g->bparent[i];
++            break;
++        case OBACK_:
++            /* skip the copy of the subexpression */
++            while (ss < g->laststate && g->strip[ss] != (sop)SOP(O_BACK, i))
++                ss++;
++            break;
++        }
++    }
++}
++
+ /*
+  - pluscount - count + nesting
+  == static sopno pluscount(struct parse *p, struct re_guts *g);
+diff --git a/libc/posix/regex/regex2.h b/libc/posix/regex/regex2.h
+index 47cdd05285..e45812c1b9 100644
+--- a/libc/posix/regex/regex2.h
++++ b/libc/posix/regex/regex2.h
+@@ -133,6 +133,9 @@ typedef struct {
+ /* stuff for character categories */
+ typedef unsigned char cat_t;
+ 
++/* subexpressions back-references can name, plus the unused 0 */
++#define NBPARENT 10
++
+ /*
+  * main compiled-expression structure
+  */
+@@ -164,6 +167,8 @@ struct re_guts {
+     size_t nsub;        /* copy of re_nsub */
+     int    backrefs;    /* does it use back references? */
+     sopno  nplus;       /* how deep does it nest +s? */
++    /* the innermost subexpression around each of \1 to \9 */
++    uch    bparent[NBPARENT];
+     /* catspace must be last */
+     cat_t  catspace[NC]; /* categories */
+ };
+diff --git a/libc/posix/regex/regexec.c b/libc/posix/regex/regexec.c
+index 6de0cc22a5..5479333db4 100644
+--- a/libc/posix/regex/regexec.c
++++ b/libc/posix/regex/regexec.c
+@@ -78,6 +78,24 @@ backcmp(const struct re_guts *g, const char *a, const char *b, size_t len)
+     return 0;
+ }
+ 
++/*
++ * Whether subexpression i (1 to 9) matched within the last match of
++ * every subexpression containing it. A match left over from an earlier
++ * pass through a containing subexpression doesn't count (XBD 9.3.6).
++ */
++static int
++backvalid(const struct re_guts *g, const regmatch_t *pmatch, size_t i)
++{
++    size_t p;
++
++    if (pmatch[i].rm_eo == -1)
++        return 0;
++    for (p = g->bparent[i]; p != 0; p = g->bparent[p])
++        if (pmatch[p].rm_so == -1 || pmatch[i].rm_so < pmatch[p].rm_so)
++            return 0;
++    return 1;
++}
++
+ /* macros for manipulating states, small version */
+ #define states           long
+ #define states1          states /* for later use in regexec() decision */
+-- 
+2.47.3
+

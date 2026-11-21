@@ -1,0 +1,53 @@
+From ea41dc3695596b0eb1c40d661f5f839e79ad673c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:50:39 +0000
+Subject: [PATCH 04/15] libos/linux: Map the tcsetpgrp errors Linux reports
+ differently
+
+Linux reports ESRCH for a process group that doesn't exist, where
+POSIX wants EPERM, and turns the EIO for an orphaned background group
+into ENOTTY. Map ESRCH to EPERM, and ENOTTY on the caller's
+controlling terminal back to EIO.
+---
+ libos/linux/tcsetpgrp.c | 27 ++++++++++++++++++++++++++-
+ 1 file changed, 26 insertions(+), 1 deletion(-)
+
+diff --git a/libos/linux/tcsetpgrp.c b/libos/linux/tcsetpgrp.c
+index ce6c23474b..afd0d58819 100644
+--- a/libos/linux/tcsetpgrp.c
++++ b/libos/linux/tcsetpgrp.c
+@@ -39,5 +39,30 @@
+ int
+ tcsetpgrp(int fd, pid_t pgrp)
+ {
+-    return _syscall(LINUX_SYS_ioctl, fd, LINUX_TIOCSPGRP, &pgrp);
++    int          cur;
++    unsigned int ptn;
++    long         ret = _syscall_raw(LINUX_SYS_ioctl, fd, LINUX_TIOCSPGRP, &pgrp);
++
++    if (ret >= 0)
++        return 0;
++    ret = _syscall_errno(ret);
++    switch (ret) {
++    case ESRCH:
++        /* Linux reports a group that doesn't exist with ESRCH */
++        ret = EPERM;
++        break;
++    case ENOTTY:
++        /*
++         * Linux turns the EIO for an orphaned background group into
++         * ENOTTY. When the descriptor is the caller's controlling
++         * terminal (TIOCGPGRP works on it and it isn't a pty manager),
++         * that is what happened.
++         */
++        if (_syscall_raw(LINUX_SYS_ioctl, fd, LINUX_TIOCGPGRP, &cur) >= 0
++            && _syscall_raw(LINUX_SYS_ioctl, fd, LINUX_TIOCGPTN, &ptn) < 0)
++            ret = EIO;
++        break;
++    }
++    errno = (int)ret;
++    return -1;
+ }
+-- 
+2.47.3
+

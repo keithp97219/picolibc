@@ -1,0 +1,32 @@
+From 47dc1016cc880b38ed0c2edaeca210a710caa06f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:50:46 +0000
+Subject: [PATCH 05/15] libos/linux: Limit the nice increment so the sum can't
+ overflow
+
+nice(INT_MAX) from a process with a positive nice value overflowed,
+wrapped to a negative value and asked for the lowest nice value
+instead of the highest. Limit incr to the width of the range first.
+---
+ libos/linux/nice.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libos/linux/nice.c b/libos/linux/nice.c
+index c231e82bf1..6438a659ce 100644
+--- a/libos/linux/nice.c
++++ b/libos/linux/nice.c
+@@ -47,6 +47,11 @@ nice(int incr)
+     prio = getpriority(PRIO_PROCESS, 0);
+     if (prio == -1 && errno)
+         return -1;
++    /* Linux nice values run from -20 to 19; limit incr so the sum can't overflow */
++    if (incr > 39)
++        incr = 39;
++    if (incr < -39)
++        incr = -39;
+     prio += incr;
+     if (prio > 19)
+         prio = 19;
+-- 
+2.47.3
+

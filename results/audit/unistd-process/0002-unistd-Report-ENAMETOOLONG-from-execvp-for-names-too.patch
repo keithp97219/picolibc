@@ -1,0 +1,42 @@
+From 717273e4a7d4e5095e1e38b0784be3b5c4217fff Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:50:39 +0000
+Subject: [PATCH 02/15] unistd: Report ENAMETOOLONG from execvp for names too
+ long to try
+
+A name too long to join to any PATH entry was skipped and the search
+ended with ENOENT. Report ENAMETOOLONG instead when nothing else was
+found.
+---
+ libc/posix/unistd/execvpe.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/libc/posix/unistd/execvpe.c b/libc/posix/unistd/execvpe.c
+index 0c744138f5..0b124807ab 100644
+--- a/libc/posix/unistd/execvpe.c
++++ b/libc/posix/unistd/execvpe.c
+@@ -84,6 +84,7 @@ execvpe(const char *file, char * const argv[], char * const env[])
+     ptrdiff_t   dir_len;
+     const char *exec_path;
+     bool        denied = false;
++    bool        too_long = false;
+ 
+     /* Without PATH, search the directories confstr(_CS_PATH) names */
+     p = getenv("PATH");
+@@ -114,9 +115,12 @@ execvpe(const char *file, char * const argv[], char * const env[])
+             default:
+                 return -1;
+             }
++        } else {
++            too_long = true;
+         }
+         if (!*colon) {
+-            errno = denied ? EACCES : ENOENT;
++            /* Report a name that was too long to try, rather than ENOENT */
++            errno = denied ? EACCES : too_long ? ENAMETOOLONG : ENOENT;
+             return -1;
+         }
+         p = colon + 1;
+-- 
+2.47.3
+

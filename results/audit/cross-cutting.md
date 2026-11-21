@@ -376,3 +376,77 @@ Append yours under a heading naming the unit.
   other thread's libc use if the callback blocks or is cancelled. call_once
   did (now fixed on Linux). Other generic code that calls application
   functions with the libc lock held may have the same problem; not surveyed.
+
+## From unistd-process (arm64 host)
+
+- **exit() doesn't flush fopen/fdopen streams on the Linux configurations.** `stdio-exit-flush`
+  defaults to false (meson_options.txt), so `_bufio_exit_flush` is never registered and only the
+  standard streams get flushed. ISO C (exit): "all open streams with unwritten buffered data are
+  flushed". Seen with a fully buffered fdopen stream: after exit() the reader got the atexit
+  output and nothing else. For the stdio or stdlib unit: either turn the option on for hosted
+  (Linux) builds or document it.
+- **Linux keeps per-thread nice values.** nice is fixed here (it now sets every thread), but
+  setpriority(PRIO_PROCESS, 0 or getpid(), ...) still changes only the calling thread, and
+  getpriority reports only the calling thread's value. POSIX describes the process. For the
+  resource-wait unit; libos/linux/nice.c shows how to walk the thread list.
+- **Credential changes with threads aren't async-signal-safe.** `_pthread_setxid` takes
+  `_pthread_all_lock`, so setuid and friends called from a signal handler that interrupted
+  pthread_create or pthread_exit in the same thread deadlock. nice now takes the same lock (but nice
+  isn't async-signal-safe). Blocking signals while the lock is held in pthread_create, pthread_exit
+  and the setxid path would fix it; pthread-threads area.
+- **Plain parameter names in strict-mode `<unistd.h>` prototypes:** `dup3(..., int flags)` and
+  `pipe2(int __fildes[2], int flags)`. An application macro named `flags` breaks the header. For
+  unistd-files (getlogin_r's `name`/`namesize` were fixed here).
+- **Declared but not defined:** setpgrp and ualarm are declared under `_DEFAULT_SOURCE` (and setpgrp
+  was declared for XSI up to Issue 7), but nothing defines them, so programs fail to link.
+  `libos/linux/sleep.c` is an empty file (licence only) that no build file lists.
+- **`environ` in `<unistd.h>`:** declared for `_POSIX_C_SOURCE >= 202405` on purpose (7e8126df52),
+  but the 2024 `<unistd.h>` page doesn't list it and XBD says every identifier except environ is in
+  some header. Harmless, but a namespace question for the maintainer.
+- **glibc 2.43 gaps met here** (tests guard them with `__GLIBC__`): nice overflows for large
+  increments and changes only the calling thread; tcsetpgrp passes on Linux's ESRCH (should be
+  EPERM) and ENOTTY for an orphaned group (should be EIO); on 32-bit targets setitimer fails with
+  EOVERFLOW for UINT_MAX seconds, so alarm(UINT_MAX) silently sets no alarm.
+- **Test-writing note:** tests that exec should run their own binary through `/proc/self/exe` with
+  a mode argument (test-execl.c, test-setpgid.c, test-execl-thread.c do this), and pass state to the
+  new image in argv. To detect that a library call hangs in the child of `_Fork`, poll
+  `waitpid(WNOHANG)` with a deadline and SIGKILL only that pid.
+
+## From aio (arm64 host)
+
+- **`<time.h>` defines CLK_TCK in strict mode** (libc/include/time.h:95-96, unconditionally). CLK_TCK was removed from POSIX long ago and isn't reserved for `<time.h>`. It was found through `<aio.h>`, which includes `<time.h>`. For the time unit.
+- **sysconf aio limits:** libos/fallback/sysconf.c now reports AIO_LISTIO_MAX (64) and AIO_PRIO_DELTA_MAX (20) from `<limits.h>`, and -1 for _SC_AIO_MAX. Before, it gave the POSIX minimums. unistd-config should know this file changed. The same "fallback minimum versus the real value" pattern as _SC_DELAYTIMER_MAX, _SC_IOV_MAX and _SC_TTY_NAME_MAX.
+- **Library code that uses a descriptor later, from another thread,** must duplicate it when the call is made. aio used the caller's descriptor whenever the request's thread ran, so a close() in between gave EBADF or hit a reused number. Any other deferred-work code (notification threads, timers) that keeps a descriptor number has the same shape.
+- **Condition variables can't give EINTR.** A "shall fail [EINTR]" wait built on pthread_cond_wait is never interrupted by a signal handler. aio now waits on a semaphore (sem_wait returns EINTR). Other generic code that blocks on a condition variable where POSIX promises EINTR should be checked.
+- **glibc 2.43 aio gaps** (the tests guard them with `__GLIBC__`):
+  - A request queued before a close() fails with EBADF.
+  - aio_suspend ignores a pending cancellation when a listed request has completed.
+  - lio_listio doesn't check sig with LIO_NOWAIT.
+  - aio_fsync checks aio_reqprio.
+  - lio_listio(LIO_WAIT) interrupted by a signal returns EINTR, and then one of its request threads crashes with SIGSEGV.
+  - The SIGXFSZ from an aio_write past RLIMIT_FSIZE never arrives.
+  - lio_listio's list elements aren't restrict-qualified in its prototype.
+  - AIO_LISTIO_MAX isn't defined in `<limits.h>` (use sysconf).
+- **Test-writing lesson:** with glibc, a child forked after the parent has used aio waits forever for request threads it doesn't have. Run fork-based aio checks before any other aio call in the test, and give the child its own alarm(), since alarms aren't inherited.
+
+## From regex-wordexp (arm64 host)
+
+- **dash ignores IFS from its environment** (allowed by XCU 2.5.3), so any
+  library code that runs `/bin/sh` to expand words on the application's behalf
+  (wordexp; popen/system don't) has to pass IFS explicitly. wordexp now does.
+- **wordexp depends on `/bin/sh` for every expansion**, not just command
+  substitution, so on a system without a shell wordexp always fails with
+  WRDE_SYNTAX. If picolibc ever targets a Linux system without `/bin/sh`, that
+  is a design question, not a bug to fix in a test.
+- **glibc 2.43 gaps for this area** (the tests guard them with `__GLIBC__`):
+  regoff_t is `int`, too narrow for ptrdiff_t on 64-bit targets (POSIX:
+  "can hold the largest value that can be stored in either a ptrdiff_t type or
+  a ssize_t type"); no REG_MINIMAL; nested back-references and inner
+  subexpressions report stale matches; wordexp leaves we_wordc alone after
+  WRDE_BADCHAR, rejects `${x:-y}` under WRDE_UNDEF, mis-splits `x${S}y`, and
+  doesn't glob the result of a parameter expansion.
+- **Libraries running a child on the caller's behalf and SIGCHLD = SIG_IGN.**
+  With SIGCHLD ignored, the kernel reaps children itself and waitpid fails with
+  ECHILD. wordexp then reports WRDE_SYNTAX although the child succeeded (read,
+  not run). system() and popen()/pclose() have the same exposure; the stdio and
+  unistd-process units may want to check how those handle it.

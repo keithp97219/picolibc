@@ -1,0 +1,42 @@
+From a016217a2294eab8c21f5565dae435fb2534015a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:32:52 +0000
+Subject: [PATCH 10/15] aio: Deliver SIGXFSZ when aio_write passes the file
+ size limit
+
+POSIX has a write past the file size limit generate SIGXFSZ. The
+kernel sends it to the thread doing the write, the request's own
+thread, which blocks every signal and then exits, so it was lost.
+The request now sends it to the process.
+---
+ libc/posix/aio/__aio_submit.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/libc/posix/aio/__aio_submit.c b/libc/posix/aio/__aio_submit.c
+index 7f180c1c3f..30a764cde6 100644
+--- a/libc/posix/aio/__aio_submit.c
++++ b/libc/posix/aio/__aio_submit.c
+@@ -89,6 +89,20 @@ __aio_io(struct __aio_req *req)
+         ret = pwrite(req->fd, (const void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
+         if (ret < 0 && errno == ESPIPE)
+             ret = write(req->fd, (const void *)cb->aio_buf, cb->aio_nbytes);
++#ifdef SIGXFSZ
++        /*
++         * Past the file size limit, the kernel sends SIGXFSZ to this
++         * thread, which blocks it, and it would go when the thread
++         * exits; send it to the process instead
++         */
++        if (ret < 0 && errno == EFBIG) {
++            sigset_t pending;
++
++            if (sigpending(&pending) == 0 && sigismember(&pending, SIGXFSZ) == 1)
++                kill(getpid(), SIGXFSZ);
++            errno = EFBIG;
++        }
++#endif
+         break;
+     case __AIO_FDATASYNC:
+         ret = fdatasync(req->fd);
+-- 
+2.47.3
+

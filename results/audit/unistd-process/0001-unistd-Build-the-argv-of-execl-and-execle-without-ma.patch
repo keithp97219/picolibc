@@ -1,0 +1,148 @@
+From a0bc3998f9146bea2dd781e8a59625ec57906688 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:50:39 +0000
+Subject: [PATCH 01/15] unistd: Build the argv of execl and execle without
+ malloc
+
+execl and execle are async-signal-safe, so they may be called from a
+signal handler or from the child of _Fork in a multi-threaded process,
+where malloc can block forever on a lock another thread held. Build
+the argument array on the stack instead.
+---
+ libc/posix/unistd/execl.c  | 32 +++++++++++++++++++-------------
+ libc/posix/unistd/execle.c | 32 +++++++++++++++++++-------------
+ 2 files changed, 38 insertions(+), 26 deletions(-)
+
+diff --git a/libc/posix/unistd/execl.c b/libc/posix/unistd/execl.c
+index 005cbe02de..f9930d8a6f 100644
+--- a/libc/posix/unistd/execl.c
++++ b/libc/posix/unistd/execl.c
+@@ -40,14 +40,17 @@
+ 
+ extern char **environ;
+ 
++/*
++ * execl and execle must be async-signal-safe, so build argv on the
++ * stack where possible: malloc can't be used from a signal handler or
++ * the child of a multi-threaded fork
++ */
+ int
+ execl(const char *path, const char *arg, ...)
+ {
+     va_list      ap;
+-    int          argc = 1;
++    size_t       argc = 1;
+     const char **argv;
+-    const char  *a;
+-    int          ret;
+ 
+     /* count args */
+     va_start(ap, arg);
+@@ -55,25 +58,28 @@ execl(const char *path, const char *arg, ...)
+         argc++;
+     va_end(ap);
+ 
+-    /* allocate argv */
++#ifdef __HAVE_BUILTIN_ALLOCA
++    argv = __builtin_alloca((argc + 1) * sizeof(char *));
++#else
+     argv = calloc(argc + 1, sizeof(char *));
+     if (!argv) {
+         errno = ENOMEM;
+         return -1;
+     }
++#endif
+ 
+     /* fill in argv */
+     va_start(ap, arg);
+-    argc = 0;
+-    argv[argc++] = arg;
+-    for (;;) {
+-        a = va_arg(ap, const char *);
+-        argv[argc++] = a;
+-        if (a == NULL)
+-            break;
+-    }
++    argv[0] = arg;
++    for (size_t i = 1; i <= argc; i++)
++        argv[i] = va_arg(ap, const char *);
+     va_end(ap);
+-    ret = execve(path, (char * const *)argv, environ);
++
++#ifdef __HAVE_BUILTIN_ALLOCA
++    return execve(path, (char * const *)argv, environ);
++#else
++    int ret = execve(path, (char * const *)argv, environ);
+     free(argv);
+     return ret;
++#endif
+ }
+diff --git a/libc/posix/unistd/execle.c b/libc/posix/unistd/execle.c
+index 4226badb29..ef1f6b8ab1 100644
+--- a/libc/posix/unistd/execle.c
++++ b/libc/posix/unistd/execle.c
+@@ -38,15 +38,18 @@
+ #include <stdlib.h>
+ #include <errno.h>
+ 
++/*
++ * execl and execle must be async-signal-safe, so build argv on the
++ * stack where possible: malloc can't be used from a signal handler or
++ * the child of a multi-threaded fork
++ */
+ int
+ execle(const char *path, const char *arg, ...)
+ {
+     va_list       ap;
+-    int           argc = 1;
++    size_t        argc = 1;
+     const char  **argv;
+-    const char   *a;
+     char * const *envp;
+-    int           ret;
+ 
+     /* count args */
+     va_start(ap, arg);
+@@ -54,26 +57,29 @@ execle(const char *path, const char *arg, ...)
+         argc++;
+     va_end(ap);
+ 
+-    /* allocate argv */
++#ifdef __HAVE_BUILTIN_ALLOCA
++    argv = __builtin_alloca((argc + 1) * sizeof(char *));
++#else
+     argv = calloc(argc + 1, sizeof(char *));
+     if (!argv) {
+         errno = ENOMEM;
+         return -1;
+     }
++#endif
+ 
+     /* fill in argv; the environment follows the terminating NULL */
+     va_start(ap, arg);
+-    argc = 0;
+-    argv[argc++] = arg;
+-    for (;;) {
+-        a = va_arg(ap, const char *);
+-        argv[argc++] = a;
+-        if (a == NULL)
+-            break;
+-    }
++    argv[0] = arg;
++    for (size_t i = 1; i <= argc; i++)
++        argv[i] = va_arg(ap, const char *);
+     envp = va_arg(ap, char * const *);
+     va_end(ap);
+-    ret = execve(path, (char * const *)argv, envp);
++
++#ifdef __HAVE_BUILTIN_ALLOCA
++    return execve(path, (char * const *)argv, envp);
++#else
++    int ret = execve(path, (char * const *)argv, envp);
+     free(argv);
+     return ret;
++#endif
+ }
+-- 
+2.47.3
+

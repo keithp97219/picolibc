@@ -1,0 +1,240 @@
+From 8d1daecbbffb1e559ae3d256825fc0f026636e21 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:32:33 +0000
+Subject: [PATCH 09/15] aio: Cancel requests that haven't started
+
+aio_cancel never canceled anything, which POSIX allows, but requests
+now wait behind earlier ones on the same descriptor, and those can
+be canceled before they start, as glibc does. A canceled request gets
+ECANCELED and the usual notification.
+---
+ libc/posix/aio/__aio_submit.c | 98 ++++++++++++++++++++++-------------
+ libc/posix/aio/aio_cancel.c   | 33 +++++++++---
+ libc/posix/aio/local-aio.h    |  9 ++++
+ 3 files changed, 97 insertions(+), 43 deletions(-)
+
+diff --git a/libc/posix/aio/__aio_submit.c b/libc/posix/aio/__aio_submit.c
+index 363e115780..7f180c1c3f 100644
+--- a/libc/posix/aio/__aio_submit.c
++++ b/libc/posix/aio/__aio_submit.c
+@@ -45,19 +45,6 @@ pthread_cond_t       __aio_done = PTHREAD_COND_INITIALIZER;
+ struct __aio_req    *__aio_running;
+ struct __aio_waiter *__aio_waiters;
+ 
+-/* Takes a request off the running list; the lock is held */
+-static void
+-__aio_unlink(struct __aio_req *req)
+-{
+-    struct __aio_req **prev;
+-
+-    for (prev = &__aio_running; *prev; prev = &(*prev)->next)
+-        if (*prev == req) {
+-            *prev = req->next;
+-            break;
+-        }
+-}
+-
+ /*
+  * Whether an earlier request on the same descriptor must finish first:
+  * appending writes go in the order they were queued, and a
+@@ -81,22 +68,12 @@ __aio_must_wait(const struct __aio_req *req)
+     return false;
+ }
+ 
+-/* Run one request; each runs in its own thread */
+-static void *
+-__aio_run(void *arg)
++/* Performs a request's transfer or synchronization */
++static ssize_t
++__aio_io(struct __aio_req *req)
+ {
+-    struct __aio_req    *req = arg;
+-    struct aiocb        *cb = req->cb;
+-    struct __aio_list   *list = req->list;
+-    bool                 notify_list = false;
+-    struct __aio_waiter *w;
+-    ssize_t              ret;
+-    int                  error = 0;
+-
+-    pthread_mutex_lock(&__aio_lock);
+-    while (__aio_must_wait(req))
+-        pthread_cond_wait(&__aio_done, &__aio_lock);
+-    pthread_mutex_unlock(&__aio_lock);
++    struct aiocb *cb = req->cb;
++    ssize_t       ret;
+ 
+     /*
+      * Pipes, sockets and terminals can't seek, so there the offset
+@@ -120,22 +97,51 @@ __aio_run(void *arg)
+         ret = fsync(req->fd);
+         break;
+     }
+-    if (ret < 0)
+-        error = errno;
++    return ret;
++}
++
++/* Run one request; each runs in its own thread */
++static void *
++__aio_run(void *arg)
++{
++    struct __aio_req  *req = arg;
++    struct aiocb      *cb = req->cb;
++    struct __aio_list *list = req->list;
++    bool               notify_list = false;
++    ssize_t            ret = -1;
++    int                error = 0;
++    bool               canceled;
++
++    /* aio_cancel can cancel the request until it starts */
++    pthread_mutex_lock(&__aio_lock);
++    while (!req->canceled && __aio_must_wait(req))
++        pthread_cond_wait(&__aio_done, &__aio_lock);
++    canceled = req->canceled;
++    req->started = true;
++    pthread_mutex_unlock(&__aio_lock);
++
++    if (canceled) {
++        error = ECANCELED;
++    } else {
++        ret = __aio_io(req);
++        if (ret < 0)
++            error = errno;
++    }
+     close(req->fd);
+ 
+     pthread_mutex_lock(&__aio_lock);
+-    __aio_unlink(req);
+-    __aio_set_status(cb, ret, error);
++    /* aio_cancel has already set the status of a canceled request */
++    if (!canceled) {
++        __aio_unlink(req);
++        __aio_set_status(cb, ret, error);
++    }
+     if (list) {
+         if (error)
+             list->failed = true;
+         if (--list->count == 0 && !list->wait)
+             notify_list = true;
+     }
+-    pthread_cond_broadcast(&__aio_done);
+-    for (w = __aio_waiters; w; w = w->next)
+-        sem_post(&w->sem);
++    __aio_wake();
+     pthread_mutex_unlock(&__aio_lock);
+ 
+     /* The caller may reuse cb as soon as the status is visible */
+@@ -165,6 +171,28 @@ __aio_unlock_nosig(const sigset_t *old)
+     pthread_sigmask(SIG_SETMASK, old, NULL);
+ }
+ 
++void
++__aio_wake(void)
++{
++    struct __aio_waiter *w;
++
++    pthread_cond_broadcast(&__aio_done);
++    for (w = __aio_waiters; w; w = w->next)
++        sem_post(&w->sem);
++}
++
++void
++__aio_unlink(struct __aio_req *req)
++{
++    struct __aio_req **prev;
++
++    for (prev = &__aio_running; *prev; prev = &(*prev)->next)
++        if (*prev == req) {
++            *prev = req->next;
++            break;
++        }
++}
++
+ void
+ __aio_add_waiter(struct __aio_waiter *w)
+ {
+diff --git a/libc/posix/aio/aio_cancel.c b/libc/posix/aio/aio_cancel.c
+index 68bdc41b98..8c57382ba5 100644
+--- a/libc/posix/aio/aio_cancel.c
++++ b/libc/posix/aio/aio_cancel.c
+@@ -36,13 +36,17 @@
+ #include "local-aio.h"
+ #include <fcntl.h>
+ 
+-/* Requests start running at once, so none can be canceled */
++/*
++ * Requests waiting for earlier ones on the same descriptor, or for
++ * their thread to start, can be canceled; once one starts it runs to
++ * completion
++ */
+ int
+ aio_cancel(int fd, struct aiocb *cb)
+ {
+-    struct __aio_req *r;
++    struct __aio_req *r, *next;
+     sigset_t          old;
+-    int               ret = AIO_ALLDONE;
++    bool              canceled = false, running = false;
+ 
+     if (fcntl(fd, F_GETFD) < 0)
+         return -1;
+@@ -51,11 +55,24 @@ aio_cancel(int fd, struct aiocb *cb)
+         return -1;
+     }
+     __aio_lock_nosig(&old);
+-    for (r = __aio_running; r; r = r->next)
+-        if (r->fildes == fd && (!cb || r->cb == cb)) {
+-            ret = AIO_NOTCANCELED;
+-            break;
++    for (r = __aio_running; r; r = next) {
++        next = r->next;
++        if (r->fildes != fd || (cb && r->cb != cb))
++            continue;
++        if (r->started) {
++            running = true;
++        } else {
++            /* Its thread notifies, once it sees the request canceled */
++            r->canceled = true;
++            __aio_unlink(r);
++            __aio_set_status(r->cb, -1, ECANCELED);
++            canceled = true;
+         }
++    }
++    if (canceled)
++        __aio_wake();
+     __aio_unlock_nosig(&old);
+-    return ret;
++    if (running)
++        return AIO_NOTCANCELED;
++    return canceled ? AIO_CANCELED : AIO_ALLDONE;
+ }
+diff --git a/libc/posix/aio/local-aio.h b/libc/posix/aio/local-aio.h
+index 8e2ccbeee6..2d6d5bac94 100644
+--- a/libc/posix/aio/local-aio.h
++++ b/libc/posix/aio/local-aio.h
+@@ -74,6 +74,9 @@ struct __aio_req {
+     int                fd;
+     /* A write that appends, so it must follow earlier writes */
+     bool               append;
++    /* Set once the request has started, or aio_cancel canceled it */
++    bool               started;
++    bool               canceled;
+ };
+ 
+ /*
+@@ -101,6 +104,12 @@ struct __aio_waiter {
+ /* The waiting threads; the lock guards the list */
+ extern struct __aio_waiter *__aio_waiters;
+ 
++/* Wakes the threads waiting for requests to complete; the lock is held */
++void                        __aio_wake(void);
++
++/* Takes a request off the running list; the lock is held */
++void                        __aio_unlink(struct __aio_req *req);
++
+ /* Adds and removes waiters; these take the lock */
+ void                        __aio_add_waiter(struct __aio_waiter *w);
+ void                        __aio_remove_waiter(struct __aio_waiter *w);
+-- 
+2.47.3
+

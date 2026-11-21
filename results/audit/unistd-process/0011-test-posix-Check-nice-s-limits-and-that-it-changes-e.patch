@@ -1,0 +1,232 @@
+From 248b0b0dbfdf0e640d06e68cb1c05d76ff328f38 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:51:23 +0000
+Subject: [PATCH 11/15] test-posix: Check nice's limits and that it changes
+ every thread
+
+---
+ test/test-posix/test-unistd/CMakeLists.txt    |   1 +
+ test/test-posix/test-unistd/meson.build       |   1 +
+ .../test-posix/test-unistd/test-nice-thread.c | 124 ++++++++++++++++++
+ test/test-posix/test-unistd/test-nice.c       |  32 +++++
+ 4 files changed, 158 insertions(+)
+ create mode 100644 test/test-posix/test-unistd/test-nice-thread.c
+
+diff --git a/test/test-posix/test-unistd/CMakeLists.txt b/test/test-posix/test-unistd/CMakeLists.txt
+index 2c8f4729cf..a446e4434d 100644
+--- a/test/test-posix/test-unistd/CMakeLists.txt
++++ b/test/test-posix/test-unistd/CMakeLists.txt
+@@ -70,6 +70,7 @@ set(tests
+   test-linkat
+   test-lockf
+   test-nice
++  test-nice-thread
+   test-pathconf
+   test-pause
+   test-pipe2
+diff --git a/test/test-posix/test-unistd/meson.build b/test/test-posix/test-unistd/meson.build
+index e5ccf1170a..e1a4686a2c 100644
+--- a/test/test-posix/test-unistd/meson.build
++++ b/test/test-posix/test-unistd/meson.build
+@@ -97,6 +97,7 @@ dir_tests = [
+ # These check credentials across threads
+ dir_thread_tests = [
+   'test-execl-thread',
++  'test-nice-thread',
+   'test-setuid-thread',
+ ]
+ 
+diff --git a/test/test-posix/test-unistd/test-nice-thread.c b/test/test-posix/test-unistd/test-nice-thread.c
+new file mode 100644
+index 0000000000..5803e9cce7
+--- /dev/null
++++ b/test/test-posix/test-unistd/test-nice-thread.c
+@@ -0,0 +1,124 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++/* nice is an XSI interface */
++#define _XOPEN_SOURCE 800
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE)
++
++#include <errno.h>
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/resource.h>
++
++/* nice changes the process, so every thread sees the new value, whichever thread calls it */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++static int go[2], done[2];
++static int seen;
++
++static void *
++waiter(void *arg)
++{
++    char c;
++
++    (void)arg;
++    /* First report the value main set, then change it from here */
++    if (read(go[0], &c, 1) != 1)
++        return NULL;
++    seen = getpriority(PRIO_PROCESS, 0);
++    errno = 0;
++    if (nice(1) == -1 && errno != 0)
++        seen = -100;
++    (void)write(done[1], "x", 1);
++    return NULL;
++}
++
++int
++main(void)
++{
++    pthread_t t;
++    int       prio, ret;
++    char      c;
++
++    errno = 0;
++    prio = nice(0);
++    check(prio != -1 || errno == 0, "nice(0)");
++    if (prio > 17) {
++        printf("nice value %d leaves no room, skipping\n", prio);
++        return 77;
++    }
++    check(pipe(go) == 0 && pipe(done) == 0, "pipe");
++    check(pthread_create(&t, NULL, waiter, NULL) == 0, "pthread_create");
++
++    errno = 0;
++    ret = nice(1);
++    check(ret == prio + 1 && errno == 0, "nice(1)");
++    check(write(go[1], "x", 1) == 1 && read(done[0], &c, 1) == 1, "handshake");
++    check(pthread_join(t, NULL) == 0, "pthread_join");
++    check(seen != -100, "nice in the thread");
++    /* glibc's nice changes only the calling thread */
++#ifndef __GLIBC__
++    check(seen == prio + 1, "the other thread has the new value");
++    check(getpriority(PRIO_PROCESS, 0) == prio + 2, "the main thread has the thread's value");
++#endif
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-unistd/test-nice.c b/test/test-posix/test-unistd/test-nice.c
+index 6e23615083..156fb4f72a 100644
+--- a/test/test-posix/test-unistd/test-nice.c
++++ b/test/test-posix/test-unistd/test-nice.c
+@@ -42,6 +42,7 @@
+ #if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+ 
+ #include <errno.h>
++#include <limits.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <sys/resource.h>
+@@ -60,10 +61,24 @@ int
+ main(void)
+ {
+     int prio = getpriority(PRIO_PROCESS, 0), ret;
++    int privileged = 0;
+ 
+     errno = 0;
+     ret = nice(0);
+     check(errno == 0 && ret == prio, "nice(0)");
++
++    /* Lowering the nice value needs privileges; a failure leaves it alone */
++    errno = 0;
++    ret = nice(-1);
++    if (ret == -1 && errno != 0) {
++        check(errno == EPERM, "EPERM");
++        check(getpriority(PRIO_PROCESS, 0) == prio, "unchanged after EPERM");
++    } else {
++        check(ret == (prio > -20 ? prio - 1 : -20), "nice(-1)");
++        prio = ret;
++        privileged = 1;
++    }
++
+     if (prio < 19) {
+         errno = 0;
+         ret = nice(1);
+@@ -73,6 +88,23 @@ main(void)
+     errno = 0;
+     ret = nice(100);
+     check(errno == 0 && ret == 19, "clamped");
++    check(getpriority(PRIO_PROCESS, 0) == 19, "clamped value applied");
++
++    /* glibc adds incr to the nice value without a limit, so the sum overflows */
++#ifndef __GLIBC__
++    /* However large the increment, the value stops at the limit */
++    errno = 0;
++    ret = nice(INT_MAX);
++    check(errno == 0 && ret == 19, "nice(INT_MAX)");
++#endif
++    errno = 0;
++    ret = nice(INT_MIN);
++    if (privileged)
++        check(ret == -20, "nice(INT_MIN)");
++    else
++        check(ret == -1 && errno == EPERM && getpriority(PRIO_PROCESS, 0) == 19,
++              "nice(INT_MIN) without privileges");
++
+     printf("success\n");
+     return 0;
+ }
+-- 
+2.47.3
+

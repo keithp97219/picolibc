@@ -1,0 +1,30 @@
+From d67fd9090756048ef7e01ed5bc08ee275416899a Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:31:11 +0000
+Subject: [PATCH 06/15] aio: Ignore aio_reqprio in aio_fsync
+
+POSIX has aio_fsync ignore every aiocb member but aio_fildes and
+aio_sigevent, but an out-of-range aio_reqprio made it fail with
+EINVAL.
+---
+ libc/posix/aio/__aio_submit.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libc/posix/aio/__aio_submit.c b/libc/posix/aio/__aio_submit.c
+index e6fc783b5f..363e115780 100644
+--- a/libc/posix/aio/__aio_submit.c
++++ b/libc/posix/aio/__aio_submit.c
+@@ -216,7 +216,9 @@ __aio_submit(struct aiocb *cb, int op, struct __aio_list *list)
+     sigset_t          old;
+     int               ret;
+ 
+-    if (cb->aio_reqprio < 0 || cb->aio_reqprio > AIO_PRIO_DELTA_MAX)
++    /* aio_fsync ignores every member but aio_fildes and aio_sigevent */
++    if (op != __AIO_FSYNC && op != __AIO_FDATASYNC
++        && (cb->aio_reqprio < 0 || cb->aio_reqprio > AIO_PRIO_DELTA_MAX))
+         ret = EINVAL;
+     else
+         ret = __aio_check_sigevent(&cb->aio_sigevent);
+-- 
+2.47.3
+

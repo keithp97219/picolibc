@@ -1,0 +1,47 @@
+From 0d5e45b6c5169d20a9c0b2d14eea45232a6d38c3 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:34:15 +0000
+Subject: [PATCH 08/12] wordexp: Split fields with IFS from the environment
+
+XCU 2.5.3 lets a shell ignore IFS from its environment, and dash does,
+so wordexp split fields with the default IFS whatever the caller set.
+Pass the caller's IFS to the script and set it there.
+---
+ libc/posix/wordexp/wordexp.c | 20 ++++++++++++--------
+ 1 file changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/libc/posix/wordexp/wordexp.c b/libc/posix/wordexp/wordexp.c
+index 4dc815cdce..7281af10b9 100644
+--- a/libc/posix/wordexp/wordexp.c
++++ b/libc/posix/wordexp/wordexp.c
+@@ -159,15 +159,19 @@ static int
+ __wordexp_shell(const char *words, int flags, char **out, size_t *len)
+ {
+     /*
+-     * $1 turns on set -u and $2 holds the words. set -- clears the
+-     * positional parameters before the words are expanded, so $1 and
+-     * the rest aren't the script's. printf ends each field with a null
+-     * byte, and the leading x keeps an empty expansion from looking
+-     * like one empty field.
++     * $1 turns on set -u, $2 holds the words and $3, when present, is
++     * IFS from the environment, which a shell may ignore (XCU 2.5.3).
++     * set -- clears the positional parameters before the words are
++     * expanded, so $1 and the rest aren't the script's. printf ends
++     * each field with a null byte, and the leading x keeps an empty
++     * expansion from looking like one empty field.
+      */
+-    static const char script[] = "[ -n \"$1\" ] && set -u; eval \"set --; printf '%s\\\\0' x $2\"";
+-    char  *argv[] = { "sh",          "-c", (char *)script, "sh", (flags & WRDE_UNDEF) ? "1" : "",
+-                      (char *)words, NULL };
++    static const char script[] = "[ -n \"$1\" ] && set -u; [ $# -gt 2 ] && IFS=$3; "
++                                 "eval \"set --; printf '%s\\\\0' x $2\"";
++    char             *argv[] = {
++        "sh",          "-c", (char *)script, "sh", (flags & WRDE_UNDEF) ? "1" : "", (char *)words,
++        getenv("IFS"), NULL
++    };
+     char  *buf = NULL;
+     size_t size = 0, used = 0;
+     int    fds[2], status;
+-- 
+2.47.3
+

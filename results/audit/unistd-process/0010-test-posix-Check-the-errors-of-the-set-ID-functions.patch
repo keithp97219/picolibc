@@ -1,0 +1,564 @@
+From 867d2f2a85dc406c434a708b54322dc6e33f8e48 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:51:23 +0000
+Subject: [PATCH 10/15] test-posix: Check the errors of the set-ID functions
+
+EINVAL for an invalid ID, EPERM for IDs the process doesn't hold,
+nothing changed after a failure, the supplementary groups kept by
+setuid and setgid, getgroups' size checks and, when privileged, that
+seteuid and setegid keep the saved ID.
+---
+ test/test-posix/test-unistd/test-getgroups.c | 17 +++++-
+ test/test-posix/test-unistd/test-getresgid.c | 56 ++++++++++++++++++--
+ test/test-posix/test-unistd/test-getresuid.c | 56 ++++++++++++++++++--
+ test/test-posix/test-unistd/test-setegid.c   | 30 ++++++++++-
+ test/test-posix/test-unistd/test-seteuid.c   | 30 ++++++++++-
+ test/test-posix/test-unistd/test-setgid.c    | 38 ++++++++++++-
+ test/test-posix/test-unistd/test-setregid.c  | 31 +++++++++--
+ test/test-posix/test-unistd/test-setreuid.c  | 31 +++++++++--
+ test/test-posix/test-unistd/test-setuid.c    | 38 ++++++++++++-
+ 9 files changed, 302 insertions(+), 25 deletions(-)
+
+diff --git a/test/test-posix/test-unistd/test-getgroups.c b/test/test-posix/test-unistd/test-getgroups.c
+index 0da1d30df3..b0872e12c9 100644
+--- a/test/test-posix/test-unistd/test-getgroups.c
++++ b/test/test-posix/test-unistd/test-getgroups.c
+@@ -39,12 +39,13 @@
+ /* Without the system support this test needs, it is skipped */
+ #if defined(__PICOLIBC_POSIX_USER_GROUPS)
+ 
++#include <errno.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
+ 
+-/* getgroups reports the count and fills in every entry completely */
++/* getgroups reports the count, fills in every entry completely and checks the size */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -71,6 +72,20 @@ main(void)
+     for (int i = 0; i < ngroups; i++)
+         check((groups[i] >> 16) != 0xffff, "getgroups entry filled in");
+ 
++    /* A size of zero only counts, leaving the array alone */
++    memset(groups, 0xab, sizeof(groups));
++    check(getgroups(0, groups) == ngroups, "count");
++    for (size_t i = 0; i < sizeof(groups); i++)
++        check(((unsigned char *)groups)[i] == 0xab, "array untouched");
++
++    /* An array too small for the list */
++    if (ngroups >= 2) {
++        errno = 0;
++        check(getgroups(ngroups - 1, groups) == -1 && errno == EINVAL, "EINVAL");
++    } else {
++        printf("%d groups, skipping the EINVAL check\n", ngroups);
++    }
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-unistd/test-getresgid.c b/test/test-posix/test-unistd/test-getresgid.c
+index 56267c7ad4..fcae848e25 100644
+--- a/test/test-posix/test-unistd/test-getresgid.c
++++ b/test/test-posix/test-unistd/test-getresgid.c
+@@ -43,11 +43,12 @@
+ #include "../posix-groups.h"
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if defined(__PICOLIBC_POSIX_USER_GROUPS)
++#if defined(__PICOLIBC_POSIX_USER_GROUPS) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+ 
+ #include <errno.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <sys/wait.h>
+ 
+ /* getresgid reports and setresgid sets the real, effective and saved ids */
+ 
+@@ -59,16 +60,63 @@
+         }                                              \
+     } while (0)
+ 
++/* Returns an ID the process holds in none of its real, effective or saved IDs */
++static gid_t
++other_id(gid_t a, gid_t b, gid_t c)
++{
++    gid_t id = a + 1;
++
++    while (id == a || id == b || id == c || id == (gid_t)-1 || id == 0)
++        id++;
++    return id;
++}
++
+ int
+ main(void)
+ {
+-    gid_t r, e, s;
++    gid_t r, e, s, r2, e2, s2, other;
+ 
+     check(getresgid(&r, &e, &s) == 0, "getresgid");
+     check(r == getgid() && e == getegid(), "real and effective");
+-    check(setresgid(r, e, s) == 0, "setresgid same ids");
++    check(setresgid(r, e, s) == 0, "setresgid same IDs");
+     check(setresgid((gid_t)-1, (gid_t)-1, (gid_t)-1) == 0, "setresgid unchanged");
+-    check(getresgid(&r, &e, &s) == 0 && r == getgid() && e == getegid(), "kept");
++    /* Each ID may be set to any of the three */
++    check(setresgid(s, r, e) == 0 && setresgid(r, e, s) == 0, "setresgid permuted");
++    check(getresgid(&r2, &e2, &s2) == 0 && r2 == r && e2 == e && s2 == s, "kept");
++    if (geteuid() == 0) {
++        pid_t pid;
++        int   status;
++
++        /* setegid leaves the saved ID alone, so the old effective ID can come back */
++        fflush(stdout);
++        pid = fork();
++        check(pid >= 0, "fork");
++        if (pid == 0) {
++            if (setresgid(1000, 0, 0) != 0 || setegid(3000) != 0)
++                _exit(1);
++            if (getresgid(&r2, &e2, &s2) != 0 || r2 != 1000 || e2 != 3000 || s2 != 0)
++                _exit(2);
++            if (setegid(0) != 0 || setegid(1000) != 0 || getresgid(&r2, &e2, &s2) != 0 || s2 != 0)
++                _exit(3);
++            _exit(0);
++        }
++        check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "waitpid");
++        check(WEXITSTATUS(status) == 0, "setegid kept the saved ID");
++        printf("privileged, skipping the EPERM checks\n");
++    } else {
++        other = other_id(r, e, s);
++        /* A failing call changes none of the IDs */
++        errno = 0;
++        check(setresgid(r, e, other) == -1 && errno == EPERM, "another saved ID");
++        errno = 0;
++        check(setresgid(other, e, s) == -1 && errno == EPERM, "another real ID");
++        errno = 0;
++        check(setresgid((gid_t)-1, other, (gid_t)-1) == -1 && errno == EPERM,
++              "another effective ID");
++        check(getresgid(&r2, &e2, &s2) == 0 && r2 == r && e2 == e && s2 == s,
++              "IDs kept after EPERM");
++    }
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-unistd/test-getresuid.c b/test/test-posix/test-unistd/test-getresuid.c
+index 102ebe6bdc..6ff3c1dce7 100644
+--- a/test/test-posix/test-unistd/test-getresuid.c
++++ b/test/test-posix/test-unistd/test-getresuid.c
+@@ -43,11 +43,12 @@
+ #include "../posix-groups.h"
+ 
+ /* Without the system support this test needs, it is skipped */
+-#if defined(__PICOLIBC_POSIX_USER_GROUPS)
++#if defined(__PICOLIBC_POSIX_USER_GROUPS) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+ 
+ #include <errno.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <sys/wait.h>
+ 
+ /* getresuid reports and setresuid sets the real, effective and saved ids */
+ 
+@@ -59,16 +60,63 @@
+         }                                              \
+     } while (0)
+ 
++/* Returns an ID the process holds in none of its real, effective or saved IDs */
++static uid_t
++other_id(uid_t a, uid_t b, uid_t c)
++{
++    uid_t id = a + 1;
++
++    while (id == a || id == b || id == c || id == (uid_t)-1 || id == 0)
++        id++;
++    return id;
++}
++
+ int
+ main(void)
+ {
+-    uid_t r, e, s;
++    uid_t r, e, s, r2, e2, s2, other;
+ 
+     check(getresuid(&r, &e, &s) == 0, "getresuid");
+     check(r == getuid() && e == geteuid(), "real and effective");
+-    check(setresuid(r, e, s) == 0, "setresuid same ids");
++    check(setresuid(r, e, s) == 0, "setresuid same IDs");
+     check(setresuid((uid_t)-1, (uid_t)-1, (uid_t)-1) == 0, "setresuid unchanged");
+-    check(getresuid(&r, &e, &s) == 0 && r == getuid() && e == geteuid(), "kept");
++    /* Each ID may be set to any of the three */
++    check(setresuid(s, r, e) == 0 && setresuid(r, e, s) == 0, "setresuid permuted");
++    check(getresuid(&r2, &e2, &s2) == 0 && r2 == r && e2 == e && s2 == s, "kept");
++    if (geteuid() == 0) {
++        pid_t pid;
++        int   status;
++
++        /* seteuid leaves the saved ID alone, so the old effective ID can come back */
++        fflush(stdout);
++        pid = fork();
++        check(pid >= 0, "fork");
++        if (pid == 0) {
++            if (setresuid(1000, 0, 0) != 0 || seteuid(3000) != 0)
++                _exit(1);
++            if (getresuid(&r2, &e2, &s2) != 0 || r2 != 1000 || e2 != 3000 || s2 != 0)
++                _exit(2);
++            if (seteuid(0) != 0 || seteuid(1000) != 0 || getresuid(&r2, &e2, &s2) != 0 || s2 != 0)
++                _exit(3);
++            _exit(0);
++        }
++        check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "waitpid");
++        check(WEXITSTATUS(status) == 0, "seteuid kept the saved ID");
++        printf("privileged, skipping the EPERM checks\n");
++    } else {
++        other = other_id(r, e, s);
++        /* A failing call changes none of the IDs */
++        errno = 0;
++        check(setresuid(r, e, other) == -1 && errno == EPERM, "another saved ID");
++        errno = 0;
++        check(setresuid(other, e, s) == -1 && errno == EPERM, "another real ID");
++        errno = 0;
++        check(setresuid((uid_t)-1, other, (uid_t)-1) == -1 && errno == EPERM,
++              "another effective ID");
++        check(getresuid(&r2, &e2, &s2) == 0 && r2 == r && e2 == e && s2 == s,
++              "IDs kept after EPERM");
++    }
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-unistd/test-setegid.c b/test/test-posix/test-unistd/test-setegid.c
+index 2fe9cbb63e..f9442454ca 100644
+--- a/test/test-posix/test-unistd/test-setegid.c
++++ b/test/test-posix/test-unistd/test-setegid.c
+@@ -39,11 +39,12 @@
+ /* Without the system support this test needs, it is skipped */
+ #if defined(__PICOLIBC_POSIX_USER_GROUPS)
+ 
++#include <errno.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+ 
+-/* setegid to the current value succeeds */
++/* setegid accepts the real ID, refuses an invalid one, and refuses others without privileges */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -53,10 +54,35 @@
+         }                                              \
+     } while (0)
+ 
++/* Returns an ID the process holds in none of its real, effective or saved IDs */
++static gid_t
++other_id(gid_t a, gid_t b, gid_t c)
++{
++    gid_t id = a + 1;
++
++    while (id == a || id == b || id == c || id == (gid_t)-1 || id == 0)
++        id++;
++    return id;
++}
++
+ int
+ main(void)
+ {
+-    check(setegid(getegid()) == 0, "setegid");
++    gid_t r = getgid(), e = getegid();
++
++    check(setegid(e) == 0, "setegid to the current value");
++    check(setegid(r) == 0, "setegid to the real ID");
++    check(getgid() == r && getegid() == r, "IDs after setegid");
++    /* For setegid, -1 is just an ID the system doesn't have, not "unchanged" */
++    errno = 0;
++    check(setegid((gid_t)-1) == -1 && errno == EINVAL, "an invalid ID gives EINVAL");
++    if (geteuid() == 0) {
++        printf("privileged, skipping the EPERM check\n");
++    } else {
++        errno = 0;
++        check(setegid(other_id(r, e, r)) == -1 && errno == EPERM, "another ID gives EPERM");
++        check(getgid() == r && getegid() == r, "IDs kept after EPERM");
++    }
+ 
+     printf("success\n");
+     return 0;
+diff --git a/test/test-posix/test-unistd/test-seteuid.c b/test/test-posix/test-unistd/test-seteuid.c
+index 954e401647..941dd54193 100644
+--- a/test/test-posix/test-unistd/test-seteuid.c
++++ b/test/test-posix/test-unistd/test-seteuid.c
+@@ -39,11 +39,12 @@
+ /* Without the system support this test needs, it is skipped */
+ #if defined(__PICOLIBC_POSIX_USER_GROUPS)
+ 
++#include <errno.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+ 
+-/* seteuid to the current value succeeds */
++/* seteuid accepts the real ID, refuses an invalid one, and refuses others without privileges */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -53,10 +54,35 @@
+         }                                              \
+     } while (0)
+ 
++/* Returns an ID the process holds in none of its real, effective or saved IDs */
++static uid_t
++other_id(uid_t a, uid_t b, uid_t c)
++{
++    uid_t id = a + 1;
++
++    while (id == a || id == b || id == c || id == (uid_t)-1 || id == 0)
++        id++;
++    return id;
++}
++
+ int
+ main(void)
+ {
+-    check(seteuid(geteuid()) == 0, "seteuid");
++    uid_t r = getuid(), e = geteuid();
++
++    check(seteuid(e) == 0, "seteuid to the current value");
++    check(seteuid(r) == 0, "seteuid to the real ID");
++    check(getuid() == r && geteuid() == r, "IDs after seteuid");
++    /* For seteuid, -1 is just an ID the system doesn't have, not "unchanged" */
++    errno = 0;
++    check(seteuid((uid_t)-1) == -1 && errno == EINVAL, "an invalid ID gives EINVAL");
++    if (geteuid() == 0) {
++        printf("privileged, skipping the EPERM check\n");
++    } else {
++        errno = 0;
++        check(seteuid(other_id(r, e, r)) == -1 && errno == EPERM, "another ID gives EPERM");
++        check(getuid() == r && geteuid() == r, "IDs kept after EPERM");
++    }
+ 
+     printf("success\n");
+     return 0;
+diff --git a/test/test-posix/test-unistd/test-setgid.c b/test/test-posix/test-unistd/test-setgid.c
+index 018648ba3d..5a8d5ce3d9 100644
+--- a/test/test-posix/test-unistd/test-setgid.c
++++ b/test/test-posix/test-unistd/test-setgid.c
+@@ -39,11 +39,13 @@
+ /* Without the system support this test needs, it is skipped */
+ #if defined(__PICOLIBC_POSIX_USER_GROUPS)
+ 
++#include <errno.h>
++#include <string.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+ 
+-/* setgid to the current value succeeds */
++/* setgid accepts the real ID, refuses an invalid one, and refuses others without privileges */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -53,10 +55,42 @@
+         }                                              \
+     } while (0)
+ 
++/* Returns an ID the process holds in none of its real, effective or saved IDs */
++static gid_t
++other_id(gid_t a, gid_t b, gid_t c)
++{
++    gid_t id = a + 1;
++
++    while (id == a || id == b || id == c || id == (gid_t)-1 || id == 0)
++        id++;
++    return id;
++}
++
+ int
+ main(void)
+ {
+-    check(setgid(getgid()) == 0, "setgid");
++    gid_t r = getgid(), e = getegid();
++    gid_t before[256], after[256];
++    int   nbefore, nafter;
++
++    nbefore = getgroups(256, before);
++    check(nbefore >= 0, "getgroups");
++    check(setgid(r) == 0, "setgid to the real ID");
++    check(getgid() == r && getegid() == r, "IDs after setgid");
++    /* setgid doesn't touch the supplementary groups */
++    nafter = getgroups(256, after);
++    check(nafter == nbefore && memcmp(before, after, (size_t)nbefore * sizeof(gid_t)) == 0,
++          "supplementary groups kept");
++
++    errno = 0;
++    check(setgid((gid_t)-1) == -1 && errno == EINVAL, "an invalid ID gives EINVAL");
++    if (geteuid() == 0) {
++        printf("privileged, skipping the EPERM check\n");
++    } else {
++        errno = 0;
++        check(setgid(other_id(r, e, r)) == -1 && errno == EPERM, "another ID gives EPERM");
++        check(getgid() == r && getegid() == r, "IDs kept after EPERM");
++    }
+ 
+     printf("success\n");
+     return 0;
+diff --git a/test/test-posix/test-unistd/test-setregid.c b/test/test-posix/test-unistd/test-setregid.c
+index 9995a22a0e..bffcd5c8eb 100644
+--- a/test/test-posix/test-unistd/test-setregid.c
++++ b/test/test-posix/test-unistd/test-setregid.c
+@@ -55,15 +55,38 @@
+         }                                              \
+     } while (0)
+ 
++/* Returns an ID the process holds in none of its real, effective or saved IDs */
++static gid_t
++other_id(gid_t a, gid_t b, gid_t c)
++{
++    gid_t id = a + 1;
++
++    while (id == a || id == b || id == c || id == (gid_t)-1 || id == 0)
++        id++;
++    return id;
++}
++
+ int
+ main(void)
+ {
+-    gid_t r = getgid(), e = getegid();
++    gid_t r = getgid(), e = getegid(), other = other_id(r, e, r);
+ 
+-    /* Setting the ids to their current values is always allowed */
+-    check(setregid(r, e) == 0, "same ids");
++    /* Setting the IDs to their current values is always allowed */
++    check(setregid(r, e) == 0, "same IDs");
+     check(setregid((gid_t)-1, (gid_t)-1) == 0, "unchanged");
+-    check(getgid() == r && getegid() == e, "ids kept");
++    check(getgid() == r && getegid() == e, "IDs kept");
++    /* Either may be set to the other */
++    check(setregid(e, r) == 0 && setregid(r, e) == 0, "swap");
++    if (geteuid() == 0) {
++        printf("privileged, skipping the EPERM checks\n");
++    } else {
++        errno = 0;
++        check(setregid((gid_t)-1, other) == -1 && errno == EPERM, "another effective ID");
++        errno = 0;
++        check(setregid(other, (gid_t)-1) == -1 && errno == EPERM, "another real ID");
++        check(getgid() == r && getegid() == e, "IDs kept after EPERM");
++    }
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-unistd/test-setreuid.c b/test/test-posix/test-unistd/test-setreuid.c
+index 5035eed5e1..31fb0296e3 100644
+--- a/test/test-posix/test-unistd/test-setreuid.c
++++ b/test/test-posix/test-unistd/test-setreuid.c
+@@ -55,15 +55,38 @@
+         }                                              \
+     } while (0)
+ 
++/* Returns an ID the process holds in none of its real, effective or saved IDs */
++static uid_t
++other_id(uid_t a, uid_t b, uid_t c)
++{
++    uid_t id = a + 1;
++
++    while (id == a || id == b || id == c || id == (uid_t)-1 || id == 0)
++        id++;
++    return id;
++}
++
+ int
+ main(void)
+ {
+-    uid_t r = getuid(), e = geteuid();
++    uid_t r = getuid(), e = geteuid(), other = other_id(r, e, r);
+ 
+-    /* Setting the ids to their current values is always allowed */
+-    check(setreuid(r, e) == 0, "same ids");
++    /* Setting the IDs to their current values is always allowed */
++    check(setreuid(r, e) == 0, "same IDs");
+     check(setreuid((uid_t)-1, (uid_t)-1) == 0, "unchanged");
+-    check(getuid() == r && geteuid() == e, "ids kept");
++    check(getuid() == r && geteuid() == e, "IDs kept");
++    /* Either may be set to the other */
++    check(setreuid(e, r) == 0 && setreuid(r, e) == 0, "swap");
++    if (geteuid() == 0) {
++        printf("privileged, skipping the EPERM checks\n");
++    } else {
++        errno = 0;
++        check(setreuid((uid_t)-1, other) == -1 && errno == EPERM, "another effective ID");
++        errno = 0;
++        check(setreuid(other, (uid_t)-1) == -1 && errno == EPERM, "another real ID");
++        check(getuid() == r && geteuid() == e, "IDs kept after EPERM");
++    }
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-unistd/test-setuid.c b/test/test-posix/test-unistd/test-setuid.c
+index 9b54f4e41d..cfda27e968 100644
+--- a/test/test-posix/test-unistd/test-setuid.c
++++ b/test/test-posix/test-unistd/test-setuid.c
+@@ -39,11 +39,13 @@
+ /* Without the system support this test needs, it is skipped */
+ #if defined(__PICOLIBC_POSIX_USER_GROUPS)
+ 
++#include <errno.h>
++#include <string.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+ 
+-/* setuid to the current value succeeds */
++/* setuid accepts the real ID, refuses an invalid one, and refuses others without privileges */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -53,10 +55,42 @@
+         }                                              \
+     } while (0)
+ 
++/* Returns an ID the process holds in none of its real, effective or saved IDs */
++static uid_t
++other_id(uid_t a, uid_t b, uid_t c)
++{
++    uid_t id = a + 1;
++
++    while (id == a || id == b || id == c || id == (uid_t)-1 || id == 0)
++        id++;
++    return id;
++}
++
+ int
+ main(void)
+ {
+-    check(setuid(getuid()) == 0, "setuid");
++    uid_t r = getuid(), e = geteuid();
++    gid_t before[256], after[256];
++    int   nbefore, nafter;
++
++    nbefore = getgroups(256, before);
++    check(nbefore >= 0, "getgroups");
++    check(setuid(r) == 0, "setuid to the real ID");
++    check(getuid() == r && geteuid() == r, "IDs after setuid");
++    /* setuid doesn't touch the supplementary groups */
++    nafter = getgroups(256, after);
++    check(nafter == nbefore && memcmp(before, after, (size_t)nbefore * sizeof(gid_t)) == 0,
++          "supplementary groups kept");
++
++    errno = 0;
++    check(setuid((uid_t)-1) == -1 && errno == EINVAL, "an invalid ID gives EINVAL");
++    if (geteuid() == 0) {
++        printf("privileged, skipping the EPERM check\n");
++    } else {
++        errno = 0;
++        check(setuid(other_id(r, e, r)) == -1 && errno == EPERM, "another ID gives EPERM");
++        check(getuid() == r && geteuid() == r, "IDs kept after EPERM");
++    }
+ 
+     printf("success\n");
+     return 0;
+-- 
+2.47.3
+

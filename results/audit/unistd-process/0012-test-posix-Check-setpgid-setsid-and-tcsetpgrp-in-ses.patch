@@ -1,0 +1,649 @@
+From 3c24bfdb499631a19ea3563f4dee92c8cf37bc62 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:51:23 +0000
+Subject: [PATCH 12/15] test-posix: Check setpgid, setsid and tcsetpgrp in
+ sessions and groups
+
+setpgid's errors, setsid's EPERM for a group named after the caller,
+and tcsetpgrp's SIGTTOU and EINTR from the background, EIO from an
+orphaned group, EPERM for a group that doesn't exist, the value of
+tcgetpgrp once the foreground group has gone, and no controlling
+terminal after setsid.
+---
+ test/test-posix/test-unistd/CMakeLists.txt   |   1 +
+ test/test-posix/test-unistd/meson.build      |   1 +
+ test/test-posix/test-unistd/test-setpgid.c   | 275 +++++++++++++++++++
+ test/test-posix/test-unistd/test-setsid.c    |  36 ++-
+ test/test-posix/test-unistd/test-tcsetpgrp.c | 223 ++++++++++++++-
+ 5 files changed, 533 insertions(+), 3 deletions(-)
+ create mode 100644 test/test-posix/test-unistd/test-setpgid.c
+
+diff --git a/test/test-posix/test-unistd/CMakeLists.txt b/test/test-posix/test-unistd/CMakeLists.txt
+index a446e4434d..ffbd8c4553 100644
+--- a/test/test-posix/test-unistd/CMakeLists.txt
++++ b/test/test-posix/test-unistd/CMakeLists.txt
+@@ -83,6 +83,7 @@ set(tests
+   test-setegid
+   test-seteuid
+   test-setgid
++  test-setpgid
+   test-setregid
+   test-setreuid
+   test-setsid
+diff --git a/test/test-posix/test-unistd/meson.build b/test/test-posix/test-unistd/meson.build
+index e1a4686a2c..6500c41f51 100644
+--- a/test/test-posix/test-unistd/meson.build
++++ b/test/test-posix/test-unistd/meson.build
+@@ -81,6 +81,7 @@ dir_tests = [
+   'test-setegid',
+   'test-seteuid',
+   'test-setgid',
++  'test-setpgid',
+   'test-setregid',
+   'test-setreuid',
+   'test-setsid',
+diff --git a/test/test-posix/test-unistd/test-setpgid.c b/test/test-posix/test-unistd/test-setpgid.c
+new file mode 100644
+index 0000000000..63f1c35b84
+--- /dev/null
++++ b/test/test-posix/test-unistd/test-setpgid.c
+@@ -0,0 +1,275 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include "../posix-groups.h"
++
++/* Without the system support this test needs, it is skipped */
++#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE) \
++    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)
++
++#include <errno.h>
++#include <limits.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++#include <unistd.h>
++
++/*
++ * setpgid moves a process into a new or existing group of the
++ * session; it refuses session leaders, other sessions, exec'd
++ * children and processes that aren't the caller's children
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define check_err(call, err)                                                           \
++    do {                                                                               \
++        errno = 0;                                                                     \
++        int _r = (call);                                                               \
++        if (_r != -1 || errno != (err)) {                                              \
++            printf("%s: returned %d errno %d, expected %s\n", #call, _r, errno, #err); \
++            exit(1);                                                                   \
++        }                                                                              \
++    } while (0)
++
++/* A child that runs fn, then waits until the pipe closes */
++struct child {
++    pid_t pid;
++    int   fd;
++};
++
++static int
++helper_wait(int fd)
++{
++    char c;
++
++    return read(fd, &c, 1) < 0;
++}
++
++static struct child
++start(int (*fn)(int report))
++{
++    struct child child;
++    int          hold[2], report[2];
++    char         c;
++
++    check(pipe(hold) == 0 && pipe(report) == 0, "pipe");
++    fflush(stdout);
++    child.pid = fork();
++    check(child.pid >= 0, "fork");
++    if (child.pid == 0) {
++        (void)close(hold[1]);
++        (void)close(report[0]);
++        if (fn && fn(report[1]) != 0)
++            _exit(2);
++        (void)write(report[1], "r", 1);
++        _exit(helper_wait(hold[0]));
++    }
++    (void)close(hold[0]);
++    (void)close(report[1]);
++    /* Wait until fn has run */
++    check(read(report[0], &c, 1) == 1, "child ready");
++    (void)close(report[0]);
++    child.fd = hold[1];
++    return child;
++}
++
++static void
++finish(struct child child)
++{
++    int status;
++
++    check(close(child.fd) == 0, "close");
++    check(waitpid(child.pid, &status, 0) == child.pid, "waitpid");
++    check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "child status");
++}
++
++static int
++new_session(int report)
++{
++    (void)report;
++    return setsid() < 0;
++}
++
++static int
++session_leader_self(int report)
++{
++    (void)report;
++    if (setsid() < 0)
++        return 1;
++    /* A session leader can't change its group */
++    errno = 0;
++    if (setpgid(0, 0) != -1 || errno != EPERM)
++        return 1;
++    return getpgrp() != getpid();
++}
++
++static char exe[PATH_MAX];
++
++int
++main(int argc, char **argv)
++{
++    struct child a, b, c;
++    pid_t        pgrp = getpgrp(), sid = getsid(0), g;
++    int          hold[2], ready[2], status;
++    char         ch;
++    ssize_t      len;
++
++    if (argc > 2 && strcmp(argv[1], "wait") == 0) {
++        /* The exec'd child: say it is running, then wait */
++        (void)write(atoi(argv[2]), "r", 1);
++        return helper_wait(0);
++    }
++
++    /* A child can be given its own group, then put back */
++    a = start(NULL);
++    check(setpgid(a.pid, 0) == 0, "setpgid(pid, 0)");
++    check(getpgid(a.pid) == a.pid, "a new group named for the child");
++    check(setpgid(a.pid, pgrp) == 0, "back to the parent's group");
++    check(getpgid(a.pid) == pgrp, "in the parent's group");
++    check(setpgid(a.pid, a.pid) == 0 && getpgid(a.pid) == a.pid, "setpgid(pid, pid)");
++    /* The session stays the same */
++    check(getsid(a.pid) == sid, "session unchanged");
++
++    /* A negative group */
++    check_err(setpgid(a.pid, -1), EINVAL);
++    /* A group that doesn't exist in this session */
++    check_err(setpgid(a.pid, INT_MAX), EPERM);
++
++    /* A child in another session, and that session's group */
++    b = start(new_session);
++    check_err(setpgid(b.pid, 0), EPERM);
++    check_err(setpgid(a.pid, b.pid), EPERM);
++    finish(b);
++
++    /* A session leader can't move itself */
++    b = start(session_leader_self);
++    finish(b);
++
++    /* pid 0 is the caller */
++    fflush(stdout);
++    g = fork();
++    check(g >= 0, "fork");
++    if (g == 0) {
++        if (setpgid(0, 0) != 0 || getpgrp() != getpid())
++            _exit(1);
++        _exit(0);
++    }
++    check(waitpid(g, &status, 0) == g && WIFEXITED(status) && WEXITSTATUS(status) == 0,
++          "setpgid(0, 0)");
++
++    /* Neither this process nor one of its children */
++    check_err(setpgid(INT_MAX, 0), ESRCH);
++    finish(a);
++
++    /* A grandchild isn't a child; it exits when this process closes hold */
++    check(pipe(hold) == 0 && pipe(ready) == 0, "pipe");
++    fflush(stdout);
++    c.pid = fork();
++    check(c.pid >= 0, "fork");
++    if (c.pid == 0) {
++        (void)close(hold[1]);
++        (void)close(ready[0]);
++        g = fork();
++        if (g < 0)
++            _exit(1);
++        if (g == 0) {
++            (void)close(ready[1]);
++            _exit(helper_wait(hold[0]));
++        }
++        (void)write(ready[1], &g, sizeof(g));
++        _exit(0);
++    }
++    (void)close(hold[0]);
++    (void)close(ready[1]);
++    check(read(ready[0], &g, sizeof(g)) == sizeof(g), "grandchild pid");
++    check(waitpid(c.pid, &status, 0) == c.pid, "waitpid");
++    check_err(setpgid(g, 0), ESRCH);
++    check(close(hold[1]) == 0 && close(ready[0]) == 0, "close");
++
++    /* A child that has run an exec function */
++    len = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
++    if (len <= 0) {
++        printf("no /proc/self/exe, skipping the EACCES check\n");
++    } else {
++        char fdname[16];
++
++        exe[len] = '\0';
++        check(pipe(hold) == 0 && pipe(ready) == 0, "pipe");
++        fflush(stdout);
++        g = fork();
++        check(g >= 0, "fork");
++        if (g == 0) {
++            (void)close(hold[1]);
++            (void)close(ready[0]);
++            if (dup2(hold[0], 0) != 0)
++                _exit(1);
++            snprintf(fdname, sizeof(fdname), "%d", ready[1]);
++            execl(exe, exe, "wait", fdname, (char *)NULL);
++            _exit(1);
++        }
++        (void)close(hold[0]);
++        (void)close(ready[1]);
++        check(read(ready[0], &ch, 1) == 1, "exec'd child ready");
++        check_err(setpgid(g, 0), EACCES);
++        check(close(hold[1]) == 0 && close(ready[0]) == 0, "close");
++        check(waitpid(g, &status, 0) == g && WIFEXITED(status) && WEXITSTATUS(status) == 0,
++              "exec'd child");
++    }
++
++    printf("success\n");
++    return 0;
++}
++
++#else
++
++#include <stdio.h>
++
++int
++main(void)
++{
++    printf("no system support, skipping\n");
++    return 77;
++}
++
++#endif
+diff --git a/test/test-posix/test-unistd/test-setsid.c b/test/test-posix/test-unistd/test-setsid.c
+index 6611ac3932..41ab5a6bdb 100644
+--- a/test/test-posix/test-unistd/test-setsid.c
++++ b/test/test-posix/test-unistd/test-setsid.c
+@@ -45,7 +45,7 @@
+ #include <sys/wait.h>
+ #include <unistd.h>
+ 
+-/* setsid makes a new session and process group led by the caller */
++/* setsid makes a new session and process group led by the caller, unless one would clash */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -79,6 +79,40 @@ main(void)
+     check(WIFEXITED(status), "child exited");
+     check(WEXITSTATUS(status) == 0, "child checks");
+ 
++    /* Nor can a process whose process ID names another process's group */
++    fflush(stdout);
++    pid = fork();
++    check(pid >= 0, "fork");
++    if (pid == 0) {
++        pid_t self = getpid(), group = getpgrp(), member;
++        int   fds[2];
++        char  c;
++
++        if (setpgid(0, 0) != 0 || pipe(fds) != 0)
++            _exit(10);
++        member = fork();
++        if (member < 0)
++            _exit(11);
++        if (member == 0) {
++            (void)close(fds[1]);
++            (void)read(fds[0], &c, 1);
++            _exit(0);
++        }
++        /* Move back to the old group; the member keeps this one alive */
++        if (setpgid(0, group) != 0 || getpgrp() == self || getpgid(member) != self)
++            _exit(12);
++        errno = 0;
++        if (setsid() != (pid_t)-1 || errno != EPERM)
++            _exit(13);
++        (void)close(fds[1]);
++        if (waitpid(member, &status, 0) != member)
++            _exit(14);
++        _exit(0);
++    }
++    check(waitpid(pid, &status, 0) == pid, "waitpid");
++    check(WIFEXITED(status), "child exited");
++    check(WEXITSTATUS(status) == 0, "group named for the caller");
++
+     printf("success\n");
+     return 0;
+ }
+diff --git a/test/test-posix/test-unistd/test-tcsetpgrp.c b/test/test-posix/test-unistd/test-tcsetpgrp.c
+index f93d53a8b5..fb971839a4 100644
+--- a/test/test-posix/test-unistd/test-tcsetpgrp.c
++++ b/test/test-posix/test-unistd/test-tcsetpgrp.c
+@@ -42,14 +42,21 @@
+ 
+ #include <errno.h>
+ #include <fcntl.h>
++#include <limits.h>
++#include <poll.h>
++#include <signal.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <sys/wait.h>
+ #include <termios.h>
++#include <time.h>
+ #include <unistd.h>
+ 
+-/* tcgetpgrp and tcsetpgrp report and set the foreground process group of a controlling terminal */
++/*
++ * tcgetpgrp and tcsetpgrp report and set the foreground process group of a controlling terminal,
++ * with SIGTTOU for background callers, EIO for orphaned ones, and none at all after setsid
++ */
+ 
+ #define check(condition, message)                      \
+     do {                                               \
+@@ -79,12 +86,205 @@ open_pty(int *subsidiary, int flags)
+     return manager;
+ }
+ 
++static volatile sig_atomic_t ttou;
++
++static void
++on_ttou(int sig)
++{
++    (void)sig;
++    ttou = 1;
++}
++
++/* Runs fn in a child process, returning its exit status */
++static int
++in_child(int (*fn)(int, pid_t), int subsidiary, pid_t fg)
++{
++    pid_t pid;
++    int   status;
++
++    fflush(stdout);
++    pid = fork();
++    if (pid < 0)
++        return 100;
++    if (pid == 0)
++        _exit(fn(subsidiary, fg));
++    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status))
++        return 101;
++    return WEXITSTATUS(status);
++}
++
++/* In a background group of the session: SIGTTOU unless it is blocked or ignored */
++static int
++background(int subsidiary, pid_t fg)
++{
++    struct sigaction sa;
++    sigset_t         set, old;
++    pid_t            self;
++
++    if (setpgid(0, 0) != 0)
++        return 20;
++    self = getpgrp();
++    /* A background process may read the foreground group */
++    if (tcgetpgrp(subsidiary) != fg)
++        return 21;
++    /* Changing it sends SIGTTOU; caught, without SA_RESTART, the call fails with EINTR */
++    memset(&sa, 0, sizeof(sa));
++    sigemptyset(&sa.sa_mask);
++    sa.sa_handler = on_ttou;
++    if (sigaction(SIGTTOU, &sa, NULL) != 0)
++        return 22;
++    errno = 0;
++    if (tcsetpgrp(subsidiary, self) != -1 || errno != EINTR || !ttou)
++        return 23;
++    if (tcgetpgrp(subsidiary) != fg)
++        return 24;
++    /* With SIGTTOU blocked, it is allowed and no signal comes */
++    sigemptyset(&set);
++    sigaddset(&set, SIGTTOU);
++    if (sigprocmask(SIG_BLOCK, &set, &old) != 0)
++        return 25;
++    ttou = 0;
++    if (tcsetpgrp(subsidiary, self) != 0 || tcgetpgrp(subsidiary) != self)
++        return 26;
++    if (sigpending(&set) != 0 || sigismember(&set, SIGTTOU))
++        return 27;
++    if (sigprocmask(SIG_SETMASK, &old, NULL) != 0)
++        return 28;
++    /* In the foreground, nothing stops it giving the terminal back */
++    if (tcsetpgrp(subsidiary, fg) != 0 || tcgetpgrp(subsidiary) != fg || ttou)
++        return 29;
++    /* With SIGTTOU ignored, it is allowed */
++    sa.sa_handler = SIG_IGN;
++    if (sigaction(SIGTTOU, &sa, NULL) != 0)
++        return 30;
++    if (tcsetpgrp(subsidiary, self) != 0 || tcgetpgrp(subsidiary) != self || ttou)
++        return 31;
++    if (tcsetpgrp(subsidiary, fg) != 0)
++        return 32;
++    return 0;
++}
++
++/*
++ * In a background group that is orphaned: EIO. The group's leader
++ * makes a member and exits, so the member's parent is outside the
++ * session. The member reports what tcsetpgrp did through a pipe.
++ */
++static int
++orphaned(int subsidiary, pid_t fg)
++{
++    int           fds[2];
++    pid_t         pid;
++    int           status;
++    char          result;
++    struct pollfd pfd;
++
++    (void)fg;
++    if (pipe(fds) != 0)
++        return 40;
++    fflush(stdout);
++    pid = fork();
++    if (pid < 0)
++        return 41;
++    if (pid == 0) {
++        /* The member must look for this pid, not ask getppid before the fork */
++        pid_t           leader = getpid();
++        struct timespec nap = { 0, 1000000 };
++
++        if (setpgid(0, 0) != 0)
++            _exit(1);
++        pid = fork();
++        if (pid < 0)
++            _exit(1);
++        if (pid == 0) {
++            while (getppid() == leader)
++                nanosleep(&nap, NULL);
++            errno = 0;
++            result = tcsetpgrp(subsidiary, getpgrp()) == -1 ? (char)errno : 0;
++            (void)write(fds[1], &result, 1);
++        }
++        _exit(0);
++    }
++    (void)close(fds[1]);
++    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
++        return 42;
++    pfd.fd = fds[0];
++    pfd.events = POLLIN;
++    if (poll(&pfd, 1, 10000) != 1 || read(fds[0], &result, 1) != 1)
++        return 43;
++    (void)close(fds[0]);
++    /* Linux reports ENOTTY, and glibc passes that on */
++#ifdef __GLIBC__
++    if (result == ENOTTY)
++        result = EIO;
++#endif
++    if (result != EIO)
++        return 44;
++    return 0;
++}
++
++/* When the foreground group has gone, tcgetpgrp reports a group that doesn't exist */
++static int
++no_foreground(int subsidiary, pid_t fg)
++{
++    int   fds[2];
++    pid_t pid, value;
++    int   status;
++    char  c;
++
++    if (pipe(fds) != 0)
++        return 50;
++    fflush(stdout);
++    pid = fork();
++    if (pid < 0)
++        return 51;
++    if (pid == 0) {
++        (void)close(fds[1]);
++        (void)setpgid(0, 0);
++        (void)read(fds[0], &c, 1);
++        _exit(0);
++    }
++    (void)close(fds[0]);
++    /* Both set the group, so it exists whichever runs first */
++    (void)setpgid(pid, pid);
++    if (tcsetpgrp(subsidiary, pid) != 0)
++        return 52;
++    (void)close(fds[1]);
++    if (waitpid(pid, &status, 0) != pid)
++        return 53;
++    value = tcgetpgrp(subsidiary);
++    errno = 0;
++    if (value <= 1 || kill(-value, 0) != -1 || errno != ESRCH)
++        return 54;
++    /* This process is now in the background; take the terminal back */
++    signal(SIGTTOU, SIG_IGN);
++    if (tcsetpgrp(subsidiary, fg) != 0 || tcgetpgrp(subsidiary) != fg)
++        return 55;
++    signal(SIGTTOU, SIG_DFL);
++    return 0;
++}
++
++/* setsid leaves the process with no controlling terminal */
++static int
++new_session(int subsidiary, pid_t fg)
++{
++    (void)fg;
++    if (setsid() < 0)
++        return 60;
++    errno = 0;
++    if (tcgetpgrp(subsidiary) != -1 || errno != ENOTTY)
++        return 61;
++    errno = 0;
++    if (open("/dev/tty", O_RDWR) != -1)
++        return 62;
++    return 0;
++}
++
+ /* Runs in a new session, with the subsidiary as its controlling terminal */
+ static int
+ child(void)
+ {
+     int   subsidiary, manager;
+-    int   fds[2];
++    int   fds[2], fd, ret;
+     pid_t pgrp;
+ 
+     if (setsid() < 0)
+@@ -103,6 +303,14 @@ child(void)
+     errno = 0;
+     if (tcsetpgrp(subsidiary, -1) != -1 || errno != EINVAL)
+         return 6;
++    /* A group that doesn't exist at all; Linux and glibc say ESRCH */
++    errno = 0;
++    if (tcsetpgrp(subsidiary, INT_MAX) != -1)
++        return 11;
++#ifndef __GLIBC__
++    if (errno != EPERM)
++        return 12;
++#endif
+ 
+     /* Not a terminal */
+     if (pipe(fds) != 0)
+@@ -116,6 +324,17 @@ child(void)
+     errno = 0;
+     if (tcgetpgrp(-1) != -1 || errno != EBADF)
+         return 10;
++    if ((ret = in_child(background, subsidiary, pgrp)) != 0)
++        return ret;
++    if ((ret = orphaned(subsidiary, pgrp)) != 0)
++        return ret;
++    if ((ret = no_foreground(subsidiary, pgrp)) != 0)
++        return ret;
++    /* The session leader has a controlling terminal; a new session doesn't */
++    if ((fd = open("/dev/tty", O_RDWR)) < 0 || close(fd) != 0)
++        return 13;
++    if ((ret = in_child(new_session, subsidiary, pgrp)) != 0)
++        return ret;
+     (void)manager;
+     return 0;
+ }
+-- 
+2.47.3
+

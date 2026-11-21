@@ -1,0 +1,31 @@
+From ad7c3151a5c55b5f6c8e56bf0105ea6aa9f54d42 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:30:48 +0000
+Subject: [PATCH 05/12] wordexp: Don't include <sys/types.h> in <wordexp.h>
+
+<wordexp.h> needs only size_t, but <sys/types.h> brought all of
+<stdint.h> with it, defining INT8_MAX, SIZE_MAX and the rest in
+strict POSIX mode, names POSIX doesn't reserve for <wordexp.h>.
+---
+ libc/include/wordexp.h | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/libc/include/wordexp.h b/libc/include/wordexp.h
+index 28cdbe8bdd..b10d1a45d5 100644
+--- a/libc/include/wordexp.h
++++ b/libc/include/wordexp.h
+@@ -7,7 +7,10 @@
+ #ifndef _WORDEXP_H_
+ #define _WORDEXP_H_
+ 
+-#include <sys/types.h>
++#include <sys/cdefs.h>
++#include <sys/_types.h>
++#define __need_size_t
++#include <stddef.h>
+ 
+ _BEGIN_STD_C
+ 
+-- 
+2.47.3
+

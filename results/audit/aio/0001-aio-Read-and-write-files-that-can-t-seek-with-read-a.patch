@@ -1,0 +1,41 @@
+From 4d4e199fff97a41a11ee520019fe714c2a57a057 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:25:59 +0000
+Subject: [PATCH 01/15] aio: Read and write files that can't seek with read and
+ write
+
+pread and pwrite fail with ESPIPE on pipes, sockets and terminals,
+which read and write never report. POSIX has aio_write append to
+such files, and aio_read reads them as read would.
+---
+ libc/posix/aio/__aio_submit.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/libc/posix/aio/__aio_submit.c b/libc/posix/aio/__aio_submit.c
+index 6d85cb0bc3..112cd0796d 100644
+--- a/libc/posix/aio/__aio_submit.c
++++ b/libc/posix/aio/__aio_submit.c
+@@ -55,12 +55,20 @@ __aio_run(void *arg)
+     ssize_t            ret;
+     int                error = 0;
+ 
++    /*
++     * Pipes, sockets and terminals can't seek, so there the offset
++     * doesn't apply and the transfer is a plain read or write
++     */
+     switch (cb->__aio_op) {
+     case LIO_READ:
+         ret = pread(cb->aio_fildes, (void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
++        if (ret < 0 && errno == ESPIPE)
++            ret = read(cb->aio_fildes, (void *)cb->aio_buf, cb->aio_nbytes);
+         break;
+     case LIO_WRITE:
+         ret = pwrite(cb->aio_fildes, (const void *)cb->aio_buf, cb->aio_nbytes, cb->aio_offset);
++        if (ret < 0 && errno == ESPIPE)
++            ret = write(cb->aio_fildes, (const void *)cb->aio_buf, cb->aio_nbytes);
+         break;
+     case __AIO_FDATASYNC:
+         ret = fdatasync(cb->aio_fildes);
+-- 
+2.47.3
+

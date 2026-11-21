@@ -1,0 +1,43 @@
+From ab57902dce2b89170a7b7652badda02b1b8bf02d Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:26:28 +0000
+Subject: [PATCH 01/12] regex: Treat an unmatched ')' in an ERE as an ordinary
+ character
+
+XBD 9.4.3 and 9.5.1 make ')' special only when matched with a
+preceding '(', so "a)" matches the string "a)" rather than failing
+with REG_EPAREN.
+---
+ libc/posix/regex/regcomp.c | 16 ++++------------
+ 1 file changed, 4 insertions(+), 12 deletions(-)
+
+diff --git a/libc/posix/regex/regcomp.c b/libc/posix/regex/regcomp.c
+index ec0faa18b9..a81f791aeb 100644
+--- a/libc/posix/regex/regcomp.c
++++ b/libc/posix/regex/regcomp.c
+@@ -368,18 +368,10 @@ p_ere_exp(struct parse *p)
+         EMIT(ORPAREN, subno);
+         (void)MUSTEAT(')', REG_EPAREN);
+         break;
+-#ifndef POSIX_MISTAKE
+-    case ')': /* happens only if no current unmatched ( */
+-        /*
+-         * You may ask, why the ifndef?  Because I didn't notice
+-         * this until slightly too late for 1003.2, and none of the
+-         * other 1003.2 regular-expression reviewers noticed it at
+-         * all.  So an unmatched ) is legal POSIX, at least until
+-         * we can get it fixed.
+-         */
+-        SETERROR(REG_EPAREN);
+-        break;
+-#endif
++    /*
++     * A ')' with no '(' before it falls through to ordinary: XBD 9.5.1
++     * says it is special only when matched with a preceding '('
++     */
+     case '^':
+         EMIT(OBOL, 0);
+         p->g->iflags |= USEBOL;
+-- 
+2.47.3
+

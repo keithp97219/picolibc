@@ -1,0 +1,40 @@
+From d1371328b10d73432f8916b485907a140b59c812 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:34:15 +0000
+Subject: [PATCH 06/12] wordexp: Clear the words before checking them
+
+After WRDE_BADCHAR the number of expanded words is 0, and WRDE_REUSE
+is as if wordfree came first. wordexp checked the words before
+either, so an error left we_wordc unset, or the old words in place.
+---
+ libc/posix/wordexp/wordexp.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/libc/posix/wordexp/wordexp.c b/libc/posix/wordexp/wordexp.c
+index 1a9a0275a6..c5e2d1f68c 100644
+--- a/libc/posix/wordexp/wordexp.c
++++ b/libc/posix/wordexp/wordexp.c
+@@ -234,9 +234,7 @@ wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
+     size_t len, count = 0, offs, i;
+     int    status, ret;
+ 
+-    ret = __wordexp_check(words, flags);
+-    if (ret)
+-        return ret;
++    /* REUSE is as if wordfree, then wordexp, so even an error frees the words */
+     if (flags & WRDE_REUSE) {
+         wordfree(we);
+         flags &= ~WRDE_APPEND;
+@@ -247,6 +245,9 @@ wordexp(const char * __restrict words, wordexp_t * __restrict we, int flags)
+         if (!(flags & WRDE_DOOFFS))
+             we->we_offs = 0;
+     }
++    ret = __wordexp_check(words, flags);
++    if (ret)
++        return ret;
+ 
+     status = __wordexp_shell(words, flags, &out, &len);
+     if (status == -2)
+-- 
+2.47.3
+

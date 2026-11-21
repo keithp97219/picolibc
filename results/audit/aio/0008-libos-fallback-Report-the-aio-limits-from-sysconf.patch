@@ -1,0 +1,39 @@
+From 421f494a7c956d99be247b5e7e66ab938a28a1d1 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:31:35 +0000
+Subject: [PATCH 08/15] libos/fallback: Report the aio limits from sysconf
+
+sysconf gave the POSIX minimums, 2 requests in a lio_listio list,
+one request in all and no priority offsets, while <limits.h> defines
+AIO_LISTIO_MAX as 64 and AIO_PRIO_DELTA_MAX as 20, and lio_listio and
+aio_read accept those. With a limit in <limits.h> sysconf must report
+it. Nothing limits the number of requests but memory and threads, so
+_SC_AIO_MAX is now -1, no limit.
+---
+ libos/fallback/sysconf.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/libos/fallback/sysconf.c b/libos/fallback/sysconf.c
+index 48e0e8b62b..8fcbcf4b62 100644
+--- a/libos/fallback/sysconf.c
++++ b/libos/fallback/sysconf.c
+@@ -48,12 +48,13 @@ long
+ __fallback_sysconf(int name)
+ {
+     switch (name) {
++    /* libc/posix/aio's limits; each request is a thread, with no count limit */
+     case _SC_AIO_LISTIO_MAX:
+-        return _POSIX_AIO_LISTIO_MAX;
++        return AIO_LISTIO_MAX;
+     case _SC_AIO_MAX:
+-        return _POSIX_AIO_MAX;
++        return -1;
+     case _SC_AIO_PRIO_DELTA_MAX:
+-        return 0;
++        return AIO_PRIO_DELTA_MAX;
+     case _SC_ARG_MAX:
+         return _POSIX_ARG_MAX;
+     case _SC_ATEXIT_MAX:
+-- 
+2.47.3
+

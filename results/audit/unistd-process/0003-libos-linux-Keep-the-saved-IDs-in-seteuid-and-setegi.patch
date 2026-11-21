@@ -1,0 +1,76 @@
+From 59034c223498b07221b2c1b2bff447f9948fa571 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 01:50:39 +0000
+Subject: [PATCH 03/15] libos/linux: Keep the saved IDs in seteuid and setegid
+
+seteuid and setegid used setreuid(-1, id) and setregid(-1, id), and
+Linux sets the saved ID to the new effective ID whenever it differs
+from the real ID. POSIX says the saved ID remains unchanged, so use
+setresuid and setresgid. -1 is not an ID, so report EINVAL for it
+rather than leaving the IDs alone.
+---
+ libos/linux/setegid.c | 15 ++++++++++++---
+ libos/linux/seteuid.c | 15 ++++++++++++---
+ 2 files changed, 24 insertions(+), 6 deletions(-)
+
+diff --git a/libos/linux/setegid.c b/libos/linux/setegid.c
+index 85fc0ab8da..f6f1965b3d 100644
+--- a/libos/linux/setegid.c
++++ b/libos/linux/setegid.c
+@@ -36,12 +36,21 @@
+ #include "local-linux.h"
+ #include <unistd.h>
+ 
++/*
++ * Linux's setregid sets the saved set-group-ID whenever the new
++ * effective ID differs from the real one; setegid must leave it alone.
++ * -1 means "unchanged" to the kernel, but here it is just an invalid ID.
++ */
+ int
+ setegid(gid_t gid)
+ {
+-#ifdef LINUX_SYS_setregid32
+-    return (int)_syscall_setxid(LINUX_SYS_setregid32, -1, (long)gid, 0);
++    if (gid == (gid_t)-1) {
++        errno = EINVAL;
++        return -1;
++    }
++#ifdef LINUX_SYS_setresgid32
++    return (int)_syscall_setxid(LINUX_SYS_setresgid32, -1, (long)gid, -1);
+ #else
+-    return (int)_syscall_setxid(LINUX_SYS_setregid, -1, (long)gid, 0);
++    return (int)_syscall_setxid(LINUX_SYS_setresgid, -1, (long)gid, -1);
+ #endif
+ }
+diff --git a/libos/linux/seteuid.c b/libos/linux/seteuid.c
+index aa414a4954..4129802f34 100644
+--- a/libos/linux/seteuid.c
++++ b/libos/linux/seteuid.c
+@@ -36,12 +36,21 @@
+ #include "local-linux.h"
+ #include <unistd.h>
+ 
++/*
++ * Linux's setreuid sets the saved set-user-ID whenever the new
++ * effective ID differs from the real one; seteuid must leave it alone.
++ * -1 means "unchanged" to the kernel, but here it is just an invalid ID.
++ */
+ int
+ seteuid(uid_t uid)
+ {
+-#ifdef LINUX_SYS_setreuid32
+-    return (int)_syscall_setxid(LINUX_SYS_setreuid32, -1, (long)uid, 0);
++    if (uid == (uid_t)-1) {
++        errno = EINVAL;
++        return -1;
++    }
++#ifdef LINUX_SYS_setresuid32
++    return (int)_syscall_setxid(LINUX_SYS_setresuid32, -1, (long)uid, -1);
+ #else
+-    return (int)_syscall_setxid(LINUX_SYS_setreuid, -1, (long)uid, 0);
++    return (int)_syscall_setxid(LINUX_SYS_setresuid, -1, (long)uid, -1);
+ #endif
+ }
+-- 
+2.47.3
+
