@@ -49,6 +49,7 @@ set(tests
   test-getdelim
   test-getline
   test-pclose
+  test-perror
   test-popen
   test-renameat
   test-stdio_h

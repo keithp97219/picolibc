@@ -48,6 +48,7 @@ dir_tests = [
   'test-getdelim',
   'test-getline',
   'test-pclose',
+  'test-perror',
   'test-popen',
   'test-rename',
   'test-renameat',
