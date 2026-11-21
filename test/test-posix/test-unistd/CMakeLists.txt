@@ -77,6 +77,7 @@ set(tests
   test-nice-thread
   test-pathconf
   test-pause
+  test-pipe
   test-pipe2
   test-posix-options
   test-posix-profiles

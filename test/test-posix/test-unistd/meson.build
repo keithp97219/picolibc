@@ -75,6 +75,7 @@ dir_tests = [
   'test-nice',
   'test-pathconf',
   'test-pause',
+  'test-pipe',
   'test-pipe2',
   'test-posix-options',
   'test-posix-profiles',
