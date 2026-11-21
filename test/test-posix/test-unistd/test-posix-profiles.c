@@ -90,12 +90,11 @@ main(void)
     check(_POSIX_REGEXP > 0, "regular expressions");
     check(_POSIX_SPAWN > 0, "spawn");
 
-    /* Without all of POSIX.1, the system is a subprofile */
-#ifdef _POSIX_VERSION
-    printf("_POSIX_VERSION %ld\n", (long)_POSIX_VERSION);
-#else
-    check(_POSIX_SUBPROFILE > 0, "subprofile");
+    /* Without all of POSIX.1, the system is a subprofile of POSIX.1-2024 */
+#ifdef _POSIX_SUBPROFILE
+    check(_POSIX_VERSION == 202405L, "a subprofile names the edition it profiles");
 #endif
+    printf("_POSIX_VERSION %ld\n", (long)_POSIX_VERSION);
     printf("success\n");
     return 0;
 }

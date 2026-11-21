@@ -364,9 +364,11 @@ the OS provides; anything left undefined is not provided.
  * **Option macros** (`_POSIX_TIMERS`, `_POSIX_THREADS`,
    `_POSIX_SEMAPHORES` and the other `_POSIX_` options) with the
    version of the standard the OS meets, such as `200809L` or
-   `202405L`. picolibc adds the options it implements itself
-   (`_POSIX_REGEXP`, `_POSIX2_C_BIND`) and, when picolibc was built
-   with threads, those it builds on them.
+   `202405L`. picolibc adds the options it implements itself:
+   `_POSIX_REGEXP` and `_POSIX2_C_BIND`; `_POSIX_ASYNCHRONOUS_IO` when
+   picolibc was built with its own POSIX threads;
+   `_POSIX_THREAD_SAFE_FUNCTIONS` when it was built with locking and
+   the OS has threads; and `_POSIX_SPAWN` when the OS has processes.
 
  * **Option group macros** `__PICOLIBC_POSIX_<GROUP>` for the OS-level
    parts of the POSIX.1-2024 option groups that no option macro covers,
@@ -379,18 +381,25 @@ the OS provides; anything left undefined is not provided.
    `USER_GROUPS`, and `CLOFORK` for the POSIX.1-2024 close-on-fork
    flags.
 
- * **Realtime profiles** (IEEE 1003.13): `_POSIX_AEP_REALTIME_MINIMAL`,
-   `_CONTROLLER`, `_DEDICATED` or `_MULTI`. A profile claim implies the
-   smaller profiles and supplies, with the profile's value, each option
-   and group the profile requires that the header left undefined.
+ * **Realtime profiles** (IEEE 1003.13-2003): `_POSIX_AEP_REALTIME_MINIMAL`
+   (PSE51), `_CONTROLLER` (PSE52), `_DEDICATED` (PSE53) or `_MULTI`
+   (PSE54). A profile claim implies the smaller profiles and supplies
+   what the profile's tables require of the OS and the header left
+   undefined: its options, with the profile's value (1 for the
+   constants), and its units of functionality, as the option groups
+   or option macros that stand for them. It claims nothing a profile
+   doesn't require, such as `_POSIX_MEMORY_PROTECTION` for PSE51.
 
  * **Constants** POSIX requires: `_POSIX_CHOWN_RESTRICTED`,
    `_POSIX_NO_TRUNC` and `_POSIX_VDISABLE`, and `_POSIX_JOB_CONTROL`,
    `_POSIX_SAVED_IDS` and `_POSIX_SHELL` where provided.
 
 `<unistd.h>` then sets `_POSIX_VERSION` to the newest edition whose
-required options and groups are all present, or, with a profile and no
-full edition, `_POSIX_SUBPROFILE`. A `_POSIX_VERSION` the header defines
+required options and groups are all present. A system claiming a
+profile without meeting a whole edition implements a subprofile
+(POSIX.1-2024 XBD 2.1.5.1): `<unistd.h>` defines `_POSIX_SUBPROFILE`,
+sets `_POSIX_VERSION` to `202405L`, the edition it profiles, and leaves
+`_POSIX2_VERSION` undefined. A `_POSIX_VERSION` the header defines
 itself is kept. The header may be included in any compilation unit, so
 it uses only macros visible there (Zephyr's, for instance, tests its
 Kconfig `CONFIG_` symbols).

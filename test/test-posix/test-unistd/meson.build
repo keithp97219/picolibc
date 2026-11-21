@@ -82,6 +82,7 @@ dir_tests = [
   'test-pipe2',
   'test-posix-options',
   'test-posix-profiles',
+  'test-posix-pse51',
   'test-posix_close',
   'test-pread',
   'test-pwrite',

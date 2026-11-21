@@ -697,12 +697,17 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #endif
 
 /*
- * Realtime profiles (IEEE 1003.13). The OS may claim one by defining
- * _POSIX_AEP_REALTIME_<PROFILE>, as shorthand for the profiles below
- * it and the OS options and option groups the profile requires; each
- * of those it leaves undefined takes the profile macro's value.
- * picolibc's own share is checked at the end of this file. The trace
- * options the profiles also name were removed by POSIX.1-2024.
+ * Realtime profiles (IEEE 1003.13-2003). The OS may claim one by
+ * defining _POSIX_AEP_REALTIME_<PROFILE>, as shorthand for the
+ * profiles below it and for what the profile requires of the OS: the
+ * options in its option table, and its units of functionality, as the
+ * option groups or option macros that stand for them. Each the OS
+ * leaves undefined takes the profile macro's value, or 1 for the
+ * constants. Units that are library code alone (the C language
+ * functions, file locking, regular expressions, ...) need nothing
+ * from the OS. POSIX.1-2024 removed the trace options PSE52 and up
+ * require; _POSIX_VDISABLE (PSE54) is the OS's terminal driver's, and
+ * _POSIX_REGEXP and _POSIX_THREAD_SAFE_FUNCTIONS are picolibc's own.
  */
 #if defined(_POSIX_AEP_REALTIME_MULTI) && !defined(_POSIX_AEP_REALTIME_DEDICATED)
 #define _POSIX_AEP_REALTIME_DEDICATED _POSIX_AEP_REALTIME_MULTI
@@ -716,17 +721,11 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 
 /* PSE51, the minimal realtime system profile */
 #ifdef _POSIX_AEP_REALTIME_MINIMAL
-#ifndef _POSIX_BARRIERS
-#define _POSIX_BARRIERS _POSIX_AEP_REALTIME_MINIMAL
-#endif
 #ifndef _POSIX_CLOCK_SELECTION
 #define _POSIX_CLOCK_SELECTION _POSIX_AEP_REALTIME_MINIMAL
 #endif
 #ifndef _POSIX_FSYNC
 #define _POSIX_FSYNC _POSIX_AEP_REALTIME_MINIMAL
-#endif
-#ifndef _POSIX_MAPPED_FILES
-#define _POSIX_MAPPED_FILES _POSIX_AEP_REALTIME_MINIMAL
 #endif
 #ifndef _POSIX_MEMLOCK
 #define _POSIX_MEMLOCK _POSIX_AEP_REALTIME_MINIMAL
@@ -734,14 +733,8 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #ifndef _POSIX_MEMLOCK_RANGE
 #define _POSIX_MEMLOCK_RANGE _POSIX_AEP_REALTIME_MINIMAL
 #endif
-#ifndef _POSIX_MEMORY_PROTECTION
-#define _POSIX_MEMORY_PROTECTION _POSIX_AEP_REALTIME_MINIMAL
-#endif
 #ifndef _POSIX_MONOTONIC_CLOCK
 #define _POSIX_MONOTONIC_CLOCK _POSIX_AEP_REALTIME_MINIMAL
-#endif
-#ifndef _POSIX_READER_WRITER_LOCKS
-#define _POSIX_READER_WRITER_LOCKS _POSIX_AEP_REALTIME_MINIMAL
 #endif
 #ifndef _POSIX_REALTIME_SIGNALS
 #define _POSIX_REALTIME_SIGNALS _POSIX_AEP_REALTIME_MINIMAL
@@ -751,9 +744,6 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #endif
 #ifndef _POSIX_SHARED_MEMORY_OBJECTS
 #define _POSIX_SHARED_MEMORY_OBJECTS _POSIX_AEP_REALTIME_MINIMAL
-#endif
-#ifndef _POSIX_SPIN_LOCKS
-#define _POSIX_SPIN_LOCKS _POSIX_AEP_REALTIME_MINIMAL
 #endif
 #ifndef _POSIX_SYNCHRONIZED_IO
 #define _POSIX_SYNCHRONIZED_IO _POSIX_AEP_REALTIME_MINIMAL
@@ -788,6 +778,9 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #ifndef _POSIX_TIMERS
 #define _POSIX_TIMERS _POSIX_AEP_REALTIME_MINIMAL
 #endif
+#ifndef __PICOLIBC_POSIX_C_LIB_EXT
+#define __PICOLIBC_POSIX_C_LIB_EXT _POSIX_AEP_REALTIME_MINIMAL
+#endif
 #ifndef __PICOLIBC_POSIX_DEVICE_IO
 #define __PICOLIBC_POSIX_DEVICE_IO _POSIX_AEP_REALTIME_MINIMAL
 #endif
@@ -797,10 +790,16 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #ifndef __PICOLIBC_POSIX_SINGLE_PROCESS
 #define __PICOLIBC_POSIX_SINGLE_PROCESS _POSIX_AEP_REALTIME_MINIMAL
 #endif
+#ifndef _POSIX_NO_TRUNC
+#define _POSIX_NO_TRUNC 1
+#endif
 #endif /* _POSIX_AEP_REALTIME_MINIMAL */
 
 /* PSE52, the realtime controller system profile */
 #ifdef _POSIX_AEP_REALTIME_CONTROLLER
+#ifndef _POSIX_MAPPED_FILES
+#define _POSIX_MAPPED_FILES _POSIX_AEP_REALTIME_CONTROLLER
+#endif
 #ifndef _POSIX_MESSAGE_PASSING
 #define _POSIX_MESSAGE_PASSING _POSIX_AEP_REALTIME_CONTROLLER
 #endif
@@ -814,8 +813,14 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 
 /* PSE53, the dedicated realtime system profile */
 #ifdef _POSIX_AEP_REALTIME_DEDICATED
+#ifndef _POSIX_ASYNCHRONOUS_IO
+#define _POSIX_ASYNCHRONOUS_IO _POSIX_AEP_REALTIME_DEDICATED
+#endif
 #ifndef _POSIX_CPUTIME
 #define _POSIX_CPUTIME _POSIX_AEP_REALTIME_DEDICATED
+#endif
+#ifndef _POSIX_MEMORY_PROTECTION
+#define _POSIX_MEMORY_PROTECTION _POSIX_AEP_REALTIME_DEDICATED
 #endif
 #ifndef _POSIX_PRIORITIZED_IO
 #define _POSIX_PRIORITIZED_IO _POSIX_AEP_REALTIME_DEDICATED
@@ -826,8 +831,14 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #ifndef _POSIX_RAW_SOCKETS
 #define _POSIX_RAW_SOCKETS _POSIX_AEP_REALTIME_DEDICATED
 #endif
+#ifndef _POSIX_SPAWN
+#define _POSIX_SPAWN _POSIX_AEP_REALTIME_DEDICATED
+#endif
 #ifndef _POSIX_SPORADIC_SERVER
 #define _POSIX_SPORADIC_SERVER _POSIX_AEP_REALTIME_DEDICATED
+#endif
+#ifndef _POSIX_THREAD_PROCESS_SHARED
+#define _POSIX_THREAD_PROCESS_SHARED _POSIX_AEP_REALTIME_DEDICATED
 #endif
 #ifndef __PICOLIBC_POSIX_MULTI_PROCESS
 #define __PICOLIBC_POSIX_MULTI_PROCESS _POSIX_AEP_REALTIME_DEDICATED
@@ -845,20 +856,11 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #ifndef _POSIX_ADVISORY_INFO
 #define _POSIX_ADVISORY_INFO _POSIX_AEP_REALTIME_MULTI
 #endif
-#ifndef _POSIX_JOB_CONTROL
-#define _POSIX_JOB_CONTROL _POSIX_AEP_REALTIME_MULTI
-#endif
-#ifndef _POSIX_SAVED_IDS
-#define _POSIX_SAVED_IDS _POSIX_AEP_REALTIME_MULTI
-#endif
-#ifndef _POSIX_SHELL
-#define _POSIX_SHELL _POSIX_AEP_REALTIME_MULTI
-#endif
 #ifndef __PICOLIBC_POSIX_DEVICE_SPECIFIC
 #define __PICOLIBC_POSIX_DEVICE_SPECIFIC _POSIX_AEP_REALTIME_MULTI
 #endif
-#ifndef __PICOLIBC_POSIX_DEVICE_SPECIFIC_R
-#define __PICOLIBC_POSIX_DEVICE_SPECIFIC_R _POSIX_AEP_REALTIME_MULTI
+#ifndef __PICOLIBC_POSIX_DYNAMIC_LINKING
+#define __PICOLIBC_POSIX_DYNAMIC_LINKING _POSIX_AEP_REALTIME_MULTI
 #endif
 #ifndef __PICOLIBC_POSIX_FIFO
 #define __PICOLIBC_POSIX_FIFO _POSIX_AEP_REALTIME_MULTI
@@ -866,8 +868,26 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #ifndef __PICOLIBC_POSIX_FILE_ATTRIBUTES
 #define __PICOLIBC_POSIX_FILE_ATTRIBUTES _POSIX_AEP_REALTIME_MULTI
 #endif
+#ifndef __PICOLIBC_POSIX_FILE_SYSTEM_EXT
+#define __PICOLIBC_POSIX_FILE_SYSTEM_EXT _POSIX_AEP_REALTIME_MULTI
+#endif
+#ifndef __PICOLIBC_POSIX_SYMBOLIC_LINKS
+#define __PICOLIBC_POSIX_SYMBOLIC_LINKS _POSIX_AEP_REALTIME_MULTI
+#endif
 #ifndef __PICOLIBC_POSIX_USER_GROUPS
 #define __PICOLIBC_POSIX_USER_GROUPS _POSIX_AEP_REALTIME_MULTI
+#endif
+#ifndef _POSIX_CHOWN_RESTRICTED
+#define _POSIX_CHOWN_RESTRICTED 1
+#endif
+#ifndef _POSIX_JOB_CONTROL
+#define _POSIX_JOB_CONTROL 1
+#endif
+#ifndef _POSIX_SAVED_IDS
+#define _POSIX_SAVED_IDS 1
+#endif
+#ifndef _POSIX_SHELL
+#define _POSIX_SHELL 1
 #endif
 #endif /* _POSIX_AEP_REALTIME_MULTI */
 
@@ -880,13 +900,13 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #endif
 
 /* Options picolibc builds on what the system provides */
-#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0 && !defined(__SINGLE_THREAD) \
-    && !defined(_POSIX_ASYNCHRONOUS_IO)
-/* Asynchronous I/O runs each request in a thread */
+#if defined(__PICOLIBC_PTHREADS) && !defined(_POSIX_ASYNCHRONOUS_IO)
+/* picolibc's asynchronous I/O runs each request in one of its threads */
 #define _POSIX_ASYNCHRONOUS_IO 202405L
 #endif
 #if defined(_POSIX_THREADS) && _POSIX_THREADS > 0 && !defined(__SINGLE_THREAD) \
     && !defined(_POSIX_THREAD_SAFE_FUNCTIONS)
+/* picolibc's functions are thread-safe when it was built with locking */
 #define _POSIX_THREAD_SAFE_FUNCTIONS 202405L
 #endif
 #if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && !defined(_POSIX_SPAWN)
@@ -1056,28 +1076,23 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 
 #endif /* !_POSIX_VERSION */
 
-#if defined(_POSIX_VERSION) && !defined(_POSIX2_VERSION)
-#define _POSIX2_VERSION _POSIX_VERSION
-#endif
-
 /*
- * picolibc's share of a claimed realtime profile. Its code is
- * complete for all of them; what remains is the build configuration
- * picolibc was built with.
+ * A system claiming a realtime profile without meeting a whole edition
+ * implements a subprofile (POSIX.1-2024 XBD 2.1.5.1): it defines
+ * _POSIX_SUBPROFILE, and _POSIX_VERSION still names the edition being
+ * profiled. It need not have the shell and utilities, so
+ * _POSIX2_VERSION is left undefined.
  */
-#ifdef _POSIX_AEP_REALTIME_MINIMAL
-#ifndef _POSIX_THREAD_SAFE_FUNCTIONS
-#error "Realtime profiles need thread-safe functions, absent with single-thread"
-#endif
-#ifndef _POSIX_ASYNCHRONOUS_IO
-#error "Realtime profiles need asynchronous I/O, present only with POSIX threads"
-#endif
-#ifndef _POSIX_VERSION
+#if defined(_POSIX_AEP_REALTIME_MINIMAL) && !defined(_POSIX_VERSION)
 #ifndef _POSIX_SUBPROFILE
 #define _POSIX_SUBPROFILE 1
 #endif
+#define _POSIX_VERSION 202405L
 #endif
-#endif /* _POSIX_AEP_REALTIME_MINIMAL */
+
+#if defined(_POSIX_VERSION) && !defined(_POSIX2_VERSION) && !defined(_POSIX_SUBPROFILE)
+#define _POSIX2_VERSION _POSIX_VERSION
+#endif
 
 _END_STD_C
 
