@@ -51,6 +51,7 @@ if fs.is_dir(machine_dir)
 
   srcs_os_linux = [
     '_Fork.c',
+    'abort.c',
     'accept.c',
     'accept4.c',
     'access.c',
