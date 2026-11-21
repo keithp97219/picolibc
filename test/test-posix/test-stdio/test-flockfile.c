@@ -48,6 +48,11 @@
 #include <sys/wait.h>
 #include <time.h>
 
+/* The locking here is conditional or nested on purpose, which clang's analysis can't follow */
+#ifndef __no_thread_safety_analysis
+#define __no_thread_safety_analysis
+#endif
+
 /*
  * flockfile, ftrylockfile, funlockfile and the _unlocked functions: each
  * stream has its own counted lock, ftrylockfile doesn't block, and the
@@ -80,7 +85,7 @@ receive(int fd)
 }
 
 /* Answers each request with the result of ftrylockfile on the named stream */
-static void *
+static void *__no_thread_safety_analysis
 try_thread(void *arg)
 {
     char c;
@@ -140,7 +145,7 @@ now(void)
     return ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
-int
+int __no_thread_safety_analysis
 main(void)
 {
     pthread_t thread;
