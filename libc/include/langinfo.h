@@ -162,10 +162,13 @@ enum {
 #define YESEXPR YESEXPR
     NOEXPR, /* negative response expression */
 #define NOEXPR NOEXPR
-    YESSTR, /* affirmative response for yes/no queries */
-#define YESSTR YESSTR
-    NOSTR, /* negative response for yes/no queries */
-#define NOSTR NOSTR
+    /* Removed from POSIX; kept so later items keep their values */
+    _NL_YESSTR, /* affirmative response for yes/no queries */
+    _NL_NOSTR,  /* negative response for yes/no queries */
+#if __MISC_VISIBLE
+#define YESSTR _NL_YESSTR
+#define NOSTR  _NL_NOSTR
+#endif
 
     CRNCYSTR, /* currency symbol */
 #define CRNCYSTR CRNCYSTR
