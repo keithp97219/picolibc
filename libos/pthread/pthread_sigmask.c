@@ -39,5 +39,12 @@
 int
 pthread_sigmask(int how, const sigset_t * __restrict set, sigset_t * __restrict oset)
 {
+#ifdef _PTHREAD_HAVE_SIGNALS
     return _sigprocmask(how, set, oset);
+#else
+    (void)how;
+    (void)set;
+    (void)oset;
+    return ENOTSUP;
+#endif
 }

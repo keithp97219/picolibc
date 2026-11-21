@@ -35,6 +35,8 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+
+#ifdef _PTHREAD_HAVE_FORK
 #include <sys/lock.h>
 
 void
@@ -48,3 +50,5 @@ _pthread_fork_parent(void)
             _pthread_atfork[i].parent();
     pthread_mutex_unlock(&_pthread_atfork_lock);
 }
+
+#endif /* _PTHREAD_HAVE_FORK */

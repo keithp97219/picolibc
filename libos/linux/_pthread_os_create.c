@@ -49,13 +49,15 @@ pthread_start(void *arg)
 }
 
 int
-_pthread_os_create(struct __pthread *t, void *stack_top, void *tls_arg)
+_pthread_os_create(struct __pthread *t)
 {
+    char   tls_arg_space[__PTHREAD_TLS_ARG_SIZE] __aligned(sizeof(void *));
+    void  *tls_arg = _pthread_tls_setup(t->tls, tls_arg_space);
     void **sp;
     long   ret;
 
     /* _linux_clone pops the start function and its argument from the new stack */
-    sp = (void **)stack_top - 2;
+    sp = (void **)t->stack_top - 2;
     sp[0] = (void *)(uintptr_t)pthread_start;
     sp[1] = t;
 

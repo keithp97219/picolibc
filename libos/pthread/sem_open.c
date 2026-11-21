@@ -35,6 +35,8 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+
+#ifdef _PTHREAD_HAVE_SEM_NAMED
 #include "local-shm.h"
 #include "local-cancel.h"
 #include <fcntl.h>
@@ -190,3 +192,16 @@ sem_open(const char *name, int oflag, ...)
     _cancel_restore(cancel);
     return sem;
 }
+
+#else
+
+sem_t *
+sem_open(const char *name, int oflag, ...)
+{
+    (void)name;
+    (void)oflag;
+    errno = ENOSYS;
+    return SEM_FAILED;
+}
+
+#endif /* _PTHREAD_HAVE_SEM_NAMED */

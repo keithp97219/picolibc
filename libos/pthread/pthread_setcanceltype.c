@@ -43,6 +43,11 @@ pthread_setcanceltype(int type, int *oldtype)
 
     if (type != PTHREAD_CANCEL_DEFERRED && type != PTHREAD_CANCEL_ASYNCHRONOUS)
         return EINVAL;
+#ifndef _PTHREAD_HAVE_SIGNALS
+    /* Asynchronous cancellation needs a signal to interrupt the thread */
+    if (type == PTHREAD_CANCEL_ASYNCHRONOUS)
+        return ENOTSUP;
+#endif
     if (oldtype)
         *oldtype = self->cancel_type;
     self->cancel_type = type;

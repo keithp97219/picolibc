@@ -88,6 +88,16 @@
 #define LINUX_CLONE_PARENT_SETTID  0x00100000
 #define LINUX_CLONE_CHILD_CLEARTID 0x00200000
 
+/* What Linux provides of local-pthread.h's optional capabilities: all of them */
+#define _PTHREAD_HAVE_MAP       1
+#define _PTHREAD_HAVE_SIGNALS   1
+#define _PTHREAD_HAVE_SCHED     1
+#define _PTHREAD_HAVE_PI        1
+#define _PTHREAD_HAVE_ROBUST    1
+#define _PTHREAD_HAVE_PSHARED   1
+#define _PTHREAD_HAVE_FORK      1
+#define _PTHREAD_HAVE_SEM_NAMED 1
+
 /* The range of real-time priorities, and of mutex priority ceilings */
 #define _PTHREAD_PRIO_MIN LINUX_PRIO_RT_MIN
 #define _PTHREAD_PRIO_MAX LINUX_PRIO_RT_MAX
@@ -205,17 +215,6 @@ static inline int
 _pthread_signal_to_kernel(int sig)
 {
     return _signal_to_linux(sig);
-}
-
-/* Send a kernel signal to a thread of this process: 0 or an errno value */
-static inline int
-_pthread_tkill(int tid, int ksig)
-{
-    int ret = (int)_syscall_raw(LINUX_SYS_tgkill, getpid(), tid, ksig);
-
-    if (ret < 0)
-        ret = _syscall_errno(ret);
-    return ret;
 }
 
 /* Whether the kernel supports a scheduling policy */

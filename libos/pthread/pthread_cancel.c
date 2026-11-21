@@ -36,6 +36,8 @@
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
 
+#ifdef _PTHREAD_HAVE_SIGNALS
+
 /* Act on a cancellation request when it arrives at the right time */
 static void
 cancel_handler(int sig)
@@ -71,13 +73,16 @@ _pthread_sigcancel_init(void)
     pthread_once(&cancel_once, cancel_init);
 }
 
+#endif
+
 int
 pthread_cancel(pthread_t thread)
 {
     struct __pthread *self = _pthread_self();
-    int               tid;
 
+#ifdef _PTHREAD_HAVE_SIGNALS
     _pthread_sigcancel_init();
+#endif
     __atomic_store_n(&thread->cancel_pending, 1, __ATOMIC_SEQ_CST);
     if (thread == self) {
         if (self->cancel_state == PTHREAD_CANCEL_ENABLE
@@ -85,6 +90,7 @@ pthread_cancel(pthread_t thread)
             _pthread_cancel_act(self);
         return 0;
     }
+#ifdef _PTHREAD_HAVE_SIGNALS
     /*
      * A thread with cancellation disabled acts on the request at its
      * first cancellation point after enabling it. Signalling it now
@@ -93,8 +99,8 @@ pthread_cancel(pthread_t thread)
     if (__atomic_load_n(&thread->cancel_state, __ATOMIC_SEQ_CST) != PTHREAD_CANCEL_ENABLE)
         return 0;
     /* Interrupt the thread in case it is blocked; an exited thread needs nothing */
-    tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
-    if (tid)
-        (void)_pthread_tkill(tid, _PTHREAD_SIGCANCEL);
+    if (__atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE))
+        (void)_pthread_tkill(thread, _PTHREAD_SIGCANCEL);
+#endif
     return 0;
 }

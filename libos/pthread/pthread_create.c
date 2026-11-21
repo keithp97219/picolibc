@@ -35,16 +35,6 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
-#include <picotls.h>
-#include <stdalign.h>
-#include <stddef.h>
-#include <string.h>
-
-/* All pages sizes used by the supported machines are multiples of this */
-#define PTHREAD_PAGE_SIZE 4096
-
-#define round_up(v, a)    (((v) + (a) - 1) & ~((uintptr_t)(a) - 1))
-#define round_down(v, a)  ((v) & ~((uintptr_t)(a) - 1))
 
 /* First code run by a new thread, called by the OS layer */
 void
@@ -67,11 +57,6 @@ _pthread_start(struct __pthread *self)
 }
 
 /*
- * Each thread gets one anonymous mapping holding, from low to high
- * addresses, a guard region, the stack (unless the application
- * provided one), the TLS block and the thread descriptor followed by
- * its thread-specific data values.
- *
  * Returns ENOMEM when the memory can't be had and EAGAIN when another
  * limit, such as the number of threads, is reached; thrd_create tells
  * them apart.
@@ -81,13 +66,7 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
                 void *(*start_routine)(void *), void * __restrict arg)
 {
     pthread_attr_t    default_attr;
-    size_t            align, tls_size, desc_size, stack_size, guard_size, map_size;
-    char             *map;
-    uintptr_t         top, stack_top;
     struct __pthread *t;
-    char             *tls;
-    void             *tls_arg;
-    char              tls_arg_space[__PTHREAD_TLS_ARG_SIZE] __aligned(sizeof(void *));
     _pthread_sigset_t old;
     int               ret;
 
@@ -100,57 +79,12 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
     (void)_pthread_self();
     _pthread_reap();
 
-    align = _tls_align();
-    if (align < alignof(max_align_t))
-        align = alignof(max_align_t);
-    tls_size = round_up(_tls_size(), align);
-    desc_size = round_up(
-        sizeof(struct __pthread) + __PTHREAD_KEYS_MAX * sizeof(struct __pthread_specific), align);
-    stack_size = 0;
-    guard_size = 0;
-    if (!attr->__stackaddr) {
-        stack_size = attr->__stacksize;
-        guard_size = attr->__guardsize;
-    }
-
-    /*
-     * Sizes too large to add up, with room for rounding each to pages,
-     * can't be mapped; don't let them wrap around to small ones
-     */
-    if (__picolibc_add_overflow(guard_size, stack_size, &map_size)
-        || __picolibc_add_overflow(map_size, tls_size + desc_size + align + 3 * PTHREAD_PAGE_SIZE,
-                                   &map_size))
-        return ENOMEM;
-
-    stack_size = round_up(stack_size, PTHREAD_PAGE_SIZE);
-    guard_size = round_up(guard_size, PTHREAD_PAGE_SIZE);
-    map_size = round_up(guard_size + stack_size + tls_size + desc_size + align, PTHREAD_PAGE_SIZE);
-
-    map = _pthread_map(map_size);
-    if (!map)
-        return ENOMEM;
-    /* The guard region is best effort */
-    if (guard_size)
-        _pthread_guard(map, guard_size);
-
-    top = (uintptr_t)map + map_size;
-    t = (struct __pthread *)round_down(top - desc_size, align);
-    t->specific = (struct __pthread_specific *)(t + 1);
-    tls = (char *)round_down((uintptr_t)t - tls_size, align);
-
-    _init_tls(tls);
-    tls_arg = _pthread_tls_setup(tls, tls_arg_space);
-
-    if (attr->__stackaddr)
-        stack_top = (uintptr_t)attr->__stackaddr;
-    else
-        stack_top = (uintptr_t)tls;
-    stack_top = round_down(stack_top, 16);
+    ret = _pthread_os_alloc(attr, &t);
+    if (ret)
+        return ret;
 
     t->start = start_routine;
     t->arg = arg;
-    t->map = map;
-    t->map_size = map_size;
     t->detach_state = attr->__detachstate;
     t->start_wait = attr->__inheritsched == PTHREAD_EXPLICIT_SCHED;
 
@@ -165,7 +99,7 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
 
     *thread = t;
     __atomic_fetch_add(&_pthread_count, 1, __ATOMIC_RELAXED);
-    ret = _pthread_os_create(t, (void *)stack_top, tls_arg);
+    ret = _pthread_os_create(t);
 
     _pthread_sigsetmask(&old);
 
@@ -180,12 +114,12 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
 
     if (ret != 0) {
         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
-        _pthread_unmap(map, map_size);
+        _pthread_os_free(t);
         return ret;
     }
 
     if (t->start_wait) {
-        int sched_ret = _pthread_setsched(t->tid, attr->__schedpolicy, attr->__schedpriority);
+        int sched_ret = _pthread_setsched(t, attr->__schedpolicy, attr->__schedpriority);
 
         t->start_error = sched_ret;
         __atomic_store_n(&t->start_wait, 0, __ATOMIC_RELEASE);
@@ -196,7 +130,7 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
             pthread_mutex_lock(&_pthread_all_lock);
             _pthread_all_remove(t);
             pthread_mutex_unlock(&_pthread_all_lock);
-            _pthread_unmap(map, map_size);
+            _pthread_os_free(t);
             return sched_ret;
         }
     }

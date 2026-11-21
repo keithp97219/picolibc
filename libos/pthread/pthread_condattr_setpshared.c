@@ -41,6 +41,10 @@ pthread_condattr_setpshared(pthread_condattr_t *attr, int pshared)
 {
     if (pshared != PTHREAD_PROCESS_PRIVATE && pshared != PTHREAD_PROCESS_SHARED)
         return EINVAL;
+#ifndef _PTHREAD_HAVE_PSHARED
+    if (pshared == PTHREAD_PROCESS_SHARED)
+        return ENOTSUP;
+#endif
     attr->__pshared = pshared;
     return 0;
 }

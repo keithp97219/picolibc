@@ -44,6 +44,7 @@ if posix_threads
     'call_once.c',
     'lock.c',
     '_pthread_all.c',
+    '_pthread_alloc.c',
     'pthread_atfork.c',
     '_pthread_atfork.c',
     'pthread_attr_destroy.c',

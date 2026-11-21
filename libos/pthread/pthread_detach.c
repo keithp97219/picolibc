@@ -50,6 +50,6 @@ pthread_detach(pthread_t thread)
     /* The thread is already exiting as a joinable thread; clean it up now */
     _pthread_wait_exit(thread);
     if (thread->map)
-        _pthread_unmap(thread->map, thread->map_size);
+        _pthread_os_free(thread);
     return 0;
 }

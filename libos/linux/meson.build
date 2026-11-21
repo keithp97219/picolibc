@@ -332,6 +332,7 @@ if fs.is_dir(machine_dir)
       '_pthread_robust.c',
       '_pthread_setsched.c',
       '_pthread_setxid.c',
+      '_pthread_tkill.c',
       '_timer_thread.c',
     ]
   endif

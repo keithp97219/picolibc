@@ -43,7 +43,7 @@ _pthread_tpp_lower(struct __pthread *self, int ceiling)
 
     self->tpp_count[ceiling]--;
     self->tpp_held--;
-    if (_pthread_getsched(self->tid, &policy, &priority) != 0)
+    if (_pthread_getsched(self, &policy, &priority) != 0)
         return;
     if (policy != SCHED_FIFO && policy != SCHED_RR)
         return;
@@ -57,5 +57,5 @@ _pthread_tpp_lower(struct __pthread *self, int ceiling)
         }
     }
     if (target != priority)
-        (void)_pthread_setsched(self->tid, policy, target);
+        (void)_pthread_setsched(self, policy, target);
 }

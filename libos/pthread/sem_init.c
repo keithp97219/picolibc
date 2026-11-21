@@ -43,6 +43,12 @@ sem_init(sem_t *sem, int pshared, unsigned value)
         errno = EINVAL;
         return -1;
     }
+#ifndef _PTHREAD_HAVE_PSHARED
+    if (pshared) {
+        errno = ENOTSUP;
+        return -1;
+    }
+#endif
     sem->__value = value;
     sem->__waiters = 0;
     sem->__pshared = pshared != 0;

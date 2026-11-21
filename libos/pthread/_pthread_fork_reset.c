@@ -35,6 +35,8 @@
 
 #include "local-pthread.h"
 
+#ifdef _PTHREAD_HAVE_FORK
+
 /*
  * The child of a fork has only the calling thread, with a new thread
  * id. Reset the thread bookkeeping to match.
@@ -58,3 +60,5 @@ _pthread_fork_reset(void)
     if (self)
         _pthread_all_add(self);
 }
+
+#endif /* _PTHREAD_HAVE_FORK */

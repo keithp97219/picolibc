@@ -35,6 +35,8 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+
+#ifdef _PTHREAD_HAVE_SEM_NAMED
 #include "local-shm.h"
 #include <unistd.h>
 
@@ -50,3 +52,15 @@ sem_unlink(const char *name)
     }
     return unlink(path);
 }
+
+#else
+
+int
+sem_unlink(const char *name)
+{
+    (void)name;
+    errno = ENOSYS;
+    return -1;
+}
+
+#endif /* _PTHREAD_HAVE_SEM_NAMED */

@@ -40,7 +40,7 @@ int
 _pthread_tpp_raise(struct __pthread *self, int ceiling)
 {
     int  policy, priority;
-    int  ret = _pthread_getsched(self->tid, &policy, &priority);
+    int  ret = _pthread_getsched(self, &policy, &priority);
     bool realtime;
 
     if (ret)
@@ -51,7 +51,7 @@ _pthread_tpp_raise(struct __pthread *self, int ceiling)
     if (realtime && self->tpp_base > ceiling)
         return EINVAL;
     if (realtime && ceiling > priority) {
-        ret = _pthread_setsched(self->tid, policy, ceiling);
+        ret = _pthread_setsched(self, policy, ceiling);
         if (ret)
             return ret;
     }

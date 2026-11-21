@@ -426,6 +426,9 @@ define_property(GLOBAL PROPERTY PICOLIBC_HEADERS
 add_subdirectory(libc)
 add_subdirectory(libm)
 
+# The shared POSIX threads sources, for an OS layer to build
+add_subdirectory(libos/pthread)
+
 install(TARGETS c
   LIBRARY DESTINATION lib
   PUBLIC_HEADER DESTINATION include)

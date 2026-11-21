@@ -39,11 +39,10 @@
 int
 pthread_setschedprio(pthread_t thread, int prio)
 {
-    int tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
     int policy, priority;
-    int ret = _pthread_getsched(tid, &policy, &priority);
+    int ret = _pthread_getsched(thread, &policy, &priority);
 
     if (ret)
         return ret;
-    return _pthread_setsched(tid, policy, prio);
+    return _pthread_setsched(thread, policy, prio);
 }

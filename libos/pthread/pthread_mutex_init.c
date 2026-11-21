@@ -43,6 +43,11 @@ pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t
 {
     if (attr && attr->__protocol == PTHREAD_PRIO_INHERIT && !_pthread_pi_available())
         return ENOTSUP;
+#ifndef _PTHREAD_HAVE_SCHED
+    /* Priority protection changes the owner's scheduling priority */
+    if (attr && attr->__protocol == PTHREAD_PRIO_PROTECT)
+        return ENOTSUP;
+#endif
     /* A robust mutex the system can't support would only hang */
     if (attr && attr->__robust == PTHREAD_MUTEX_ROBUST && !_pthread_robust_available())
         return ENOTSUP;

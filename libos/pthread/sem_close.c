@@ -35,6 +35,8 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+
+#ifdef _PTHREAD_HAVE_SEM_NAMED
 #include <stdlib.h>
 #include <sys/mman.h>
 
@@ -61,3 +63,16 @@ sem_close(sem_t *sem)
         errno = EINVAL;
     return ret;
 }
+
+#else
+
+/* No semaphore came from sem_open */
+int
+sem_close(sem_t *sem)
+{
+    (void)sem;
+    errno = EINVAL;
+    return -1;
+}
+
+#endif /* _PTHREAD_HAVE_SEM_NAMED */

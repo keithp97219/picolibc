@@ -36,6 +36,8 @@
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
 
+#ifdef _PTHREAD_HAVE_SIGNALS
+
 int
 pthread_kill(pthread_t thread, int sig)
 {
@@ -49,5 +51,17 @@ pthread_kill(pthread_t thread, int sig)
     /* A thread which has exited but not been joined is not an error */
     if (tid == 0)
         return 0;
-    return _pthread_tkill(tid, ksig);
+    return _pthread_tkill(thread, ksig);
 }
+
+#else
+
+int
+pthread_kill(pthread_t thread, int sig)
+{
+    (void)thread;
+    (void)sig;
+    return ENOTSUP;
+}
+
+#endif

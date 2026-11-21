@@ -39,6 +39,5 @@
 int
 pthread_setschedparam(pthread_t thread, int policy, const struct sched_param *param)
 {
-    return _pthread_setsched(__atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE), policy,
-                             param->sched_priority);
+    return _pthread_setsched(thread, policy, param->sched_priority);
 }

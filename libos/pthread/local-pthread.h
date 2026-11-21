@@ -37,17 +37,130 @@
 #define _LOCAL_PTHREAD_H_
 
 /*
- * The OS layer's part: the kernel interfaces this code is built on,
- * described where each is used below and in local-pthread-os.h. It
- * comes first, as it sets the feature macros the OS layer builds with.
+ * POSIX threads for picolibc, shared by the OS layers which provide
+ * them (libos/linux, libos/freebsd, and OS layers built elsewhere,
+ * such as Zephyr's). This is an internal interface: it may change
+ * with picolibc, and the OS layer is built with the picolibc it
+ * belongs to.
+ *
+ * The types come from <sys/_pthread.h> in libos/pthread/include,
+ * which every such OS layer uses. Each OS layer provides
+ * local-pthread-os.h, included first below (it may set feature
+ * macros), defining:
+ *
+ * Required, always:
+ *
+ *   struct __pthread_os      Per-thread OS data, embedded in each
+ *                            descriptor as 'os' (at least one member).
+ *
+ *   _pthread_exit_word(t)    The futex word (unsigned int *) which the
+ *   _PTHREAD_EXIT_DONE       OS sets to _PTHREAD_EXIT_DONE, and wakes
+ *                            with _futex_wake semantics (pshared), once
+ *                            thread t has exited and no longer uses
+ *                            its stack, TLS or descriptor. Joining
+ *                            and reclaiming detached threads wait on
+ *                            it. Before then it must read differently.
+ *
+ *   and these functions, declared below:
+ *
+ *   _futex_wait, _futex_wake  Wait on and wake a 32-bit word, as
+ *                            described below.
+ *   _pthread_os_alloc,       Allocate and free a thread's descriptor,
+ *   _pthread_os_free         TLS and stack, unless _PTHREAD_HAVE_MAP
+ *                            selects the default (_pthread_alloc.c).
+ *   _pthread_os_create       Start a thread running _pthread_start.
+ *   _pthread_os_exit         End the calling thread.
+ *   _pthread_os_set_tid      Give the initial thread its id.
+ *
+ * Thread ids: t->tid is a non-zero 32-bit value the OS layer assigns
+ * (in _pthread_os_create and _pthread_os_set_tid), unique among live
+ * threads. Mutex, rwlock and call_once words hold it to name owners.
+ * It need not be a kernel thread id unless the OS has PI or robust
+ * futexes, whose kernel reads it. After the thread exits it must read
+ * zero (the kernel or _pthread_os_exit clears it): pthread_kill and
+ * the scheduling functions treat zero as an exited thread.
+ *
+ * Optional capabilities, each enabled by defining the macro in
+ * local-pthread-os.h. Without one, its code compiles out and the
+ * functions depending on it fail as POSIX allows:
+ *
+ *   _PTHREAD_HAVE_MAP        _pthread_map, _pthread_unmap and
+ *                            _pthread_guard (anonymous memory, an
+ *                            inaccessible guard) give the default
+ *                            thread allocator.
+ *   _PTHREAD_HAVE_SIGNALS    Per-thread signal masks and directed
+ *                            signals: _pthread_sigset_t,
+ *                            _pthread_sigblock_all, _pthread_sigsetmask,
+ *                            _pthread_sigcancel_unblock,
+ *                            _pthread_signal_to_kernel, _pthread_tkill,
+ *                            _pthread_os_sigcancel, _sigprocmask and
+ *                            _PTHREAD_SIGCANCEL, a kernel signal
+ *                            applications can't name. This gives
+ *                            pthread_kill, pthread_sigmask, the
+ *                            asynchronous cancellation type and the
+ *                            interruption of blocked threads by
+ *                            pthread_cancel. Without it, those report
+ *                            ENOTSUP, and cancellation is deferred and
+ *                            acted on at the next cancellation point.
+ *   _PTHREAD_HAVE_SCHED      _pthread_setsched, _pthread_getsched,
+ *                            _pthread_policy_valid, and
+ *                            _PTHREAD_PRIO_MIN/_PTHREAD_PRIO_MAX, the
+ *                            real-time priority range. This gives
+ *                            thread scheduling and PTHREAD_PRIO_PROTECT
+ *                            mutexes; without it they report ENOTSUP
+ *                            and only SCHED_OTHER is accepted.
+ *   _PTHREAD_HAVE_PI         _futex_lock_pi, _futex_unlock_pi and
+ *                            _pthread_pi_available: PTHREAD_PRIO_INHERIT.
+ *   _PTHREAD_HAVE_ROBUST     The _pthread_robust_ functions: robust
+ *                            mutexes. PI and robust mutexes keep the
+ *                            owner's tid in the futex word, under
+ *                            _PTHREAD_FUTEX_TID_MASK, with
+ *                            _PTHREAD_FUTEX_OWNER_DIED set by the
+ *                            kernel when the owner died.
+ *   _PTHREAD_HAVE_PSHARED    Futex words in shared memory work across
+ *                            processes: PTHREAD_PROCESS_SHARED objects
+ *                            and process-shared semaphores. Without it
+ *                            those report ENOTSUP.
+ *   _PTHREAD_HAVE_FORK       The OS has fork, which calls
+ *                            _pthread_fork_prepare, _pthread_fork_parent
+ *                            and _pthread_fork_child (or, for _Fork,
+ *                            _pthread_fork_reset in the child).
+ *   _PTHREAD_HAVE_SEM_NAMED  sem_open and sem_unlink, using open, link,
+ *                            unlink, fstat and mmap on files that
+ *                            local-shm.h names. Without it they report
+ *                            ENOSYS.
+ *
+ * Waits take a clock and an absolute timeout. An OS layer converting
+ * them to relative timeouts may do so: callers loop, recheck their
+ * condition after every return, and pass the same absolute time
+ * again, so a wait may return early (0 or EINTR) but must return
+ * ETIMEDOUT only once the time has passed on that clock.
  */
 #include "local-pthread-os.h"
+#include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <limits.h>
 #include <stdint.h>
+
+#ifndef _PTHREAD_HAVE_SIGNALS
+typedef char _pthread_sigset_t;
+#define _pthread_sigblock_all(old)   ((void)(old))
+#define _pthread_sigsetmask(set)     ((void)(set))
+#define _pthread_sigcancel_unblock() ((void)0)
+#endif
+
+#ifndef _PTHREAD_HAVE_SCHED
+#define _PTHREAD_PRIO_MIN 0
+#define _PTHREAD_PRIO_MAX 0
+#endif
+
+#if !defined(_PTHREAD_HAVE_PI) && !defined(_PTHREAD_HAVE_ROBUST)
+#define _PTHREAD_FUTEX_TID_MASK   UINT_MAX
+#define _PTHREAD_FUTEX_OWNER_DIED 0U
+#endif
 
 #define __PTHREAD_STACK_DEFAULT (128 * 1024)
 #define __PTHREAD_GUARD_DEFAULT 4096
@@ -70,9 +183,15 @@ struct __pthread {
     void                      *arg;
     void                      *result;
 
-    /* Memory holding this descriptor, its TLS block and possibly its stack */
+    /*
+     * Memory holding this descriptor, its TLS block and possibly its
+     * stack, as _pthread_os_alloc sets it up; map is NULL only for the
+     * initial thread
+     */
     void                      *map;
     size_t                     map_size;
+    void                      *stack_top;
+    void                      *tls;
 
     /* Detached threads waiting to be unmapped once they have exited */
     struct __pthread          *zombie_next;
@@ -85,10 +204,7 @@ struct __pthread {
     /* Signal mask for the new thread */
     _pthread_sigset_t          sigmask;
 
-    /*
-     * Kernel thread id. On some systems the kernel also clears it and
-     * wakes the futex when the thread exits; see _pthread_exit_word.
-     */
+    /* Thread id, set by the OS layer and zero once the thread has exited */
     int                        tid;
     int                        detach_state;
 
@@ -130,19 +246,51 @@ _pthread_self(void)
 
 /*
  * Futex operations. These return 0 or a picolibc errno value and
- * leave errno untouched.
+ * leave errno untouched. _futex_wait sleeps while *addr holds val,
+ * until woken, the absolute time abstime on clock (CLOCK_REALTIME or
+ * CLOCK_MONOTONIC, else EINVAL) passes (ETIMEDOUT), or spuriously
+ * (0 or EINTR); it returns at once if *addr differs. A timespec with
+ * tv_nsec out of range gives EINVAL. _futex_wake wakes up to count
+ * waiters. pshared says whether the word may be shared with other
+ * processes, and is the same for every wait and wake on a word.
  */
 int  _futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t clock,
                  const struct timespec *abstime);
 void _futex_wake(unsigned int *addr, int count, bool pshared);
 
 /* Priority inheritance futexes; the word holds the owner's thread id */
+#ifdef _PTHREAD_HAVE_PI
 int  _futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock,
                     const struct timespec *abstime);
 void _futex_unlock_pi(unsigned int *addr, bool pshared);
 
 /* Whether the kernel has priority inheritance futexes */
 bool _pthread_pi_available(void);
+#else
+static inline int
+_futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock, const struct timespec *abstime)
+{
+    (void)addr;
+    (void)pshared;
+    (void)clock;
+    (void)abstime;
+    return ENOTSUP;
+}
+
+static inline void
+_futex_unlock_pi(unsigned int *addr, bool pshared)
+{
+    (void)addr;
+    (void)pshared;
+}
+
+static inline bool
+_pthread_pi_available(void)
+{
+    return false;
+}
+#endif
+
 /*
  * Futex mutex: __state is 0 when unlocked, 1 when locked and 2 when
  * locked with possible waiters. Recursive and error checking mutexes
@@ -166,11 +314,44 @@ _pthread_mutex_pshared(pthread_mutex_t *mutex)
  * owner dies. Locking returns 0, EOWNERDEAD, ENOTRECOVERABLE or an
  * error; unlocking assumes the caller owns the mutex.
  */
+#ifdef _PTHREAD_HAVE_ROBUST
 int  _pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t clock,
                           const struct timespec *abstime, bool trylock);
 void _pthread_robust_unlock(pthread_mutex_t *mutex, struct __pthread *self);
 void _pthread_robust_reset(struct __pthread *self);
 bool _pthread_robust_available(void);
+#else
+static inline int
+_pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t clock,
+                     const struct timespec *abstime, bool trylock)
+{
+    (void)mutex;
+    (void)self;
+    (void)clock;
+    (void)abstime;
+    (void)trylock;
+    return ENOTSUP;
+}
+
+static inline void
+_pthread_robust_unlock(pthread_mutex_t *mutex, struct __pthread *self)
+{
+    (void)mutex;
+    (void)self;
+}
+
+static inline void
+_pthread_robust_reset(struct __pthread *self)
+{
+    (void)self;
+}
+
+static inline bool
+_pthread_robust_available(void)
+{
+    return false;
+}
+#endif
 
 static inline int
 _pthread_mutex_owner(pthread_mutex_t *mutex)
@@ -293,14 +474,40 @@ extern pthread_mutex_t    _sem_named_lock;
 extern struct _sem_named *_sem_named;
 
 /* pthread_create, but reports a lack of memory as ENOMEM */
-int        _pthread_create(pthread_t        *__restrict thread, const pthread_attr_t        *__restrict attr,
-                           void *(*start_routine)(void *), void        *__restrict arg);
+int _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict attr,
+                    void *(*start_routine)(void *), void * __restrict arg);
 
 /* Scheduling for a thread id; these return 0 or an errno value */
-int        _pthread_setsched(int tid, int policy, int priority);
-int        _pthread_getsched(int tid, int *policy, int *priority);
+#ifdef _PTHREAD_HAVE_SCHED
+int _pthread_setsched(struct __pthread *thread, int policy, int priority);
+int _pthread_getsched(struct __pthread *thread, int *policy, int *priority);
+#else
+static inline int
+_pthread_setsched(struct __pthread *thread, int policy, int priority)
+{
+    (void)thread;
+    (void)policy;
+    (void)priority;
+    return ENOTSUP;
+}
 
-extern int _pthread_concurrency;
+static inline int
+_pthread_getsched(struct __pthread *thread, int *policy, int *priority)
+{
+    (void)thread;
+    (void)policy;
+    (void)priority;
+    return ENOTSUP;
+}
+
+static inline bool
+_pthread_policy_valid(int policy)
+{
+    return policy == SCHED_OTHER;
+}
+#endif
+
+extern int      _pthread_concurrency;
 
 __noreturn void _pthread_cancel_act(struct __pthread *self);
 
@@ -402,37 +609,59 @@ void                     _pthread_specific_exit(struct __pthread *self);
 __noreturn void          _pthread_start(struct __pthread *self);
 
 /*
+ * _pthread_os_alloc allocates a new thread's descriptor, followed by
+ * __PTHREAD_KEYS_MAX struct __pthread_specific values for t->specific,
+ * with every other member zero. It also provides the stack
+ * (attr->__stackaddr and __stacksize, or one of attr->__stacksize with
+ * attr->__guardsize of guard) and the TLS block, setting t->map
+ * non-NULL and recording what _pthread_os_create and _pthread_os_free
+ * need. Returns 0, ENOMEM, or EAGAIN for other limits.
+ */
+int                      _pthread_os_alloc(const pthread_attr_t *attr, struct __pthread **tp);
+
+/* Release what _pthread_os_alloc allocated, once the thread has exited or never ran */
+void                     _pthread_os_free(struct __pthread *t);
+
+/*
  * Initialize the thread control block for a new TLS block (already
  * filled by _init_tls) and return the thread pointer value the kernel
  * takes for the new thread. arg_space provides __PTHREAD_TLS_ARG_SIZE
  * bytes for any structure the kernel needs to read while creating it.
- * This depends only on the machine.
+ * This depends only on the machine; libos/pthread/machine has it for
+ * OS layers which set up TLS this way.
  */
 void                    *_pthread_tls_setup(void *tls, void *arg_space);
 
 /*
- * The OS layer's part of creating, running and ending threads, besides
- * the inline functions and macros in local-pthread-os.h:
- *
- * _pthread_os_create starts a kernel thread with its stack pointer
- * below stack_top and its thread pointer from _pthread_tls_setup,
- * sharing the creator's address space, descriptors and signal
- * handlers, with every signal blocked. The kernel stores the new
- * thread id in t->tid before either thread runs. The new thread calls
- * _pthread_start(t). Returns 0, ENOMEM or EAGAIN.
+ * Start a thread for t, sharing the creator's address space, files
+ * and signal handlers, with every signal blocked, which calls
+ * _pthread_start(t). Set t->tid before either thread can use it.
+ * Returns 0, ENOMEM or EAGAIN.
  */
-int                      _pthread_os_create(struct __pthread *t, void *stack_top, void *tls_arg);
+int                      _pthread_os_create(struct __pthread *t);
 
-/* Exit the calling thread alone; the kernel then changes and wakes _pthread_exit_word */
+/*
+ * End the calling thread alone, then clear self->tid (unless the
+ * kernel does) and set and wake _pthread_exit_word(self) once nothing
+ * of the thread's memory is in use.
+ */
 __noreturn void          _pthread_os_exit(struct __pthread *self);
 
-/* Set the thread id of the initial thread, or of the only thread in a fork child */
+/* Set the id of the initial thread, or of the only thread in a fork child */
 void                     _pthread_os_set_tid(struct __pthread *self);
 
-/* Install the handler for _PTHREAD_SIGCANCEL */
-void                     _pthread_os_sigcancel(void (*handler)(int));
+#ifdef _PTHREAD_HAVE_SIGNALS
+/*
+ * Send kernel signal ksig to a thread of this process: 0 or an errno
+ * value; 0 once the thread has exited
+ */
+int  _pthread_tkill(struct __pthread *thread, int ksig);
 
-/* sigprocmask, returning 0 or an errno value, leaving errno alone */
-int                      _sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+/* Install the handler for _PTHREAD_SIGCANCEL */
+void _pthread_os_sigcancel(void (*handler)(int));
+
+/* sigprocmask for the calling thread, returning 0 or an errno value, leaving errno alone */
+int  _sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+#endif
 
 #endif /* _LOCAL_PTHREAD_H_ */

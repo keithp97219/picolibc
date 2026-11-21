@@ -40,6 +40,5 @@ int
 pthread_getschedparam(pthread_t thread, int * __restrict policy,
                       struct sched_param * __restrict param)
 {
-    return _pthread_getsched(__atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE), policy,
-                             &param->sched_priority);
+    return _pthread_getsched(thread, policy, &param->sched_priority);
 }

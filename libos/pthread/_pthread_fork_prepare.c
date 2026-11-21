@@ -35,6 +35,8 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+
+#ifdef _PTHREAD_HAVE_FORK
 #include <sys/lock.h>
 
 void
@@ -50,3 +52,5 @@ _pthread_fork_prepare(void)
     /* Hold the C library lock so the child gets it in a consistent state */
     __LIBC_LOCK();
 }
+
+#endif /* _PTHREAD_HAVE_FORK */
