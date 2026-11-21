@@ -258,10 +258,13 @@ __declare_fenv_inline(int) feraiseexcept(int __excepts)
     return 0;
 }
 
+/* C23; libm/fenv/fenv.c defines it for every version */
+#if __ISO_C_VISIBLE >= 2023 || defined(__PICOLIBC_FENV_ALL)
 __declare_fenv_inline(int) fesetexcept(int __excepts)
 {
     return feraiseexcept(__excepts);
 }
+#endif
 
 /* This implementation is intended to comply with the following
  * specification:
@@ -461,6 +464,8 @@ __declare_fenv_inline(int) feupdateenv(const fenv_t *__envp)
     return 0;
 }
 
+/* GNU extensions; libm/fenv/fenv.c defines them for every version */
+#if __GNU_VISIBLE || defined(__PICOLIBC_FENV_ALL)
 __declare_fenv_inline(int) feenableexcept(int __excepts)
 {
     return __excepts == 0 ? 0 : -1;
@@ -476,3 +481,4 @@ __declare_fenv_inline(int) fegetexcept(void)
 {
     return 0;
 }
+#endif /* __GNU_VISIBLE */

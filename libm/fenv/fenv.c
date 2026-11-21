@@ -37,6 +37,8 @@
 
 #define _GNU_SOURCE
 #define __declare_fenv_inline(type) type
+/* Define the extensions and the C23 functions too */
+#define __PICOLIBC_FENV_ALL
 #ifdef __GNUCLIKE_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic ignored "-Wpragmas"
 #pragma GCC diagnostic ignored "-Wunknown-warning-option"
