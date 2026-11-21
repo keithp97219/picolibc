@@ -30,10 +30,43 @@ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
  */
-#include <sys/cdefs.h>
+
+/*
+ * The traditional user accounting interface, built on <utmpx.h>:
+ * struct utmp is struct utmpx, and each function uses its utmpx
+ * counterpart. picolibc keeps no database, so utmpname accepts any
+ * name and updwtmp records nothing.
+ */
+
+#ifndef _UTMP_H_
+#define _UTMP_H_
+
+#include <utmpx.h>
 
 _BEGIN_STD_C
 
-#include <sys/utmp.h>
+#define UT_LINESIZE 32
+#define UT_NAMESIZE 32
+#define UT_HOSTSIZE 256
+
+#define _PATH_UTMP  "/var/run/utmp"
+#define _PATH_WTMP  "/var/log/wtmp"
+#define UTMP_FILE   _PATH_UTMP
+#define WTMP_FILE   _PATH_WTMP
+
+#define utmp        utmpx
+#define ut_name     ut_user
+#define ut_time     ut_tv.tv_sec
+
+void         endutent(void);
+struct utmp *getutent(void);
+struct utmp *getutid(const struct utmp *);
+struct utmp *getutline(const struct utmp *);
+struct utmp *pututline(const struct utmp *);
+void         setutent(void);
+void         updwtmp(const char *, const struct utmp *);
+int          utmpname(const char *);
 
 _END_STD_C
+
+#endif /* _UTMP_H_ */

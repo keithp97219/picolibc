@@ -35,10 +35,18 @@
 # <utmpx.h>
 
 dir_srcs = [
+  'endutent.c',
   'endutxent.c',
+  'getutent.c',
+  'getutid.c',
+  'getutline.c',
   'getutxent.c',
   'getutxid.c',
   'getutxline.c',
+  'pututline.c',
   'pututxline.c',
+  'setutent.c',
   'setutxent.c',
+  'updwtmp.c',
+  'utmpname.c',
 ]
