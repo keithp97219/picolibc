@@ -50,7 +50,7 @@
 #define TEST_FILE_NAME "FDATASYN.TXT"
 #endif
 
-/* fdatasync succeeds on a written file */
+/* fdatasync succeeds on a written file and fails for bad descriptors */
 
 #define check(condition, message)                      \
     do {                                               \
@@ -72,6 +72,21 @@ main(void)
     check(write(fd, "0123456789", 10) == 10, "write");
 
     check(fdatasync(fd) == 0, "fdatasync");
+
+#ifdef __PICOLIBC_POSIX_PIPE
+    /* EBADF for a descriptor that isn't open */
+    errno = 0;
+    check(fdatasync(-1) == -1 && errno == EBADF, "fdatasync(-1)");
+    {
+        int p[2];
+
+        /* A pipe can't be synchronized on Linux; if not, it is EINVAL */
+        check(pipe(p) == 0, "pipe");
+        errno = 0;
+        check(fdatasync(p[1]) == 0 || errno == EINVAL, "fdatasync on a pipe");
+        check(close(p[0]) == 0 && close(p[1]) == 0, "close pipe");
+    }
+#endif
 
     check(close(fd) == 0, "close");
     check(unlink(TEST_FILE_NAME) == 0, "unlink");
