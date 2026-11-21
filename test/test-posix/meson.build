@@ -41,6 +41,7 @@ posix_test_dirs = [
   'test-aio',
   'test-arpa-inet',
   'test-assert',
+  'test-ctype',
   'test-dirent',
   'test-errno',
   'test-fcntl',
@@ -99,6 +100,7 @@ posix_test_dirs = [
   'test-unistd',
   'test-utmpx',
   'test-wchar',
+  'test-wctype',
   'test-wordexp',
 ]
 
