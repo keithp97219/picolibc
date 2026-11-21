@@ -57,6 +57,29 @@ __aio_unlink(struct __aio_req *req)
         }
 }
 
+/*
+ * Whether an earlier request on the same descriptor must finish first:
+ * appending writes go in the order they were queued, and a
+ * synchronization waits for every request queued before it. The lock
+ * is held.
+ */
+static bool
+__aio_must_wait(const struct __aio_req *req)
+{
+    const struct __aio_req *r;
+
+    /* Earlier requests follow this one in the list */
+    for (r = req->next; r; r = r->next) {
+        if (r->fildes != req->fildes)
+            continue;
+        if (req->op == __AIO_FSYNC || req->op == __AIO_FDATASYNC)
+            return true;
+        if (req->append && r->op == LIO_WRITE)
+            return true;
+    }
+    return false;
+}
+
 /* Run one request; each runs in its own thread */
 static void *
 __aio_run(void *arg)
@@ -67,6 +90,11 @@ __aio_run(void *arg)
     bool               notify_list = false;
     ssize_t            ret;
     int                error = 0;
+
+    pthread_mutex_lock(&__aio_lock);
+    while (__aio_must_wait(req))
+        pthread_cond_wait(&__aio_done, &__aio_lock);
+    pthread_mutex_unlock(&__aio_lock);
 
     /*
      * Pipes, sockets and terminals can't seek, so there the offset
@@ -189,6 +217,10 @@ __aio_submit(struct aiocb *cb, int op, struct __aio_list *list)
     req->sigevent = cb->aio_sigevent;
     req->op = op;
     req->fildes = cb->aio_fildes;
+    /* Writes with O_APPEND, or to files that can't seek, append */
+    if (op == LIO_WRITE)
+        req->append = (fcntl(req->fd, F_GETFL) & O_APPEND) != 0
+            || (lseek(req->fd, 0, SEEK_CUR) < 0 && errno == ESPIPE);
 
     /*
      * Signals stay blocked while the lock is held, and in the new

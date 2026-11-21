@@ -71,6 +71,8 @@ struct __aio_req {
     /* The application's descriptor, and a duplicate the request uses */
     int                fildes;
     int                fd;
+    /* A write that appends, so it must follow earlier writes */
+    bool               append;
 };
 
 /*
