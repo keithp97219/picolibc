@@ -684,17 +684,21 @@ vfprintf(FILE *stream, const CHAR *fmt, va_list ap_orig)
 #ifdef WIDE_CHARS
 #define my_putc(c, stream)                     \
     do {                                       \
+        if (stream_len == INT_MAX)             \
+            goto overflow;                     \
         ++stream_len;                          \
         if (putwc_unlocked(c, stream) == WEOF) \
             goto fail;                         \
     } while (0)
 #else
     int (*put)(char, FILE *) = stream->put;
-#define my_putc(c, stream)      \
-    do {                        \
-        ++stream_len;           \
-        if (put(c, stream) < 0) \
-            goto fail;          \
+#define my_putc(c, stream)         \
+    do {                           \
+        if (stream_len == INT_MAX) \
+            goto overflow;         \
+        ++stream_len;              \
+        if (put(c, stream) < 0)    \
+            goto fail;             \
     } while (0)
 #endif
 #endif
@@ -928,6 +932,9 @@ ret:
 #endif
     __funlock_return(stream, stream_len);
 #undef my_putc
+overflow:
+    /* The count would be more than INT_MAX */
+    errno = EOVERFLOW;
 fail:
     stream->flags |= __SERR;
     stream_len = -1;
