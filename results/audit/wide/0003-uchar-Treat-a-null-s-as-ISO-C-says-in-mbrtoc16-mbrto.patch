@@ -1,0 +1,89 @@
+From 5cbc7203e57376f7f9e11d6bc727c88601fe43be Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 07:52:56 +0000
+Subject: [PATCH 03/22] uchar: Treat a null s as ISO C says in mbrtoc16,
+ mbrtoc32, c16rtomb and c32rtomb
+
+mbrtoc16 and mbrtoc32 with a null s read a wide character mbrtowc
+never stored, so mbrtoc16 wrote it to *pc16 (and could start a
+surrogate pair), and mbrtoc32 could fail with EILSEQ. c16rtomb and
+c32rtomb used their character argument, so c32rtomb(NULL, 0xd800, ps)
+failed and c16rtomb(NULL, 0xd800, ps) left a pending surrogate.
+
+A null s now converts "" without storing a value, or a null character.
+---
+ libc/uchar/c16rtomb.c | 4 ++++
+ libc/uchar/c32rtomb.c | 4 ++++
+ libc/uchar/mbrtoc16.c | 7 +++++++
+ libc/uchar/mbrtoc32.c | 7 +++++++
+ 4 files changed, 22 insertions(+)
+
+diff --git a/libc/uchar/c16rtomb.c b/libc/uchar/c16rtomb.c
+index a085ade04c..461eb4abc5 100644
+--- a/libc/uchar/c16rtomb.c
++++ b/libc/uchar/c16rtomb.c
+@@ -43,6 +43,10 @@ c16rtomb(char *s, char16_t c16, mbstate_t *ps)
+     if (ps == NULL)
+         ps = &c16rtomb_state;
+ 
++    /* A null s is the same as converting a null character */
++    if (s == NULL)
++        c16 = 0;
++
+ #if __SIZEOF_WCHAR_T__ == 2
+     return wcrtomb(s, (wchar_t)c16, ps);
+ #elif __SIZEOF_WCHAR_T__ == 4
+diff --git a/libc/uchar/c32rtomb.c b/libc/uchar/c32rtomb.c
+index 6fe2d86a15..4ed96575f4 100644
+--- a/libc/uchar/c32rtomb.c
++++ b/libc/uchar/c32rtomb.c
+@@ -43,6 +43,10 @@ c32rtomb(char *s, char32_t c32, mbstate_t *ps)
+     if (ps == NULL)
+         ps = &c32rtomb_state;
+ 
++    /* A null s is the same as converting a null character */
++    if (s == NULL)
++        c32 = 0;
++
+     if (!char32_is_valid(c32)) {
+         errno = EILSEQ;
+         return (size_t)-1;
+diff --git a/libc/uchar/mbrtoc16.c b/libc/uchar/mbrtoc16.c
+index 38f3eb1b9b..81fa60ce0b 100644
+--- a/libc/uchar/mbrtoc16.c
++++ b/libc/uchar/mbrtoc16.c
+@@ -43,6 +43,13 @@ mbrtoc16(char16_t * __restrict pc16, const char * __restrict s, size_t n, mbstat
+     if (ps == NULL)
+         ps = &mbrtoc16_state;
+ 
++    /* A null s is the same as converting "" without storing a value */
++    if (s == NULL) {
++        pc16 = NULL;
++        s = "";
++        n = 1;
++    }
++
+ #if __SIZEOF_WCHAR_T__ == 2
+     return mbrtowc((wchar_t *)pc16, s, n, ps);
+ #elif __SIZEOF_WCHAR_T__ == 4
+diff --git a/libc/uchar/mbrtoc32.c b/libc/uchar/mbrtoc32.c
+index 026e047966..4fc1d10c12 100644
+--- a/libc/uchar/mbrtoc32.c
++++ b/libc/uchar/mbrtoc32.c
+@@ -43,6 +43,13 @@ mbrtoc32(char32_t * __restrict pc32, const char * __restrict s, size_t n, mbstat
+     if (ps == NULL)
+         ps = &mbrtoc32_state;
+ 
++    /* A null s is the same as converting "" without storing a value */
++    if (s == NULL) {
++        pc32 = NULL;
++        s = "";
++        n = 1;
++    }
++
+     char32_t c32;
+     wchar_t  wc;
+     size_t   ret;
+-- 
+2.47.3
+

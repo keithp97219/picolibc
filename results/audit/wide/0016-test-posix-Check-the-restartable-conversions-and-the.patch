@@ -1,0 +1,551 @@
+From 654a7427b9511b47ef036edbc2fe87438acba6ae Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:26:23 +0000
+Subject: [PATCH 16/22] test-posix: Check the restartable conversions and their
+ states
+
+mbrtowc, mbrlen, wcrtomb, mbsinit, btowc and wctob, and mbsrtowcs,
+mbsnrtowcs, wcsrtombs and wcsnrtombs: return values, null arguments,
+the source pointer and limits, EILSEQ, errno on success, and that each
+function has its own internal state. The UTF-8 checks run where
+C.UTF-8 exists.
+---
+ test/test-posix/test-wchar/CMakeLists.txt   |   2 +
+ test/test-posix/test-wchar/meson.build      |   2 +
+ test/test-posix/test-wchar/test-mbrtowc.c   | 247 ++++++++++++++++++++
+ test/test-posix/test-wchar/test-mbsrtowcs.c | 243 +++++++++++++++++++
+ 4 files changed, 494 insertions(+)
+ create mode 100644 test/test-posix/test-wchar/test-mbrtowc.c
+ create mode 100644 test/test-posix/test-wchar/test-mbsrtowcs.c
+
+diff --git a/test/test-posix/test-wchar/CMakeLists.txt b/test/test-posix/test-wchar/CMakeLists.txt
+index 97bf1cda21..572db87e2a 100644
+--- a/test/test-posix/test-wchar/CMakeLists.txt
++++ b/test/test-posix/test-wchar/CMakeLists.txt
+@@ -34,6 +34,8 @@
+ #
+ 
+ set(tests
++  test-mbrtowc
++  test-mbsrtowcs
+   test-open_wmemstream
+   test-wchar_h
+   )
+diff --git a/test/test-posix/test-wchar/meson.build b/test/test-posix/test-wchar/meson.build
+index a797fdc87c..ee0a0d0428 100644
+--- a/test/test-posix/test-wchar/meson.build
++++ b/test/test-posix/test-wchar/meson.build
+@@ -34,6 +34,8 @@
+ #
+ 
+ dir_tests = [
++  'test-mbrtowc',
++  'test-mbsrtowcs',
+   'test-open_wmemstream',
+   'test-wchar_h',
+ ]
+diff --git a/test/test-posix/test-wchar/test-mbrtowc.c b/test/test-posix/test-wchar/test-mbrtowc.c
+new file mode 100644
+index 0000000000..3820ffa2d5
+--- /dev/null
++++ b/test/test-posix/test-wchar/test-mbrtowc.c
+@@ -0,0 +1,247 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <errno.h>
++#include <limits.h>
++#include <locale.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <wchar.h>
++
++/*
++ * The restartable conversions mbrtowc, mbrlen, wcrtomb, mbsinit, btowc
++ * and wctob: return values, null arguments, the conversion state,
++ * EILSEQ, errno on success and the internal mbstate_t objects. The
++ * UTF-8 checks run where a C.UTF-8 locale exists.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* errno keeps an unrelated value across calls that succeed */
++#define SENTINEL EDOM
++
++static void
++reset(mbstate_t *ps)
++{
++    memset(ps, 0, sizeof(*ps));
++}
++
++static void
++c_locale(void)
++{
++    mbstate_t ps;
++    wchar_t   wc;
++    char      buf[MB_LEN_MAX > 8 ? MB_LEN_MAX : 8];
++    int       ch;
++
++    reset(&ps);
++    check(mbsinit(&ps) != 0, "a zeroed mbstate_t is the initial state");
++    check(mbsinit(NULL) != 0, "mbsinit of a null pointer");
++
++    /* Single characters, the null character and a null pwc */
++    errno = SENTINEL;
++    wc = 0;
++    check(mbrtowc(&wc, "A", 1, &ps) == 1 && wc == L'A', "mbrtowc of A");
++    wc = 1;
++    check(mbrtowc(&wc, "", 1, &ps) == 0 && wc == L'\0', "mbrtowc of the null byte");
++    check(mbsinit(&ps) != 0, "the initial state after the null character");
++    check(mbrtowc(NULL, "B", 1, &ps) == 1, "mbrtowc with a null pwc");
++    check(errno == SENTINEL, "mbrtowc leaves errno alone on success");
++
++    /* n of 0 inspects nothing: an incomplete character */
++    check(mbrtowc(&wc, "A", 0, &ps) == (size_t)-2, "mbrtowc with n 0");
++
++    /* A null s is mbrtowc(NULL, "", 1, ps); pwc and n are ignored */
++    wc = L'x';
++    check(mbrtowc(&wc, NULL, 0, &ps) == 0, "mbrtowc with a null s");
++    check(wc == L'x', "mbrtowc with a null s stores nothing");
++
++    /* mbrlen counts the bytes */
++    check(mbrlen("A", 1, &ps) == 1, "mbrlen of A");
++    check(mbrlen("", 1, &ps) == 0, "mbrlen of the null byte");
++    check(mbrlen("A", 0, &ps) == (size_t)-2, "mbrlen with n 0");
++    check(errno == SENTINEL, "mbrlen leaves errno alone on success");
++
++    /* wcrtomb stores the bytes, a null byte for L'\0' */
++    memset(buf, 'x', sizeof(buf));
++    check(wcrtomb(buf, L'A', &ps) == 1 && buf[0] == 'A', "wcrtomb of A");
++    check(wcrtomb(buf, L'\0', &ps) == 1 && buf[0] == '\0', "wcrtomb of L'\\0'");
++    check(mbsinit(&ps) != 0, "the initial state after L'\\0'");
++    /* A null s is wcrtomb(buf, L'\0', ps) */
++    check(wcrtomb(NULL, L'A', &ps) == 1, "wcrtomb with a null s");
++    check(errno == SENTINEL, "wcrtomb leaves errno alone on success");
++
++    /* Wide characters outside the 256 of the POSIX locale are encoding errors */
++#if WCHAR_MAX > 0x10000
++    errno = 0;
++    check(wcrtomb(buf, (wchar_t)0x10000, &ps) == (size_t)-1 && errno == EILSEQ,
++          "wcrtomb of a character the locale lacks");
++    reset(&ps);
++#endif
++
++    /* The internal states, with a null ps */
++    errno = SENTINEL;
++    check(mbrtowc(&wc, "A", 1, NULL) == 1 && wc == L'A', "mbrtowc with a null ps");
++    check(mbrlen("A", 1, NULL) == 1, "mbrlen with a null ps");
++    check(wcrtomb(buf, L'A', NULL) == 1 && buf[0] == 'A', "wcrtomb with a null ps");
++    check(errno == SENTINEL, "errno with a null ps");
++
++    /* btowc and wctob: the portable characters are single bytes */
++    check(btowc(EOF) == WEOF, "btowc(EOF)");
++    check(wctob(WEOF) == EOF, "wctob(WEOF)");
++    for (ch = 0; ch < 0x80; ch++) {
++        check(btowc(ch) == (wint_t)ch, "btowc of an ASCII byte");
++        check(wctob((wint_t)ch) == ch, "wctob of an ASCII character");
++    }
++#if WCHAR_MAX > 0x10000
++    check(wctob((wint_t)0x10000) == EOF, "wctob of a character the locale lacks");
++#endif
++    check(errno == SENTINEL, "btowc and wctob leave errno alone");
++
++    /*
++     * XBD 6.2 and the CX text of btowc and mbrtowc: the POSIX locale has
++     * 256 single-byte characters, so btowc(0x80) is not WEOF and no byte
++     * gives EILSEQ. picolibc and glibc both treat bytes 0x80-0xff as
++     * invalid in the C locale; that is not checked here.
++     */
++}
++
++static void
++utf8_locale(void)
++{
++    mbstate_t ps;
++    wchar_t   wc;
++    char      buf[MB_LEN_MAX > 8 ? MB_LEN_MAX : 8];
++
++    reset(&ps);
++    errno = SENTINEL;
++
++    /* A whole character */
++    check(mbrtowc(&wc, "\xc3\xa9", 2, &ps) == 2 && wc == 0xe9, "mbrtowc of U+00E9");
++    check(mbrtowc(&wc, "\xc3\xa9", MB_CUR_MAX, &ps) == 2, "mbrtowc with n MB_CUR_MAX");
++    check(mbrlen("\xc3\xa9", 2, &ps) == 2, "mbrlen of U+00E9");
++
++    /* Split: -2 keeps the state, the rest returns the bytes that complete it */
++    check(mbrtowc(&wc, "\xc3", 1, &ps) == (size_t)-2, "first byte");
++    check(mbsinit(&ps) == 0, "not the initial state mid-character");
++    check(mbrtowc(&wc, "\xa9", 1, &ps) == 1 && wc == 0xe9, "second byte");
++    check(mbsinit(&ps) != 0, "initial state after the character");
++    check(mbrtowc(&wc, "\xe2\x82", 2, &ps) == (size_t)-2, "two of three bytes");
++    check(mbrtowc(&wc, "\xac", 1, &ps) == 1 && wc == 0x20ac, "the third byte");
++#if WCHAR_MAX > 0x10000
++    check(mbrtowc(&wc, "\xf0", 1, &ps) == (size_t)-2, "one of four bytes");
++    check(mbrtowc(&wc, "\x9f", 1, &ps) == (size_t)-2, "two of four bytes");
++    check(mbrtowc(&wc, "\x98\x80", 2, &ps) == 2 && wc == 0x1f600, "the last two bytes");
++#endif
++    check(mbrlen("\xc3", 1, &ps) == (size_t)-2, "mbrlen of a first byte");
++    check(mbrlen("\xa9", 1, &ps) == 1, "mbrlen of the second byte");
++    check(errno == SENTINEL, "errno after the conversions");
++
++    /* Encoding errors */
++    errno = 0;
++    check(mbrtowc(&wc, "\xff", 1, &ps) == (size_t)-1 && errno == EILSEQ, "mbrtowc of 0xff");
++    reset(&ps);
++    errno = 0;
++    check(mbrtowc(&wc, "\xc3\x41", 2, &ps) == (size_t)-1 && errno == EILSEQ,
++          "a missing continuation byte");
++    reset(&ps);
++    errno = 0;
++    check(mbrtowc(&wc, "\xc0\x80", 2, &ps) == (size_t)-1 && errno == EILSEQ,
++          "an overlong encoding");
++    reset(&ps);
++    errno = 0;
++    check(mbrtowc(&wc, "\xed\xa0\x80", 3, &ps) == (size_t)-1 && errno == EILSEQ,
++          "an encoded surrogate");
++    reset(&ps);
++    errno = 0;
++    check(mbrlen("\x80", 1, &ps) == (size_t)-1 && errno == EILSEQ, "mbrlen of a lone 0x80");
++    reset(&ps);
++
++    /* wcrtomb */
++    errno = SENTINEL;
++    check(wcrtomb(buf, 0xe9, &ps) == 2 && memcmp(buf, "\xc3\xa9", 2) == 0, "wcrtomb of U+00E9");
++    check(wcrtomb(buf, 0x20ac, &ps) == 3 && memcmp(buf, "\xe2\x82\xac", 3) == 0,
++          "wcrtomb of U+20AC");
++    check(errno == SENTINEL, "errno after wcrtomb");
++    errno = 0;
++    check(wcrtomb(buf, (wchar_t)0xd800, &ps) == (size_t)-1 && errno == EILSEQ,
++          "wcrtomb of a surrogate");
++    reset(&ps);
++
++    /* btowc and wctob only accept single-byte characters */
++    check(btowc(0xc3) == WEOF, "btowc of a first byte");
++    check(btowc('A') == L'A', "btowc of A");
++    check(wctob(0xe9) == EOF, "wctob of a two-byte character");
++    check(wctob(L'A') == 'A', "wctob of A");
++
++    /*
++     * Each function has its own internal state, and none calls
++     * another's: a character mbrtowc began with a null ps isn't
++     * continued by mbrlen with a null ps
++     */
++    check(mbrtowc(&wc, "\xc3", 1, NULL) == (size_t)-2, "mbrtowc's internal state");
++    errno = 0;
++    check(mbrlen("\xa9", 1, NULL) == (size_t)-1 && errno == EILSEQ, "mbrlen's own state");
++    check(mbrtowc(&wc, "\xa9", 1, NULL) == 1 && wc == 0xe9, "mbrtowc's state kept");
++    check(mbrlen("\xc3", 1, NULL) == (size_t)-2, "mbrlen's internal state");
++    errno = 0;
++    check(mbrtowc(&wc, "\xa9", 1, NULL) == (size_t)-1 && errno == EILSEQ, "mbrtowc's own state");
++    check(mbrlen("\xa9", 1, NULL) == 1, "mbrlen's state kept");
++}
++
++int
++main(void)
++{
++    c_locale();
++
++    if (setlocale(LC_CTYPE, "C.UTF-8") != NULL) {
++        utf8_locale();
++        check(setlocale(LC_CTYPE, "C") != NULL, "back to the C locale");
++        c_locale();
++    } else {
++        printf("no C.UTF-8 locale, skipping the UTF-8 checks\n");
++    }
++
++    printf("success\n");
++    return 0;
++}
+diff --git a/test/test-posix/test-wchar/test-mbsrtowcs.c b/test/test-posix/test-wchar/test-mbsrtowcs.c
+new file mode 100644
+index 0000000000..b5c007c84c
+--- /dev/null
++++ b/test/test-posix/test-wchar/test-mbsrtowcs.c
+@@ -0,0 +1,243 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++#include <errno.h>
++#include <locale.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <wchar.h>
++
++/*
++ * mbsrtowcs, mbsnrtowcs, wcsrtombs and wcsnrtombs: the source pointer,
++ * the length limits, a null destination, a null ps, EILSEQ and errno on
++ * success. The UTF-8 checks run where a C.UTF-8 locale exists.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++#define SENTINEL EDOM
++
++static void
++reset(mbstate_t *ps)
++{
++    memset(ps, 0, sizeof(*ps));
++}
++
++static void
++c_locale(void)
++{
++    static const char    abc[] = "abc";
++    static const wchar_t wabc[] = L"abc";
++    const char          *src;
++    const wchar_t       *wsrc;
++    wchar_t              wbuf[8];
++    char                 buf[8];
++    mbstate_t            ps;
++
++    reset(&ps);
++    errno = SENTINEL;
++
++    /* The whole string, its null included; *src becomes a null pointer */
++    src = abc;
++    wmemset(wbuf, L'x', 8);
++    check(mbsrtowcs(wbuf, &src, 8, &ps) == 3, "mbsrtowcs count");
++    check(src == NULL, "mbsrtowcs reached the null");
++    check(wmemcmp(wbuf, L"abc", 4) == 0, "mbsrtowcs stored the null");
++    check(mbsinit(&ps) != 0, "mbsrtowcs ends in the initial state");
++
++    /* len stops it; *src is just past the last character converted */
++    src = abc;
++    wmemset(wbuf, L'x', 8);
++    check(mbsrtowcs(wbuf, &src, 2, &ps) == 2 && src == abc + 2, "mbsrtowcs with len 2");
++    check(wbuf[0] == L'a' && wbuf[1] == L'b' && wbuf[2] == L'x', "only len stored");
++
++    /* A null dst counts and leaves *src alone */
++    src = abc;
++    check(mbsrtowcs(NULL, &src, 0, &ps) == 3 && src == abc, "mbsrtowcs with a null dst");
++
++    /* mbsnrtowcs stops after nmc bytes; *src is past the last byte processed */
++    src = abc;
++    check(mbsnrtowcs(wbuf, &src, 2, 8, &ps) == 2 && src == abc + 2, "mbsnrtowcs nmc 2");
++    src = abc;
++    check(mbsnrtowcs(wbuf, &src, 4, 8, &ps) == 3 && src == NULL, "mbsnrtowcs nmc with the null");
++    src = abc;
++    check(mbsnrtowcs(NULL, &src, 2, 0, &ps) == 2 && src == abc, "mbsnrtowcs with a null dst");
++
++    /* wcsrtombs */
++    wsrc = wabc;
++    memset(buf, 'x', sizeof(buf));
++    check(wcsrtombs(buf, &wsrc, 8, &ps) == 3 && wsrc == NULL, "wcsrtombs count");
++    check(memcmp(buf, "abc", 4) == 0, "wcsrtombs stored the null");
++    wsrc = wabc;
++    memset(buf, 'x', sizeof(buf));
++    check(wcsrtombs(buf, &wsrc, 2, &ps) == 2 && wsrc == wabc + 2, "wcsrtombs with len 2");
++    check(buf[2] == 'x', "wcsrtombs stores at most len bytes");
++    wsrc = wabc;
++    check(wcsrtombs(NULL, &wsrc, 0, &ps) == 3 && wsrc == wabc, "wcsrtombs with a null dst");
++
++    /* wcsnrtombs converts at most nwc wide characters */
++    wsrc = wabc;
++    check(wcsnrtombs(buf, &wsrc, 2, 8, &ps) == 2 && wsrc == wabc + 2, "wcsnrtombs nwc 2");
++    wsrc = wabc;
++    check(wcsnrtombs(buf, &wsrc, 4, 8, &ps) == 3 && wsrc == NULL, "wcsnrtombs nwc with the null");
++    check(errno == SENTINEL, "errno after the conversions");
++
++    /* A null ps uses each function's internal state */
++    src = abc;
++    check(mbsrtowcs(wbuf, &src, 8, NULL) == 3, "mbsrtowcs with a null ps");
++    src = abc;
++    check(mbsnrtowcs(wbuf, &src, 8, 8, NULL) == 3, "mbsnrtowcs with a null ps");
++    wsrc = wabc;
++    check(wcsrtombs(buf, &wsrc, 8, NULL) == 3, "wcsrtombs with a null ps");
++    wsrc = wabc;
++    check(wcsnrtombs(buf, &wsrc, 8, 8, NULL) == 3, "wcsnrtombs with a null ps");
++    check(errno == SENTINEL, "errno with a null ps");
++
++#if WCHAR_MAX > 0x10000
++    {
++        /* A wide character the locale lacks is an encoding error */
++        static const wchar_t bad[] = { L'a', (wchar_t)0x10000, L'b', L'\0' };
++
++        wsrc = bad;
++        errno = 0;
++        check(wcsrtombs(buf, &wsrc, 8, &ps) == (size_t)-1 && errno == EILSEQ, "wcsrtombs EILSEQ");
++        reset(&ps);
++        wsrc = bad;
++        errno = 0;
++        check(wcsrtombs(buf, &wsrc, 8, NULL) == (size_t)-1 && errno == EILSEQ,
++              "wcsrtombs EILSEQ with a null ps");
++        wsrc = bad;
++        errno = 0;
++        check(wcsnrtombs(NULL, &wsrc, 8, 0, NULL) == (size_t)-1 && errno == EILSEQ,
++              "wcsnrtombs EILSEQ with a null dst");
++    }
++#endif
++}
++
++static void
++utf8_locale(void)
++{
++    static const char    mixed[] = "a\xc3\xa9z";
++    static const char    bad[] = "a\xff\x62";
++    static const wchar_t wmixed[] = { L'a', 0xe9, L'z', L'\0' };
++    const char          *src;
++    const wchar_t       *wsrc;
++    wchar_t              wbuf[8];
++    char                 buf[8];
++    mbstate_t            ps;
++
++    reset(&ps);
++    errno = SENTINEL;
++
++    src = mixed;
++    check(mbsrtowcs(wbuf, &src, 8, &ps) == 3 && src == NULL, "mbsrtowcs of UTF-8");
++    check(wbuf[0] == L'a' && wbuf[1] == 0xe9 && wbuf[2] == L'z' && wbuf[3] == 0, "the characters");
++    src = mixed;
++    check(mbsrtowcs(NULL, &src, 0, &ps) == 3, "mbsrtowcs counts characters");
++
++    /* mbsnrtowcs stops inside a character; the next call completes it */
++    src = mixed;
++    check(mbsnrtowcs(wbuf, &src, 2, 8, &ps) == 1 && src == mixed + 2,
++          "mbsnrtowcs stops mid-character");
++    check(mbsinit(&ps) == 0, "the state holds the partial character");
++    check(mbsnrtowcs(wbuf, &src, 8, 8, &ps) == 2 && src == NULL, "mbsnrtowcs completes it");
++    check(wbuf[0] == 0xe9 && wbuf[1] == L'z', "the completed characters");
++
++    wsrc = wmixed;
++    check(wcsrtombs(buf, &wsrc, 8, &ps) == 4 && wsrc == NULL, "wcsrtombs of UTF-8");
++    check(memcmp(buf, mixed, 5) == 0, "the bytes");
++    wsrc = wmixed;
++    check(wcsrtombs(NULL, &wsrc, 0, &ps) == 4, "wcsrtombs counts bytes");
++    /* A character that doesn't fit in len isn't stored */
++    wsrc = wmixed;
++    check(wcsrtombs(buf, &wsrc, 2, &ps) == 1 && wsrc == wmixed + 1, "wcsrtombs stops before");
++    check(errno == SENTINEL, "errno after the conversions");
++
++    /* An invalid byte: EILSEQ, *src at the invalid byte */
++    src = bad;
++    errno = 0;
++    check(mbsrtowcs(wbuf, &src, 8, &ps) == (size_t)-1 && errno == EILSEQ, "mbsrtowcs EILSEQ");
++    check(src == bad + 1, "mbsrtowcs leaves src past the last character converted");
++    reset(&ps);
++    src = bad;
++    errno = 0;
++    check(mbsnrtowcs(NULL, &src, 8, 0, NULL) == (size_t)-1 && errno == EILSEQ,
++          "mbsnrtowcs EILSEQ with a null ps");
++    {
++        static const wchar_t surrogate[] = { L'a', (wchar_t)0xd800, L'\0' };
++
++        wsrc = surrogate;
++        errno = 0;
++        check(wcsrtombs(buf, &wsrc, 8, &ps) == (size_t)-1 && errno == EILSEQ, "wcsrtombs EILSEQ");
++        check(wsrc == surrogate + 1, "wcsrtombs leaves src past the last character converted");
++        reset(&ps);
++    }
++
++    /*
++     * Each function has its own internal state: a character mbsnrtowcs
++     * left unfinished isn't completed by mbsrtowcs
++     */
++    src = "\xc3";
++    check(mbsnrtowcs(wbuf, &src, 1, 8, NULL) == 0, "mbsnrtowcs leaves a partial character");
++    src = "\xa9";
++    errno = 0;
++    check(mbsrtowcs(wbuf, &src, 8, NULL) == (size_t)-1 && errno == EILSEQ, "mbsrtowcs's own state");
++    src = "\xa9";
++    check(mbsnrtowcs(wbuf, &src, 1, 8, NULL) == 1 && wbuf[0] == 0xe9, "mbsnrtowcs's state kept");
++}
++
++int
++main(void)
++{
++    c_locale();
++
++    if (setlocale(LC_CTYPE, "C.UTF-8") != NULL) {
++        utf8_locale();
++        check(setlocale(LC_CTYPE, "C") != NULL, "back to the C locale");
++    } else {
++        printf("no C.UTF-8 locale, skipping the UTF-8 checks\n");
++    }
++
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

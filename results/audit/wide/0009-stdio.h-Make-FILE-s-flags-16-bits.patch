@@ -1,0 +1,37 @@
+From 7ad4eaf3c35c7a4e1d1bde2f87cb4821280cb536 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 07:57:05 +0000
+Subject: [PATCH 09/22] stdio.h: Make FILE's flags 16 bits
+
+All eight bits were in use. The wider field takes padding that already
+follows it on targets whose pointers are at least two-byte aligned;
+FILE grows by a byte only where pointers need no alignment (AVR).
+---
+ libc/include/stdio.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libc/include/stdio.h b/libc/include/stdio.h
+index 5b38f31855..08ecdd4a39 100644
+--- a/libc/include/stdio.h
++++ b/libc/include/stdio.h
+@@ -90,7 +90,7 @@ typedef __uint16_t __ungetc_t;
+ 
+ struct __file {
+     __ungetc_t unget;                  /* ungetc() buffer */
+-    __uint8_t  flags;                  /* flags, see below */
++    __uint16_t flags;                  /* flags, see below */
+ #define __SRD    0x0001                /* OK to read */
+ #define __SWR    0x0002                /* OK to write */
+ #define __SERR   0x0004                /* found error */
+@@ -340,7 +340,7 @@ void __fseterr(FILE *__stream) __nonnull((1)) __picolibc_export;
+ #endif
+ 
+ /* fast inlined versions */
+-#define __clearerr_unlocked(s)  ((s)->flags &= (__uint8_t) ~(__SERR | __SEOF))
++#define __clearerr_unlocked(s)  ((s)->flags &= (__uint16_t) ~(__SERR | __SEOF))
+ #define __ferror_unlocked(s)    ((s)->flags & __SERR)
+ #define __feof_unlocked(s)      ((s)->flags & __SEOF)
+ #define ____fseterr_unlocked(s) ((s)->flags |= __SERR)
+-- 
+2.47.3
+

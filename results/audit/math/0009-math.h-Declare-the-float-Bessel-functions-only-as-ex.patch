@@ -1,0 +1,31 @@
+From eeccd066e7bcdf80d99c9bd67fcb68afd5d6ee30 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:27:31 +0000
+Subject: [PATCH 09/15] math.h: Declare the float Bessel functions only as
+ extensions
+
+XSI specifies j0, j1, jn, y0, y1 and yn for double alone, and doesn't
+reserve j0f and the rest, but <math.h> declared them for
+_XOPEN_SOURCE 600 and later.
+
+Signed-off-by: Keith Packard <keithp@keithp.com>
+---
+ libc/include/math.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libc/include/math.h b/libc/include/math.h
+index df9d7be55f..19e1d8385e 100644
+--- a/libc/include/math.h
++++ b/libc/include/math.h
+@@ -816,7 +816,7 @@ double y0(double __x) __picolibc_export;
+ double y1(double __x) __picolibc_export;
+ double yn(int __n, double __x) __picolibc_export;
+ #endif
+-#if __MISC_VISIBLE || __XSI_VISIBLE >= 600
++#if __MISC_VISIBLE
+ float j0f(float __x) __picolibc_export;
+ float j1f(float __x) __picolibc_export;
+ float jnf(int __n, float __x) __picolibc_export;
+-- 
+2.47.3
+

@@ -1,0 +1,62 @@
+From 2b2005393b9d5f410892cfa163ed8e80be5b3126 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:14:44 +0000
+Subject: [PATCH 14/22] stdio: Fail with EOVERFLOW when swprintf's output
+ doesn't fit
+
+POSIX: swprintf "shall fail if: [EOVERFLOW] The number of wide
+characters requested to be written was n or more." swprintf and
+vswprintf returned -1 with errno unchanged when the output was
+truncated, and with EBADF when n was 0.
+---
+ libc/stdio/filewstrput.c | 5 ++++-
+ libc/stdio/swprintf.c    | 2 ++
+ libc/stdio/vswprintf.c   | 2 ++
+ 3 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdio/filewstrput.c b/libc/stdio/filewstrput.c
+index 127d736093..0f820972c4 100644
+--- a/libc/stdio/filewstrput.c
++++ b/libc/stdio/filewstrput.c
+@@ -40,8 +40,11 @@ __file_wstr_put(char c, FILE *stream)
+ {
+     struct __file_str *sstream = (struct __file_str *)stream;
+ 
+-    if (sstream->pos == sstream->end)
++    /* swprintf fails with EOVERFLOW when the output doesn't fit */
++    if (sstream->pos == sstream->end) {
++        errno = EOVERFLOW;
+         return _FDEV_ERR;
++    }
+ 
+     *sstream->pos++ = c;
+     return (unsigned char)c;
+diff --git a/libc/stdio/swprintf.c b/libc/stdio/swprintf.c
+index 06caa480cf..4828828d30 100644
+--- a/libc/stdio/swprintf.c
++++ b/libc/stdio/swprintf.c
+@@ -48,6 +48,8 @@ swprintf(wchar_t *s, size_t n, const wchar_t *fmt, ...)
+ 
+     if (n)
+         memset(f.pos, 0, sizeof(wchar_t));
++    else
++        errno = EOVERFLOW; /* Not even the null fits */
+ 
+     return i;
+ }
+diff --git a/libc/stdio/vswprintf.c b/libc/stdio/vswprintf.c
+index bb88d6380e..0564f6dd7f 100644
+--- a/libc/stdio/vswprintf.c
++++ b/libc/stdio/vswprintf.c
+@@ -45,6 +45,8 @@ vswprintf(wchar_t *s, size_t n, const wchar_t *fmt, va_list ap)
+ 
+     if (n)
+         memset(f.pos, 0, sizeof(wchar_t));
++    else
++        errno = EOVERFLOW; /* Not even the null fits */
+ 
+     return i;
+ }
+-- 
+2.47.3
+

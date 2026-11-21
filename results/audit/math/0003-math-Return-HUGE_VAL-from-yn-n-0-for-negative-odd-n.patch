@@ -1,0 +1,48 @@
+From e349bae16ddcc15073db0534713473b8c9e7610f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:12:40 +0000
+Subject: [PATCH 03/15] math: Return +HUGE_VAL from yn(n, 0) for negative odd n
+
+POSIX: "If x is 0.0 and n is negative and odd, yn() shall return
++HUGE_VAL", as Y(-n,x) is (-1)^n Y(n,x). yn and ynf returned
+-HUGE_VAL for every n.
+
+Signed-off-by: Keith Packard <keithp@keithp.com>
+---
+ libm/math/s_jn.c  | 3 ++-
+ libm/math/sf_jn.c | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/libm/math/s_jn.c b/libm/math/s_jn.c
+index f9af603844..2b9ed9b8a8 100644
+--- a/libm/math/s_jn.c
++++ b/libm/math/s_jn.c
+@@ -241,8 +241,9 @@ _MATH_ALIAS_d_id(jn)
+     ix = 0x7fffffff & hx;
+     /* if Y(n,NaN) is NaN */
+ 
++    /* Y(n,0) is -inf, but +inf for negative odd n as Y(-n,x) = (-1)^n Y(n,x) */
+     if ((ix | lx) == 0)
+-        return __math_divzero(1);
++        return __math_divzero(!(n < 0 && (n & 1)));
+ 
+     if (isnan(x))
+         return x + x;
+diff --git a/libm/math/sf_jn.c b/libm/math/sf_jn.c
+index f49698c005..d1d9f07274 100644
+--- a/libm/math/sf_jn.c
++++ b/libm/math/sf_jn.c
+@@ -177,8 +177,9 @@ ynf(int n, float x)
+     GET_FLOAT_WORD(hx, x);
+     ix = 0x7fffffff & hx;
+ 
++    /* Y(n,0) is -inf, but +inf for negative odd n as Y(-n,x) = (-1)^n Y(n,x) */
+     if (ix == 0)
+-        return __math_divzerof(1);
++        return __math_divzerof(!(n < 0 && (n & 1)));
+ 
+     if (ix > 0x7f800000)
+         return x + x;
+-- 
+2.47.3
+

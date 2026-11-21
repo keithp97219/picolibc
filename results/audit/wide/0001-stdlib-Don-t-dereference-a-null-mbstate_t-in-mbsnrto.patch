@@ -1,0 +1,56 @@
+From ae92eea011aafa9e21bbbefa6de307cd4bdb59fd Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 07:52:11 +0000
+Subject: [PATCH 01/22] stdlib: Don't dereference a null mbstate_t in
+ mbsnrtowcs and wcsnrtombs
+
+Without __MB_CAPABLE, mbsnrtowcs, mbsrtowcs, wcsnrtombs and wcsrtombs
+used ps unchanged when it was a null pointer, so wcsrtombs with a null
+ps, and mbsrtowcs with a null ps and an invalid byte, crashed. Use the
+internal state in every configuration.
+---
+ libc/stdlib/mbsnrtowcs.c | 6 ++----
+ libc/stdlib/wcsnrtombs.c | 6 ++----
+ 2 files changed, 4 insertions(+), 8 deletions(-)
+
+diff --git a/libc/stdlib/mbsnrtowcs.c b/libc/stdlib/mbsnrtowcs.c
+index ad4a364df8..f4dd209703 100644
+--- a/libc/stdlib/mbsnrtowcs.c
++++ b/libc/stdlib/mbsnrtowcs.c
+@@ -70,12 +70,10 @@ mbsnrtowcs(wchar_t *dst, const char **src, size_t nms, size_t len, mbstate_t *ps
+     size_t      count = 0;
+     int         bytes;
+ 
+-#ifdef __MB_CAPABLE
+     if (ps == NULL) {
+-        static mbstate_t _mbsrtowcs_state;
+-        ps = &_mbsrtowcs_state;
++        static mbstate_t _mbsnrtowcs_state;
++        ps = &_mbsnrtowcs_state;
+     }
+-#endif
+ 
+     if (dst == NULL) {
+         /* Ignore original len value and do not alter src pointer if the
+diff --git a/libc/stdlib/wcsnrtombs.c b/libc/stdlib/wcsnrtombs.c
+index fb320d20ef..ebebf842c1 100644
+--- a/libc/stdlib/wcsnrtombs.c
++++ b/libc/stdlib/wcsnrtombs.c
+@@ -81,12 +81,10 @@ _wcsnrtombs_l(char *dst, const wchar_t **src, size_t nwc, size_t len, mbstate_t
+     size_t   n;
+     int      i;
+ 
+-#ifdef __MB_CAPABLE
+     if (ps == NULL) {
+-        static mbstate_t _wcsrtombs_state;
+-        ps = &_wcsrtombs_state;
++        static mbstate_t _wcsnrtombs_state;
++        ps = &_wcsnrtombs_state;
+     }
+-#endif
+ 
+     /* If no dst pointer, treat len as maximum possible value. */
+     if (dst == NULL)
+-- 
+2.47.3
+

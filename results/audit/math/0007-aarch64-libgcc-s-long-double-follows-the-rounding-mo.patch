@@ -1,0 +1,38 @@
+From d41b592a1546da45afb968d05e97894bd397857f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:20:12 +0000
+Subject: [PATCH 07/15] aarch64: libgcc's long double follows the rounding mode
+
+fenv.h said that with libgcc, long double arithmetic ignores the
+rounding mode. libgcc's soft-fp reads the mode from FPCR, and with gcc
+and with clang linking libgcc, long double sums, quotients and fmal
+round as fesetround says, so test-fma and test-narrow-fenv now check
+long double too. compiler-rt's division doesn't, and without an FPU
+there is no mode, so __LONG_DOUBLE_NOROUND stays for those.
+
+Signed-off-by: Keith Packard <keithp@keithp.com>
+---
+ libc/machine/aarch64/machine/fenv.h | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/libc/machine/aarch64/machine/fenv.h b/libc/machine/aarch64/machine/fenv.h
+index 989c36e8a9..2eba95173a 100644
+--- a/libc/machine/aarch64/machine/fenv.h
++++ b/libc/machine/aarch64/machine/fenv.h
+@@ -59,11 +59,10 @@ typedef __uint64_t fexcept_t;
+ 
+ #else
+ 
+-#define __LONG_DOUBLE_NOROUND
+-
+-/* libgcc has exceptions (but still no rounding) when there is an FPU */
++/* libgcc's soft-float follows FPCR's rounding mode and raises exceptions in FPSR */
+ 
+ #if __ARM_FP == 0
++#define __LONG_DOUBLE_NOROUND
+ #define __LONG_DOUBLE_NOEXCEPT
+ #define __DOUBLE_NOROUND
+ #define __DOUBLE_NOEXCEPT
+-- 
+2.47.3
+

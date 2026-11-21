@@ -1,0 +1,31 @@
+From 8b37399151d6f3b7ce5da7facabde4dba113423c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 07:53:02 +0000
+Subject: [PATCH 04/22] wcsnlen: Don't read the character after the first
+ maxlen
+
+wcsnlen read ws[maxlen] before checking the count. POSIX: it "shall
+never examine more than the first maxlen characters".
+---
+ libc/string/wcsnlen.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libc/string/wcsnlen.c b/libc/string/wcsnlen.c
+index 6f5799c5f1..97f62566ef 100644
+--- a/libc/string/wcsnlen.c
++++ b/libc/string/wcsnlen.c
+@@ -57,8 +57,10 @@ wcsnlen(const wchar_t *s, size_t maxlen)
+     const wchar_t *p;
+ 
+     p = s;
+-    while (*p && maxlen-- > 0)
++    while (maxlen > 0 && *p) {
+         p++;
++        maxlen--;
++    }
+ 
+     return (size_t)(p - s);
+ }
+-- 
+2.47.3
+

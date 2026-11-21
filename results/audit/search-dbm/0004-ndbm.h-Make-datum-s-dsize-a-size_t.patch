@@ -1,0 +1,29 @@
+From 8f67e4270facd515d9b5089322dffc349a315465 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:02:50 +0000
+Subject: [PATCH 04/10] ndbm.h: Make datum's dsize a size_t
+
+POSIX requires size_t dsize. On the 32- and 64-bit targets the structure
+keeps its size, since padding followed the int.
+---
+ libc/include/ndbm.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libc/include/ndbm.h b/libc/include/ndbm.h
+index c71a8aa08e..f207da2204 100644
+--- a/libc/include/ndbm.h
++++ b/libc/include/ndbm.h
+@@ -64,8 +64,8 @@
+ #define DBM_SUFFIX ".db"
+ 
+ typedef struct {
+-    void *dptr;
+-    int   dsize; /* XXX Should be size_t according to 1003.1-2008. */
++    void  *dptr;
++    size_t dsize;
+ } datum;
+ 
+ struct __db;            /* Forward-declaration */
+-- 
+2.47.3
+

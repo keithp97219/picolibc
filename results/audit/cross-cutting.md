@@ -832,3 +832,90 @@ Until those are fixed, units on this host use the full clang native build and tr
 - **Merge notes:** this unit adds directories to test/test-posix/meson.build and CMakeLists.txt
   (test-ctype, test-iconv, test-langinfo, test-locale, test-wctype), which other units may also extend, and
   edits doc/build.md's internationalization section (stdio edited its option tables in the same file).
+
+## From wide (arm64 host)
+
+- **FILE changed shape.** Its flags are now 16 bits (all 8 were in use; AVR's FILE grows by a byte, other targets reuse padding), with two new bits: `__SBYTE` (0x0100, byte-oriented) and `__SWCHAR` (0x0200, the stream's get/put move whole wchar_t values: swprintf, swscanf, open_wmemstream). With `__MB_CAPABLE` and a 4-byte wchar_t the push-back slot is 32 bits (+4 bytes on 32-bit targets in that configuration, keyed on picolibc.h, not on any `_POSIX_*` macro). Code that builds wide string FILEs by hand must set `__SWIDE | __SWCHAR`; `FDEV_SETUP_WSTRING_*` and open_wmemstream do.
+- **Wide stream I/O now converts.** fputwc writes the multibyte encoding (wcrtomb) and fgetwc reads multibyte characters (mbrtowc); before, they moved the raw bytes of each wchar_t, so `fputwc(L'A', stdout)` wrote "A\0\0\0". In the C locale (non-mb builds) wide characters above 0x7f are now EILSEQ on output. Anything that relied on writing raw wchar_t to a byte stream (semihost consoles, files) sees the change.
+- **Streams start unoriented.** Byte functions (getc, putc, fread, fwrite, fputs, puts, ungetc, the byte printf/scanf) set byte orientation, wide functions set wide, fwide changes only an unoriented stream, freopen clears both, perror preserves "unoriented". psignal/psiginfo (libc/signal/psignal.c) still orient an unoriented stderr; the fix is the same three lines as perror's, left because the strings unit changed psignal.c.
+- **No per-stream mbstate_t or encoding rule** (XSH 2.5.2): each wide stream conversion starts from the initial state with the current LC_CTYPE. Exact for UTF-8 and single-byte charsets with a 4-byte wchar_t; wrong for JIS and for UTF-16 surrogates where wchar_t is 2 bytes. Needs an mbstate_t (and locale) in FILE: an ABI decision.
+- **The POSIX locale's 256 single-byte characters** (from the stdlib and locale units): not changed. picolibc rejects 0x80-0xff in the C locale on purpose (f929c8fde6), test-ctype checks it, and glibc 2.43 does the same. The wide report recommends mapping 0x80-0xff to U+0080-U+00FF or musl's U+DF80-U+DFFF, without classes; iconv's "ASCII" and CODESET would follow. A behaviour decision, not ABI.
+- **Library functions using another function's internal mbstate_t:** strftime (libc/time/strftime.c:509-551) passes a null ps to mbsnrtowcs for ERA strings, which POSIX forbids ("as if no function calls" it). Not reachable with picolibc's locales (no ERA data); a local mbstate_t would fix it. toupper/tolower call mbtowc/wctomb (ISO C says no library function calls mbtowc); harmless for the single-byte charsets they are used with.
+- **No ABI-rule violations** (`_POSIX_*`, `__PICOLIBC_POSIX_*`, profile macros) in libc/stdlib/mb*/wc*, libc/string/wcs*, libc/uchar, libc/ctype/isw*/tow*/wctype/wctrans, the wide stdio, or `<wchar.h>`, `<uchar.h>`, `<wctype.h>`.
+- **Test-writing notes:** glibc's fmemopen (and fopencookie) streams start byte-oriented, so orientation tests need tmpfile or fopen there. wctype and wctrans set errno for unknown names (allowed), so errno checks must come after them. A test reading back what a wide stream wrote should use pread on fileno, not byte I/O on the wide stream (undefined).
+- **glibc 2.43 gaps met here** (tests guard them with `__GLIBC__`): ungetc doesn't orient a stream; perror makes an unoriented stderr byte-oriented; fputwc of a character the locale can't encode (U+10000 in C, a surrogate in UTF-8) reports success; fgetwc reports a character cut off by end-of-file as plain end-of-file, without EILSEQ; encoding errors don't set the error indicator (a CX requirement); swprintf doesn't set EOVERFLOW; wcslcpy/wcslcat need `_DEFAULT_SOURCE`; the C locale has 128 characters, like picolibc's.
+
+## From search-dbm (arm64 host)
+
+- **Library code that calls non-reserved extension names.**
+  - `hcreate`, `hdestroy` and `hsearch` (libc/search/hcreate.c) call `hcreate_r`, `hdestroy_r` and `hsearch_r`, which POSIX doesn't reserve.
+  - A strictly conforming program that defines its own `hsearch_r` and calls `hsearch` gets its own function called from inside libc.a when linked statically. Now that `<search.h>` hides the `_r` names in strict mode, such a program also compiles cleanly.
+  - The fix would be internal `__`-prefixed names with weak public aliases.
+  - Other areas may follow the same link-time pattern (for example stdio's `*_unlocked`, or string functions that call `str*_l`) and should be checked together.
+  - Not changed here.
+- **Neither search header includes `<sys/types.h>` any more.**
+  - This follows `<wordexp.h>` (the regex-wordexp unit).
+  - `<search.h>` takes size_t from `<stddef.h>`. `<ndbm.h>` does the same and also defines mode_t itself.
+  - One test in test/testsuite (hsearchtest.c) relied on `<search.h>` for uintptr_t; code outside the tree may too.
+- **ABI change: `datum.dsize` is now size_t** (it was int).
+  - On the 32- and 64-bit targets the structure keeps its size, because padding followed the int.
+  - On 64-bit targets, callers built against the old header pass garbage in the upper half of dsize.
+  - Nothing in the tree is affected.
+- **Regression in the BSD hash code behind ndbm since d1dc8cdf20 (2023).**
+  - Every ndbm database lost all its records at the first table expansion, once it went past 81 records.
+  - Fixed here (search: Count the first segment in alloc_segs).
+  - Anyone who used ndbm with picolibc since then has had silently broken databases.
+- **No ABI or `<sys/_posix.h>` violations in this area:** nothing in `<search.h>`, `<ndbm.h>` or libc/search depends on the `_POSIX_*`, `__PICOLIBC_POSIX_*` or profile macros.
+- **glibc 2.43 gaps for this area** (tests guard them with `__GLIBC__`):
+  - There is no `posix_tnode` (new in Issue 8).
+  - There is no `<ndbm.h>` at all without gdbm's compatibility package. The ndbm tests' -native builds are therefore skipped when `dbm_open` can't be compiled and linked (a meson `cc.has_function` check in test/test-posix/test-ndbm/meson.build).
+
+## From math (arm64 host)
+
+- **POSIX (MX) makes several C "may" errors "shall", and picolibc doesn't set errno for some of them.**
+  With `-Dwant-math-errno=true` (math_errhandling includes MATH_ERRNO), lrint, llrint, lround and llround
+  (and the f and l forms) raise invalid for NaN, infinite and out-of-range arguments but leave errno at 0,
+  where POSIX says a domain error "shall occur" (EDOM); fma does the same for its domain error
+  (Inf * 0 + 1, Inf - Inf) and its overflow (ERANGE). test-math-errhandling encodes errno 0 for these, and
+  glibc 2.43 sets no errno either. The fix needs every implementation touched: libm/common, libm/ld, and the
+  machine versions for aarch64 (frintx/fcvtzs asm), riscv and x86; a wrapper that checks the rounded value in
+  WANT_ERRNO builds would cover them all. Left for a decision (the default build has no errno).
+- **compiler-rt's long double has no exceptions and only partial rounding.** With clang
+  `--rtlib=compiler-rt` on aarch64 (picolibc.h `__RUNTIME_COMPILER_RT`), 128-bit long double arithmetic raises
+  no exception flags and its division ignores the rounding mode (addition follows it). So lgammal(0),
+  remquol(1, 0) and the like raise nothing although math_errhandling says MATH_ERREXCEPT. fenv.h records
+  this as `__LONG_DOUBLE_NOEXCEPT`/`__LONG_DOUBLE_NOROUND` and test-math-errhandling skips those checks, but
+  an application can't tell. Raising the flags with double arithmetic in the `__math_*l` error helpers would
+  cover the explicit error paths. libgcc's soft-fp (gcc, and clang linking libgcc) raises the flags and follows
+  FPCR's rounding mode; this unit dropped the pessimistic `__LONG_DOUBLE_NOROUND` for libgcc.
+- **The other architectures' fenv headers have the namespace problems fixed here for aarch64 and arm.**
+  `libc/machine/{hexagon,loongarch,m68k,mips,powerpc,riscv,sh,sparc,xtensa}/machine/fenv-fp.h` define the
+  inline feenableexcept, fedisableexcept, fegetexcept and fesetexcept for every compilation, and several name
+  their parameters `excepts`, `envp`, `flagp` or `round`, so an application macro of that name breaks
+  `<fenv.h>`. The same change (`__GNU_VISIBLE || defined(__PICOLIBC_FENV_ALL)`, `__ISO_C_VISIBLE >= 2023 ||
+  defined(__PICOLIBC_FENV_ALL)`, `__`-prefixed parameters) applies. libc/machine/x86/machine/fenv.h wasn't checked.
+- **math_errhandling can be 0.** On a target without exceptions (thumbv7m soft-float) and without
+  `-Dwant-math-errno=true`, math_errhandling is 0, where C and POSIX allow only MATH_ERRNO, MATH_ERREXCEPT or
+  both. Neither method exists there, so the header can't say otherwise truthfully; such a configuration
+  doesn't conform. test-math_h accepts 0 under `__PICOLIBC__` with a message.
+- **The CMake build compiles the tests with `-D_LIBC`** (CMakeLists.txt:363 adds it to every target), so a
+  header can't use `_LIBC` to mean "inside the library". The fenv fix here uses its own macro, set by
+  libm/fenv/fenv.c.
+- **`<fenv.h>`'s soft-float header includes `<errno.h>`**, so `<fenv.h>` defines the E* macros on targets
+  without an FPU. Not visible on aarch64 or armhf.
+- **gcc's float/double promotion rules in clang:** clang's `-Wdouble-promotion` also fires on initializing or
+  assigning a double from a float expression (`double x = NAN;`, `double d = f();`), which gcc accepts.
+  Write `(double)NAN`, and cast results stored in a wider type.
+- **IEEE rounding of overflow in the directed modes.** POSIX says overflowing functions "shall return
+  +-HUGE_VAL"; with FE_UPWARD a negative overflow rounds to -DBL_MAX (IEEE 754), as picolibc and glibc do.
+  Tests should check the HUGE_VAL value only in round-to-nearest. glibc's scalbln then doesn't set errno.
+- **glibc 2.43 gaps met here** (the tests guard them with `__GLIBC__`): no M_EGAMMA, M_PHI, M_1_SQRTPI,
+  M_SQRT3 or M_SQRT1_3, and the M_*l constants only for `_GNU_SOURCE`; MAXFLOAT for `_XOPEN_SOURCE 800`;
+  jn(-3, +Inf) is -0; no errno from logb(+-0), remquo's domain errors, or scalbln's overflow in a directed
+  rounding mode.
+- **No ABI-rule violations** (`_POSIX_*`, `__PICOLIBC_POSIX_*` or profile macros) in libm, `<math.h>`,
+  `<fenv.h>`, `<complex.h>` or the aarch64 and arm machine headers. `__RUNTIME_COMPILER_RT` comes from
+  picolibc.h, as the rule wants.
+- **Merge notes:** this unit adds `test-complex`, `test-fenv` and `test-math` to test/test-posix/meson.build's
+  directory list and CMakeLists.txt (the locale unit adds others there), and edits
+  test/test-math/test-math-errhandling.c and -tests.c (logb's errno).

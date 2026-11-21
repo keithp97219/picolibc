@@ -1,0 +1,38 @@
+From 114284a03771d468c03b5e0fcf9397982943c979 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:12:40 +0000
+Subject: [PATCH 02/15] math.h: Define FP_FAST_FMA, FP_FAST_FMAF and
+ FP_FAST_FMAL as 1
+
+POSIX says each "shall expand to the integer constant 1" when
+defined; they were empty.
+
+Signed-off-by: Keith Packard <keithp@keithp.com>
+---
+ libc/include/math.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/libc/include/math.h b/libc/include/math.h
+index 60b709fff0..df9d7be55f 100644
+--- a/libc/include/math.h
++++ b/libc/include/math.h
+@@ -954,13 +954,13 @@ int(isnan)(double __x) __picolibc_export;
+ 
+ /* machine/math.h sets __HAVE_FAST_FMA* for targets with fast fma */
+ #if !defined(FP_FAST_FMA) && (defined(__HAVE_FAST_FMA) || defined(__FP_FAST_FMA))
+-#define FP_FAST_FMA
++#define FP_FAST_FMA 1
+ #endif
+ #if !defined(FP_FAST_FMAF) && (defined(__HAVE_FAST_FMAF) || defined(__FP_FAST_FMAF))
+-#define FP_FAST_FMAF
++#define FP_FAST_FMAF 1
+ #endif
+ #if !defined(FP_FAST_FMAL) && (defined(__HAVE_FAST_FMAL) || defined(__FP_FAST_FMAL))
+-#define FP_FAST_FMAL
++#define FP_FAST_FMAL 1
+ #endif
+ 
+ /*
+-- 
+2.47.3
+

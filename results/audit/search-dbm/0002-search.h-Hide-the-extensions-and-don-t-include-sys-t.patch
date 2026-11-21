@@ -1,0 +1,108 @@
+From e50d82826ffa6177553410290f8fc9058c8adc7c Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:02:39 +0000
+Subject: [PATCH 02/10] search.h: Hide the extensions and don't include
+ <sys/types.h>
+
+<search.h> reserves no names, but declared hcreate_r, hdestroy_r,
+hsearch_r, tdestroy and struct hsearch_data in strict mode, and through
+<sys/types.h> defined all of <stdint.h>. Take size_t from <stddef.h> and
+declare the BSD and GNU extensions only with __BSD_VISIBLE. hsearchtest
+used uintptr_t without including <stdint.h>.
+---
+ libc/include/search.h                      | 18 ++++++++++++------
+ libc/search/hcreate.c                      |  1 +
+ libc/search/tdestroy.c                     |  1 +
+ test/testsuite/newlib.search/hsearchtest.c |  1 +
+ 4 files changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/libc/include/search.h b/libc/include/search.h
+index c18907b6e0..9a7b395364 100644
+--- a/libc/include/search.h
++++ b/libc/include/search.h
+@@ -38,8 +38,9 @@ SUCH DAMAGE.
+ #define _SEARCH_H_
+ 
+ #include <sys/cdefs.h>
+-#include <machine/ansi.h>
+-#include <sys/types.h>
++#include <sys/_types.h>
++#define __need_size_t
++#include <stddef.h>
+ 
+ typedef struct entry {
+     char *key;
+@@ -59,10 +60,13 @@ typedef struct node {
+ } node_t;
+ #endif
+ 
++/* The reentrant hash table and tdestroy are BSD and GNU extensions */
++#if __BSD_VISIBLE
+ struct hsearch_data {
+     struct internal_head *htable;
+     size_t                htablesize;
+ };
++#endif
+ 
+ #ifndef __compar_fn_t_defined
+ #define __compar_fn_t_defined
+@@ -77,14 +81,16 @@ void   remque(void *) __picolibc_export;
+ int    hcreate(size_t) __picolibc_export;
+ void   hdestroy(void) __picolibc_export;
+ ENTRY *hsearch(ENTRY, ACTION) __picolibc_export;
+-int    hcreate_r(size_t, struct hsearch_data *) __picolibc_export;
+-void   hdestroy_r(struct hsearch_data *) __picolibc_export;
+-int    hsearch_r(ENTRY, ACTION, ENTRY **, struct hsearch_data *) __picolibc_export;
+ void  *tdelete(const void  *__restrict, posix_tnode  **__restrict, __compar_fn_t) __picolibc_export;
+-void   tdestroy(void *, void (*)(void *)) __picolibc_export;
+ posix_tnode *tfind(const void *, posix_tnode * const *, __compar_fn_t) __picolibc_export;
+ posix_tnode *tsearch(const void *, posix_tnode **, __compar_fn_t) __picolibc_export;
+ void twalk(const posix_tnode *, void (*)(const posix_tnode *, VISIT, int)) __picolibc_export;
++#if __BSD_VISIBLE
++int  hcreate_r(size_t, struct hsearch_data *) __picolibc_export;
++void hdestroy_r(struct hsearch_data *) __picolibc_export;
++int  hsearch_r(ENTRY, ACTION, ENTRY **, struct hsearch_data *) __picolibc_export;
++void tdestroy(void *, void (*)(void *)) __picolibc_export;
++#endif
+ _END_STD_C
+ 
+ #endif /* !_SEARCH_H_ */
+diff --git a/libc/search/hcreate.c b/libc/search/hcreate.c
+index 98fcbd75ed..afe497359e 100644
+--- a/libc/search/hcreate.c
++++ b/libc/search/hcreate.c
+@@ -46,6 +46,7 @@
+ #endif /* LIBC_SCCS and not lint */
+ #endif
+ 
++#define _DEFAULT_SOURCE
+ #include <sys/types.h>
+ #include <errno.h>
+ #include <search.h>
+diff --git a/libc/search/tdestroy.c b/libc/search/tdestroy.c
+index 44e7586195..c488c13255 100644
+--- a/libc/search/tdestroy.c
++++ b/libc/search/tdestroy.c
+@@ -44,6 +44,7 @@ SUCH DAMAGE.
+ #endif /* LIBC_SCCS and not lint */
+ #endif
+ 
++#define _DEFAULT_SOURCE
+ #include <assert.h>
+ #define _SEARCH_PRIVATE
+ #include <search.h>
+diff --git a/test/testsuite/newlib.search/hsearchtest.c b/test/testsuite/newlib.search/hsearchtest.c
+index 707f60195f..3bcee5812e 100644
+--- a/test/testsuite/newlib.search/hsearchtest.c
++++ b/test/testsuite/newlib.search/hsearchtest.c
+@@ -35,6 +35,7 @@
+ 
+ #include <search.h>
+ #include <stdlib.h>
++#include <stdint.h>
+ #include <stdio.h>
+ #include <string.h>
+ 
+-- 
+2.47.3
+

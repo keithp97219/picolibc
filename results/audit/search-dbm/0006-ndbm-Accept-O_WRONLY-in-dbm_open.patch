@@ -1,0 +1,37 @@
+From 0fcfa95c51bbe60622b0ed43442c2eac165b73ad Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:03:19 +0000
+Subject: [PATCH 06/10] ndbm: Accept O_WRONLY in dbm_open
+
+POSIX: O_WRONLY opens the database for writing only, with its files
+opened for reading and writing. The hash code rejected O_WRONLY with
+EINVAL; open the files O_RDWR instead, as FreeBSD does.
+---
+ libc/search/ndbm.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/libc/search/ndbm.c b/libc/search/ndbm.c
+index deace18994..1d07dbe1e8 100644
+--- a/libc/search/ndbm.c
++++ b/libc/search/ndbm.c
+@@ -43,6 +43,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <errno.h>
++#include <fcntl.h>
+ 
+ #include <ndbm.h>
+ #include "hash.h"
+@@ -72,6 +73,9 @@ dbm_open(const char *file, int flags, mode_t mode)
+         errno = ENAMETOOLONG;
+         return (NULL);
+     }
++    /* The files of a write-only database are opened for reading and writing */
++    if ((flags & (O_WRONLY | O_RDWR)) == O_WRONLY)
++        flags = (flags & ~O_WRONLY) | O_RDWR;
+     (void)strcpy(path, file);
+     (void)strcat(path, DBM_SUFFIX);
+     return ((DBM *)__hash_open(path, flags, mode, 0, &info));
+-- 
+2.47.3
+

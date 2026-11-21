@@ -1,0 +1,234 @@
+From df16871c90d8a884c191593df96807e6e955aa6f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 07:59:39 +0000
+Subject: [PATCH 10/22] stdio: Convert between wide and multibyte characters in
+ wide stream I/O
+
+fgetwc and fputwc moved the bytes of each wchar_t to and from the
+stream, so fputwc(L'A', f) wrote four bytes to a file and fgetwc read
+four. POSIX (XSH 2.5): each conversion "shall occur as if by a call to
+the mbrtowc() function" (or wcrtomb). fputwc now writes the
+character's multibyte encoding, and fgetwc reads bytes until mbrtowc
+completes a character. An encoding error, or a stream that ends in the
+middle of a character, sets the error indicator and errno to EILSEQ,
+as POSIX asks of both functions.
+
+Wide string streams (swprintf, swscanf) and open_wmemstream still
+store wchar_t values; the new __SWCHAR flag marks them.
+
+Each call starts from the initial conversion state, since FILE has no
+mbstate_t; that is exact for the stateless encodings picolibc
+supports with a 4-byte wchar_t, but not for JIS or for UTF-16
+surrogate pairs.
+---
+ libc/include/stdio.h        |  3 ++-
+ libc/stdio/fgetwc.c         | 39 +++++++++++++++++++++++++++++++++----
+ libc/stdio/fputwc.c         | 27 +++++++++++++++++++++----
+ libc/stdio/local-stdio.h    | 22 +++++++++++----------
+ libc/stdio/open_memstream.c |  2 +-
+ libc/stdio/swprintf.c       |  1 -
+ libc/stdio/vswprintf.c      |  1 -
+ 7 files changed, 73 insertions(+), 22 deletions(-)
+
+diff --git a/libc/include/stdio.h b/libc/include/stdio.h
+index 08ecdd4a39..806aa33c4b 100644
+--- a/libc/include/stdio.h
++++ b/libc/include/stdio.h
+@@ -98,7 +98,8 @@ struct __file {
+ #define __SCLOSE 0x0010                /* struct is __file_close */
+ #define __SEXT   0x0020                /* struct is __file_ext */
+ #define __SBUF   0x0040                /* struct is __file_bufio */
+-#define __SWIDE  0x0080                /* wchar output mode */
++#define __SWIDE  0x0080                /* wide-oriented */
++#define __SWCHAR 0x0200                /* get and put move the bytes of wchar_t values */
+     int (*put)(char, struct __file *); /* function to write one char to device */
+     int (*get)(struct __file *);       /* function to read one char from device */
+     int (*flush)(struct __file *);     /* function to flush output to device */
+diff --git a/libc/stdio/fgetwc.c b/libc/stdio/fgetwc.c
+index df19190db7..bce0a4e0e2 100644
+--- a/libc/stdio/fgetwc.c
++++ b/libc/stdio/fgetwc.c
+@@ -42,6 +42,7 @@ __STDIO_UNLOCKED(getwc)(FILE *stream)
+     unsigned   i;
+     int        sc;
+     __ungetc_t unget;
++    mbstate_t  ps;
+ 
+     stream->flags |= __SWIDE;
+ 
+@@ -53,16 +54,46 @@ __STDIO_UNLOCKED(getwc)(FILE *stream)
+     if ((unget = __atomic_exchange_ungetc(&stream->unget, 0)) != 0)
+         return (wint_t)(unget - 1);
+ 
+-    for (i = 0; i < sizeof(wchar_t); i++) {
++    if (stream->flags & __SWCHAR) {
++        /* Wide string streams hold the wchar_t itself */
++        for (i = 0; i < sizeof(wchar_t); i++) {
++            sc = stream->get(stream);
++            if (sc < 0) {
++                stream->flags |= (sc == _FDEV_ERR) ? __SERR : __SEOF;
++                return WEOF;
++            }
++            u.c[i] = (char)sc;
++        }
++        return (wint_t)u.wc;
++    }
++
++    /* Other streams hold multibyte characters */
++    memset(&ps, 0, sizeof(ps));
++    for (;;) {
++        char   b;
++        size_t len;
++
+         sc = stream->get(stream);
+         if (sc < 0) {
+             stream->flags |= (sc == _FDEV_ERR) ? __SERR : __SEOF;
++            /* The input ended in the middle of a character */
++            if (sc != _FDEV_ERR && !mbsinit(&ps)) {
++                stream->flags |= __SERR;
++                errno = EILSEQ;
++            }
+             return WEOF;
+         }
+-        u.c[i] = (char)sc;
++        b = (char)sc;
++        len = mbrtowc(&u.wc, &b, 1, &ps);
++        if (len == (size_t)-2)
++            continue;
++        if (len == (size_t)-1) {
++            /* mbrtowc set errno to EILSEQ */
++            stream->flags |= __SERR;
++            return WEOF;
++        }
++        return (wint_t)u.wc;
+     }
+-
+-    return (wint_t)u.wc;
+ }
+ 
+ #ifdef __STDIO_LOCKING
+diff --git a/libc/stdio/fputwc.c b/libc/stdio/fputwc.c
+index 59ac9c29e6..a49b709bcb 100644
+--- a/libc/stdio/fputwc.c
++++ b/libc/stdio/fputwc.c
+@@ -39,7 +39,9 @@ __STDIO_UNLOCKED(putwc)(wchar_t c, FILE *stream)
+         wchar_t wc;
+         char    c[sizeof(wchar_t)];
+     } u;
+-    unsigned i;
++    char   mb[MB_LEN_MAX];
++    char  *out = mb;
++    size_t len, i;
+ 
+     stream->flags |= __SWIDE;
+ 
+@@ -48,9 +50,26 @@ __STDIO_UNLOCKED(putwc)(wchar_t c, FILE *stream)
+         return WEOF;
+     }
+ 
+-    u.wc = c;
+-    for (i = 0; i < sizeof(wchar_t); i++)
+-        if (stream->put(u.c[i], stream) < 0) {
++    if (stream->flags & __SWCHAR) {
++        /* Wide string streams store the wchar_t itself */
++        u.wc = c;
++        out = u.c;
++        len = sizeof(wchar_t);
++    } else {
++        /* Other streams hold the character's multibyte encoding */
++        mbstate_t ps;
++
++        memset(&ps, 0, sizeof(ps));
++        len = wcrtomb(mb, c, &ps);
++        if (len == (size_t)-1) {
++            /* wcrtomb set errno to EILSEQ */
++            stream->flags |= __SERR;
++            return WEOF;
++        }
++    }
++
++    for (i = 0; i < len; i++)
++        if (stream->put(out[i], stream) < 0) {
+             stream->flags |= __SERR;
+             return WEOF;
+         }
+diff --git a/libc/stdio/local-stdio.h b/libc/stdio/local-stdio.h
+index ec7808d796..a73a9cd676 100644
+--- a/libc/stdio/local-stdio.h
++++ b/libc/stdio/local-stdio.h
+@@ -91,11 +91,11 @@ bool              __matchcaseprefix(const char *input, const char *pattern);
+           .pos = (char *)(_s) \
+ }
+ 
+-#define FDEV_SETUP_WSTRING_READ(_s)                                           \
+-    {                                                                         \
+-        .file = { .flags = __SRD, .get = __file_wstr_get, __LOCK_INIT_NONE }, \
+-        .pos = (char *)(_s),                                                  \
+-        .end = (char *)(_s)                                                   \
++#define FDEV_SETUP_WSTRING_READ(_s)                                                                \
++    {                                                                                              \
++        .file = { .flags = __SRD | __SWIDE | __SWCHAR, .get = __file_wstr_get, __LOCK_INIT_NONE }, \
++        .pos = (char *)(_s),                                                                       \
++        .end = (char *)(_s)                                                                        \
+     }
+ 
+ #define FDEV_STRING_WRITE_END(_s, _n) (((int)(_n) < 0) ? NULL : ((_n) ? (_s) + (_n) - 1 : (_s)))
+@@ -108,11 +108,13 @@ bool              __matchcaseprefix(const char *input, const char *pattern);
+     }
+ 
+ /* A zero-sized wide string is an error even when no output is generated. */
+-#define FDEV_SETUP_WSTRING_WRITE(_s, _n)                                                 \
+-    {                                                                                    \
+-        .file = { .flags = (_n) ? __SWR : 0, .put = __file_wstr_put, __LOCK_INIT_NONE }, \
+-        .pos = (char *)(_s),                                                             \
+-        .end = (char *)FDEV_STRING_WRITE_END((_s), (_n)),                                \
++#define FDEV_SETUP_WSTRING_WRITE(_s, _n)                            \
++    {                                                               \
++        .file = { .flags = ((_n) ? __SWR : 0) | __SWIDE | __SWCHAR, \
++                 .put = __file_wstr_put,                           \
++                 __LOCK_INIT_NONE },                               \
++        .pos = (char *)(_s),                                        \
++        .end = (char *)FDEV_STRING_WRITE_END((_s), (_n)),           \
+     }
+ 
+ #define FDEV_SETUP_STRING_ALLOC()                                                  \
+diff --git a/libc/stdio/open_memstream.c b/libc/stdio/open_memstream.c
+index 2b83c76dd3..12ed2956da 100644
+--- a/libc/stdio/open_memstream.c
++++ b/libc/stdio/open_memstream.c
+@@ -183,7 +183,7 @@ __open_memstream(char **cbuf, wchar_t **wbuf, size_t *size)
+ 
+     *mf = (struct __file_open_mem) {
+         .xfile = FDEV_SETUP_EXT(__open_mem_put, NULL, __open_mem_flush, __open_mem_close,
+-                                __open_mem_seek, NULL, wbuf ? (__SWR | __SWIDE) : __SWR),
++                                __open_mem_seek, NULL, wbuf ? (__SWR | __SWIDE | __SWCHAR) : __SWR),
+         .psize = size,
+         .unit = unit,
+         .bsize = BUFSIZ,
+diff --git a/libc/stdio/swprintf.c b/libc/stdio/swprintf.c
+index e1c3d37803..06caa480cf 100644
+--- a/libc/stdio/swprintf.c
++++ b/libc/stdio/swprintf.c
+@@ -41,7 +41,6 @@ swprintf(wchar_t *s, size_t n, const wchar_t *fmt, ...)
+     va_list           ap;
+     int               i;
+     struct __file_str f = FDEV_SETUP_WSTRING_WRITE(s, n);
+-    f.file.flags |= __SWIDE;
+ 
+     va_start(ap, fmt);
+     i = vfwprintf(&f.file, fmt, ap);
+diff --git a/libc/stdio/vswprintf.c b/libc/stdio/vswprintf.c
+index 7b2d36e573..bb88d6380e 100644
+--- a/libc/stdio/vswprintf.c
++++ b/libc/stdio/vswprintf.c
+@@ -41,7 +41,6 @@ vswprintf(wchar_t *s, size_t n, const wchar_t *fmt, va_list ap)
+     struct __file_str f = FDEV_SETUP_WSTRING_WRITE(s, n);
+     int               i;
+ 
+-    f.file.flags |= __SWIDE;
+     i = vfwprintf(&f.file, fmt, ap);
+ 
+     if (n)
+-- 
+2.47.3
+

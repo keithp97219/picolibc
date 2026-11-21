@@ -1,0 +1,30 @@
+From fff68e605f33b1c0cf4b63983ee36e2e279999d3 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 07:56:58 +0000
+Subject: [PATCH 08/22] stdio: Set the error indicator when fputwc can't write
+
+POSIX: when fputwc fails, "the error indicator for the stream shall
+be set". putc did this; putwc returned WEOF with the indicator clear.
+---
+ libc/stdio/fputwc.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdio/fputwc.c b/libc/stdio/fputwc.c
+index 749d61817a..59ac9c29e6 100644
+--- a/libc/stdio/fputwc.c
++++ b/libc/stdio/fputwc.c
+@@ -50,8 +50,10 @@ __STDIO_UNLOCKED(putwc)(wchar_t c, FILE *stream)
+ 
+     u.wc = c;
+     for (i = 0; i < sizeof(wchar_t); i++)
+-        if (stream->put(u.c[i], stream) < 0)
++        if (stream->put(u.c[i], stream) < 0) {
++            stream->flags |= __SERR;
+             return WEOF;
++        }
+ 
+     return (wint_t)c;
+ }
+-- 
+2.47.3
+

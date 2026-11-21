@@ -1,0 +1,63 @@
+From 7daa5b9bf0375fb6c1627869fe27d563d0c24549 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 07:54:49 +0000
+Subject: [PATCH 07/22] uchar.h: Don't name parameters, and hide the char8_t
+ functions before C23
+
+<uchar.h> named the parameters of every function (pc8, s, n, ps, c8,
+pc16, c16, pc32, c32). mbrtoc8, c8rtomb and char8_t are C23 additions
+that POSIX.1-2024's <uchar.h> doesn't have; declare them only for C23
+or _DEFAULT_SOURCE.
+---
+ libc/include/uchar.h | 22 +++++++++++++---------
+ 1 file changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/libc/include/uchar.h b/libc/include/uchar.h
+index 9681afe03b..61996581bb 100644
+--- a/libc/include/uchar.h
++++ b/libc/include/uchar.h
+@@ -51,28 +51,32 @@ typedef __mbstate_t mbstate_t;
+ #define _MBSTATE_DECLARED
+ #endif
+ 
++#if __ISO_C_VISIBLE >= 2023 || __MISC_VISIBLE
+ #ifndef __cpp_char8_t
+ typedef unsigned char char8_t;
+ #endif
++#endif
+ #if !defined __cplusplus || __cplusplus < 201103L
+ typedef __uint_least16_t char16_t;
+ typedef __uint_least32_t char32_t;
+ #endif
+ 
+-size_t mbrtoc8(char8_t * __restrict pc8, const char * __restrict s, size_t n,
+-               mbstate_t * __restrict ps) __picolibc_export;
++#if __ISO_C_VISIBLE >= 2023 || __MISC_VISIBLE
++size_t mbrtoc8(char8_t * __restrict, const char * __restrict, size_t, mbstate_t * __restrict)
++    __picolibc_export;
+ 
+-size_t c8rtomb(char * __restrict s, char8_t c8, mbstate_t * __restrict ps) __picolibc_export;
++size_t c8rtomb(char * __restrict, char8_t, mbstate_t * __restrict) __picolibc_export;
++#endif
+ 
+-size_t mbrtoc16(char16_t * __restrict pc16, const char * __restrict s, size_t n,
+-                mbstate_t * __restrict ps) __picolibc_export;
++size_t mbrtoc16(char16_t * __restrict, const char * __restrict, size_t, mbstate_t * __restrict)
++    __picolibc_export;
+ 
+-size_t c16rtomb(char * __restrict s, char16_t c16, mbstate_t * __restrict ps) __picolibc_export;
++size_t c16rtomb(char * __restrict, char16_t, mbstate_t * __restrict) __picolibc_export;
+ 
+-size_t mbrtoc32(char32_t * __restrict pc32, const char * __restrict s, size_t n,
+-                mbstate_t * __restrict ps) __picolibc_export;
++size_t mbrtoc32(char32_t * __restrict, const char * __restrict, size_t, mbstate_t * __restrict)
++    __picolibc_export;
+ 
+-size_t c32rtomb(char * __restrict s, char32_t c32, mbstate_t * __restrict ps) __picolibc_export;
++size_t c32rtomb(char * __restrict, char32_t, mbstate_t * __restrict) __picolibc_export;
+ 
+ _END_STD_C
+ 
+-- 
+2.47.3
+

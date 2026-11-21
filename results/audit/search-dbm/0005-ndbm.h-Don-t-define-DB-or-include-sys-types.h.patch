@@ -1,0 +1,48 @@
+From 9581897bd2f601cb202e5fceb42e4de5faee4963 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:02:50 +0000
+Subject: [PATCH 05/10] ndbm.h: Don't define DB or include <sys/types.h>
+
+<ndbm.h> reserves only dbm_ and DBM_, but defined the type DB and,
+through <sys/types.h>, all of <stdint.h>. Take size_t from <stddef.h>,
+define mode_t directly and typedef DBM from struct __db.
+---
+ libc/include/ndbm.h | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/libc/include/ndbm.h b/libc/include/ndbm.h
+index f207da2204..f7bbaf380b 100644
+--- a/libc/include/ndbm.h
++++ b/libc/include/ndbm.h
+@@ -40,7 +40,15 @@
+ #ifndef _NDBM_H_
+ #define _NDBM_H_
+ 
+-#include <sys/types.h> /* For mode_t. */
++#include <sys/cdefs.h>
++#include <sys/_types.h>
++#define __need_size_t
++#include <stddef.h>
++
++#ifndef _MODE_T_DECLARED
++typedef __mode_t mode_t; /* permissions */
++#define _MODE_T_DECLARED
++#endif
+ /* #include <db.h> */
+ 
+ /*
+@@ -68,9 +76,8 @@ typedef struct {
+     size_t dsize;
+ } datum;
+ 
+-struct __db;            /* Forward-declaration */
+-typedef struct __db DB; /* Forward-declaration */
+-typedef DB          DBM;
++/* db_local.h defines struct __db, and DB, for the implementation */
++typedef struct __db DBM;
+ #define dbm_pagfno(a) DBM_PAGFNO_NOT_AVAILABLE
+ 
+ _BEGIN_STD_C
+-- 
+2.47.3
+

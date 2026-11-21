@@ -1,0 +1,54 @@
+From 2f1dae14cfa32994a48be29420d47d32d700e825 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:02:50 +0000
+Subject: [PATCH 03/10] search: Free the entries in hdestroy
+
+hdestroy shall dispose of the search table, but hdestroy_r freed only
+the bucket array and leaked every entry. Free the entries too, leaving
+the keys and data to the application.
+---
+ libc/search/hcreate_r.c | 25 +++++++++++--------------
+ 1 file changed, 11 insertions(+), 14 deletions(-)
+
+diff --git a/libc/search/hcreate_r.c b/libc/search/hcreate_r.c
+index 3eb903cfd6..38414ca8d1 100644
+--- a/libc/search/hcreate_r.c
++++ b/libc/search/hcreate_r.c
+@@ -128,23 +128,20 @@ hcreate_r(size_t nel, struct hsearch_data *htab)
+ void
+ hdestroy_r(struct hsearch_data *htab)
+ {
+-#if 0
+-	struct internal_entry *ie;
+-	size_t idx;
+-#endif
++    struct internal_entry *ie;
++    size_t                 idx;
++
+     if (htab->htable == NULL)
+         return;
+ 
+-#if 0
+-	for (idx = 0; idx < htab->htablesize; idx++) {
+-		while (!SLIST_EMPTY(&(htab->htable[idx]))) {
+-			ie = SLIST_FIRST(&(htab->htable[idx]));
+-			SLIST_REMOVE_HEAD(&(htab->htable[idx]), link);
+-                        free(ie->ent.key);
+-			free(ie);
+-		}
+-	}
+-#endif
++    /* The keys and data belong to the application */
++    for (idx = 0; idx < htab->htablesize; idx++) {
++        while (!SLIST_EMPTY(&(htab->htable[idx]))) {
++            ie = SLIST_FIRST(&(htab->htable[idx]));
++            SLIST_REMOVE_HEAD(&(htab->htable[idx]), link);
++            free(ie);
++        }
++    }
+     free(htab->htable);
+     htab->htable = NULL;
+ }
+-- 
+2.47.3
+

@@ -1,0 +1,105 @@
+From 8f7114b3180718ac69faa8dd2b75932bdb005cf5 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:12:40 +0000
+Subject: [PATCH 04/15] math: Make logb(0) a pole error
+
+POSIX (MX) says logb(+-0) shall fail with a pole error, setting errno
+to ERANGE when math_errhandling includes MATH_ERRNO. logb, logbf and
+logbl divided by zero, which raises the exception but never sets
+errno. Use __math_divzero, and have test-math-errhandling expect
+ERANGE, except from glibc, which doesn't set it.
+
+Signed-off-by: Keith Packard <keithp@keithp.com>
+---
+ libm/common/s_logb.c                         | 6 +++---
+ libm/common/sf_logb.c                        | 4 ++--
+ libm/ld/common/s_logbl.c                     | 6 ++----
+ test/test-math/test-math-errhandling-tests.c | 4 ++--
+ test/test-math/test-math-errhandling.c       | 7 +++++++
+ 5 files changed, 16 insertions(+), 11 deletions(-)
+
+diff --git a/libm/common/s_logb.c b/libm/common/s_logb.c
+index c18e52ae3e..61602e14ea 100644
+--- a/libm/common/s_logb.c
++++ b/libm/common/s_logb.c
+@@ -84,9 +84,9 @@ logb64(__float64 x)
+     hx &= 0x7fffffff;      /* high |x| */
+     if (hx < 0x00100000) { /* 0 or subnormal */
+         if ((hx | lx) == 0) {
+-            /* arg==0:  return -inf and raise divide-by-zero exception */
+-            return -1. / fabs64(x); /* logb(0) = -inf */
+-        } else                      /* subnormal x */
++            /* arg==0:  return -inf, a pole error */
++            return __math_divzero(1); /* logb(0) = -inf */
++        } else                        /* subnormal x */
+             if (hx == 0) {
+                 for (ix = -1043; lx > 0; lx = lsl(lx, 1))
+                     ix -= 1;
+diff --git a/libm/common/sf_logb.c b/libm/common/sf_logb.c
+index 3876978600..c924f43f80 100644
+--- a/libm/common/sf_logb.c
++++ b/libm/common/sf_logb.c
+@@ -28,8 +28,8 @@ logbf(float x)
+     GET_FLOAT_WORD(hx, x);
+     hx &= 0x7fffffff;
+     if (FLT_UWORD_IS_ZERO(hx)) {
+-        /* arg==0:  return -inf and raise divide-by-zero exception */
+-        return -1.f / fabsf(x); /* logbf(0) = -inf */
++        /* arg==0:  return -inf, a pole error */
++        return __math_divzerof(1); /* logbf(0) = -inf */
+     }
+     if (FLT_UWORD_IS_SUBNORMAL(hx)) {
+         for (ix = -126, hx = lsl(hx, 8); hx > 0; hx = lsl(hx, 1))
+diff --git a/libm/ld/common/s_logbl.c b/libm/ld/common/s_logbl.c
+index b74a74a52b..15b856a436 100644
+--- a/libm/ld/common/s_logbl.c
++++ b/libm/ld/common/s_logbl.c
+@@ -19,10 +19,8 @@ logbl(long double x)
+ 
+     u.e = x;
+     if (u.bits.exp == 0) {
+-        if ((u.bits.manl | u.bits.manh) == 0) { /* x == 0 */
+-            u.bits.sign = 1;
+-            return (1.0L / u.e);
+-        }
++        if ((u.bits.manl | u.bits.manh) == 0) /* x == 0, a pole error */
++            return __math_divzerol(1);
+         /* denormalized */
+ #ifdef LDBL_MANL_SIZE
+         if (u.bits.manh == 0) {
+diff --git a/test/test-math/test-math-errhandling-tests.c b/test/test-math/test-math-errhandling-tests.c
+index c19ba753be..d2fae7f9c4 100644
+--- a/test/test-math/test-math-errhandling-tests.c
++++ b/test/test-math/test-math-errhandling-tests.c
+@@ -4599,8 +4599,8 @@ TEST_CONST struct {
+ 
+     TEST(logb_qnan, (FLOAT_T)NAN, 0, 0),
+     TEST(logb_snan, (FLOAT_T)NAN, FE_INVALID, 0),
+-    TEST(logb_0, -(FLOAT_T)INFINITY, FE_DIVBYZERO, 0),
+-    TEST(logb_neg0, -(FLOAT_T)INFINITY, FE_DIVBYZERO, 0),
++    TEST(logb_0, -(FLOAT_T)INFINITY, FE_DIVBYZERO, LOGB_POLE_ERRNO),
++    TEST(logb_neg0, -(FLOAT_T)INFINITY, FE_DIVBYZERO, LOGB_POLE_ERRNO),
+     TEST(logb_inf, (FLOAT_T)INFINITY, 0, 0),
+     TEST(logb_neginf, (FLOAT_T)INFINITY, 0, 0),
+ 
+diff --git a/test/test-math/test-math-errhandling.c b/test/test-math/test-math-errhandling.c
+index 51bda5e7e5..a1eb140f74 100644
+--- a/test/test-math/test-math-errhandling.c
++++ b/test/test-math/test-math-errhandling.c
+@@ -187,6 +187,13 @@ e_to_str(int e)
+ 
+ #define scat(a, b) a##b
+ 
++/* POSIX makes logb(0) a pole error; glibc doesn't set errno for it */
++#ifdef __GLIBC__
++#define LOGB_POLE_ERRNO 0
++#else
++#define LOGB_POLE_ERRNO ERANGE
++#endif
++
+ #ifdef __mcffpu__
+ #define SKIP_SNAN_CHECKS
+ #endif
+-- 
+2.47.3
+

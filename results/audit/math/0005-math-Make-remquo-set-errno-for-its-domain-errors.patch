@@ -1,0 +1,87 @@
+From f1e8f933e0cd98c29ecedb6ed6b2d89b12942d1b Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:12:40 +0000
+Subject: [PATCH 05/15] math: Make remquo set errno for its domain errors
+
+POSIX (MX): remquo shall fail with a domain error when x is infinite or
+y is zero and the other argument isn't NaN, setting errno to EDOM when
+math_errhandling includes MATH_ERRNO. remquo, remquof and remquol
+computed (x * y) / (x * y), which raises invalid but leaves errno
+alone. Return NaN arguments as before and use __math_invalid for the
+rest, as remainder does.
+
+Signed-off-by: Keith Packard <keithp@keithp.com>
+---
+ libm/common/s_remquo.c    | 4 +++-
+ libm/common/sf_remquo.c   | 4 +++-
+ libm/ld/ld128/s_remquol.c | 8 ++++++--
+ libm/ld/ld80/s_remquol.c  | 4 +++-
+ 4 files changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/libm/common/s_remquo.c b/libm/common/s_remquo.c
+index 7aa6104dcb..e617019644 100644
+--- a/libm/common/s_remquo.c
++++ b/libm/common/s_remquo.c
+@@ -102,7 +102,9 @@ remquo64(__float64 x, __float64 y, int *quo)
+     if ((hy | ly) == 0 || (hx >= 0x7ff00000) ||     /* y=0,or x not finite */
+         ((hy | ((ly | -ly) >> 31)) > 0x7ff00000)) { /* or y is NaN */
+         *quo = 0;                                   /* Not necessary, but return consistent value */
+-        return (x * y) / (x * y);
++        if (isnan(x) || isnan(y))
++            return x + y;
++        return __math_invalid(x); /* x infinite or y zero: a domain error */
+     }
+     if (hx <= hy) {
+         if ((hx < hy) || (lx < ly)) {
+diff --git a/libm/common/sf_remquo.c b/libm/common/sf_remquo.c
+index 6892a18750..8f506de660 100644
+--- a/libm/common/sf_remquo.c
++++ b/libm/common/sf_remquo.c
+@@ -61,7 +61,9 @@ remquof(float x, float y, int *quo)
+     /* purge off exception values */
+     if (hy == 0 || hx >= 0x7f800000 || hy > 0x7f800000) { /* y=0,NaN;or x not finite */
+         *quo = 0; /* Not necessary, but return consistent value */
+-        return (x * y) / (x * y);
++        if (isnan(x) || isnan(y))
++            return x + y;
++        return __math_invalidf(x); /* x infinite or y zero: a domain error */
+     }
+     if (hx < hy) {
+         q = 0;
+diff --git a/libm/ld/ld128/s_remquol.c b/libm/ld/ld128/s_remquol.c
+index 7de66dc103..7df054399c 100644
+--- a/libm/ld/ld128/s_remquol.c
++++ b/libm/ld/ld128/s_remquol.c
+@@ -65,8 +65,12 @@ remquol(long double x, long double y, int *quo)
+     if ((hy | ly) == 0 ||                      /* y=0 */
+         ((hx >> 48) == BIAS + LDBL_MAX_EXP) || /* or x not finite */
+         ((hy >> 48) == BIAS + LDBL_MAX_EXP
+-         && (((hy & 0x0000ffffffffffffLL) & ~LDBL_NBIT) | ly) != 0)) /* or y is NaN */
+-        return (x * y) / (x * y);
++         && (((hy & 0x0000ffffffffffffLL) & ~LDBL_NBIT) | ly) != 0)) { /* or y is NaN */
++        *quo = 0;
++        if (isnan(x) || isnan(y))
++            return x + y;
++        return __math_invalidl(x); /* x infinite or y zero: a domain error */
++    }
+     if ((hx >> 48) <= (hy >> 48)) {
+         if (((hx >> 48) < (hy >> 48))
+             || ((hx & 0x0000ffffffffffffLL) <= (hy & 0x0000ffffffffffffLL)
+diff --git a/libm/ld/ld80/s_remquol.c b/libm/ld/ld80/s_remquol.c
+index ec334829a1..2a71bb4431 100644
+--- a/libm/ld/ld80/s_remquol.c
++++ b/libm/ld/ld80/s_remquol.c
+@@ -65,7 +65,9 @@ remquol(long double x, long double y, int *quo)
+         (esx == BIAS + LDBL_MAX_EXP) ||                                  /* or x not finite */
+         (esy == BIAS + LDBL_MAX_EXP && ((hy & ~LDBL_NBIT) | ly) != 0)) { /* or y is NaN */
+         *quo = 0;
+-        return (x * y) / (x * y);
++        if (isnan(x) || isnan(y))
++            return x + y;
++        return __math_invalidl(x); /* x infinite or y zero: a domain error */
+     }
+     if (esx <= esy) {
+         if ((esx < esy) || (hx <= hy && (hx < hy || lx < ly))) {
+-- 
+2.47.3
+

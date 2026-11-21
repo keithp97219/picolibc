@@ -1,0 +1,38 @@
+From 3caf7f12df990ca0829be6a29a51ea4620430bf0 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:03:51 +0000
+Subject: [PATCH 12/22] stdio.h: Keep ungetwc's character in 32 bits in
+ mb-capable builds
+
+The push-back slot held 16 bits, so ungetwc(0x1f600, f) succeeded and
+the next fgetwc returned 0xf600. POSIX: ungetwc pushes back the
+character, and "at least one character of push-back shall be
+provided". With __MB_CAPABLE and a 4-byte wchar_t, where any Unicode
+character can be read, the slot is now 32 bits, as it already was on
+RISC-V, MicroBlaze and LoongArch. FILE grows by four bytes on 32-bit
+targets in that configuration.
+---
+ libc/include/stdio.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libc/include/stdio.h b/libc/include/stdio.h
+index e33638b8bb..c153af7e5d 100644
+--- a/libc/include/stdio.h
++++ b/libc/include/stdio.h
+@@ -77,8 +77,13 @@ _BEGIN_STD_C
+ #endif
+ 
+ #ifndef __PICOLIBC_UNGETC_SIZE
++#if defined(__MB_CAPABLE) && __SIZEOF_WCHAR_T__ == 4
++/* ungetwc must be able to push back any wide character */
++#define __PICOLIBC_UNGETC_SIZE 4
++#else
+ #define __PICOLIBC_UNGETC_SIZE 2
+ #endif
++#endif
+ 
+ #if __PICOLIBC_UNGETC_SIZE == 4
+ typedef __uint32_t __ungetc_t;
+-- 
+2.47.3
+

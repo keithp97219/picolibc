@@ -1,0 +1,82 @@
+From 782f9bfe0cf1d1234a8f351819c7aa90d6de6d27 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:23:49 +0000
+Subject: [PATCH 08/15] complex: Keep csqrt and csqrtf on the right side of the
+ branch cut
+
+csqrt has a branch cut along the negative real axis, the sign of a
+zero imaginary part picking the side, so csqrt(-4 - 0i) is 0 - 2i;
+csqrt and csqrtf returned 0 + 2i. They also mishandled infinite and
+NaN parts (csqrt(NaN + Inf i) is Inf + Inf i). Handle those first as
+csqrtl does.
+
+Signed-off-by: Keith Packard <keithp@keithp.com>
+---
+ libm/complex/csqrt.c  | 15 ++++++++++++++-
+ libm/complex/csqrtf.c | 15 ++++++++++++++-
+ 2 files changed, 28 insertions(+), 2 deletions(-)
+
+diff --git a/libm/complex/csqrt.c b/libm/complex/csqrt.c
+index 7faef2cbf7..a9fdcdf760 100644
+--- a/libm/complex/csqrt.c
++++ b/libm/complex/csqrt.c
+@@ -77,6 +77,18 @@ csqrt(double complex z)
+     x = creal(z);
+     y = cimag(z);
+ 
++    /* Infinite and NaN parts, as csqrtl handles them */
++    if (isinf(y))
++        return CMPLX(INFINITY, y);
++    if (isnan(x))
++        return CMPLX(x, (y - y) / (y - y)); /* NaN + NaN i, invalid unless y is NaN */
++    if (isinf(x)) {
++        if (signbit(x))
++            return CMPLX(fabs(y - y), copysign(x, y));
++        else
++            return CMPLX(x, copysign(y - y, y));
++    }
++
+     if (y == 0.0) {
+         if (x == 0.0) {
+             w = CMPLX(0, y);
+@@ -84,7 +96,8 @@ csqrt(double complex z)
+             r = fabs(x);
+             r = sqrt(r);
+             if (x < 0.0) {
+-                w = CMPLX(0, r);
++                /* The sign of zero picks the side of the branch cut */
++                w = CMPLX(0, copysign(r, y));
+             } else {
+                 w = CMPLX(r, y);
+             }
+diff --git a/libm/complex/csqrtf.c b/libm/complex/csqrtf.c
+index b783a4d208..968edd8ef6 100644
+--- a/libm/complex/csqrtf.c
++++ b/libm/complex/csqrtf.c
+@@ -43,9 +43,22 @@ csqrtf(float complex z)
+     x = crealf(z);
+     y = cimagf(z);
+ 
++    /* Infinite and NaN parts, as csqrtl handles them */
++    if (isinf(y))
++        return CMPLXF(INFINITY, y);
++    if (isnan(x))
++        return CMPLXF(x, (y - y) / (y - y)); /* NaN + NaN i, invalid unless y is NaN */
++    if (isinf(x)) {
++        if (signbit(x))
++            return CMPLXF(fabsf(y - y), copysignf(x, y));
++        else
++            return CMPLXF(x, copysignf(y - y, y));
++    }
++
+     if (y == 0.0f) {
+         if (x < 0.0f) {
+-            w = CMPLXF(0, sqrtf(-x));
++            /* The sign of zero picks the side of the branch cut */
++            w = CMPLXF(0, copysignf(sqrtf(-x), y));
+         } else if (x == 0.0f) {
+             w = CMPLXF(0, y);
+         } else {
+-- 
+2.47.3
+

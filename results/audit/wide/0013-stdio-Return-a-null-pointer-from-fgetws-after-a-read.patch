@@ -1,0 +1,40 @@
+From 17ff77f58002e91ef00f12f89b65d729b5c6f068 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:04:20 +0000
+Subject: [PATCH 13/22] stdio: Return a null pointer from fgetws after a read
+ or encoding error
+
+fgetws returned the characters read so far when fgetwc failed in the
+middle of a line. POSIX: "If an error occurs, the error indicator for
+the stream shall be set, and fgetws() shall return a null pointer";
+only end-of-file returns the partial line.
+---
+ libc/stdio/fgetws.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/libc/stdio/fgetws.c b/libc/stdio/fgetws.c
+index 7aa5a5c61f..a75ef5324b 100644
+--- a/libc/stdio/fgetws.c
++++ b/libc/stdio/fgetws.c
+@@ -34,6 +34,7 @@ __STDIO_UNLOCKED(fgetws)(wchar_t *str, int size, FILE *stream)
+ {
+     wchar_t *cp;
+     wint_t   c;
++    bool     had_error = (stream->flags & __SERR) != 0;
+ 
+     if ((stream->flags & __SRD) == 0) {
+         __stdio_bad_dir(stream);
+@@ -45,7 +46,9 @@ __STDIO_UNLOCKED(fgetws)(wchar_t *str, int size, FILE *stream)
+     size--;
+     for (c = 0, cp = str; c != L'\n' && size > 0; size--, cp++) {
+         if ((c = __STDIO_UNLOCKED(getwc)(stream)) == WEOF) {
+-            if (cp == str)
++            /* After a read or encoding error, return a null pointer */
++            if (cp == str || (stream->flags & __SEOF) == 0
++                || (!had_error && (stream->flags & __SERR) != 0))
+                 return NULL;
+             break;
+         }
+-- 
+2.47.3
+

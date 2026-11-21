@@ -1,0 +1,375 @@
+From 708af2308b039cc6a2b35cb36aecff000cddb90f Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:26:23 +0000
+Subject: [PATCH 21/22] test-posix: Check <uchar.h> and the char16_t and
+ char32_t conversions
+
+The types and prototypes, no plain parameter names and no C23 char8_t
+functions in strict C17 mode; mbrtoc16, c16rtomb, mbrtoc32 and
+c32rtomb with null arguments, surrogate pairs, encoding errors and
+their own internal states.
+---
+ test/test-posix/CMakeLists.txt             |   1 +
+ test/test-posix/meson.build                |   1 +
+ test/test-posix/test-uchar/CMakeLists.txt  |  43 ++++
+ test/test-posix/test-uchar/meson.build     |  38 ++++
+ test/test-posix/test-uchar/test-mbrtoc16.c | 228 +++++++++++++++++++++
+ 5 files changed, 311 insertions(+)
+ create mode 100644 test/test-posix/test-uchar/CMakeLists.txt
+ create mode 100644 test/test-posix/test-uchar/meson.build
+ create mode 100644 test/test-posix/test-uchar/test-mbrtoc16.c
+
+diff --git a/test/test-posix/CMakeLists.txt b/test/test-posix/CMakeLists.txt
+index 8b951f9a83..fc946cad61 100644
+--- a/test/test-posix/CMakeLists.txt
++++ b/test/test-posix/CMakeLists.txt
+@@ -85,6 +85,7 @@ add_subdirectory(test-syslog)
+ add_subdirectory(test-termios)
+ add_subdirectory(test-threads)
+ add_subdirectory(test-time)
++add_subdirectory(test-uchar)
+ add_subdirectory(test-unistd)
+ add_subdirectory(test-utmpx)
+ add_subdirectory(test-wchar)
+diff --git a/test/test-posix/meson.build b/test/test-posix/meson.build
+index 55e40828de..4f0b33d41a 100644
+--- a/test/test-posix/meson.build
++++ b/test/test-posix/meson.build
+@@ -90,6 +90,7 @@ posix_test_dirs = [
+   'test-termios',
+   'test-threads',
+   'test-time',
++  'test-uchar',
+   'test-unistd',
+   'test-utmpx',
+   'test-wchar',
+diff --git a/test/test-posix/test-uchar/CMakeLists.txt b/test/test-posix/test-uchar/CMakeLists.txt
+new file mode 100644
+index 0000000000..3351e131f8
+--- /dev/null
++++ b/test/test-posix/test-uchar/CMakeLists.txt
+@@ -0,0 +1,43 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# Copyright © 2026 Keith Packard
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++#
++# 1. Redistributions of source code must retain the above copyright
++#    notice, this list of conditions and the following disclaimer.
++#
++# 2. Redistributions in binary form must reproduce the above
++#    copyright notice, this list of conditions and the following
++#    disclaimer in the documentation and/or other materials provided
++#    with the distribution.
++#
++# 3. Neither the name of the copyright holder nor the names of its
++#    contributors may be used to endorse or promote products derived
++#    from this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++# OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++set(tests
++  test-mbrtoc16
++  )
++
++foreach(test IN LISTS tests)
++  picolibc_test(${test})
++  set_tests_properties(${test} PROPERTIES LABELS test-uchar)
++endforeach()
+diff --git a/test/test-posix/test-uchar/meson.build b/test/test-posix/test-uchar/meson.build
+new file mode 100644
+index 0000000000..51235ae1a9
+--- /dev/null
++++ b/test/test-posix/test-uchar/meson.build
+@@ -0,0 +1,38 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# Copyright © 2026 Keith Packard
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++#
++# 1. Redistributions of source code must retain the above copyright
++#    notice, this list of conditions and the following disclaimer.
++#
++# 2. Redistributions in binary form must reproduce the above
++#    copyright notice, this list of conditions and the following
++#    disclaimer in the documentation and/or other materials provided
++#    with the distribution.
++#
++# 3. Neither the name of the copyright holder nor the names of its
++#    contributors may be used to endorse or promote products derived
++#    from this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++# OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++dir_tests = [
++  'test-mbrtoc16',
++]
+diff --git a/test/test-posix/test-uchar/test-mbrtoc16.c b/test/test-posix/test-uchar/test-mbrtoc16.c
+new file mode 100644
+index 0000000000..4af3c4bb3b
+--- /dev/null
++++ b/test/test-posix/test-uchar/test-mbrtoc16.c
+@@ -0,0 +1,228 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * Copyright © 2026 Keith Packard
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above
++ *    copyright notice, this list of conditions and the following
++ *    disclaimer in the documentation and/or other materials provided
++ *    with the distribution.
++ *
++ * 3. Neither the name of the copyright holder nor the names of its
++ *    contributors may be used to endorse or promote products derived
++ *    from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
++ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#define _POSIX_C_SOURCE 202405L
++
++/* Prototypes in the header must not use names an application may define */
++#define c16 )
++#define c32 )
++#define n   )
++#define pc16 )
++#define pc32 )
++#define ps  )
++#define s   )
++
++#include <uchar.h>
++
++#undef c16
++#undef c32
++#undef n
++#undef pc16
++#undef pc32
++#undef ps
++#undef s
++
++#include <errno.h>
++#include <limits.h>
++#include <locale.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <wchar.h>
++
++/*
++ * <uchar.h> (new in Issue 8): the types and prototypes, the namespace,
++ * and mbrtoc16, c16rtomb, mbrtoc32 and c32rtomb with null arguments,
++ * surrogate pairs and encoding errors. The UTF-8 checks run where a
++ * C.UTF-8 locale exists.
++ */
++
++#define check(condition, message)                      \
++    do {                                               \
++        if (!(condition)) {                            \
++            printf("%s: %s\n", (message), #condition); \
++            exit(1);                                   \
++        }                                              \
++    } while (0)
++
++/* char16_t and char32_t are uint_least16_t and uint_least32_t */
++static char16_t  c16v __attribute__((unused));
++static char32_t  c32v __attribute__((unused));
++static mbstate_t state __attribute__((unused));
++static size_t    size __attribute__((unused));
++_Static_assert(_Generic(c16v, uint_least16_t: 1, default: 0), "char16_t");
++_Static_assert(_Generic(c32v, uint_least32_t: 1, default: 0), "char32_t");
++
++#define proto(name, type) _Static_assert(_Generic((name), type: 1, default: 0), #name)
++proto(c16rtomb, size_t (*)(char *, char16_t, mbstate_t *));
++proto(c32rtomb, size_t (*)(char *, char32_t, mbstate_t *));
++proto(mbrtoc16, size_t (*)(char16_t *, const char *, size_t, mbstate_t *));
++proto(mbrtoc32, size_t (*)(char32_t *, const char *, size_t, mbstate_t *));
++
++/* The C23 char8_t functions aren't in POSIX.1-2024's <uchar.h> */
++#if !defined(__STDC_VERSION__) || __STDC_VERSION__ <= 201710L
++static int mbrtoc8 __attribute__((unused));
++static int c8rtomb __attribute__((unused));
++#endif
++
++#define SENTINEL EDOM
++
++static void
++reset(mbstate_t *ps)
++{
++    memset(ps, 0, sizeof(*ps));
++}
++
++static void
++c_locale(void)
++{
++    mbstate_t ps;
++    char16_t  c16;
++    char32_t  c32;
++    char      buf[MB_LEN_MAX > 8 ? MB_LEN_MAX : 8];
++
++    reset(&ps);
++    errno = SENTINEL;
++    check(mbrtoc16(&c16, "A", 1, &ps) == 1 && c16 == u'A', "mbrtoc16 of A");
++    check(mbrtoc16(&c16, "", 1, &ps) == 0 && c16 == 0, "mbrtoc16 of the null byte");
++    check(mbrtoc32(&c32, "A", 1, &ps) == 1 && c32 == U'A', "mbrtoc32 of A");
++    check(mbrtoc32(NULL, "A", 1, &ps) == 1, "mbrtoc32 with a null pc32");
++    check(mbrtoc16(&c16, "A", 0, &ps) == (size_t)-2, "mbrtoc16 with n 0");
++    check(c16rtomb(buf, u'A', &ps) == 1 && buf[0] == 'A', "c16rtomb of A");
++    check(c32rtomb(buf, U'A', &ps) == 1 && buf[0] == 'A', "c32rtomb of A");
++    check(c32rtomb(buf, 0, &ps) == 1 && buf[0] == '\0', "c32rtomb of the null character");
++
++    /* A null s: mbrtoc16(NULL, "", 1, ps), so nothing is stored */
++    c16 = 0x1234;
++    check(mbrtoc16(&c16, NULL, 0, &ps) == 0, "mbrtoc16 with a null s");
++    check(c16 == 0x1234, "mbrtoc16 with a null s stores nothing");
++    check(mbsinit(&ps) != 0, "mbrtoc16 with a null s leaves the initial state");
++    c32 = 0x1234;
++    check(mbrtoc32(&c32, NULL, 0, &ps) == 0, "mbrtoc32 with a null s");
++    check(c32 == 0x1234, "mbrtoc32 with a null s stores nothing");
++
++    /* A null s: c16rtomb(buf, 0, ps), whatever the character */
++    check(c16rtomb(NULL, 0xd800, &ps) == 1, "c16rtomb with a null s ignores c16");
++    check(mbsinit(&ps) != 0, "c16rtomb with a null s leaves the initial state");
++    check(c32rtomb(NULL, 0xd800, &ps) == 1, "c32rtomb with a null s ignores c32");
++
++    /* The internal states */
++    check(mbrtoc16(&c16, "B", 1, NULL) == 1 && c16 == u'B', "mbrtoc16 with a null ps");
++    check(mbrtoc32(&c32, "B", 1, NULL) == 1 && c32 == U'B', "mbrtoc32 with a null ps");
++    check(c16rtomb(buf, u'B', NULL) == 1 && buf[0] == 'B', "c16rtomb with a null ps");
++    check(c32rtomb(buf, U'B', NULL) == 1 && buf[0] == 'B', "c32rtomb with a null ps");
++    check(errno == SENTINEL, "errno after the conversions");
++
++    /* Values that aren't characters */
++    errno = 0;
++    check(c32rtomb(buf, 0xd800, &ps) == (size_t)-1 && errno == EILSEQ, "c32rtomb of a surrogate");
++    reset(&ps);
++    errno = 0;
++    check(c32rtomb(buf, 0x110000, &ps) == (size_t)-1 && errno == EILSEQ,
++          "c32rtomb beyond U+10FFFF");
++    reset(&ps);
++}
++
++static void
++utf8_locale(void)
++{
++    mbstate_t ps;
++    char16_t  c16;
++    char32_t  c32;
++    char      buf[MB_LEN_MAX > 8 ? MB_LEN_MAX : 8];
++    size_t    len;
++
++    reset(&ps);
++    errno = SENTINEL;
++
++    /* mbrtoc32 and c32rtomb */
++    check(mbrtoc32(&c32, "\xf0\x9f\x98\x80", 4, &ps) == 4 && c32 == 0x1f600, "mbrtoc32");
++    check(mbrtoc32(&c32, "\xc3", 1, &ps) == (size_t)-2, "mbrtoc32 partial");
++    check(mbrtoc32(&c32, "\xa9", 1, &ps) == 1 && c32 == 0xe9, "mbrtoc32 completed");
++    check(c32rtomb(buf, 0x1f600, &ps) == 4 && memcmp(buf, "\xf0\x9f\x98\x80", 4) == 0, "c32rtomb");
++
++    /* mbrtoc16 gives a surrogate pair: the second comes back as -3 */
++    check(mbrtoc16(&c16, "\xf0\x9f\x98\x80", 4, &ps) == 4 && c16 == 0xd83d, "high surrogate");
++    check(mbsinit(&ps) == 0, "the low surrogate is pending");
++    check(mbrtoc16(&c16, "", 1, &ps) == (size_t)-3 && c16 == 0xde00, "low surrogate");
++    check(mbsinit(&ps) != 0, "nothing pending");
++    check(mbrtoc16(&c16, "\xc3\xa9", 2, &ps) == 2 && c16 == 0xe9, "mbrtoc16 in the BMP");
++
++    /* c16rtomb takes a surrogate pair */
++    check(c16rtomb(buf, 0xd83d, &ps) == 0, "c16rtomb stores nothing for a high surrogate");
++    len = c16rtomb(buf, 0xde00, &ps);
++    check(len == 4 && memcmp(buf, "\xf0\x9f\x98\x80", 4) == 0, "c16rtomb completes the pair");
++    check(c16rtomb(buf, 0xe9, &ps) == 2 && memcmp(buf, "\xc3\xa9", 2) == 0, "c16rtomb BMP");
++    check(errno == SENTINEL, "errno after the conversions");
++
++    /* Encoding errors */
++    errno = 0;
++    check(mbrtoc16(&c16, "\xff", 1, &ps) == (size_t)-1 && errno == EILSEQ, "mbrtoc16 EILSEQ");
++    reset(&ps);
++    errno = 0;
++    check(mbrtoc32(&c32, "\xed\xa0\x80", 3, &ps) == (size_t)-1 && errno == EILSEQ,
++          "mbrtoc32 of an encoded surrogate");
++    reset(&ps);
++    errno = 0;
++    check(c16rtomb(buf, 0xde00, &ps) == (size_t)-1 && errno == EILSEQ, "a lone low surrogate");
++    reset(&ps);
++    check(c16rtomb(buf, 0xd83d, &ps) == 0, "a high surrogate");
++    errno = 0;
++    check(c16rtomb(buf, u'A', &ps) == (size_t)-1 && errno == EILSEQ, "a high surrogate alone");
++    reset(&ps);
++
++    /* Each function has its own internal state */
++    check(mbrtoc32(&c32, "\xc3", 1, NULL) == (size_t)-2, "mbrtoc32's state");
++    errno = 0;
++    check(mbrtoc16(&c16, "\xa9", 1, NULL) == (size_t)-1 && errno == EILSEQ, "mbrtoc16's own state");
++    check(mbrtoc32(&c32, "\xa9", 1, NULL) == 1 && c32 == 0xe9, "mbrtoc32's state kept");
++}
++
++int
++main(void)
++{
++    c_locale();
++
++    if (setlocale(LC_CTYPE, "C.UTF-8") != NULL) {
++        utf8_locale();
++        check(setlocale(LC_CTYPE, "C") != NULL, "back to the C locale");
++    } else {
++        printf("no C.UTF-8 locale, skipping the UTF-8 checks\n");
++    }
++
++    printf("success\n");
++    return 0;
++}
+-- 
+2.47.3
+

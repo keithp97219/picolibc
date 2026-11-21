@@ -1,0 +1,28 @@
+From 1c2c87c8006033e790723f3a4d00f70316de68b4 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 08:03:19 +0000
+Subject: [PATCH 07/10] search: Count the first segment in alloc_segs
+
+d1dc8cdf20 stored the first segment outside the loop but stopped
+counting it in nsegs, so the first table expansion (past 81 records in a
+new ndbm database) replaced segment 0 with an empty one, losing every
+record, and hdestroy then freed that segment twice.
+---
+ libc/search/hash.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libc/search/hash.c b/libc/search/hash.c
+index 571bfe7ad0..b74dad2386 100644
+--- a/libc/search/hash.c
++++ b/libc/search/hash.c
+@@ -885,6 +885,7 @@ alloc_segs(HTAB *hashp, int nsegs)
+         return (-1);
+     }
+     hashp->dir[0] = store;
++    hashp->nsegs = 1;
+     for (i = 1; i < nsegs; i++, hashp->nsegs++)
+         hashp->dir[i] = &store[i << hashp->SSHIFT];
+     return (0);
+-- 
+2.47.3
+

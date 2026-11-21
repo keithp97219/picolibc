@@ -1,0 +1,67 @@
+From adea7313137ae69cf97efdd50ae05beb349cfef1 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 21 Nov 2026 07:52:31 +0000
+Subject: [PATCH 02/22] stdlib: Give mbrlen, mbsrtowcs and wcsrtombs their own
+ internal state
+
+With a null ps, mbrlen used mbrtowc's internal mbstate_t, mbsrtowcs
+used mbsnrtowcs's and wcsrtombs used wcsnrtombs's, so a partial
+character left by one call was continued by the other. POSIX gives
+each function its own object and says no function calls them.
+---
+ libc/stdlib/mbrlen.c    | 6 ++++++
+ libc/stdlib/mbsrtowcs.c | 6 ++++++
+ libc/stdlib/wcsrtombs.c | 6 ++++++
+ 3 files changed, 18 insertions(+)
+
+diff --git a/libc/stdlib/mbrlen.c b/libc/stdlib/mbrlen.c
+index 1e37b5492d..8205258eef 100644
+--- a/libc/stdlib/mbrlen.c
++++ b/libc/stdlib/mbrlen.c
+@@ -9,5 +9,11 @@ Copyright (c) 2002 Thomas Fitzsimmons <fitzsim@redhat.com>
+ size_t
+ mbrlen(const char * __restrict s, size_t n, mbstate_t * __restrict ps)
+ {
++#ifdef __MB_CAPABLE
++    static mbstate_t _mbrlen_state;
++
++    if (ps == NULL)
++        ps = &_mbrlen_state;
++#endif
+     return mbrtowc(NULL, s, n, ps);
+ }
+diff --git a/libc/stdlib/mbsrtowcs.c b/libc/stdlib/mbsrtowcs.c
+index eb0cd91183..518b480e2a 100644
+--- a/libc/stdlib/mbsrtowcs.c
++++ b/libc/stdlib/mbsrtowcs.c
+@@ -13,5 +13,11 @@ size_t
+ mbsrtowcs(wchar_t * __restrict dst, const char ** __restrict src, size_t len,
+           mbstate_t * __restrict ps)
+ {
++#ifdef __MB_CAPABLE
++    static mbstate_t _mbsrtowcs_state;
++
++    if (ps == NULL)
++        ps = &_mbsrtowcs_state;
++#endif
+     return mbsnrtowcs(dst, src, (size_t)-1, len, ps);
+ }
+diff --git a/libc/stdlib/wcsrtombs.c b/libc/stdlib/wcsrtombs.c
+index 73706b195f..104ca2f5d2 100644
+--- a/libc/stdlib/wcsrtombs.c
++++ b/libc/stdlib/wcsrtombs.c
+@@ -10,5 +10,11 @@ size_t
+ wcsrtombs(char * __restrict dst, const wchar_t ** __restrict src, size_t len,
+           mbstate_t * __restrict ps)
+ {
++#ifdef __MB_CAPABLE
++    static mbstate_t _wcsrtombs_state;
++
++    if (ps == NULL)
++        ps = &_wcsrtombs_state;
++#endif
+     return wcsnrtombs(dst, src, (size_t)-1, len, ps);
+ }
+-- 
+2.47.3
+
