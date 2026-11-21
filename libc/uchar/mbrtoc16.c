@@ -43,6 +43,13 @@ mbrtoc16(char16_t * __restrict pc16, const char * __restrict s, size_t n, mbstat
     if (ps == NULL)
         ps = &mbrtoc16_state;
 
+    /* A null s is the same as converting "" without storing a value */
+    if (s == NULL) {
+        pc16 = NULL;
+        s = "";
+        n = 1;
+    }
+
 #if __SIZEOF_WCHAR_T__ == 2
     return mbrtowc((wchar_t *)pc16, s, n, ps);
 #elif __SIZEOF_WCHAR_T__ == 4

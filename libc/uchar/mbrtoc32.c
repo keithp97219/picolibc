@@ -43,6 +43,13 @@ mbrtoc32(char32_t * __restrict pc32, const char * __restrict s, size_t n, mbstat
     if (ps == NULL)
         ps = &mbrtoc32_state;
 
+    /* A null s is the same as converting "" without storing a value */
+    if (s == NULL) {
+        pc32 = NULL;
+        s = "";
+        n = 1;
+    }
+
     char32_t c32;
     wchar_t  wc;
     size_t   ret;
