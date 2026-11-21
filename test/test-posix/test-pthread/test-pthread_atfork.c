@@ -47,6 +47,7 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "../is-qemu.h"
 
 /* Fork handlers, and threads in the child of a multi-threaded process */
 
@@ -167,7 +168,11 @@ main(void)
         check(waitpid(pid, &status, 0) == pid, "waitpid");
         if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
             printf("child status %#x\n", status);
-        check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "child status");
+        /* qemu-hexagon aborts itself when a forked child creates a thread */
+        if (is_qemu() && WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT)
+            printf("QEMU aborted the child, not checking its status\n");
+        else
+            check(WIFEXITED(status) && WEXITSTATUS(status) == 0, "child status");
     }
 
     stop = 1;

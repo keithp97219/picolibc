@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../is-qemu.h"
 
 /* an SA_SIGINFO handler's third argument is the ucontext_t of the context the signal interrupted */
 
@@ -104,7 +105,13 @@ main(void)
     check(raise(SIGUSR1) == 0 && done, "raise");
     check(usr2_blocked, "uc_sigmask holds the blocked signal");
     check(!usr1_blocked, "uc_sigmask is the interrupted mask, not the handler's");
-    check(on_alt_stack, "uc_stack describes the alternate stack");
+#ifdef __hexagon__
+    /* qemu-hexagon places uc_stack elsewhere than the kernel's struct ucontext */
+    if (!on_alt_stack && is_qemu())
+        printf("QEMU's uc_stack is misplaced, not checking it\n");
+    else
+#endif
+        check(on_alt_stack, "uc_stack describes the alternate stack");
 
     /* A change to uc_sigmask takes effect when the handler returns */
     check(sigprocmask(SIG_SETMASK, NULL, &cur) == 0, "query mask");

@@ -256,8 +256,15 @@ errors(void)
           "closed fd");
     check(pipe(fds) == 0, "pipe");
     errno = 0;
-    check(mmap(NULL, page, PROT_READ, MAP_SHARED, fds[0], 0) == MAP_FAILED && errno == ENODEV,
-          "pipe");
+    /*
+     * QEMU's user-mode emulation maps files itself when guest pages are
+     * larger than the host's, and so accepts a pipe
+     */
+    p = mmap(NULL, page, PROT_READ, MAP_SHARED, fds[0], 0);
+    if (p != MAP_FAILED && is_qemu() && page > 4096)
+        printf("QEMU mapped a pipe, not checking ENODEV\n");
+    else
+        check(p == MAP_FAILED && errno == ENODEV, "pipe");
     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close pipe");
 
     /* Access modes */
@@ -305,8 +312,15 @@ files(void)
     check(close(fd) == 0, "close with the file mapped");
     p[1] = 'Y';
     p[100] = 'Z';
-    /* Whole pages past the end of the file give SIGBUS */
-    check(touch_signal(p + page, 0) == SIGBUS, "SIGBUS past the end");
+    /*
+     * Whole pages past the end of the file give SIGBUS. QEMU's user-mode
+     * emulation fills guest pages larger than the host's with zeros
+     * there instead
+     */
+    if (is_qemu() && page > 4096)
+        printf("QEMU's large pages don't fault past the end, not checking SIGBUS\n");
+    else
+        check(touch_signal(p + page, 0) == SIGBUS, "SIGBUS past the end");
     check(munmap(p, 2 * page) == 0, "munmap");
     fd = open(file, O_RDONLY);
     check(fd >= 0, "reopen");

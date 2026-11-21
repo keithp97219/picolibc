@@ -47,6 +47,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include "../is-qemu.h"
 
 /* Faults deliver the signal-specific si_code values and the faulting address */
 
@@ -123,6 +124,20 @@ main(void)
     p = mmap(NULL, 2 * page, PROT_READ, MAP_SHARED, fd, 0);
     check(p != MAP_FAILED, "mmap file");
     check(fault(p) == 0, "page within the file");
+    if (is_qemu() && page > 4096) {
+        /*
+         * QEMU's user-mode emulation fills a guest page larger than the
+         * host's with zeros past the end of the file, so nothing beyond
+         * it faults. Shrink a file mapped while it was longer instead;
+         * POSIX leaves that unspecified, but Linux raises SIGBUS there
+         * too, and QEMU passes on the host's.
+         */
+        munmap(p, 2 * page);
+        check(ftruncate(fd, 2 * page) == 0, "ftruncate to two pages");
+        p = mmap(NULL, 2 * page, PROT_READ, MAP_SHARED, fd, 0);
+        check(p != MAP_FAILED, "mmap file of two pages");
+        check(ftruncate(fd, page) == 0, "ftruncate to one page");
+    }
     check(fault(p + page + 3) == SIGBUS, "SIGBUS past the end of the file");
     check(code == BUS_ADRERR, "BUS_ADRERR");
     check(addr == p + page + 3, "si_addr of the bus error");
