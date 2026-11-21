@@ -40,8 +40,13 @@
  */
 char *suboptarg;
 
+/*
+ * POSIX: suboptions are separated by commas alone, and the first '='
+ * in one separates its token from its value; blanks are part of the
+ * token or value.
+ */
 int
-getsubopt(char **optionp, char * const *tokens, char **valuep)
+getsubopt(char ** __restrict optionp, char * const * __restrict tokens, char ** __restrict valuep)
 {
     int   cnt;
     char *p;
@@ -51,37 +56,26 @@ getsubopt(char **optionp, char * const *tokens, char **valuep)
     if (!optionp || !*optionp)
         return (-1);
 
-    /* skip leading white-space, commas */
-    for (p = *optionp; *p && (*p == ',' || *p == ' ' || *p == '\t'); ++p)
-        ;
-
-    if (!*p) {
-        *optionp = p;
+    p = *optionp;
+    if (!*p)
         return (-1);
+
+    /* save the start of the token, and find the end of the suboption. */
+    suboptarg = p;
+    while (*p && *p != ',' && *p != '=')
+        p++;
+
+    /* If there's an equals sign, terminate the token there and find the value */
+    if (*p == '=') {
+        *p++ = '\0';
+        *valuep = p;
+        while (*p && *p != ',')
+            p++;
     }
 
-    /* save the start of the token, and skip the rest of the token. */
-    for (suboptarg = p; *++p && *p != ',' && *p != '=' && *p != ' ' && *p != '\t';)
-        ;
-
-    if (*p) {
-        /*
-         * If there's an equals sign, set the value pointer, and
-         * skip over the value part of the token.  Terminate the
-         * token.
-         */
-        if (*p == '=') {
-            *p = '\0';
-            for (*valuep = ++p; *p && *p != ',' && *p != ' ' && *p != '\t'; ++p)
-                ;
-            if (*p)
-                *p++ = '\0';
-        } else
-            *p++ = '\0';
-        /* Skip any whitespace or commas after this token. */
-        for (; *p && (*p == ',' || *p == ' ' || *p == '\t'); ++p)
-            ;
-    }
+    /* Terminate the suboption and point past the comma, if any */
+    if (*p == ',')
+        *p++ = '\0';
 
     /* set optionp for next round. */
     *optionp = p;
