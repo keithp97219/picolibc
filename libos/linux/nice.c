@@ -34,8 +34,40 @@
  */
 
 #include "local-linux.h"
+#ifdef __PICOLIBC_PTHREADS
+#include "local-pthread.h"
+#endif
 #include <sys/resource.h>
 #include <unistd.h>
+
+/*
+ * Linux keeps a nice value for each thread, but nice changes the
+ * process: set the new value in every thread
+ */
+static int
+set_nice(int prio)
+{
+#ifdef __PICOLIBC_PTHREADS
+    if (__atomic_load_n(&_pthread_count, __ATOMIC_ACQUIRE) > 1) {
+        struct __pthread *self = _pthread_self(), *t;
+        int               ret, tid;
+
+        /* Threads are created and listed with this lock held */
+        pthread_mutex_lock(&_pthread_all_lock);
+        ret = setpriority(PRIO_PROCESS, 0, prio);
+        if (ret == 0) {
+            for (t = _pthread_all; t; t = t->all_next) {
+                tid = __atomic_load_n(&t->tid, __ATOMIC_ACQUIRE);
+                if (t != self && tid)
+                    (void)_syscall_raw(LINUX_SYS_setpriority, PRIO_PROCESS, tid, prio);
+            }
+        }
+        pthread_mutex_unlock(&_pthread_all_lock);
+        return ret;
+    }
+#endif
+    return setpriority(PRIO_PROCESS, 0, prio);
+}
 
 /* Returns the new nice value; -1 is also a valid nice value, so check errno */
 int
@@ -57,7 +89,7 @@ nice(int incr)
         prio = 19;
     if (prio < -20)
         prio = -20;
-    if (setpriority(PRIO_PROCESS, 0, prio) < 0) {
+    if (set_nice(prio) < 0) {
         if (errno == EACCES)
             errno = EPERM;
         return -1;
