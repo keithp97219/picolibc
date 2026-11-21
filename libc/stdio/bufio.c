@@ -260,6 +260,7 @@ __bufio_seek(FILE *f, off_t offset, int whence)
          * same logic once the buffer is empty.
          */
         if (__bufio_setdir_locked(f, __SRD) < 0) {
+            f->flags |= __SERR;
             goto exit;
         }
     }

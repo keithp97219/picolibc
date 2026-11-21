@@ -38,6 +38,6 @@
 void
 rewind(FILE *stream)
 {
-    clearerr(stream);
     (void)fseek(stream, 0L, SEEK_SET);
+    clearerr(stream);
 }
