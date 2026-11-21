@@ -41,4 +41,7 @@ dir_tests = [
   'test-popen',
   'test-rename',
   'test-renameat',
+  'test-stdio_h',
+  'test-stdio_h-names',
+  'test-stdio_h-xsi',
 ]

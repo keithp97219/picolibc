@@ -40,6 +40,9 @@ set(tests
   test-pclose
   test-popen
   test-renameat
+  test-stdio_h
+  test-stdio_h-names
+  test-stdio_h-xsi
   )
 
 foreach(test IN LISTS tests)
