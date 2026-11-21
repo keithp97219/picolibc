@@ -478,7 +478,8 @@ do_cond_clockwait(void)
 static void
 do_posix_close(void)
 {
-    (void)posix_close(-1, 0);
+    /* An invalid flag as well: it mustn't skip the cancellation point */
+    (void)posix_close(-1, 0x40000000);
 }
 
 static void

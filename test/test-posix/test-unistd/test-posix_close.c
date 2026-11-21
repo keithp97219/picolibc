@@ -37,7 +37,8 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_DEVICE_IO) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if defined(__PICOLIBC_POSIX_DEVICE_IO) && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
+    && defined(__PICOLIBC_POSIX_PIPE) && defined(__PICOLIBC_POSIX_FD_MGMT)
 
 #include <errno.h>
 #include <fcntl.h>
@@ -45,39 +46,82 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#ifndef TEST_FILE_NAME
-#define TEST_FILE_NAME "POSIXCLO.TXT"
-#endif
+/*
+ * close and posix_close: the descriptor is freed for reuse, pipes see
+ * end-of-file, and an invalid flag still closes
+ */
 
-/* posix_close closes */
+static char dir[] = "tmp-XXXXXX";
 
-#define check(condition, message)                      \
-    do {                                               \
-        if (!(condition)) {                            \
-            printf("%s: %s\n", (message), #condition); \
-            (void)unlink(TEST_FILE_NAME);              \
-            exit(1);                                   \
-        }                                              \
+static void
+cleanup(void)
+{
+    (void)unlink("file");
+    if (chdir("..") == 0)
+        (void)rmdir(dir);
+}
+
+#define check(condition, message)                                                      \
+    do {                                                                               \
+        if (!(condition)) {                                                            \
+            printf("%d: %s: %s (errno %d)\n", __LINE__, (message), #condition, errno); \
+            cleanup();                                                                 \
+            exit(1);                                                                   \
+        }                                                                              \
     } while (0)
+
+#define check_err(expr, err, message) check((errno = 0, (expr) == -1) && errno == (err), message)
 
 int
 main(void)
 {
-#ifndef POSIX_CLOSE_RESTART /* defined with posix_close; older C libraries lack both */
-    printf("no posix_close, skipping\n");
-    return 77;
-#else
-    int fd;
+    char c;
+    int  fd, fd2, p[2];
 
-    (void)unlink(TEST_FILE_NAME);
-    fd = open(TEST_FILE_NAME, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
+
+    /* close frees the descriptor for the next open */
+    fd = open("file", O_RDWR | O_CREAT | O_EXCL, 0600);
     check(fd >= 0, "open");
-    check(posix_close(fd, POSIX_CLOSE_RESTART) == 0, "posix_close");
+    fd2 = dup(fd);
+    check(fd2 > fd, "dup");
+    check(close(fd) == 0, "close");
+    check(fcntl(fd, F_GETFD) == -1 && errno == EBADF, "closed");
+    check(open("file", O_RDONLY) == fd, "lowest descriptor reused");
+    check(close(fd) == 0 && close(fd2) == 0, "close");
+    check_err(close(fd), EBADF, "close of a closed descriptor");
+    check_err(close(-1), EBADF, "close(-1)");
+
+    /* Closing the last write end gives the reader end-of-file */
+    check(pipe(p) == 0, "pipe");
+    fd2 = dup(p[1]);
+    check(fd2 >= 0 && close(p[1]) == 0, "close one write end");
+    check(write(fd2, "x", 1) == 1 && read(p[0], &c, 1) == 1, "pipe still open for writing");
+    check(close(fd2) == 0 && read(p[0], &c, 1) == 0, "end-of-file after the last close");
+    check(close(p[0]) == 0, "close");
+
+#ifdef POSIX_CLOSE_RESTART /* defined with posix_close; older C libraries lack both */
+    /* posix_close with 0 or POSIX_CLOSE_RESTART closes */
+    fd = open("file", O_RDONLY);
+    check(fd >= 0, "open");
+    check(posix_close(fd, 0) == 0 && fcntl(fd, F_GETFD) == -1, "posix_close(fd, 0)");
+    check_err(posix_close(fd, 0), EBADF, "posix_close of a closed descriptor");
+    fd = open("file", O_RDONLY);
+    check(fd >= 0, "open");
+    check(posix_close(fd, POSIX_CLOSE_RESTART) == 0 && fcntl(fd, F_GETFD) == -1,
+          "posix_close(fd, POSIX_CLOSE_RESTART)");
+
+    /* An invalid flag may give EINVAL, but the descriptor is closed as for 0 */
+    fd = open("file", O_RDONLY);
+    check(fd >= 0, "open");
     errno = 0;
-    check(posix_close(fd, 0) == -1 && errno == EBADF, "posix_close closed descriptor");
-    check(unlink(TEST_FILE_NAME) == 0, "unlink");
+    check(posix_close(fd, POSIX_CLOSE_RESTART | 0x40000000) == 0 || errno == EINVAL,
+          "posix_close with an invalid flag");
+    check(fcntl(fd, F_GETFD) == -1 && errno == EBADF, "closed despite the invalid flag");
+    check_err(posix_close(fd, 0x40000000), EBADF, "invalid flag on a closed descriptor");
 #endif
 
+    cleanup();
     printf("success\n");
     return 0;
 }
