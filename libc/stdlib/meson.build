@@ -126,6 +126,7 @@ srcs_stdlib = [
     'setenv.c',
     'setstate.c',
     'sjtouc.c',
+    'splitmix64.c',
     'srand.c',
     'srand48.c',
     'srandom.c',

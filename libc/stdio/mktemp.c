@@ -114,14 +114,10 @@ __gettemp_random(void)
     __LIBC_LOCK();
     if (__gettemp_state == 0)
         __gettemp_state = ((uint64_t)(uintptr_t)&local << 16) ^ 0x2545f4914f6cdd1dULL;
-    __gettemp_state += 0x9e3779b97f4a7c15ULL;
-    z = __gettemp_state;
+    z = __splitmix64(&__gettemp_state);
     __LIBC_UNLOCK();
 
-    /* splitmix64 output function */
-    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
-    return (uint32_t)(z ^ (z >> 31));
+    return (uint32_t)z;
 }
 
 #define NUM_ATTEMPT (36UL * 36UL * 36UL)

@@ -149,6 +149,8 @@ void       arc4random_buf(void *, size_t) __picolibc_export;
 int        arc4random_fork_detect(void) __picolibc_export;
 void       arc4random_abort(void) __picolibc_export;
 #endif
+/* Fast, predictable random bits for the library's own use */
+__uint64_t __splitmix64(__uint64_t *__state) __picolibc_export;
 #if __ISO_C_VISIBLE >= 2011
 int at_quick_exit(void (*)(void)) __picolibc_export;
 #endif
