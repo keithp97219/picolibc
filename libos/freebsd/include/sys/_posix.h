@@ -50,7 +50,9 @@
 #define __PICOLIBC_OS_SAVED_IDS                    1
 
 /* Options */
+#define __PICOLIBC_OS_MONOTONIC_CLOCK              202405L
 #define __PICOLIBC_OS_REALTIME_SIGNALS             202405L
+#define __PICOLIBC_OS_TIMERS                       202405L
 
 /* Option groups */
 #define __PICOLIBC_OS_MULTI_PROCESS      202405L
@@ -65,6 +67,10 @@
 #define __PICOLIBC_OS_XSI_USER_GROUPS          202405L
 
 /*
+ * FreeBSD has the process CPU-time clocks (clock_getcpuclockid), but
+ * ktimer_create rejects them, so __PICOLIBC_OS_CPUTIME stays undefined
+ * until timers on them are emulated.
+ *
  * FreeBSD delivers 62 real-time signals; picolibc numbers 31, so
  * __PICOLIBC_OS_RTSIG_MAX stays undefined
  */

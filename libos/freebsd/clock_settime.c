@@ -38,7 +38,7 @@
 int
 clock_settime(clockid_t clock_id, const struct timespec *tp)
 {
-    int kclock = _clock_to_freebsd(clock_id);
+    long kclock = _clock_to_freebsd(clock_id);
 
     if (kclock < 0) {
         errno = EINVAL;

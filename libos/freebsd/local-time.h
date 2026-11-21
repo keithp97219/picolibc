@@ -39,6 +39,15 @@
 #include "local-freebsd.h"
 #include <time.h>
 
-int _clock_to_freebsd(clockid_t clock_id);
+long _clock_to_freebsd(clockid_t clock_id);
+
+/*
+ * The kernel makes CPU clock ids with bit 31 set (CPUCLOCK_BIT in
+ * kern/kern_time.c); picolibc's clockid_t holds them as unsigned
+ * 32-bit values, far from its own CLOCK_ constants.
+ */
+#define _FREEBSD_CPUCLOCK_BIT 0x80000000UL
+#define _CLOCK_IS_FREEBSD_CPUCLOCK(c)                                             \
+    (((c) & ~(clockid_t)0xffffffffUL) == 0 && ((c) & _FREEBSD_CPUCLOCK_BIT) != 0)
 
 #endif /* _LOCAL_TIME_H_ */

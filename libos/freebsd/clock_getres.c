@@ -38,7 +38,7 @@
 int
 clock_getres(clockid_t clock_id, struct timespec *res)
 {
-    int kclock = _clock_to_freebsd(clock_id);
+    long kclock = _clock_to_freebsd(clock_id);
 
     if (kclock < 0) {
         errno = EINVAL;

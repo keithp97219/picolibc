@@ -39,10 +39,16 @@
 _Static_assert(sizeof(struct timespec) == sizeof(struct __freebsd_timespec),
                "timespec matches the kernel's");
 
-/* Translate a clock id, returning -1 for one FreeBSD lacks */
-int
+/*
+ * Translate a clock id, returning -1 for one FreeBSD lacks. The CPU
+ * clocks of other processes and threads are the kernel's ids, from
+ * clock_getcpuclockid2.
+ */
+long
 _clock_to_freebsd(clockid_t clock_id)
 {
+    if (_CLOCK_IS_FREEBSD_CPUCLOCK(clock_id))
+        return (long)clock_id;
     switch (clock_id) {
     case CLOCK_REALTIME:
         return FREEBSD_CLOCK_REALTIME;
@@ -68,7 +74,7 @@ _clock_to_freebsd(clockid_t clock_id)
 int
 clock_gettime(clockid_t clock_id, struct timespec *tp)
 {
-    int kclock = _clock_to_freebsd(clock_id);
+    long kclock = _clock_to_freebsd(clock_id);
 
     if (kclock < 0) {
         errno = EINVAL;
