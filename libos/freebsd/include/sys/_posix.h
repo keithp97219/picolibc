@@ -38,11 +38,21 @@
 
 /*
  * What libos/freebsd provides, in the __PICOLIBC_OS_ terms doc/os.md
- * defines; <unistd.h> derives the public POSIX names from these. This
- * grows with the implementation: so far the single process group
- * (sysconf from libos/fallback, uname here).
+ * defines; <unistd.h> derives the public POSIX names from these. Only
+ * what is complete is defined. Nothing here may change picolibc's
+ * ABI; see <sys/unistd.h>.
  */
 
-#define __PICOLIBC_OS_SINGLE_PROCESS 202405L
+/* clang-format off */
+
+/* Option groups */
+#define __PICOLIBC_OS_SINGLE_PROCESS     202405L
+
+/*
+ * FreeBSD delivers 62 real-time signals; picolibc numbers 31, so
+ * __PICOLIBC_OS_RTSIG_MAX stays undefined
+ */
+
+/* clang-format on */
 
 #endif /* _SYS__POSIX_H_ */

@@ -98,6 +98,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'sigprocmask.c',
     'stat.c',
     'statvfs.c',
+    'sysconf.c',
     'times.c',
     'uname.c',
     'unlink.c',
