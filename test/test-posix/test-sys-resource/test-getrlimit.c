@@ -37,6 +37,7 @@
 #include <sys/resource.h>
 #include <stdio.h>
 #include <assert.h>
+#include <errno.h>
 
 static const int resources[] = {
     RLIMIT_CORE, RLIMIT_CPU, RLIMIT_DATA, RLIMIT_FSIZE, RLIMIT_NOFILE, RLIMIT_STACK, RLIMIT_AS,
@@ -71,5 +72,10 @@ main(void)
         if (rlimit.rlim_max != RLIM_INFINITY)
             assert(rlimit.rlim_cur <= rlimit.rlim_max);
     }
+
+    /* An invalid resource is EINVAL */
+    errno = 0;
+    ret = getrlimit(9999, &rlimit);
+    assert(ret == -1 && errno == EINVAL);
     return 0;
 }
