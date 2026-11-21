@@ -200,11 +200,15 @@ touch the same directory (for example 3, 4 and 5) side by side.
 >   constants with `_Static_assert` rather than `#ifdef`.
 > - **Full suite:** run without `--no-rebuild`, which leaves some
 >   generated test inputs unbuilt.
-> - **clang native build:** from posix-spec-audit f6ce89fbd8 onward (it has
+> - **clang native build:** from posix-spec-audit 6edd04ce22 onward (it has
 >   fix-clang-native), `CC=clang CXX=clang++ scripts/do-native-configure
 >   -Dwerror=true` builds and passes, so use a full clang native build
 >   rather than per-file syntax checks. Both CC and CXX must be clang, and
 >   the -native tests need libclang-rt-21-dev for the sanitizer runtime.
+> - **Set-group-ID directories:** a build directory may be set-group-ID,
+>   so new files take the directory's group, not the process's. Tests that
+>   check file groups clear the bit on their scratch directory first
+>   (`chmod(dir, 0700)`), as test-chown does from 6edd04ce22.
 > - **Configurations without threads:** also build the native
 >   configuration (`scripts/do-native-configure`, `ninja` only). It has no
 >   threads, so a test whose statics or helpers are only used inside its
