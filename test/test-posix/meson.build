@@ -49,6 +49,7 @@ posix_test_dirs = [
   'test-ftw',
   'test-glob',
   'test-grp',
+  'test-iconv',
   'test-integration',
   'test-inttypes',
   'test-langinfo',
