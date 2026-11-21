@@ -42,6 +42,7 @@ dir_tests = [
   'test-fileno',
   'test-fmemopen',
   'test-fopen',
+  'test-fprintf',
   'test-freopen',
   'test-fseek',
   'test-getdelim',
