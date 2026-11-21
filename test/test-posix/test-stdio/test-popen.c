@@ -37,47 +37,199 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_DEVICE_IO) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE)     \
+    && defined(__PICOLIBC_POSIX_FIFO) && defined(__PICOLIBC_POSIX_SIGNALS)        \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_FD_MGMT)
 
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <signal.h>
 #include <stdio.h>
-#include <assert.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 
-#ifndef TEST_FILE_NAME
-#define TEST_FILE_NAME "FOPEN.TXT"
-#endif
+/*
+ * popen and pclose: the pipe ends and their flags, earlier streams closed
+ * in the child, the shell's arguments, exit status 127, EINTR in pclose
+ * and other children left alone. Every command touches only the test's
+ * own directory.
+ */
 
-#define TEST_STRING "hello, world\n"
+#define check(condition, message)                      \
+    do {                                               \
+        if (!(condition)) {                            \
+            printf("%s: %s\n", (message), #condition); \
+            exit(1);                                   \
+        }                                              \
+    } while (0)
+
+static char line[256];
+
+static const char *
+read_line(FILE *f)
+{
+    if (!fgets(line, sizeof(line), f))
+        return "";
+    return line;
+}
+
+static void
+check_exit(int status, int code, const char *message)
+{
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != code)
+        printf("status 0x%x, expected exit %d\n", status, code);
+    check(WIFEXITED(status) && WEXITSTATUS(status) == code, message);
+}
+
+static volatile sig_atomic_t released;
+
+/* Let the command waiting on the FIFO finish */
+static void
+on_alarm(int sig)
+{
+    int fd;
+
+    (void)sig;
+    fd = open("fifo", O_WRONLY | O_NONBLOCK);
+    if (fd < 0) {
+        alarm(1);
+        return;
+    }
+    (void)!write(fd, "x\n", 2);
+    close(fd);
+    released = 1;
+}
 
 int
 main(void)
 {
-    FILE *out;
-    FILE *in;
-    char  buf[128];
-    char *ret;
+    char             dir[] = "popen-XXXXXX";
+    char             cwd[PATH_MAX];
+    char             cmd[PATH_MAX + 64];
+    FILE            *p, *q;
+    int              status;
+    pid_t            other;
+    struct sigaction sa;
 
-    out = fopen(TEST_FILE_NAME, "w");
-    assert(out != NULL);
-    fputs(TEST_STRING, out);
-    fclose(out);
+    if (access("/bin/sh", X_OK) != 0) {
+        printf("no /bin/sh, skipping\n");
+        return 77;
+    }
+    check(mkdtemp(dir) != NULL && chdir(dir) == 0, "scratch directory");
+    check(getcwd(cwd, sizeof(cwd)) != NULL, "getcwd");
 
-    in = popen("cat " TEST_FILE_NAME, "r");
-    assert(in != NULL);
-    ret = fgets(buf, sizeof(buf), in);
-    assert(ret == buf);
-    assert(strcmp(buf, TEST_STRING) == 0);
+    /* 'r': the command's standard output is the pipe */
+    p = popen("echo hello", "r");
+    check(p != NULL, "popen r");
+    check((fcntl(fileno(p), F_GETFL) & O_ACCMODE) == O_RDONLY, "readable end");
+    check(!(fcntl(fileno(p), F_GETFD) & FD_CLOEXEC), "no FD_CLOEXEC without e");
+    check(strcmp(read_line(p), "hello\n") == 0, "read the output");
+    check(pclose(p) == 0, "pclose r");
 
-    /* Make sure setvbuf doesn't break things */
+    /* 'w': the command's standard input is the pipe */
+    p = popen("cat > out", "w");
+    check(p != NULL, "popen w");
+    check((fcntl(fileno(p), F_GETFL) & O_ACCMODE) == O_WRONLY, "writable end");
+    check(fputs("to the command\n", p) >= 0, "write");
+    check(pclose(p) == 0, "pclose w");
+    q = fopen("out", "r");
+    check(q != NULL && strcmp(read_line(q), "to the command\n") == 0, "command read the input");
+    check(fclose(q) == 0, "close out");
 
-    out = popen("exit 3", "w");
-    setvbuf(out, NULL, _IOFBF, 1);
+    /* pclose returns the shell's termination status */
+    p = popen("exit 3", "w");
+    check(p != NULL, "popen exit");
+    status = pclose(p);
+    check_exit(status, 3, "exit status");
 
-    int status;
+    /* 'e' sets FD_CLOEXEC on the stream's descriptor */
+    p = popen("true", "re");
+    check(p != NULL && (fcntl(fileno(p), F_GETFD) & FD_CLOEXEC), "re");
+    check(pclose(p) == 0, "pclose re");
+    p = popen("cat > /dev/null", "we");
+    check(p != NULL && (fcntl(fileno(p), F_GETFD) & FD_CLOEXEC), "we");
+    check(pclose(p) == 0, "pclose we");
 
-    status = pclose(out);
-    assert(status == (3 << 8));
+    /* Streams from earlier popen calls are closed in the new child */
+    p = popen("cat > one", "w");
+    check(p != NULL, "popen first");
+    snprintf(cmd, sizeof(cmd), "if [ -e /dev/fd/%d ]; then echo open; else echo closed; fi",
+             fileno(p));
+    q = popen(cmd, "r");
+    check(q != NULL, "popen second");
+    check(strcmp(read_line(q), "closed\n") == 0, "earlier stream closed in the child");
+    check(pclose(q) == 0, "pclose second");
+    check(pclose(p) == 0, "pclose first");
 
+    /* The command is passed after "--", so it may start with '-' */
+    q = fopen("-cmd", "w");
+    check(q != NULL && fputs("#!/bin/sh\necho ran\n", q) >= 0 && fclose(q) == 0, "script");
+    check(chmod("-cmd", 0755) == 0, "chmod script");
+    snprintf(cmd, sizeof(cmd), "%s:%s", cwd, getenv("PATH") ? getenv("PATH") : "/bin:/usr/bin");
+    check(setenv("PATH", cmd, 1) == 0, "setenv PATH");
+    p = popen("-cmd", "r");
+    check(p != NULL, "popen -cmd");
+    check(strcmp(read_line(p), "ran\n") == 0, "command starting with -");
+    check(pclose(p) == 0, "pclose -cmd");
+
+    /* A shell that can't be run gives status 127; a huge environment string makes execve fail */
+    other = fork();
+    check(other >= 0, "fork");
+    if (other == 0) {
+        static char big[200 * 1024];
+
+        memset(big, 'b', sizeof(big) - 1);
+        if (setenv("BIG", big, 1) != 0)
+            _exit(2);
+        p = popen("true", "r");
+        if (p == NULL) {
+#ifdef __GLIBC__
+            /* glibc reports the failed exec from popen */
+            _exit(0);
+#else
+            _exit(3);
+#endif
+        }
+        status = pclose(p);
+        _exit(WIFEXITED(status) && WEXITSTATUS(status) == 127 ? 0 : 4);
+    }
+    check(waitpid(other, &status, 0) == other, "waitpid");
+    check_exit(status, 0, "status 127 when the shell can't be run");
+
+    /* pclose waits for the command, even when a signal interrupts it */
+    check(mkfifo("fifo", 0600) == 0, "mkfifo");
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = on_alarm;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0; /* no SA_RESTART */
+    check(sigaction(SIGALRM, &sa, NULL) == 0, "sigaction");
+    p = popen("read x < fifo", "w");
+    check(p != NULL, "popen fifo");
+    alarm(1);
+    errno = 0;
+    status = pclose(p);
+    check(released, "the alarm released the command");
+    check(status == 0, "pclose waits through EINTR");
+
+    /* pclose leaves other children alone */
+    other = fork();
+    check(other >= 0, "fork");
+    if (other == 0)
+        _exit(5);
+    p = popen("exit 2", "r");
+    check(p != NULL, "popen with another child");
+    status = pclose(p);
+    check_exit(status, 2, "pclose's status");
+    check(waitpid(other, &status, 0) == other, "the other child is still there");
+    check_exit(status, 5, "the other child's status");
+
+    check(unlink("out") == 0 && unlink("one") == 0 && unlink("-cmd") == 0 && unlink("fifo") == 0,
+          "cleanup");
+    check(chdir("..") == 0 && rmdir(dir) == 0, "cleanup");
+    printf("success\n");
     return 0;
 }
 
