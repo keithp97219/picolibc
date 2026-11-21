@@ -34,9 +34,13 @@
  */
 
 #include "local-freebsd.h"
+#include "local-cancel.h"
 
 ssize_t
 write(int fd, const void *buf, size_t count)
 {
-    return _syscall(FREEBSD_SYS_write, fd, buf, count);
+    void *cancel = _cancel_enter();
+    long  ret = _syscall(FREEBSD_SYS_write, fd, buf, count);
+    _cancel_leave(cancel);
+    return ret;
 }

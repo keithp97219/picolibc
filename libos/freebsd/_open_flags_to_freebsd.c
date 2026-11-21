@@ -54,6 +54,10 @@ _open_flags_to_freebsd(int flags)
     if (flags & O_CLOEXEC)
         kflags |= FREEBSD_O_CLOEXEC;
 #endif
+#ifdef O_CLOFORK
+    if (flags & O_CLOFORK)
+        kflags |= FREEBSD_O_CLOFORK;
+#endif
 #ifdef O_CREAT
     if (flags & O_CREAT)
         kflags |= FREEBSD_O_CREAT;
