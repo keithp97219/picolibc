@@ -35,28 +35,27 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+#include <errno.h>
+#include <limits.h>
 
-__thread struct __pthread *_pthread_current;
-
-struct __pthread           _pthread_main;
-
-/* Number of running threads; the last one to call pthread_exit ends the process */
-int                        _pthread_count = 1;
-
-pthread_t
-pthread_self(void)
+int
+pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t * __restrict attr)
 {
-    struct __pthread *self = _pthread_current;
-
-    /*
-     * Only the initial thread starts without a descriptor. Ask the
-     * kernel to clear and wake its thread id on exit, as for other
-     * threads, so that it can be joined.
-     */
-    if (!self) {
-        self = &_pthread_main;
-        self->tid = (int)_syscall_raw(LINUX_SYS_set_tid_address, &self->tid);
-        _pthread_current = self;
-    }
-    return self;
+    if (attr && attr->__protocol == PTHREAD_PRIO_INHERIT && !_pthread_pi_available())
+        return ENOTSUP;
+    /* A robust mutex the system can't support would only hang */
+    if (attr && attr->__robust == PTHREAD_MUTEX_ROBUST && !_pthread_robust_available())
+        return ENOTSUP;
+    mutex->__state = 0;
+    mutex->__type = attr ? attr->__type : PTHREAD_MUTEX_DEFAULT;
+    mutex->__pshared = attr ? attr->__pshared : PTHREAD_PROCESS_PRIVATE;
+    mutex->__protocol = attr ? attr->__protocol : PTHREAD_PRIO_NONE;
+    mutex->__prioceiling = attr ? attr->__prioceiling : _PTHREAD_PRIO_MIN;
+    mutex->__owner = 0;
+    mutex->__count = 0;
+    mutex->__robust = attr ? attr->__robust : PTHREAD_MUTEX_STALLED;
+    mutex->__robust_state = _PTHREAD_ROBUST_CONSISTENT;
+    mutex->__robust_next = NULL;
+    mutex->__robust_prev = NULL;
+    return 0;
 }

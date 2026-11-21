@@ -35,16 +35,10 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
-#include <linux/linux-errno.h>
 #include <picotls.h>
 #include <stdalign.h>
 #include <stddef.h>
 #include <string.h>
-
-#define LINUX_CLONE_PTHREAD                                                                      \
-    (LINUX_CLONE_VM | LINUX_CLONE_FS | LINUX_CLONE_FILES | LINUX_CLONE_SIGHAND                   \
-     | LINUX_CLONE_THREAD | LINUX_CLONE_SYSVSEM | LINUX_CLONE_SETTLS | LINUX_CLONE_PARENT_SETTID \
-     | LINUX_CLONE_CHILD_CLEARTID)
 
 /* All pages sizes used by the supported machines are multiples of this */
 #define PTHREAD_PAGE_SIZE 4096
@@ -52,31 +46,23 @@
 #define round_up(v, a)    (((v) + (a) - 1) & ~((uintptr_t)(a) - 1))
 #define round_down(v, a)  ((v) & ~((uintptr_t)(a) - 1))
 
-/* First code run by a new thread, called by _linux_clone */
-static void *
-pthread_start(void *arg)
+/* First code run by a new thread, called by the OS layer */
+void
+_pthread_start(struct __pthread *self)
 {
-    struct __pthread *self = arg;
-
     _pthread_current = self;
 
     /* Wait while the creator sets explicit scheduling; give up if that failed */
     while (__atomic_load_n(&self->start_wait, __ATOMIC_ACQUIRE))
         (void)_futex_wait(&self->start_wait, 1, false, CLOCK_REALTIME, NULL);
     if (self->start_error) {
-        __kernel_sigset_t cancel = {};
-
         /* Take any credential change sent meanwhile before leaving */
-        __kernel_sigset_set_mask(&cancel, _PTHREAD_SIGCANCEL);
-        (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_UNBLOCK, &cancel, NULL,
-                           __KERNEL_NSIG_BYTES);
+        _pthread_sigcancel_unblock();
         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
-        for (;;)
-            _syscall_raw(LINUX_SYS_exit, 0);
+        _pthread_os_exit(self);
     }
 
-    (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &self->sigmask, NULL,
-                       __KERNEL_NSIG_BYTES);
+    _pthread_sigsetmask(&self->sigmask);
     pthread_exit(self->start(self->arg));
 }
 
@@ -100,11 +86,10 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
     uintptr_t         top, stack_top;
     struct __pthread *t;
     char             *tls;
-    void            **sp;
     void             *tls_arg;
     char              tls_arg_space[__PTHREAD_TLS_ARG_SIZE] __aligned(sizeof(void *));
-    __kernel_sigset_t all, old;
-    long              ret;
+    _pthread_sigset_t old;
+    int               ret;
 
     if (!attr) {
         pthread_attr_init(&default_attr);
@@ -146,7 +131,7 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
         return ENOMEM;
     /* The guard region is best effort */
     if (guard_size)
-        (void)_syscall_raw(LINUX_SYS_mprotect, map, guard_size, LINUX_PROT_NONE);
+        _pthread_guard(map, guard_size);
 
     top = (uintptr_t)map + map_size;
     t = (struct __pthread *)round_down(top - desc_size, align);
@@ -162,11 +147,6 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
         stack_top = (uintptr_t)tls;
     stack_top = round_down(stack_top, 16);
 
-    /* _linux_clone pops the start function and its argument from the new stack */
-    sp = (void **)stack_top - 2;
-    sp[0] = (void *)(uintptr_t)pthread_start;
-    sp[1] = t;
-
     t->start = start_routine;
     t->arg = arg;
     t->map = map;
@@ -180,19 +160,16 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
      * so a credential change can't wait on this thread meanwhile.
      */
     pthread_mutex_lock(&_pthread_all_lock);
-    memset(&all, 0xff, sizeof(all));
-    (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &all, &old,
-                       __KERNEL_NSIG_BYTES);
+    _pthread_sigblock_all(&old);
     t->sigmask = old;
 
     *thread = t;
     __atomic_fetch_add(&_pthread_count, 1, __ATOMIC_RELAXED);
-    ret = _linux_clone(LINUX_CLONE_PTHREAD, sp, &t->tid, &t->tid, tls_arg);
+    ret = _pthread_os_create(t, (void *)stack_top, tls_arg);
 
-    (void)_syscall_raw(LINUX_SYS_rt_sigprocmask, LINUX_SIG_SETMASK, &old, NULL,
-                       __KERNEL_NSIG_BYTES);
+    _pthread_sigsetmask(&old);
 
-    if (ret >= 0) {
+    if (ret == 0) {
         if (!_pthread_main_listed) {
             _pthread_all_add(&_pthread_main);
             _pthread_main_listed = true;
@@ -201,14 +178,14 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
     }
     pthread_mutex_unlock(&_pthread_all_lock);
 
-    if (ret < 0) {
+    if (ret != 0) {
         __atomic_fetch_sub(&_pthread_count, 1, __ATOMIC_RELAXED);
         _pthread_unmap(map, map_size);
-        return ret == -LINUX_ENOMEM ? ENOMEM : EAGAIN;
+        return ret;
     }
 
     if (t->start_wait) {
-        int sched_ret = _pthread_setsched((int)ret, attr->__schedpolicy, attr->__schedpriority);
+        int sched_ret = _pthread_setsched(t->tid, attr->__schedpolicy, attr->__schedpriority);
 
         t->start_error = sched_ret;
         __atomic_store_n(&t->start_wait, 0, __ATOMIC_RELEASE);

@@ -37,22 +37,17 @@
 #include "local-pthread.h"
 
 int
-pthread_mutex_setprioceiling(pthread_mutex_t * __restrict mutex, int prioceiling,
-                             int * __restrict old_ceiling)
+pthread_kill(pthread_t thread, int sig)
 {
-    int old, ret;
+    int tid;
+    int ksig;
 
-    if (mutex->__protocol != PTHREAD_PRIO_PROTECT || prioceiling < LINUX_PRIO_RT_MIN
-        || prioceiling > LINUX_PRIO_RT_MAX)
+    ksig = _pthread_signal_to_kernel(sig);
+    if (ksig < 0)
         return EINVAL;
-
-    /* Changing the ceiling requires holding the mutex */
-    ret = _pthread_mutex_lock_timed(mutex, CLOCK_REALTIME, NULL);
-    if (ret)
-        return ret;
-    old = mutex->__prioceiling;
-    __atomic_store_n(&mutex->__prioceiling, prioceiling, __ATOMIC_RELAXED);
-    if (old_ceiling)
-        *old_ceiling = old;
-    return _pthread_mutex_unlock_ceiling(mutex, old);
+    tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
+    /* A thread which has exited but not been joined is not an error */
+    if (tid == 0)
+        return 0;
+    return _pthread_tkill(tid, ksig);
 }

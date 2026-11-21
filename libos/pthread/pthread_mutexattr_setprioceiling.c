@@ -37,21 +37,10 @@
 #include "local-pthread.h"
 
 int
-pthread_kill(pthread_t thread, int sig)
+pthread_mutexattr_setprioceiling(pthread_mutexattr_t *attr, int prioceiling)
 {
-    int tid;
-    int ksig;
-    int ret = 0;
-
-    ksig = _signal_to_linux(sig);
-    if (ksig < 0)
+    if (prioceiling < _PTHREAD_PRIO_MIN || prioceiling > _PTHREAD_PRIO_MAX)
         return EINVAL;
-    tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
-    /* A thread which has exited but not been joined is not an error */
-    if (tid == 0)
-        return 0;
-    ret = (int)_syscall_raw(LINUX_SYS_tgkill, getpid(), tid, ksig);
-    if (ret < 0)
-        ret = _syscall_errno(ret);
-    return ret;
+    attr->__prioceiling = prioceiling;
+    return 0;
 }

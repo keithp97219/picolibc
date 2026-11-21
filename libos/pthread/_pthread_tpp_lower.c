@@ -35,47 +35,27 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
-#include <errno.h>
-#include <limits.h>
 
-/* Whether the kernel has priority inheritance futexes */
-static bool
-pi_available(void)
+void
+_pthread_tpp_lower(struct __pthread *self, int ceiling)
 {
-    static int available; /* 0 not yet known, 1 available, -1 missing */
-    int        known = __atomic_load_n(&available, __ATOMIC_RELAXED);
+    int policy, priority, target;
 
-    if (known == 0) {
-        unsigned int word = 0;
-        long         ret;
+    self->tpp_count[ceiling]--;
+    self->tpp_held--;
+    if (_pthread_getsched(self->tid, &policy, &priority) != 0)
+        return;
+    if (policy != SCHED_FIFO && policy != SCHED_RR)
+        return;
 
-        /* Unlocking a futex nobody owns fails with EPERM, or ENOSYS without support */
-        ret = _syscall_raw(LINUX_SYS_futex, &word,
-                           LINUX_FUTEX_UNLOCK_PI | LINUX_FUTEX_PRIVATE_FLAG);
-        known = (ret < 0 && _syscall_errno(ret) == ENOSYS) ? -1 : 1;
-        __atomic_store_n(&available, known, __ATOMIC_RELAXED);
+    /* Run at the highest remaining ceiling, or the original priority */
+    target = self->tpp_base;
+    for (int c = _PTHREAD_PRIO_MAX; c > target; c--) {
+        if (self->tpp_count[c]) {
+            target = c;
+            break;
+        }
     }
-    return known > 0;
-}
-
-int
-pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t * __restrict attr)
-{
-    if (attr && attr->__protocol == PTHREAD_PRIO_INHERIT && !pi_available())
-        return ENOTSUP;
-    /* A robust mutex the system can't support would only hang */
-    if (attr && attr->__robust == PTHREAD_MUTEX_ROBUST && !_pthread_robust_available())
-        return ENOTSUP;
-    mutex->__state = 0;
-    mutex->__type = attr ? attr->__type : PTHREAD_MUTEX_DEFAULT;
-    mutex->__pshared = attr ? attr->__pshared : PTHREAD_PROCESS_PRIVATE;
-    mutex->__protocol = attr ? attr->__protocol : PTHREAD_PRIO_NONE;
-    mutex->__prioceiling = attr ? attr->__prioceiling : LINUX_PRIO_RT_MIN;
-    mutex->__owner = 0;
-    mutex->__count = 0;
-    mutex->__robust = attr ? attr->__robust : PTHREAD_MUTEX_STALLED;
-    mutex->__robust_state = _PTHREAD_ROBUST_CONSISTENT;
-    mutex->__robust_next = NULL;
-    mutex->__robust_prev = NULL;
-    return 0;
+    if (target != priority)
+        (void)_pthread_setsched(self->tid, policy, target);
 }

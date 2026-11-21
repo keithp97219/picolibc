@@ -36,8 +36,6 @@
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
 
-extern void __sa_restore(void);
-
 /* Act on a cancellation request when it arrives at the right time */
 static void
 cancel_handler(int sig)
@@ -45,9 +43,11 @@ cancel_handler(int sig)
     struct __pthread *self = _pthread_current;
 
     (void)sig;
+#ifdef _PTHREAD_SETXID
     /* The same signal asks each thread to repeat a credential change */
     if (self && __atomic_exchange_n(&self->setxid_pending, 0, __ATOMIC_ACQ_REL))
         _pthread_setxid_act();
+#endif
     if (!self || self->cancel_state != PTHREAD_CANCEL_ENABLE
         || !__atomic_load_n(&self->cancel_pending, __ATOMIC_SEQ_CST))
         return;
@@ -62,16 +62,7 @@ static pthread_once_t cancel_once = PTHREAD_ONCE_INIT;
 static void
 cancel_init(void)
 {
-    struct __kernel_sigaction kact = {};
-
-    kact.sa_handler = cancel_handler;
-    kact.sa_flags = LINUX_SA_RESTART;
-#ifdef LINUX_SA_RESTORER
-    kact.sa_flags |= LINUX_SA_RESTORER;
-    kact.sa_restorer = __sa_restore;
-#endif
-    (void)_syscall_raw(LINUX_SYS_rt_sigaction, _PTHREAD_SIGCANCEL, &kact, NULL,
-                       __KERNEL_NSIG_BYTES);
+    _pthread_os_sigcancel(cancel_handler);
 }
 
 void
@@ -104,6 +95,6 @@ pthread_cancel(pthread_t thread)
     /* Interrupt the thread in case it is blocked; an exited thread needs nothing */
     tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE);
     if (tid)
-        (void)_syscall_raw(LINUX_SYS_tgkill, getpid(), tid, _PTHREAD_SIGCANCEL);
+        (void)_pthread_tkill(tid, _PTHREAD_SIGCANCEL);
     return 0;
 }

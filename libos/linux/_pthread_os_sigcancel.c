@@ -35,13 +35,19 @@
 
 #include "local-pthread.h"
 
-int
-pthread_mutex_consistent(pthread_mutex_t *mutex)
+extern void __sa_restore(void);
+
+void
+_pthread_os_sigcancel(void (*handler)(int))
 {
-    if (!mutex->__robust || mutex->__robust_state != _PTHREAD_ROBUST_INCONSISTENT
-        || _pthread_mutex_owner(mutex) != _pthread_self()->tid)
-        return EINVAL;
-    mutex->__robust_state = _PTHREAD_ROBUST_CONSISTENT;
-    __atomic_fetch_and(&mutex->__state, ~LINUX_FUTEX_OWNER_DIED, __ATOMIC_RELAXED);
-    return 0;
+    struct __kernel_sigaction kact = {};
+
+    kact.sa_handler = handler;
+    kact.sa_flags = LINUX_SA_RESTART;
+#ifdef LINUX_SA_RESTORER
+    kact.sa_flags |= LINUX_SA_RESTORER;
+    kact.sa_restorer = __sa_restore;
+#endif
+    (void)_syscall_raw(LINUX_SYS_rt_sigaction, _PTHREAD_SIGCANCEL, &kact, NULL,
+                       __KERNEL_NSIG_BYTES);
 }

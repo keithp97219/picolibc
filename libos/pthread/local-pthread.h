@@ -36,56 +36,21 @@
 #ifndef _LOCAL_PTHREAD_H_
 #define _LOCAL_PTHREAD_H_
 
-#include "local-sigaction.h"
-#include "local-time.h"
+/*
+ * The OS layer's part: the kernel interfaces this code is built on,
+ * described where each is used below and in local-pthread-os.h. It
+ * comes first, as it sets the feature macros the OS layer builds with.
+ */
+#include "local-pthread-os.h"
 #include <pthread.h>
 #include <semaphore.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <limits.h>
 #include <stdint.h>
 
-/* Linux futex operations */
-#define LINUX_FUTEX_WAIT             0
-#define LINUX_FUTEX_WAKE             1
-#define LINUX_FUTEX_WAIT_BITSET      9
-#define LINUX_FUTEX_PRIVATE_FLAG     128
-#define LINUX_FUTEX_CLOCK_REALTIME   256
-#define LINUX_FUTEX_BITSET_MATCH_ANY 0xffffffffU
-
-#define LINUX_FUTEX_LOCK_PI          6
-#define LINUX_FUTEX_UNLOCK_PI        7
-#define LINUX_FUTEX_LOCK_PI2         13
-#define LINUX_FUTEX_TID_MASK         0x3fffffffU
-#define LINUX_FUTEX_OWNER_DIED       0x40000000U
-#define LINUX_FUTEX_WAITERS          0x80000000U
-#define LINUX_FUTEX_TRYLOCK_PI       8
-
-/*
- * Use the 64-bit time futex call where the kernel has one, so that
- * 32-bit targets don't truncate timeouts.
- */
-#ifdef LINUX_SYS_futex_time64
-#define LINUX_SYS_futex_time_t LINUX_SYS_futex_time64
-#else
-#define LINUX_SYS_futex_time_t LINUX_SYS_futex
-#endif
-
-/* Linux real-time priorities */
-#define LINUX_PRIO_RT_MIN 1
-#define LINUX_PRIO_RT_MAX 99
-/* Linux clone flags */
-#define LINUX_CLONE_VM             0x00000100
-#define LINUX_CLONE_FS             0x00000200
-#define LINUX_CLONE_FILES          0x00000400
-#define LINUX_CLONE_SIGHAND        0x00000800
-#define LINUX_CLONE_THREAD         0x00010000
-#define LINUX_CLONE_SYSVSEM        0x00040000
-#define LINUX_CLONE_SETTLS         0x00080000
-#define LINUX_CLONE_PARENT_SETTID  0x00100000
-#define LINUX_CLONE_CHILD_CLEARTID 0x00200000
-
-#define __PTHREAD_STACK_DEFAULT    (128 * 1024)
-#define __PTHREAD_GUARD_DEFAULT    4096
+#define __PTHREAD_STACK_DEFAULT (128 * 1024)
+#define __PTHREAD_GUARD_DEFAULT 4096
 
 /* Bytes of parent stack space _pthread_tls_setup may use for the clone TLS argument */
 #define __PTHREAD_TLS_ARG_SIZE 16
@@ -118,9 +83,12 @@ struct __pthread {
     unsigned int               setxid_pending;
 
     /* Signal mask for the new thread */
-    __kernel_sigset_t          sigmask;
+    _pthread_sigset_t          sigmask;
 
-    /* Kernel thread id; the kernel clears it and wakes the futex when the thread exits */
+    /*
+     * Kernel thread id. On some systems the kernel also clears it and
+     * wakes the futex when the thread exits; see _pthread_exit_word.
+     */
     int                        tid;
     int                        detach_state;
 
@@ -129,7 +97,7 @@ struct __pthread {
     int                        start_error;
 
     /* Ceilings of the PTHREAD_PRIO_PROTECT mutexes held, and the priority without them */
-    unsigned short             tpp_count[LINUX_PRIO_RT_MAX + 1];
+    unsigned short             tpp_count[_PTHREAD_PRIO_MAX + 1];
     unsigned int               tpp_held;
     int                        tpp_base;
 
@@ -143,16 +111,8 @@ struct __pthread {
     unsigned int               cancel_mutex_count;
     struct __pthread_specific *specific;
 
-    /*
-     * The robust mutexes held, which the kernel marks if the thread
-     * dies holding them; laid out as the kernel's robust_list_head
-     */
-    struct {
-        void *list;
-        long  futex_offset;
-        void *list_op_pending;
-    } robust;
-    bool robust_registered;
+    /* What the OS layer keeps for each thread */
+    struct __pthread_os        os;
 };
 
 extern __thread struct __pthread *_pthread_current;
@@ -176,13 +136,13 @@ int  _futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t c
                  const struct timespec *abstime);
 void _futex_wake(unsigned int *addr, int count, bool pshared);
 
-/* Convert an absolute timeout for the kernel: 0, EINVAL or ETIMEDOUT */
-int  _futex_timespec(struct __kernel_timespec64 *kts, const struct timespec *abstime);
-
 /* Priority inheritance futexes; the word holds the owner's thread id */
 int  _futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock,
                     const struct timespec *abstime);
 void _futex_unlock_pi(unsigned int *addr, bool pshared);
+
+/* Whether the kernel has priority inheritance futexes */
+bool _pthread_pi_available(void);
 /*
  * Futex mutex: __state is 0 when unlocked, 1 when locked and 2 when
  * locked with possible waiters. Recursive and error checking mutexes
@@ -217,7 +177,7 @@ _pthread_mutex_owner(pthread_mutex_t *mutex)
 {
     /* Priority inheritance and robust mutexes hold the owner in the futex word */
     if (mutex->__protocol == PTHREAD_PRIO_INHERIT || mutex->__robust)
-        return (int)(__atomic_load_n(&mutex->__state, __ATOMIC_RELAXED) & LINUX_FUTEX_TID_MASK);
+        return (int)(__atomic_load_n(&mutex->__state, __ATOMIC_RELAXED) & _PTHREAD_FUTEX_TID_MASK);
     return __atomic_load_n(&mutex->__owner, __ATOMIC_RELAXED);
 }
 
@@ -342,12 +302,6 @@ int        _pthread_getsched(int tid, int *policy, int *priority);
 
 extern int _pthread_concurrency;
 
-/*
- * Cancellation uses a Linux real-time signal which picolibc's signal
- * numbers never reach, so applications can't block or catch it.
- */
-#define _PTHREAD_SIGCANCEL 32
-
 __noreturn void _pthread_cancel_act(struct __pthread *self);
 
 /* Run the calling thread's cleanup handlers */
@@ -373,35 +327,8 @@ void                           _pthread_fork_parent(void) __no_thread_safety_ana
 void                           _pthread_fork_child(void) __no_thread_safety_analysis;
 void                           _pthread_fork_reset(void);
 
-/*
- * Thread memory: anonymous mappings made directly, leaving errno
- * alone. _pthread_map returns NULL on failure.
- */
-static inline void *
-_pthread_map(size_t size)
-{
-    long ret;
-
-#ifdef LINUX_SYS_mmap2
-    ret = _syscall_raw(LINUX_SYS_mmap2, NULL, size, LINUX_PROT_READ | LINUX_PROT_WRITE,
-                       LINUX_MAP_PRIVATE | LINUX_MAP_ANONYMOUS, -1, 0);
-#else
-    ret = _syscall_raw(LINUX_SYS_mmap, NULL, size, LINUX_PROT_READ | LINUX_PROT_WRITE,
-                       LINUX_MAP_PRIVATE | LINUX_MAP_ANONYMOUS, -1, 0);
-#endif
-    if ((unsigned long)ret >= (unsigned long)-4095)
-        return NULL;
-    return (void *)ret;
-}
-
-static inline void
-_pthread_unmap(void *addr, size_t size)
-{
-    (void)_syscall_raw(LINUX_SYS_munmap, addr, size);
-}
-
 /* Queue an exiting detached thread to be unmapped once the kernel is done with it */
-void _pthread_zombie(struct __pthread *thread);
+void                           _pthread_zombie(struct __pthread *thread);
 
 /* Thread-specific data keys; seq is odd while the key is in use */
 struct _pthread_key {
@@ -471,24 +398,41 @@ void                     _pthread_wait_exit(struct __pthread *thread);
 /* Run thread-specific data destructors for the calling thread */
 void                     _pthread_specific_exit(struct __pthread *self);
 
-/*
- * Machine-specific pieces
- */
-
-/*
- * Raw clone(2) call. In the child, pops a function and its argument
- * from the new stack, calls the function and exits the thread with
- * its return value. Returns the child thread id or a negative Linux
- * error code.
- */
-long  _linux_clone(unsigned long flags, void *stack, int *ptid, int *ctid, void *tls);
+/* The thread's first code, called from the OS layer's thread start */
+__noreturn void          _pthread_start(struct __pthread *self);
 
 /*
  * Initialize the thread control block for a new TLS block (already
- * filled by _init_tls) and return the value to pass as the clone TLS
- * argument. arg_space provides __PTHREAD_TLS_ARG_SIZE bytes for any
- * structure the kernel needs to read during clone.
+ * filled by _init_tls) and return the thread pointer value the kernel
+ * takes for the new thread. arg_space provides __PTHREAD_TLS_ARG_SIZE
+ * bytes for any structure the kernel needs to read while creating it.
+ * This depends only on the machine.
  */
-void *_pthread_tls_setup(void *tls, void *arg_space);
+void                    *_pthread_tls_setup(void *tls, void *arg_space);
+
+/*
+ * The OS layer's part of creating, running and ending threads, besides
+ * the inline functions and macros in local-pthread-os.h:
+ *
+ * _pthread_os_create starts a kernel thread with its stack pointer
+ * below stack_top and its thread pointer from _pthread_tls_setup,
+ * sharing the creator's address space, descriptors and signal
+ * handlers, with every signal blocked. The kernel stores the new
+ * thread id in t->tid before either thread runs. The new thread calls
+ * _pthread_start(t). Returns 0, ENOMEM or EAGAIN.
+ */
+int                      _pthread_os_create(struct __pthread *t, void *stack_top, void *tls_arg);
+
+/* Exit the calling thread alone; the kernel then changes and wakes _pthread_exit_word */
+__noreturn void          _pthread_os_exit(struct __pthread *self);
+
+/* Set the thread id of the initial thread, or of the only thread in a fork child */
+void                     _pthread_os_set_tid(struct __pthread *self);
+
+/* Install the handler for _PTHREAD_SIGCANCEL */
+void                     _pthread_os_sigcancel(void (*handler)(int));
+
+/* sigprocmask, returning 0 or an errno value, leaving errno alone */
+int                      _sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 
 #endif /* _LOCAL_PTHREAD_H_ */

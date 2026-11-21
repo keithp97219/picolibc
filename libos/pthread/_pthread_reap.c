@@ -46,7 +46,7 @@ _pthread_reap(void)
     pthread_mutex_lock(&_pthread_zombie_lock);
     prev = &_pthread_zombies;
     while ((thread = *prev) != NULL) {
-        if (__atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE) == 0) {
+        if (__atomic_load_n(_pthread_exit_word(thread), __ATOMIC_ACQUIRE) == _PTHREAD_EXIT_DONE) {
             *prev = thread->zombie_next;
             _pthread_unmap(thread->map, thread->map_size);
         } else {

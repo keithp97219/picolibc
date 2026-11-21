@@ -40,10 +40,10 @@
 void
 _pthread_wait_exit(struct __pthread *thread)
 {
-    int tid;
+    unsigned int *word = _pthread_exit_word(thread);
+    unsigned int  val;
 
-    /* The kernel clears tid and wakes waiters once the thread is gone */
-    while ((tid = __atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE)) != 0)
-        (void)_futex_wait((unsigned int *)&thread->tid, (unsigned int)tid, true, CLOCK_REALTIME,
-                          NULL);
+    /* The kernel changes the word and wakes waiters once the thread is gone */
+    while ((val = __atomic_load_n(word, __ATOMIC_ACQUIRE)) != _PTHREAD_EXIT_DONE)
+        (void)_futex_wait(word, val, true, CLOCK_REALTIME, NULL);
 }

@@ -33,28 +33,16 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _DEFAULT_SOURCE
 #include "local-pthread.h"
 
-/*
- * The child of a fork has only the calling thread, with a new thread
- * id. Reset the thread bookkeeping to match.
- */
-void
-_pthread_fork_reset(void)
+int
+pthread_mutexattr_init(pthread_mutexattr_t *attr)
 {
-    static const pthread_mutex_t init = PTHREAD_MUTEX_INITIALIZER;
-    struct __pthread            *self = _pthread_current;
-
-    if (self)
-        self->tid = (int)_syscall_raw(LINUX_SYS_set_tid_address, &self->tid);
-    if (self)
-        _pthread_robust_reset(self);
-    _pthread_count = 1;
-    _pthread_zombies = NULL;
-    _pthread_zombie_lock = init;
-    _pthread_all_lock = init;
-    _pthread_all = NULL;
-    _pthread_main_listed = true;
-    if (self)
-        _pthread_all_add(self);
+    attr->__type = PTHREAD_MUTEX_DEFAULT;
+    attr->__pshared = PTHREAD_PROCESS_PRIVATE;
+    attr->__protocol = PTHREAD_PRIO_NONE;
+    attr->__prioceiling = _PTHREAD_PRIO_MIN;
+    attr->__robust = PTHREAD_MUTEX_STALLED;
+    return 0;
 }

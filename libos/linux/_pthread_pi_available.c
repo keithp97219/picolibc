@@ -33,14 +33,24 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
 #include "local-pthread.h"
 
-int
-pthread_mutexattr_setprioceiling(pthread_mutexattr_t *attr, int prioceiling)
+/* Whether the kernel has priority inheritance futexes */
+bool
+_pthread_pi_available(void)
 {
-    if (prioceiling < LINUX_PRIO_RT_MIN || prioceiling > LINUX_PRIO_RT_MAX)
-        return EINVAL;
-    attr->__prioceiling = prioceiling;
-    return 0;
+    static int available; /* 0 not yet known, 1 available, -1 missing */
+    int        known = __atomic_load_n(&available, __ATOMIC_RELAXED);
+
+    if (known == 0) {
+        unsigned int word = 0;
+        long         ret;
+
+        /* Unlocking a futex nobody owns fails with EPERM, or ENOSYS without support */
+        ret = _syscall_raw(LINUX_SYS_futex, &word,
+                           LINUX_FUTEX_UNLOCK_PI | LINUX_FUTEX_PRIVATE_FLAG);
+        known = (ret < 0 && _syscall_errno(ret) == ENOSYS) ? -1 : 1;
+        __atomic_store_n(&available, known, __ATOMIC_RELAXED);
+    }
+    return known > 0;
 }

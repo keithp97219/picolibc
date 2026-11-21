@@ -33,16 +33,15 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
 #include "local-pthread.h"
 
 int
-pthread_mutexattr_init(pthread_mutexattr_t *attr)
+pthread_mutex_consistent(pthread_mutex_t *mutex)
 {
-    attr->__type = PTHREAD_MUTEX_DEFAULT;
-    attr->__pshared = PTHREAD_PROCESS_PRIVATE;
-    attr->__protocol = PTHREAD_PRIO_NONE;
-    attr->__prioceiling = LINUX_PRIO_RT_MIN;
-    attr->__robust = PTHREAD_MUTEX_STALLED;
+    if (!mutex->__robust || mutex->__robust_state != _PTHREAD_ROBUST_INCONSISTENT
+        || _pthread_mutex_owner(mutex) != _pthread_self()->tid)
+        return EINVAL;
+    mutex->__robust_state = _PTHREAD_ROBUST_CONSISTENT;
+    __atomic_fetch_and(&mutex->__state, ~_PTHREAD_FUTEX_OWNER_DIED, __ATOMIC_RELAXED);
     return 0;
 }

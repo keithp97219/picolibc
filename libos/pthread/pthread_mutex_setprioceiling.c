@@ -36,26 +36,23 @@
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
 
-void
-_pthread_tpp_lower(struct __pthread *self, int ceiling)
+int
+pthread_mutex_setprioceiling(pthread_mutex_t * __restrict mutex, int prioceiling,
+                             int * __restrict old_ceiling)
 {
-    int policy, priority, target;
+    int old, ret;
 
-    self->tpp_count[ceiling]--;
-    self->tpp_held--;
-    if (_pthread_getsched(self->tid, &policy, &priority) != 0)
-        return;
-    if (policy != SCHED_FIFO && policy != SCHED_RR)
-        return;
+    if (mutex->__protocol != PTHREAD_PRIO_PROTECT || prioceiling < _PTHREAD_PRIO_MIN
+        || prioceiling > _PTHREAD_PRIO_MAX)
+        return EINVAL;
 
-    /* Run at the highest remaining ceiling, or the original priority */
-    target = self->tpp_base;
-    for (int c = LINUX_PRIO_RT_MAX; c > target; c--) {
-        if (self->tpp_count[c]) {
-            target = c;
-            break;
-        }
-    }
-    if (target != priority)
-        (void)_pthread_setsched(self->tid, policy, target);
+    /* Changing the ceiling requires holding the mutex */
+    ret = _pthread_mutex_lock_timed(mutex, CLOCK_REALTIME, NULL);
+    if (ret)
+        return ret;
+    old = mutex->__prioceiling;
+    __atomic_store_n(&mutex->__prioceiling, prioceiling, __ATOMIC_RELAXED);
+    if (old_ceiling)
+        *old_ceiling = old;
+    return _pthread_mutex_unlock_ceiling(mutex, old);
 }

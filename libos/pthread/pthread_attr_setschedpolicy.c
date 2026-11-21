@@ -35,12 +35,11 @@
 
 #define _GNU_SOURCE
 #include "local-pthread.h"
-#include "local-sched.h"
 
 int
 pthread_attr_setschedpolicy(pthread_attr_t *attr, int policy)
 {
-    if (_sched_policy_to_linux(policy) < 0)
+    if (!_pthread_policy_valid(policy))
         return EINVAL;
     attr->__schedpolicy = policy;
     return 0;
