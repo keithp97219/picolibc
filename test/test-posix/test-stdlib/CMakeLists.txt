@@ -57,6 +57,7 @@ set(tests
   test-stdlib_h-names
   test-strtol
   test-system
+  test-system-signals
   test-unlockpt
   )
 
