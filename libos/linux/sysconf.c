@@ -82,6 +82,12 @@ sysconf(int name)
     case _SC_DELAYTIMER_MAX:
         /* The kernel's timer overrun counts saturate at INT_MAX */
         return INT_MAX;
+    case _SC_LOGIN_NAME_MAX:
+        /*
+         * Linux names users with up to 32 characters (utmp's ut_user),
+         * or more where useradd allows; glibc's LOGIN_NAME_MAX is 256
+         */
+        return 256;
     case _SC_TTY_NAME_MAX:
         /* Room for the /dev/pts/N and /dev/ttyXXX names ttyname returns */
         return 32;
