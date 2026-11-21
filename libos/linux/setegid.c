@@ -36,12 +36,21 @@
 #include "local-linux.h"
 #include <unistd.h>
 
+/*
+ * Linux's setregid sets the saved set-group-ID whenever the new
+ * effective ID differs from the real one; setegid must leave it alone.
+ * -1 means "unchanged" to the kernel, but here it is just an invalid ID.
+ */
 int
 setegid(gid_t gid)
 {
-#ifdef LINUX_SYS_setregid32
-    return (int)_syscall_setxid(LINUX_SYS_setregid32, -1, (long)gid, 0);
+    if (gid == (gid_t)-1) {
+        errno = EINVAL;
+        return -1;
+    }
+#ifdef LINUX_SYS_setresgid32
+    return (int)_syscall_setxid(LINUX_SYS_setresgid32, -1, (long)gid, -1);
 #else
-    return (int)_syscall_setxid(LINUX_SYS_setregid, -1, (long)gid, 0);
+    return (int)_syscall_setxid(LINUX_SYS_setresgid, -1, (long)gid, -1);
 #endif
 }

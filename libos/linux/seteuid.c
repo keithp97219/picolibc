@@ -36,12 +36,21 @@
 #include "local-linux.h"
 #include <unistd.h>
 
+/*
+ * Linux's setreuid sets the saved set-user-ID whenever the new
+ * effective ID differs from the real one; seteuid must leave it alone.
+ * -1 means "unchanged" to the kernel, but here it is just an invalid ID.
+ */
 int
 seteuid(uid_t uid)
 {
-#ifdef LINUX_SYS_setreuid32
-    return (int)_syscall_setxid(LINUX_SYS_setreuid32, -1, (long)uid, 0);
+    if (uid == (uid_t)-1) {
+        errno = EINVAL;
+        return -1;
+    }
+#ifdef LINUX_SYS_setresuid32
+    return (int)_syscall_setxid(LINUX_SYS_setresuid32, -1, (long)uid, -1);
 #else
-    return (int)_syscall_setxid(LINUX_SYS_setreuid, -1, (long)uid, 0);
+    return (int)_syscall_setxid(LINUX_SYS_setresuid, -1, (long)uid, -1);
 #endif
 }
