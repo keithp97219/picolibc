@@ -842,7 +842,7 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #endif
 
 /* Options picolibc builds on what the system provides */
-#if defined(__PICOLIBC_PTHREADS) && !defined(_POSIX_ASYNCHRONOUS_IO)
+#if defined(_POSIX_THREADS) && !defined(__SINGLE_THREAD) && !defined(_POSIX_ASYNCHRONOUS_IO)
 /* Asynchronous I/O runs each request in a thread */
 #define _POSIX_ASYNCHRONOUS_IO 202405L
 #endif
