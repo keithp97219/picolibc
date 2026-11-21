@@ -48,6 +48,8 @@ swprintf(wchar_t *s, size_t n, const wchar_t *fmt, ...)
 
     if (n)
         memset(f.pos, 0, sizeof(wchar_t));
+    else
+        errno = EOVERFLOW; /* Not even the null fits */
 
     return i;
 }

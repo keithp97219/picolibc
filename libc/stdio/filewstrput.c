@@ -40,8 +40,11 @@ __file_wstr_put(char c, FILE *stream)
 {
     struct __file_str *sstream = (struct __file_str *)stream;
 
-    if (sstream->pos == sstream->end)
+    /* swprintf fails with EOVERFLOW when the output doesn't fit */
+    if (sstream->pos == sstream->end) {
+        errno = EOVERFLOW;
         return _FDEV_ERR;
+    }
 
     *sstream->pos++ = c;
     return (unsigned char)c;
