@@ -191,7 +191,9 @@ test_extra_src = {
 test_extra_c_args = {
   'test-math-errhandling': arg_fnobuiltin,
   'test-narrow-fenv': arg_fnobuiltin,
-  'test-rounding-mode': arg_fnobuiltin
+  'test-rounding-mode': arg_fnobuiltin,
+  # clang 21's aarch64 backend can't lower its fmaximum_numl builtin
+  'test-tgmath': arg_fnobuiltin,
 }
 
 test_args = {}
