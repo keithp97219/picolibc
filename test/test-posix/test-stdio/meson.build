@@ -39,6 +39,7 @@ dir_tests = [
   'test-fclose-std',
   'test-fdopen',
   'test-fflush',
+  'test-fflush-all',
   'test-fgetc',
   'test-fileno',
   'test-fmemopen',
@@ -66,5 +67,6 @@ dir_tests = [
 
 # These need threads; they use the library's own locks
 dir_thread_tests = [
+  'test-fflush-threads',
   'test-flockfile',
 ]

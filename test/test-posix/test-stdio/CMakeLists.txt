@@ -39,6 +39,8 @@ set(tests
   test-fclose-std
   test-fdopen
   test-fflush
+  test-fflush-all
+  test-fflush-threads
   test-fgetc
   test-fileno
   test-flockfile

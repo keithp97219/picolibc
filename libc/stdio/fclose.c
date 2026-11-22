@@ -37,6 +37,12 @@ fclose(FILE *f)
     struct __file_close *cf = (struct __file_close *)f;
     int                  ret = 0;
 
+    /*
+     * Take the stream off the open-stream list before tearing down its
+     * locks, so fflush(NULL) can't flush it while it closes
+     */
+    bufio_remove_file(f);
+
 #ifdef __STDIO_LOCKING
     ret = __flockfile_close(f);
 #endif

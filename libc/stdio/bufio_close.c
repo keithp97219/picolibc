@@ -58,7 +58,6 @@ __bufio_close(FILE *f)
         int close_ret = bufio_close(bf);
         if (close_ret)
             ret = close_ret;
-        bufio_remove_file(f);
         free(f);
     }
     return ret;
