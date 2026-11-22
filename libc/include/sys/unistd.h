@@ -863,7 +863,11 @@ int     unlinkat(int, const char *, int) __picolibc_export;
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
 #if defined(__PICOLIBC_POSIX_DEVICE_IO_EXT) || defined(__PICOLIBC_XSI_C_LANG_SUPPORT) \
-    || defined(__PICOLIBC_XSI_DBM)
+    || defined(__PICOLIBC_XSI_DBM) || defined(__PICOLIBC_POSIX_C_LANG_THREADS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_SHELL_FUNC)
 #error \
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
@@ -1193,6 +1197,39 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 /* The databases are files */
 #define __PICOLIBC_XSI_DBM __PICOLIBC_OS_FILE_SYSTEM
 #endif
+#if defined(__PICOLIBC_PTHREADS) && defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+/* <threads.h> is built on picolibc's POSIX threads; the group is new in POSIX.1-2024 */
+#define __PICOLIBC_POSIX_C_LANG_THREADS 202405L
+#endif
+/*
+ * Popen, system and wordexp run the OS's /bin/sh in a child process,
+ * connected by pipes and dup2, with signals held off while system
+ * waits; the edition is the oldest of the groups they use
+ */
+/* clang-format off */
+#if    defined(__PICOLIBC_OS_SHELL) && __PICOLIBC_OS_SHELL > 0 \
+    && defined(__PICOLIBC_OS_FD_MGMT)                          \
+    && defined(__PICOLIBC_OS_FILE_SYSTEM)                      \
+    && defined(__PICOLIBC_OS_MULTI_PROCESS)                    \
+    && defined(__PICOLIBC_OS_PIPE)                             \
+    && defined(__PICOLIBC_OS_SIGNALS)
+#if    __PICOLIBC_OS_FD_MGMT >= 202405L                        \
+    && __PICOLIBC_OS_FILE_SYSTEM >= 202405L                    \
+    && __PICOLIBC_OS_MULTI_PROCESS >= 202405L                  \
+    && __PICOLIBC_OS_PIPE >= 202405L                           \
+    && __PICOLIBC_OS_SIGNALS >= 202405L
+#define __PICOLIBC_POSIX_SHELL_FUNC 202405L
+#elif  __PICOLIBC_OS_FD_MGMT >= 200809L                        \
+    && __PICOLIBC_OS_FILE_SYSTEM >= 200809L                    \
+    && __PICOLIBC_OS_MULTI_PROCESS >= 200809L                  \
+    && __PICOLIBC_OS_PIPE >= 200809L                           \
+    && __PICOLIBC_OS_SIGNALS >= 200809L
+#define __PICOLIBC_POSIX_SHELL_FUNC 200809L
+#else
+#define __PICOLIBC_POSIX_SHELL_FUNC 200112L
+#endif
+#endif
+/* clang-format on */
 
 /*
  * Programming environments, from the type sizes; off_t is always 64

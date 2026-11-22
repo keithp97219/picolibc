@@ -38,7 +38,8 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_SIGNALS)
+#if defined(__PICOLIBC_POSIX_C_LANG_THREADS) && _POSIX_THREADS > 0 \
+    && defined(__PICOLIBC_POSIX_SIGNALS)
 
 #include <errno.h>
 #include <limits.h>

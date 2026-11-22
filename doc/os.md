@@ -501,9 +501,13 @@ and stops with an error if the header defines one of those itself.
    `USER_GROUPS_R`, `XSI_C_LANG_SUPPORT` (for `getdate`'s templates
    file) and `XSI_DBM` follow `FILE_SYSTEM`; `SIGNAL_JUMP` follows
    `SIGNALS`, and is `202405L` without an OS; `DEVICE_IO_EXT` (for
-   `dprintf`) and `WIDE_CHAR_DEVICE_IO` follow `DEVICE_IO`). The OS's
-   part of each group is the group's interfaces that picolibc doesn't
-   implement:
+   `dprintf`) and `WIDE_CHAR_DEVICE_IO` follow `DEVICE_IO`;
+   `C_LANG_THREADS`, `<threads.h>` over picolibc's own POSIX threads,
+   is `202405L` with `_POSIX_THREADS`; and `SHELL_FUNC` (`popen`,
+   `system`, `wordexp`) takes the oldest of `FD_MGMT`, `FILE_SYSTEM`,
+   `MULTI_PROCESS`, `PIPE` and `SIGNALS` when the OS also has a shell,
+   `__PICOLIBC_OS_SHELL`). The OS's part of each group is the group's
+   interfaces that picolibc doesn't implement:
 
    | Group | The OS provides |
    |---|---|

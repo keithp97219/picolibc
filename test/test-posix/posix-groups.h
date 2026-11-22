@@ -77,6 +77,7 @@
 #define __PICOLIBC_POSIX_MULTI_PROCESS_FD   _POSIX_VERSION
 #define __PICOLIBC_POSIX_NETWORKING         _POSIX_VERSION
 #define __PICOLIBC_POSIX_PIPE               _POSIX_VERSION
+#define __PICOLIBC_POSIX_SHELL_FUNC         _POSIX_VERSION
 #define __PICOLIBC_POSIX_SIGNALS            _POSIX_VERSION
 #define __PICOLIBC_POSIX_SIGNAL_JUMP        _POSIX_VERSION
 #define __PICOLIBC_POSIX_SINGLE_PROCESS     _POSIX_VERSION
@@ -155,6 +156,12 @@
 #endif
 
 #endif /* _POSIX_VERSION */
+
+/* The ISO C threads group, new in POSIX.1-2024, is <threads.h> */
+#if !defined(__PICOLIBC_POSIX_C_LANG_THREADS) && defined(__STDC_VERSION__) \
+    && __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_THREADS__)
+#define __PICOLIBC_POSIX_C_LANG_THREADS 202405L
+#endif
 
 #endif /* __PICOLIBC__ */
 
