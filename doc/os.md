@@ -493,7 +493,7 @@ and stops with an error if the header defines one of those itself.
    defines `__PICOLIBC_POSIX_<GROUP>` from it. Groups picolibc
    implements entirely (`C_LANG_JUMP`, `C_LANG_MATH`, `C_LANG_SUPPORT`,
    `C_LANG_SUPPORT_R`, `C_LANG_UCHAR`, `C_LANG_WIDE_CHAR`,
-   `C_LANG_WIDE_CHAR_EXT`, `C_LIB_EXT`, `FILE_LOCKING`,
+   `C_LANG_WIDE_CHAR_EXT`, `C_LIB_EXT`, `FILE_LOCKING`, `I18N`,
    `MULTI_CONCURRENT_LOCALES`, `REGEXP`; and `__PICOLIBC_XSI_MATH`
    and `__PICOLIBC_XSI_WIDE_CHAR`) are always defined, and groups of
    picolibc code over OS groups follow those (`FILE_SYSTEM_GLOB`, `FILE_SYSTEM_R`,
