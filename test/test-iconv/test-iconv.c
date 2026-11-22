@@ -57,6 +57,9 @@
 #ifdef HAVE_JIS_CHARSETS
 #define __MB_EXTENDED_CHARSETS_JIS
 #endif
+#ifdef HAVE_GB18030_CHARSET
+#define __MB_EXTENDED_CHARSETS_GB18030
+#endif
 #endif
 #endif
 
@@ -94,6 +97,9 @@ static const char *encodings[] = {
 #endif
 #ifdef __MB_EXTENDED_CHARSETS_JIS
     "EUC-JP",      "SHIFT-JIS",
+#endif
+#ifdef __MB_EXTENDED_CHARSETS_GB18030
+    "GB18030",
 #endif
 #endif
 };

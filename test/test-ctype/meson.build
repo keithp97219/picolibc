@@ -35,6 +35,7 @@
 
 tests_ctype = [
   'test-ctype',
+  'test-gb18030',
   'test-iswctype',
   ]
 
@@ -158,6 +159,15 @@ if enable_native_tests
                      '-DHAVE_WINDOWS_CHARSETS',
                      '-DHAVE_JIS_CHARSETS'
                     ]
+  endif
+  if mb_gb18030_charset
+    foreach locale : ['zh_CN.GB18030', 'C.GB18030']
+      locales += [custom_target(locale, output: locale,
+                                command: [localedef, '--no-warnings=ascii',
+                                          '-f', 'GB18030', '-i', locale.split('.')[0],
+                                          '.' / '@OUTPUT@'])]
+    endforeach
+    ctype_c_args += ['-DHAVE_GB18030_CHARSET']
   endif
 
   foreach t1 : tests_ctype
