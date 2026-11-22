@@ -5,6 +5,8 @@
 #
 exec "$(dirname "$0")"/do-clang-x86_64-freebsd-configure \
      --prefix=/usr/local \
+     --buildtype release \
+     -Dstderr-buffered=true \
      -Dio-long-long=true \
      -Dio-long-double=true \
      -Dio-pos-args=true \
