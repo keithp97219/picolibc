@@ -178,6 +178,20 @@ main(void)
     int   status;
 
     check(getcwd(top, sizeof(top)) != NULL && top[0] == '/', "getcwd");
+#if defined(__PICOLIBC__) || defined(TEST_GLIBC)
+    /* Not POSIX: a null buffer is allocated, as big as needed for size 0 */
+    {
+        char *alloc = getcwd(NULL, 0);
+
+        check(alloc != NULL && strcmp(alloc, top) == 0, "getcwd(NULL, 0)");
+        free(alloc);
+        alloc = getcwd(NULL, strlen(top) + 1);
+        check(alloc != NULL && strcmp(alloc, top) == 0, "getcwd(NULL, size)");
+        free(alloc);
+        errno = 0;
+        check(getcwd(NULL, 1) == NULL && errno == ERANGE, "getcwd(NULL, too small)");
+    }
+#endif
     check(mkdtemp(dir) != NULL, "scratch directory");
     pid = fork();
     check(pid >= 0, "fork");

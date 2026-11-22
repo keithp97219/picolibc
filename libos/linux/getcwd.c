@@ -34,12 +34,16 @@
  */
 
 #include "local-linux.h"
+#include "../common/local-getcwd.h"
 #include <unistd.h>
 
 char *
 getcwd(char *buf, size_t size)
 {
     long ret;
+
+    if (!buf)
+        return _getcwd_alloc(size);
 
     /* Linux gives ERANGE for a zero size */
     if (size == 0) {

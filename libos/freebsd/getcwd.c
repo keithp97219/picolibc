@@ -34,12 +34,16 @@
  */
 
 #include "local-freebsd.h"
+#include "../common/local-getcwd.h"
 #include <freebsd/freebsd-errno.h>
 
 char *
 getcwd(char *buf, size_t size)
 {
     long ret;
+
+    if (!buf)
+        return _getcwd_alloc(size);
 
     /*
      * FreeBSD gives EINVAL for any buffer shorter than two bytes, but
