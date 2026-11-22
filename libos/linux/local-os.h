@@ -103,6 +103,7 @@
 #define OS_SYS_link LINUX_SYS_link
 #endif
 #define OS_SYS_linkat LINUX_SYS_linkat
+#define OS_SYS_lseek  LINUX_SYS_lseek
 #ifdef LINUX_SYS_mkdir
 #define OS_SYS_mkdir LINUX_SYS_mkdir
 #endif
@@ -167,7 +168,11 @@
 /* Constants */
 #define OS_AT_FDCWD      LINUX_AT_FDCWD
 #define OS_AT_REMOVEDIR  LINUX_AT_REMOVEDIR
+#define OS_DT_DIR        LINUX_DT_DIR
+#define OS_DT_UNKNOWN    LINUX_DT_UNKNOWN
 #define OS_EINTR         LINUX_EINTR
+#define OS_ENOENT        LINUX_ENOENT
+#define OS_ERANGE        LINUX_ERANGE
 #define OS_F_GETFL       LINUX_F_GETFL
 #define OS_IPC_64        LINUX_IPC_64
 #define OS_O_CLOEXEC     LINUX_O_CLOEXEC

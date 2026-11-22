@@ -59,6 +59,13 @@ _getdents(int fd, void *buf, size_t nbyte)
     return _syscall(LINUX_SYS_getdents64, fd, buf, nbyte);
 }
 
+/* As _getdents, returning a _syscall_raw error */
+static inline long
+_getdents_raw(int fd, void *buf, size_t nbyte)
+{
+    return _syscall_raw(LINUX_SYS_getdents64, (long)fd, buf, nbyte);
+}
+
 static inline __uint64_t
 _dirent_ino(const struct __kernel_dirent64 *k)
 {
