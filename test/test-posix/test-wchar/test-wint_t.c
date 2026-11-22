@@ -35,6 +35,7 @@
 
 #include <wchar.h>
 #include <wctype.h>
+#include <stdint.h>
 #include <stdio.h>
 
 /*
@@ -54,6 +55,12 @@ main(void)
 
     if (c != WEOF || !mbsinit(&state) || towupper(L'a') != L'A') {
         printf("wint_t\n");
+        return 1;
+    }
+    /* WINT_MIN and WINT_MAX are wint_t's own limits, signed or not */
+    if ((wint_t)-1 < 0 ? (WINT_MIN >= 0 || WINT_MAX != (wint_t)((~0U) >> 1))
+                       : (WINT_MIN != 0 || WINT_MAX != (wint_t)-1)) {
+        printf("WINT_MIN %lld WINT_MAX %lld\n", (long long)WINT_MIN, (long long)WINT_MAX);
         return 1;
     }
     printf("success\n");
