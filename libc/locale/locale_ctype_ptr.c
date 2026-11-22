@@ -42,7 +42,7 @@
 const char *
 __locale_ctype_ptr(void)
 {
-    return __get_ctype(__get_current_locale());
+    return __get_ctype(__locale_id(__get_current_locale()));
 }
 
 #endif

@@ -330,7 +330,7 @@ static inline int
 __locale_cjk_lang(void)
 {
 #ifdef __MB_EXTENDED_CHARSETS_JIS
-    switch (__get_current_locale()) {
+    switch (__locale_id(__get_current_locale())) {
     case locale_JIS:
     case locale_EUCJP:
     case locale_SJIS:

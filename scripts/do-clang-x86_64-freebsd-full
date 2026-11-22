@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# Configure x86_64 FreeBSD with all of the knobs turned
+# to eleven
+#
+exec "$(dirname "$0")"/do-clang-x86_64-freebsd-configure \
+     --prefix=/usr/local \
+     -Dio-long-long=true \
+     -Dio-long-double=true \
+     -Dio-pos-args=true \
+     -Dprintf-percent-n=true \
+     -Dmb-capable=true \
+     -Dmb-extended-charsets=true \
+     -Dio-percent-b=true \
+     -Dfast-bufio=true \
+     -Dfstat-bufsiz=true \
+     -Dstdio-exit-flush=true \
+     -Dio-wchar=true \
+     -Dstdio-locking=true \
+     -Dmalloc-small-bucket=1024 \
+     -Dwant-math-errno=true "$@"
