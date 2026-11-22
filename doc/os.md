@@ -505,16 +505,24 @@ and stops with an error if the header defines one of those itself.
 
     - Groups of picolibc code over OS groups follow those:
       `FILE_SYSTEM_GLOB`, `FILE_SYSTEM_R`, `SYSTEM_DATABASE`,
-      `SYSTEM_DATABASE_R`, `USER_GROUPS_R`, `XSI_C_LANG_SUPPORT` (for
-      `getdate`'s templates file) and `XSI_DBM` follow `FILE_SYSTEM`;
+      `SYSTEM_DATABASE_R` and `USER_GROUPS_R` follow `FILE_SYSTEM`;
       `DEVICE_IO_EXT` (for `dprintf`) and `WIDE_CHAR_DEVICE_IO` follow
       `DEVICE_IO`; `SIGNAL_JUMP` follows `SIGNALS`, and is `202405L`
       without an OS, where libos/fallback keeps the signal mask;
       `C_LANG_THREADS`, `<threads.h>` over picolibc's own POSIX
-      threads, is `202405L` with `_POSIX_THREADS`; and `SHELL_FUNC`
-      (`popen`, `system`, `wordexp`) takes the oldest of `FD_MGMT`,
-      `FILE_SYSTEM`, `MULTI_PROCESS`, `PIPE` and `SIGNALS` when the OS
-      also has a shell (`__PICOLIBC_OS_SHELL`).
+      threads, is `202405L` with `_POSIX_THREADS`.
+
+    - Some groups of picolibc code take their edition from what they
+      use, not from the whole OS groups under them: an OS group's
+      edition counts only when the group uses an interface that
+      edition added. `XSI_C_LANG_SUPPORT` (for `getdate`'s templates
+      file) and `XSI_DBM` need `FILE_SYSTEM` at any edition and are
+      `202405L`. `SHELL_FUNC` (`popen`, `system`, `wordexp`) needs a
+      shell (`__PICOLIBC_OS_SHELL`), `FD_MGMT`, `FILE_SYSTEM`,
+      `MULTI_PROCESS` and `SIGNALS` at any edition, and `PIPE` at
+      `202405L` for `pipe2`; it is then `202405L`. So FreeBSD, whose
+      `FD_MGMT` is `200809L` for want of OFD locks, still has all
+      three at `202405L`: none of them locks files.
 
     - `C_LANG_ATOMICS` isn't defined: for atomic objects the target
       can't access lock-free, such as large structures, compilers call
