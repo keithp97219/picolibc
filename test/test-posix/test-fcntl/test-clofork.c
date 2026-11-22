@@ -45,6 +45,9 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#if TEST_POSIX_NETWORKING
+#include <sys/socket.h>
+#endif
 
 /*
  * Descriptors marked close-on-fork, by O_CLOFORK, FD_CLOFORK,
@@ -98,6 +101,19 @@ main(void)
     fd[5] = cfds[1];
     check(fcntl(fd[4], F_GETFD) == FD_CLOFORK && fcntl(fd[5], F_GETFD) == FD_CLOFORK,
           "pipe2 sets FD_CLOFORK");
+
+#if TEST_POSIX_NETWORKING
+    {
+        int sv[2];
+
+        /* SOCK_CLOFORK sets FD_CLOFORK on new sockets */
+        check(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOFORK, 0, sv) == 0,
+              "socketpair SOCK_CLOFORK");
+        check(fcntl(sv[0], F_GETFD) == FD_CLOFORK && fcntl(sv[1], F_GETFD) == FD_CLOFORK,
+              "SOCK_CLOFORK sets FD_CLOFORK");
+        check(close(sv[0]) == 0 && close(sv[1]) == 0, "close sockets");
+    }
+#endif
 
     /* The plain descriptors stay */
     check(fcntl(keep, F_GETFD) == 0, "pipe sets no descriptor flags");

@@ -54,6 +54,7 @@ set(tests
   test-printf-a-prec
   test-popen
   test-renameat
+  test-scanf
   test-stdio_h
   test-stdio_h-names
   test-stdio_h-xsi
@@ -62,6 +63,7 @@ set(tests
   test-stderr-buffering
   test-stdout-buffering
   test-tmpnam
+  test-vsprintf
   )
 
 foreach(test IN LISTS tests)

@@ -42,10 +42,12 @@ set(tests
   test-towctrans
   test-wchar_h
   test-wcsnlen
+  test-wcspbrk
   test-wcstol
   test-wcwidth
   test-wcrtomb-invalid
   test-wint_t
+  test-wscanf
   )
 
 foreach(test IN LISTS tests)
