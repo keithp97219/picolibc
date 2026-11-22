@@ -110,22 +110,22 @@ void free(void *) __nothrow __picolibc_export;
 
 #if __ISO_C_VISIBLE >= 2023
 
-void free_aligned_sized(void *ptr, size_t alignment, size_t size) __picolibc_export;
-void free_sized(void *ptr, size_t size) __picolibc_export;
+void free_aligned_sized(void *__ptr, size_t __alignment, size_t __size) __picolibc_export;
+void free_sized(void *__ptr, size_t __size) __picolibc_export;
 
 __declare_extern_inline(void)
-free_aligned_sized(void *ptr, size_t alignment, size_t size)
+free_aligned_sized(void *__ptr, size_t __alignment, size_t __size)
 {
-    (void)alignment;
-    (void)size;
-    free(ptr);
+    (void)__alignment;
+    (void)__size;
+    free(__ptr);
 }
 
 __declare_extern_inline(void)
-free_sized(void *ptr, size_t size)
+free_sized(void *__ptr, size_t __size)
 {
-    (void)size;
-    free(ptr);
+    (void)__size;
+    free(__ptr);
 }
 #endif
 
@@ -484,13 +484,13 @@ typedef __rsize_t rsize_t;
 #define _RSIZE_T_DEFINED
 #endif
 
-typedef void         (*constraint_handler_t)(const char         *__restrict msg, void         *__restrict ptr,
-                                     __errno_t error);
+typedef void         (*constraint_handler_t)(const char         *__restrict __msg, void         *__restrict __ptr,
+                                     __errno_t __error);
 
-constraint_handler_t set_constraint_handler_s(constraint_handler_t handler) __picolibc_export;
-void abort_handler_s(const char * __restrict msg, void * __restrict ptr, __errno_t error)
+constraint_handler_t set_constraint_handler_s(constraint_handler_t __handler) __picolibc_export;
+void abort_handler_s(const char * __restrict __msg, void * __restrict __ptr, __errno_t __error)
     __picolibc_export;
-void ignore_handler_s(const char * __restrict msg, void * __restrict ptr, __errno_t error)
+void ignore_handler_s(const char * __restrict __msg, void * __restrict __ptr, __errno_t __error)
     __picolibc_export;
 #endif
 

@@ -275,7 +275,7 @@ size_t strftime(char * __restrict _s, size_t _maxsize, const char * __restrict _
 int    timespec_get(struct timespec *_ts, int _base) __picolibc_export;
 
 #if __ISO_C_VISIBLE >= 2023
-int timespec_getres(struct timespec *_ts, int base) __picolibc_export;
+int timespec_getres(struct timespec *_ts, int _base) __picolibc_export;
 #endif
 
 #if __POSIX_VISIBLE
