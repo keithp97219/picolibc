@@ -342,10 +342,12 @@ struct dirent *readdir(DIR *dirp);
 
 picolibc's public headers declare the POSIX interfaces; the parts that
 depend on the operating system come from a few private headers the OS
-supplies on the include path. picolibc's own OS layers (`libos/linux`)
-provide them, and another OS, such as Zephyr, provides its own along with
-the code that implements them. They are interfaces between picolibc and
-the OS: their names and meanings stay stable.
+supplies on the include path. picolibc's own OS layers (`libos/linux`,
+`libos/freebsd`) provide them, and another OS, such as Zephyr, provides
+its own along with the code that implements them. They are interfaces
+between picolibc and the OS: their names and meanings stay stable. (The
+hooks under picolibc's thread implementation, described after
+`<sys/_pthread.h>`, are internal and change with picolibc.)
 
 picolibc's ABI doesn't depend on `<sys/_posix.h>`. No type, structure
 layout or library code changes with what it defines, so a picolibc
@@ -524,6 +526,76 @@ stop with an error without it; `<sys/types.h>`, `<signal.h>` and
 `pthread_cleanup_push` and `pthread_cleanup_pop`, which the OS
 implements as `__pthread_cleanup_push` and `__pthread_cleanup_pop`
 over `<pthread.h>`'s `struct __pthread_cleanup`.
+
+### Using picolibc's POSIX threads
+
+An OS can implement the thread interfaces itself under its own
+`<sys/_pthread.h>`, or use picolibc's implementation in `libos/pthread`,
+as `libos/linux` and `libos/freebsd` do. The second takes
+`libos/pthread/include/sys/_pthread.h`, picolibc's object layouts, and
+an OS header, `local-pthread-os.h`, which supplies a small set of
+kernel primitives. This is an internal interface: it changes with
+picolibc, so an OS layer using it is built with the picolibc it
+belongs to. `libos/pthread/local-pthread.h` defines it exactly; this
+summarizes it.
+
+**Required:**
+
+ * **Wait and wake** on a 32-bit word (`_futex_wait`, `_futex_wake`).
+   Waits take a clock and an absolute timeout. Callers loop and
+   recheck their condition, so a wait may return early (0 or EINTR),
+   and an OS may convert to relative timeouts, but it may return
+   ETIMEDOUT only once the time has passed on that clock.
+ * **Threads:** `_pthread_os_create` starts a thread running
+   `_pthread_start`, `_pthread_os_exit` ends the calling one, and
+   `_pthread_os_set_tid` names the initial thread. Each thread has a
+   non-zero 32-bit id, unique among live threads and zero once the
+   thread has exited; lock words hold it to name owners, so it needs
+   to be a kernel thread id only for priority inheritance or robust
+   mutexes, whose kernel reads it.
+ * **Exit word:** `_pthread_exit_word(t)`, which the OS sets to
+   `_PTHREAD_EXIT_DONE` and wakes once thread `t` no longer uses its
+   stack, TLS or descriptor. Joining and reclaiming detached threads
+   wait on it.
+ * **Per-thread OS data:** `struct __pthread_os`, embedded in each
+   thread's descriptor.
+ * **Stacks:** `_pthread_os_stack_alloc` and `_pthread_os_stack_free`
+   for the stacks picolibc provides, or `_PTHREAD_HAVE_MAP` to use
+   anonymous memory with a guard. Each thread's descriptor and TLS
+   block sit at the top of its stack region, whether picolibc or the
+   application provided it, so `pthread_create` allocates nothing for
+   an application's stack; `sysconf(_SC_THREAD_STACK_MIN)` reports
+   that overhead plus a working minimum.
+
+**Optional capabilities**, each a macro in `local-pthread-os.h`.
+Without one, its code compiles out and the interfaces depending on it
+fail as POSIX allows:
+
+| Capability | Provides | Lets the OS claim |
+|---|---|---|
+| `_PTHREAD_HAVE_SIGNALS` | per-thread masks and directed signals | `pthread_kill`, `pthread_sigmask`, asynchronous cancellation (otherwise deferred only) |
+| `_PTHREAD_HAVE_SCHED` | thread scheduling and the real-time priority range | `THREAD_PRIORITY_SCHEDULING`, `THREAD_PRIO_PROTECT` |
+| `_PTHREAD_HAVE_PI` | priority-inheriting lock words | `THREAD_PRIO_INHERIT` |
+| `_PTHREAD_HAVE_ROBUST` | robust mutexes, the kernel marking a dead owner's | `THREAD_ROBUST_PRIO_INHERIT`, `THREAD_ROBUST_PRIO_PROTECT` |
+| `_PTHREAD_HAVE_PSHARED` | waits on words in memory shared between processes | `THREAD_PROCESS_SHARED`, process-shared semaphores |
+| `_PTHREAD_HAVE_FORK` | `fork` calling the atfork handlers | (with `MULTI_PROCESS`) |
+| `_PTHREAD_HAVE_SEM_NAMED` | `sem_open` and `sem_unlink` over files | named semaphores |
+| `_PTHREAD_HAVE_RELEASE` | OS objects kept outside the stack, freed when a thread is reclaimed | (kernel-memory thread objects) |
+| `_PTHREAD_HAVE_MAP` | the default stack allocator | |
+
+With the required set, the OS can claim `THREADS`, `THREAD_SAFE_FUNCTIONS`
+(given picolibc's locking), `BARRIERS`, `SPIN_LOCKS`,
+`READER_WRITER_LOCKS`, `SEMAPHORES`, `TIMEOUTS`, the thread parts of
+`CLOCK_SELECTION`, and the stack attributes; `ASYNCHRONOUS_IO` follows
+from picolibc's own threads.
+
+Not yet settled, for an OS that isn't a Unix-like kernel (they will be
+with the first one, Zephyr): the core sets up each thread's TLS itself
+(an OS whose thread creation does that needs a hook to skip it); it
+uses a `__thread` variable, so the OS needs TLS; `pthread_exit` in the
+last thread ends the process with `exit(0)`; and `libos/fallback`'s
+`sysconf` refers to the core whenever `<sys/_pthread.h>` is on the
+include path.
 
 ### `<sys/_signal.h>`: signal stacks
 
