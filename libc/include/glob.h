@@ -68,6 +68,13 @@ int glob(const char * __restrict, int, int (*)(const char *, int), glob_t * __re
     __picolibc_export;
 void globfree(glob_t *) __picolibc_export;
 
+/* The transitional large file names: glob uses no off_t */
+#if __LARGEFILE64_VISIBLE
+typedef glob_t glob64_t;
+#define glob64     glob
+#define globfree64 globfree
+#endif
+
 _END_STD_C
 
 #endif /* _GLOB_H_ */
