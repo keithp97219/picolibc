@@ -208,9 +208,8 @@ if fs.is_dir(machine_dir)
     'unlockpt.c',
     'utimensat.c',
     'utimes.c',
-    'wait3.c',
+    '_wait_reaped.c',
     'waitid.c',
-    'waitpid.c',
     'writev.c',
   ]
 
@@ -322,6 +321,8 @@ if fs.is_dir(machine_dir)
     'umask.c',
     'unlink.c',
     'vfork.c',
+    'wait3.c',
+    'waitpid.c',
     'write.c',
   ]
 

@@ -33,32 +33,30 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "local-os.h"
 #include "local-wait.h"
 #include "local-cancel.h"
-#include <sys/resource.h>
-#include <freebsd/freebsd-timeval-struct.h>
-#include <freebsd/freebsd-rusage-struct.h>
 
 pid_t
-wait3(int *wstatus, int options, struct rusage *rusage)
+waitpid(pid_t pid, int *wstatus, int options)
 {
-    struct __freebsd_rusage kusage;
-    pid_t                   ret;
-    int                     kstatus = 0;
-    void                   *cancel = _cancel_enter();
+    void *cancel;
+    pid_t ret;
+    int   kstatus = 0;
 
-    ret = (pid_t)_syscall(FREEBSD_SYS_wait4, -1, &kstatus, _wait_options_to_freebsd(options),
-                          rusage ? &kusage : NULL);
-    _cancel_leave(cancel);
-    if (ret > 0) {
-        if (wstatus)
-            *wstatus = _wait_status_from_freebsd(kstatus);
-        if (rusage) {
-            rusage->ru_utime.tv_sec = kusage.ru_utime.tv_sec;
-            rusage->ru_utime.tv_usec = kusage.ru_utime.tv_usec;
-            rusage->ru_stime.tv_sec = kusage.ru_stime.tv_sec;
-            rusage->ru_stime.tv_usec = kusage.ru_stime.tv_usec;
-        }
+    /* A pending cancellation acts even when the options are bad */
+    cancel = _cancel_enter();
+    if (options & ~(WNOHANG | WUNTRACED | WCONTINUED)) {
+        _cancel_leave(cancel);
+        errno = EINVAL;
+        return -1;
     }
+    ret = (pid_t)_syscall(OS_SYS_wait4, pid, &kstatus, _wait_options_to_os(options), NULL);
+    _cancel_leave(cancel);
+    /* With WNOHANG, 0 means no child changed state and there's no status */
+    if (ret > 0 && wstatus)
+        *wstatus = _wait_status_from_os(kstatus);
+    if (ret > 0)
+        _wait_reaped();
     return ret;
 }

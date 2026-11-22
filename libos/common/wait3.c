@@ -33,52 +33,30 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-sigaction.h"
+#include "local-os.h"
+#include "local-wait.h"
 #include "local-cancel.h"
-#include "local-time.h"
-#include <sys/wait.h>
 #include <sys/resource.h>
 
 pid_t
 wait3(int *wstatus, int options, struct rusage *rusage)
 {
-    void *cancel;
-    int   koptions = 0;
-    pid_t ret;
-    int   kstatus;
-    /*
-     * The kernel's struct rusage: two timevals in the kernel's layout,
-     * which differs from picolibc's on 32-bit architectures, then
-     * fourteen longs picolibc doesn't report.
-     */
-    struct {
-        struct __kernel_timeval ru_utime;
-        struct __kernel_timeval ru_stime;
-        long                    ru_other[14];
-    } kusage, *pusage = NULL;
+    struct __os_rusage kusage;
+    pid_t              ret;
+    int                kstatus = 0;
+    void              *cancel = _cancel_enter();
 
-    if (options & WNOHANG)
-        koptions |= LINUX_WNOHANG;
-    if (options & WUNTRACED)
-        koptions |= LINUX_WUNTRACED;
-    if (options & WCONTINUED)
-        koptions |= LINUX_WCONTINUED;
-    if (rusage)
-        pusage = &kusage;
-    cancel = _cancel_enter();
-    ret = _syscall(LINUX_SYS_wait4, -1, &kstatus, koptions, pusage);
+    ret = (pid_t)_syscall(OS_SYS_wait4, -1, &kstatus, _wait_options_to_os(options),
+                          rusage ? &kusage : NULL);
     _cancel_leave(cancel);
     if (ret > 0) {
-        if (WIFSIGNALED(kstatus))
-            kstatus
-                = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus))) | (kstatus & __W_COREFLAG);
-        else if (WIFSTOPPED(kstatus))
-            kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
         if (wstatus)
-            *wstatus = kstatus;
+            *wstatus = _wait_status_from_os(kstatus);
         if (rusage) {
-            SIMPLE_MAP_TIMEVAL(&rusage->ru_utime, &kusage.ru_utime);
-            SIMPLE_MAP_TIMEVAL(&rusage->ru_stime, &kusage.ru_stime);
+            rusage->ru_utime.tv_sec = kusage.ru_utime.tv_sec;
+            rusage->ru_utime.tv_usec = kusage.ru_utime.tv_usec;
+            rusage->ru_stime.tv_sec = kusage.ru_stime.tv_sec;
+            rusage->ru_stime.tv_usec = kusage.ru_stime.tv_usec;
         }
     }
     return ret;

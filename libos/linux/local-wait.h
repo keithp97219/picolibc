@@ -33,32 +33,51 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-wait.h"
-#include "local-cancel.h"
+#ifndef _LOCAL_WAIT_H_
+#define _LOCAL_WAIT_H_
+
+#include "local-sigaction.h"
+#include "local-time.h"
+#include <sys/wait.h>
+
+/* Translate the options of waitpid and wait3 */
+static inline int
+_wait_options_to_linux(int options)
+{
+    int koptions = 0;
+
+    if (options & WNOHANG)
+        koptions |= LINUX_WNOHANG;
+    if (options & WUNTRACED)
+        koptions |= LINUX_WUNTRACED;
+    if (options & WCONTINUED)
+        koptions |= LINUX_WCONTINUED;
+    return koptions;
+}
+
+/* Translate a wait status. The layout matches picolibc's; the signal numbers may not */
+static inline int
+_wait_status_from_linux(int kstatus)
+{
+    if (WIFSIGNALED(kstatus))
+        return __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus))) | (kstatus & __W_COREFLAG);
+    if (WIFSTOPPED(kstatus))
+        return __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
+    return kstatus;
+}
 
 /*
- * FreeBSD queues SIGCHLD with each child's status and takes it from
- * the queue when the status is collected, as POSIX asks.
+ * The kernel's struct rusage: two timevals in the kernel's layout,
+ * which differs from picolibc's on 32-bit architectures, then
+ * fourteen longs picolibc doesn't report.
  */
-pid_t
-waitpid(pid_t pid, int *wstatus, int options)
-{
-    void *cancel;
-    pid_t ret;
-    int   kstatus = 0;
+struct __kernel_wait_rusage {
+    struct __kernel_timeval ru_utime;
+    struct __kernel_timeval ru_stime;
+    long                    ru_other[14];
+};
 
-    /* A pending cancellation acts even when the options are bad */
-    cancel = _cancel_enter();
-    if (options & ~(WNOHANG | WUNTRACED | WCONTINUED)) {
-        _cancel_leave(cancel);
-        errno = EINVAL;
-        return -1;
-    }
-    ret = (pid_t)_syscall(FREEBSD_SYS_wait4, pid, &kstatus, _wait_options_to_freebsd(options),
-                          NULL);
-    _cancel_leave(cancel);
-    /* With WNOHANG, 0 means no child changed state and there's no status */
-    if (ret > 0 && wstatus)
-        *wstatus = _wait_status_from_freebsd(kstatus);
-    return ret;
-}
+/* Take a SIGCHLD a collected status leaves pending */
+void _wait_reaped(void);
+
+#endif /* _LOCAL_WAIT_H_ */

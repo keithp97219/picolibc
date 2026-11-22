@@ -99,6 +99,7 @@
 #define OS_SYS_timer_gettime      FREEBSD_SYS_ktimer_gettime
 #define OS_SYS_umask              FREEBSD_SYS_umask
 #define OS_SYS_unlinkat           FREEBSD_SYS_unlinkat
+#define OS_SYS_wait4              FREEBSD_SYS_wait4
 #define OS_SYS_write              FREEBSD_SYS_write
 
 /* Constants */
@@ -122,6 +123,7 @@
 
 /* Kernel structures */
 #define __os_dirent     __freebsd_dirent
+#define __os_rusage     __freebsd_rusage
 #define __os_itimerspec __freebsd_itimerspec
 #define __os_termios    __freebsd_termios
 
@@ -129,6 +131,8 @@
 #define _at_fd_to_os          _at_fd_to_freebsd
 #define _at_flags_to_os       _at_flags_to_freebsd
 #define _key_to_os            _key_to_freebsd
+#define _wait_options_to_os   _wait_options_to_freebsd
+#define _wait_status_from_os  _wait_status_from_freebsd
 #define _sched_policy_from_os _sched_policy_from_freebsd
 
 #endif /* _LOCAL_OS_H_ */

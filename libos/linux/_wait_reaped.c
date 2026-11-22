@@ -33,10 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-sigaction.h"
-#include "local-cancel.h"
-#include "local-time.h"
-#include <sys/wait.h>
+#include "local-wait.h"
 #include <string.h>
 
 /* Use the 64-bit time call where the kernel has one */
@@ -47,14 +44,15 @@
 #endif
 
 /*
- * Linux doesn't queue SIGCHLD, and leaves it pending after a wait.
- * POSIX: if SIGCHLD is blocked, a wait that returns a child's status
- * clears a pending SIGCHLD unless another child has status
- * available. Take the signal first and put it back if another child
- * has status, so one arriving in between isn't lost.
+ * Called after waitpid collects a status. Linux doesn't queue SIGCHLD,
+ * and leaves it pending after a wait. POSIX: if SIGCHLD is blocked, a
+ * wait that returns a child's status clears a pending SIGCHLD unless
+ * another child has status available. Take the signal first and put it
+ * back if another child has status, so one arriving in between isn't
+ * lost.
  */
-static void
-_waitpid_clear_sigchld(void)
+void
+_wait_reaped(void)
 {
     __kernel_sigset_t          kset;
     struct __kernel_siginfo    kinfo, kwinfo;
@@ -80,41 +78,4 @@ _waitpid_clear_sigchld(void)
         && kwinfo.si_pid != 0)
         (void)_syscall_raw(LINUX_SYS_rt_sigqueueinfo, _syscall_raw(LINUX_SYS_getpid),
                            __LINUX_SIGCHLD, &kinfo);
-}
-
-pid_t
-waitpid(pid_t pid, int *wstatus, int options)
-{
-    void *cancel;
-    int   koptions = 0;
-    pid_t ret;
-    int   kstatus;
-
-    if (options & WNOHANG)
-        koptions |= LINUX_WNOHANG;
-    if (options & WUNTRACED)
-        koptions |= LINUX_WUNTRACED;
-    if (options & WCONTINUED)
-        koptions |= LINUX_WCONTINUED;
-    /* A pending cancellation acts even when the options are bad */
-    cancel = _cancel_enter();
-    if (options & ~(WNOHANG | WUNTRACED | WCONTINUED)) {
-        _cancel_leave(cancel);
-        errno = EINVAL;
-        return -1;
-    }
-    ret = _syscall(LINUX_SYS_wait4, pid, &kstatus, koptions, NULL);
-    _cancel_leave(cancel);
-    /* With WNOHANG, 0 means no child changed state and there's no status */
-    if (ret > 0 && wstatus) {
-        if (WIFSIGNALED(kstatus))
-            kstatus
-                = __W_EXITCODE(0, _signal_from_linux(WTERMSIG(kstatus))) | (kstatus & __W_COREFLAG);
-        else if (WIFSTOPPED(kstatus))
-            kstatus = __W_EXITCODE(_signal_from_linux(WSTOPSIG(kstatus)), 0x7f);
-        *wstatus = kstatus;
-    }
-    if (ret > 0)
-        _waitpid_clear_sigchld();
-    return ret;
 }

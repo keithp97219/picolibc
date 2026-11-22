@@ -158,6 +158,7 @@
 #define OS_SYS_timer_gettime    LINUX_SYS_timer_gettime_time_t
 #define OS_SYS_umask            LINUX_SYS_umask
 #define OS_SYS_unlinkat         LINUX_SYS_unlinkat
+#define OS_SYS_wait4            LINUX_SYS_wait4
 #define OS_SYS_write            LINUX_SYS_write
 
 /* Constants */
@@ -179,6 +180,7 @@
 
 /* Kernel structures */
 #define __os_dirent     __kernel_dirent64
+#define __os_rusage     __kernel_wait_rusage
 #define __os_itimerspec __kernel_itimerspec_time_t
 #define __os_termios    __kernel_termios2
 
@@ -186,6 +188,8 @@
 #define _at_fd_to_os          _at_fd_to_linux
 #define _at_flags_to_os       _at_flags_to_linux
 #define _key_to_os(key)       (key)
+#define _wait_options_to_os   _wait_options_to_linux
+#define _wait_status_from_os  _wait_status_from_linux
 #define _sched_policy_from_os _sched_policy_from_linux
 
 #endif /* _LOCAL_OS_H_ */

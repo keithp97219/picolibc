@@ -39,6 +39,8 @@
 #include "local-signal.h"
 #include <sys/wait.h>
 #include <freebsd/freebsd-wait.h>
+#include <freebsd/freebsd-timeval-struct.h>
+#include <freebsd/freebsd-rusage-struct.h>
 
 /* FreeBSD reports a continued child with the status SIGCONT, 0x13 */
 #define FREEBSD_W_CONTINUED 0x13
@@ -72,6 +74,15 @@ _wait_status_from_freebsd(int kstatus)
     if ((kstatus & 0x7f) != 0)
         return __W_EXITCODE(0, _signal_from_freebsd(kstatus & 0x7f)) | (kstatus & __W_COREFLAG);
     return kstatus;
+}
+
+/*
+ * FreeBSD queues SIGCHLD with each child's status and takes it from
+ * the queue when the status is collected, as POSIX asks.
+ */
+static inline void
+_wait_reaped(void)
+{
 }
 
 #endif /* _LOCAL_WAIT_H_ */

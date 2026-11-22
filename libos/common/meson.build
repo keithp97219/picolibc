@@ -122,6 +122,8 @@ srcs_os_common = [
   'umask.c',
   'unlink.c',
   'vfork.c',
+  'wait3.c',
+  'waitpid.c',
   'write.c',
 ]
 
