@@ -11,7 +11,7 @@ static inline const char *
 __get_ctype(enum locale_id id)
 {
     if (id < locale_EXTENDED_BASE)
-        return _ctype_;
+        return __CTYPE_TABLE;
     return __ctype[id - locale_EXTENDED_BASE] + _CTYPE_OFFSET;
 }
 
