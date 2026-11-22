@@ -33,16 +33,28 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-signal.h"
+#define _DEFAULT_SOURCE
+#include <picolibc.h>
+#include <errno.h>
+#include <signal.h>
+#include <unistd.h>
+#ifdef __PICOLIBC_PTHREADS
+#include <pthread.h>
+#endif
 
+/* raise sends the signal to the calling thread */
 int
-sigwait(const sigset_t *set, int *sig)
+raise(int sig)
 {
-    int ret;
+#ifdef __PICOLIBC_PTHREADS
+    int ret = pthread_kill(pthread_self(), sig);
 
-    /* sigwait reports errors in its return value and never EINTR */
-    do
-        ret = _sigtimedwait(set, NULL, NULL, sig);
-    while (ret == EINTR);
-    return ret;
+    if (ret != 0) {
+        errno = ret;
+        return -1;
+    }
+    return 0;
+#else
+    return kill(getpid(), sig);
+#endif
 }

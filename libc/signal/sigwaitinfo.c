@@ -33,7 +33,9 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-signal.h"
+#define _DEFAULT_SOURCE
+#include <signal.h>
+#include <stddef.h>
 
 int
 sigwaitinfo(const sigset_t *set, siginfo_t *info)

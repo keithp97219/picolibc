@@ -34,48 +34,25 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <unistd.h>
+#include <errno.h>
 #include <signal.h>
-#include "local-sigaction.h"
+#include <stddef.h>
 
 int
-raise(int sig)
+sigwait(const sigset_t *set, int *sig)
 {
-    /*
-     * raise() must deliver the signal to the calling thread.
-     *
-     * kill(getpid(), sig) is process-directed: the kernel may pick any
-     * thread in the process to run the handler, and it may leave the
-     * signal merely pending rather than delivering it synchronously.
-     * That is visible even in single-threaded programs when a signal is
-     * raised again from inside its own handler -- the recursive delivery
-     * can be lost and the interrupted context resumed incorrectly.
-     *
-     * Prefer tgkill(), which names both the thread group and the thread
-     * and so cannot be confused by a recycled thread id.  tkill() is an
-     * obsolete predecessor to tgkill() and is only used when tgkill() is
-     * unavailable.
-     */
-#if defined(LINUX_SYS_tgkill) && defined(LINUX_SYS_getpid) && defined(LINUX_SYS_gettid)
-    int pid = _syscall(LINUX_SYS_getpid);
-    int tid;
+    int saved_errno = errno;
+    int ret;
 
-    if (pid < 0)
-        return pid;
-
-    tid = _syscall(LINUX_SYS_gettid);
-    if (tid < 0)
-        return tid;
-
-    return _syscall(LINUX_SYS_tgkill, pid, tid, _signal_to_linux(sig));
-#elif defined(LINUX_SYS_tkill) && defined(LINUX_SYS_gettid)
-    int tid = _syscall(LINUX_SYS_gettid);
-
-    if (tid < 0)
-        return tid;
-
-    return _syscall(LINUX_SYS_tkill, tid, _signal_to_linux(sig));
-#else
-    return kill(getpid(), sig);
-#endif
+    /* sigwait reports errors in its return value and never EINTR */
+    do
+        ret = sigtimedwait(set, NULL, NULL);
+    while (ret < 0 && errno == EINTR);
+    if (ret < 0) {
+        ret = errno;
+        errno = saved_errno;
+        return ret;
+    }
+    *sig = ret;
+    return 0;
 }

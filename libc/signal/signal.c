@@ -33,7 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-signal.h"
+#define _DEFAULT_SOURCE
+#include <signal.h>
 
 _sig_func_ptr
 signal(int sig, _sig_func_ptr func)

@@ -121,9 +121,17 @@ Picolibc and which source files reference them.
    + libc/ssp/stack/protector.c
    + libc/stdlib/arc4random.c
 
+ * pid_t getpid(void)
+
+   + libc/signal/raise.c
+
  * int gettimeofday(struct timeval *tv, struct timezone *tz)
 
    + libc/time/time.c
+
+ * int kill(pid_t pid, int sig)
+
+   + libc/signal/raise.c
 
  * off_t lseek(int fd, off_t offset, int whence)
 
@@ -145,6 +153,10 @@ Picolibc and which source files reference them.
    + libc/stdio/freopen.c
    + libc/stdio/mktemp.c
 
+ * int pthread_kill(pthread_t thread, int sig)
+
+   + libc/signal/raise.c
+
  * ssize_t read(int fd, void *buf, size_t count)
 
    + libc/search/hash.c
@@ -156,9 +168,18 @@ Picolibc and which source files reference them.
 
    + libc/posix/readdir_r.c
 
+ * int sigaction(int sig, const struct sigaction *act, struct sigaction *oldact)
+
+   + libc/signal/signal.c
+
  * int sigprocmask(int how, sigset_t *set, sigset_t *oldset)
 
    + libc/search/hash_page.c
+
+ * int sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout)
+
+   + libc/signal/sigwait.c
+   + libc/signal/sigwaitinfo.c
 
  * int stat(char *path, struct stat *statbuf)
 
@@ -255,11 +276,27 @@ application.
 Posix says that `abort` sends `SIGABRT` to the calling process as if
 the process called `raise(SIGABRT)`. It also says `abort` shall not
 return. The picolibc implementation of `abort` calls `raise`; if that
-returns, it then calls `_exit`. The picolibc version of `raise` also
-calls `_exit` for uncaught and un-ignored signals.
+returns, it then calls `_exit`. picolibc's `raise` sends the signal to
+the calling thread, with `pthread_kill` when picolibc has POSIX
+threads and with `kill` to `getpid` otherwise. Without an OS library,
+libos/fallback's `raise` delivers the signal itself and calls `_exit`
+for uncaught and un-ignored signals.
 
 ```c
 __noreturn void _exit (int status);
+pid_t   getpid(void);
+int     kill(pid_t pid, int sig);
+int     pthread_kill(pthread_t thread, int sig);
+```
+
+### signal, sigwait, sigwaitinfo
+
+`signal` sets the handler with `sigaction`; `sigwait` and
+`sigwaitinfo` wait with `sigtimedwait`:
+
+```c
+int     sigaction(int sig, const struct sigaction *act, struct sigaction *oldact);
+int     sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout);
 ```
 
 ### ndbm
@@ -420,7 +457,7 @@ and stops with an error if the header defines one of those itself.
 | `MULTI_PROCESS_FD` | `fexecve` |
 | `NETWORKING` | `accept`, `accept4`, `bind`, `connect`, `gethostname`, `getpeername`, `getsockname`, `getsockopt`, `if_freenameindex`, `if_indextoname`, `if_nameindex`, `if_nametoindex`, `listen`, `recv`, `recvfrom`, `recvmsg`, `send`, `sendmsg`, `sendto`, `setsockopt`, `shutdown`, `sockatmark`, `socket`, `socketpair` |
 | `PIPE` | `pipe`, `pipe2` |
-| `SIGNALS` | `alarm`, `kill`, `pause`, `raise`, `sigaction`, `signal`, `sigpending`, `sigprocmask`, `sigsuspend`, `sigwait` |
+| `SIGNALS` | `alarm`, `kill`, `pause`, `sigaction`, `sigpending`, `sigprocmask`, `sigsuspend`, `sigtimedwait` |
 | `SINGLE_PROCESS` | `sysconf`, `uname` |
 | `SYMBOLIC_LINKS` | `lchown`, `readlink`, `symlink` |
 | `SYMBOLIC_LINKS_FD` | `readlinkat`, `symlinkat` |
