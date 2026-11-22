@@ -90,9 +90,9 @@ struct cmsghdr {
 #define CMSG_DATA(cmsg)   ((unsigned char *)(cmsg) + __CMSG_ALIGN(sizeof(struct cmsghdr)))
 #define CMSG_LEN(len)     (__CMSG_ALIGN(sizeof(struct cmsghdr)) + (len))
 #define CMSG_SPACE(len)   (__CMSG_ALIGN(sizeof(struct cmsghdr)) + __CMSG_ALIGN(len))
-#define CMSG_FIRSTHDR(mhdr)                                   \
-    ((size_t)(mhdr)->msg_controllen >= sizeof(struct cmsghdr) \
-         ? (struct cmsghdr *)(mhdr)->msg_control              \
+#define CMSG_FIRSTHDR(mhdr)                                              \
+    ((__picolibc_size_t)(mhdr)->msg_controllen >= sizeof(struct cmsghdr) \
+         ? (struct cmsghdr *)(mhdr)->msg_control                         \
          : (struct cmsghdr *)0)
 /*
  * A null cmsg gives the first header. A function rather than a macro
@@ -107,7 +107,7 @@ __cmsg_nxthdr(struct msghdr *__mhdr, struct cmsghdr *__cmsg)
         return CMSG_FIRSTHDR(__mhdr);
     if (__cmsg->cmsg_len < sizeof(struct cmsghdr)
         || __CMSG_ALIGN(__cmsg->cmsg_len) + __CMSG_ALIGN(sizeof(struct cmsghdr))
-            > (size_t)(__end - (unsigned char *)__cmsg))
+            > (__picolibc_size_t)(__end - (unsigned char *)__cmsg))
         return (struct cmsghdr *)0;
     return (struct cmsghdr *)((unsigned char *)__cmsg + __CMSG_ALIGN(__cmsg->cmsg_len));
 }

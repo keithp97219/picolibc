@@ -41,7 +41,7 @@ struct __freebsd_aiocb {
     __uint8_t                 __adjust_4[4];
     __int64_t                 aio_offset;
     void                     *aio_buf;
-    __size_t                  aio_nbytes;
+    __picolibc_size_t         aio_nbytes;
     __uint8_t                 __adjust_32[48];
     struct __freebsd_sigevent aio_sigevent;
 };

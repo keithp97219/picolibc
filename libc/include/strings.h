@@ -39,7 +39,7 @@
 // As per the GCC source, _SIZE_T_DECLARD is FreeBSD 5
 // So: Also check for _SIZE_T
 #if !defined(_SIZE_T_DECLARED) && !defined(_SIZE_T)
-typedef __size_t size_t;
+typedef __picolibc_size_t size_t;
 #endif
 
 #ifndef _SIZE_T_DECLARED

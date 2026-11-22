@@ -130,7 +130,7 @@ typedef __blksize_t blksize_t;
 #endif
 
 #ifndef _RECLEN_T_DECLARED
-typedef __size_t reclen_t;
+typedef __picolibc_size_t reclen_t;
 #define _RECLEN_T_DECLARED
 #endif
 
@@ -170,6 +170,9 @@ typedef char         *addr_t;
 typedef unsigned long vm_offset_t;
 typedef unsigned long vm_size_t;
 #endif /* __i386__ && (GO32 || __MSDOS__) */
+
+#define __need_size_t
+#include <stddef.h>
 
 #ifndef _SSIZE_T_DECLARED
 typedef __ssize_t ssize_t;

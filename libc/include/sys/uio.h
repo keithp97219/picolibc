@@ -42,7 +42,7 @@
 _BEGIN_STD_C
 
 #ifndef _SIZE_T_DECLARED
-typedef __size_t size_t;
+typedef __picolibc_size_t size_t;
 #define _SIZE_T_DECLARED
 #endif
 

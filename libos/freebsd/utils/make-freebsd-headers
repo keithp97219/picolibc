@@ -247,14 +247,14 @@ STRUCTS = [
     ]),
     ("thr_param", "struct thr_param", [
         ("start_func", "void *"), ("arg", "void *"), ("stack_base", "char *"),
-        ("stack_size", "__size_t"), ("tls_base", "char *"), ("tls_size", "__size_t"),
+        ("stack_size", "__picolibc_size_t"), ("tls_base", "char *"), ("tls_size", "__picolibc_size_t"),
         ("child_tid", "long *"), ("parent_tid", "long *"), ("flags", "int"),
         ("rtp", "void *"),
     ]),
     ("rtprio", "struct rtprio", [("type", "__uint16_t"), ("prio", "__uint16_t")]),
     ("aiocb", "struct aiocb", [
         ("aio_fildes", "int"), ("aio_offset", "__int64_t"), ("aio_buf", "void *"),
-        ("aio_nbytes", "__size_t"), ("aio_sigevent", "struct __freebsd_sigevent"),
+        ("aio_nbytes", "__picolibc_size_t"), ("aio_sigevent", "struct __freebsd_sigevent"),
     ]),
     # Networking
     ("sockaddr", "struct sockaddr", [
@@ -313,7 +313,7 @@ STRUCTS = [
         ("sem_num", "unsigned short"), ("sem_op", "short"), ("sem_flg", "short"),
     ]),
     ("shmid_ds", "struct shmid_ds", [
-        ("shm_perm", "struct __freebsd_ipc_perm"), ("shm_segsz", "__size_t"),
+        ("shm_perm", "struct __freebsd_ipc_perm"), ("shm_segsz", "__picolibc_size_t"),
         ("shm_lpid", "int"), ("shm_cpid", "int"), ("shm_nattch", "unsigned int"),
         ("shm_atime", "__int64_t"), ("shm_dtime", "__int64_t"), ("shm_ctime", "__int64_t"),
     ]),
@@ -336,7 +336,7 @@ STRUCTS = [
     ]),
     ("pollfd", "struct pollfd", [("fd", "int"), ("events", "short"), ("revents", "short")]),
     ("fd_set", "fd_set", [("fds_bits", "unsigned long[16]", "__fds_bits")]),
-    ("sigaltstack", "stack_t", [("ss_sp", "void *"), ("ss_size", "__size_t"), ("ss_flags", "int")]),
+    ("sigaltstack", "stack_t", [("ss_sp", "void *"), ("ss_size", "__picolibc_size_t"), ("ss_flags", "int")]),
     ("itimerval", "struct itimerval", [
         ("it_interval", "struct __freebsd_timeval"), ("it_value", "struct __freebsd_timeval"),
     ]),

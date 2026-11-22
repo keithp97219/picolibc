@@ -37,18 +37,18 @@
 #define _FREEBSD_THR_PARAM_STRUCT_H_
 
 struct __freebsd_thr_param {
-    void     *start_func;
-    void     *arg;
-    char     *stack_base;
-    __size_t  stack_size;
-    char     *tls_base;
-    __size_t  tls_size;
-    long     *child_tid;
-    long     *parent_tid;
-    int       flags;
-    __uint8_t __adjust_68[4];
-    void     *rtp;
-    __uint8_t __adjust_80[24];
+    void             *start_func;
+    void             *arg;
+    char             *stack_base;
+    __picolibc_size_t stack_size;
+    char             *tls_base;
+    __picolibc_size_t tls_size;
+    long             *child_tid;
+    long             *parent_tid;
+    int               flags;
+    __uint8_t         __adjust_68[4];
+    void             *rtp;
+    __uint8_t         __adjust_80[24];
 };
 
 _Static_assert(sizeof(struct __freebsd_thr_param) == 104, "struct thr_param size");

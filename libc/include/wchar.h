@@ -37,6 +37,16 @@ SUCH DAMAGE.
 
 /* For __mbstate_t definition. */
 #include <sys/_types.h>
+
+/*
+ * <stddef.h> needn't honor __need_wint_t (gnulib's replacement
+ * doesn't), so define wint_t here too, using the guard GCC and clang
+ * use for it
+ */
+#ifndef _WINT_T
+#define _WINT_T
+typedef __wint_t wint_t;
+#endif
 #define __need___va_list
 #include <stdarg.h>
 

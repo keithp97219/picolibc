@@ -58,7 +58,7 @@
  * run on. sysconf(_SC_THREAD_STACK_MIN) reports it.
  */
 #define __PTHREAD_STACK_WORK_MIN 16384
-#define __PTHREAD_STACK_MIN      ((__size_t)__pthread_stack_min())
+#define __PTHREAD_STACK_MIN      ((__picolibc_size_t)__pthread_stack_min())
 
 _BEGIN_STD_C
 long __pthread_stack_min(void);
@@ -80,14 +80,14 @@ struct __pthread;
 typedef struct __pthread *pthread_t;
 
 typedef struct {
-    void    *__stackaddr;
-    __size_t __stacksize;
-    __size_t __guardsize;
-    int      __detachstate;
-    int      __inheritsched;
-    int      __schedpolicy;
-    int      __schedpriority;
-    int      __scope;
+    void             *__stackaddr;
+    __picolibc_size_t __stacksize;
+    __picolibc_size_t __guardsize;
+    int               __detachstate;
+    int               __inheritsched;
+    int               __schedpolicy;
+    int               __schedpriority;
+    int               __scope;
 } pthread_attr_t;
 
 typedef struct {

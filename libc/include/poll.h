@@ -54,7 +54,7 @@ struct pollfd {
     short revents;
 };
 
-typedef __size_t nfds_t;
+typedef __picolibc_size_t nfds_t;
 
 #define POLLIN   0x0001
 #define POLLPRI  0x0002

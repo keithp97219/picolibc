@@ -38,7 +38,7 @@
 
 struct __freebsd_shmid_ds {
     struct __freebsd_ipc_perm shm_perm;
-    __size_t                  shm_segsz;
+    __picolibc_size_t         shm_segsz;
     int                       shm_lpid;
     int                       shm_cpid;
     unsigned int              shm_nattch;

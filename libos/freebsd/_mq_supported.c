@@ -41,7 +41,7 @@ _mq_supported(void)
     static const char name[] = "kern.features.p1003_1b_mqueue";
     static int        loaded;
     int               value = 0;
-    __size_t          len = sizeof(value);
+    __picolibc_size_t len = sizeof(value);
 
     /* Once loaded, the module can't be unloaded while queues exist; check until then */
     if (!loaded
