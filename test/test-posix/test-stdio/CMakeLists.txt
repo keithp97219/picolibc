@@ -55,6 +55,7 @@ set(tests
   test-stdio_h
   test-stdio_h-names
   test-stdio_h-xsi
+  test-stdio_ext
   test-tmpnam
   )
 

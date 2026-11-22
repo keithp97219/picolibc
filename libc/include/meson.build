@@ -95,6 +95,7 @@ inc_headers = [
   'stdckdint.h',
   'stdint.h',
   'stdio.h',
+  'stdio_ext.h',
   'stdio-bufio.h',
   'stdio-posix.h',
   'stdnoreturn.h',
