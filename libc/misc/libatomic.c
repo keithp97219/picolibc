@@ -81,7 +81,7 @@
 
 #ifndef __SINGLE_THREAD
 
-#define ATOMIC_LOCKS        8  /* a power of two */
+#define ATOMIC_LOCKS        8 /* a power of two */
 #define ATOMIC_GRANULE_BITS 6
 
 static _LOCK_T atomic_locks[ATOMIC_LOCKS];
