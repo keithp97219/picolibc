@@ -28,8 +28,8 @@
 #include "common.h"
 #include "../local-int128.h"
 
-#define FLOAT_128_POW5_INV_BITCOUNT 249
-#define FLOAT_128_POW5_BITCOUNT     249
+#define FLOAT_128_POW5_INV_BITCOUNT 251
+#define FLOAT_128_POW5_BITCOUNT     251
 
 // Returns e == 0 ? 1 : ceil(log_2(5^e)); requires 0 <= e <= 32768.
 static inline uint32_t
@@ -106,7 +106,7 @@ multipleOfPowerOf2_128(const _u128 value, const uint32_t p)
 static inline _u128
 mulShift_128(const _u128 m, const uint64_t * const mul, const int32_t j)
 {
-    assert(j > 128);
+    assert(j > 0 && j < 384);
     uint64_t a[2];
     a[0] = _u128_lo64(m);
     a[1] = _u128_hi64(m);

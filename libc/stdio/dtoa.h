@@ -38,9 +38,9 @@
 #define DTOA_NAN   8
 
 /*
- * The Ryu engine (ldtoa_ryu.c) generates the shortest digits that
- * round-trip, which can take 21 digits for 80-bit values and 36 for
- * binary128. ldtoa_engine.c can't generate that many accurate digits.
+ * The Ryu engine (ldtoa_ryu.c) generates correctly rounded digits up to
+ * the 21 (80-bit) or 36 (binary128) needed to round-trip any value.
+ * ldtoa_engine.c can't generate that many accurate digits.
  */
 #if __LDBL_MANT_DIG__ == 113
 #ifdef __IO_FLOAT_EXACT
