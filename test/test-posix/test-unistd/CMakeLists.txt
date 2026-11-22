@@ -109,6 +109,7 @@ set(tests
   test-sysconf
   test-sysconf-arg_max
   test-sysconf-limits
+  test-sysconf-phys_pages
   test-tcsetpgrp
   test-truncate
   test-ttyname_r

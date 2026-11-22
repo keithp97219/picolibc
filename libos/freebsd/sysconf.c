@@ -96,6 +96,19 @@ _sysconf_sysctlbyname(const char *name)
     return value;
 }
 
+/* An unsigned long sysctl by name, or -1 */
+static long
+_sysconf_sysctlbyname_ulong(const char *name)
+{
+    unsigned long value = 0;
+    size_t        len = sizeof(value);
+
+    if (_syscall_raw(FREEBSD_SYS___sysctlbyname, name, strlen(name), &value, &len, NULL, 0) < 0
+        || len != sizeof(value))
+        return -1;
+    return (long)value;
+}
+
 /*
  * Values that come from the kernel; __sysconf_common answers the
  * rest, including every option from <unistd.h>.
@@ -156,6 +169,12 @@ sysconf(int name)
         return FREEBSD_TTY_NAME_MAX;
     case _SC_MQ_PRIO_MAX:
         return FREEBSD_MQ_PRIO_MAX;
+    case _SC_PHYS_PAGES:
+        value = _sysconf_sysctlbyname_ulong("hw.physmem");
+        return value > 0 ? value / sysconf(_SC_PAGESIZE) : -1;
+    case _SC_AVPHYS_PAGES:
+        /* vm.stats.vm.v_free_count is an unsigned int count of pages */
+        return _sysconf_sysctlbyname("vm.stats.vm.v_free_count");
     case _SC_PAGESIZE:
         value = _sysconf_sysctl(FREEBSD_CTL_HW, FREEBSD_HW_PAGESIZE);
         return value > 0 ? value : 4096;
