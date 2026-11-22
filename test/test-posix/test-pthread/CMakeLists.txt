@@ -53,6 +53,7 @@ set(tests
   test-pthread_kill
   test-pthread_mutex_consistent
   test-pthread_mutex_lock
+  test-pthread_mutex_prio_inherit
   test-pthread_mutex_prio_protect
   test-pthread_mutex_timedlock
   test-pthread_mutexattr_setprotocol
