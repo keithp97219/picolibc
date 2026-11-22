@@ -37,12 +37,25 @@
 #define DTOA_INF   4
 #define DTOA_NAN   8
 
+/*
+ * The Ryu engine (ldtoa_ryu.c) generates the shortest digits that
+ * round-trip, which can take 21 digits for 80-bit values and 36 for
+ * binary128. ldtoa_engine.c can't generate that many accurate digits.
+ */
 #if __LDBL_MANT_DIG__ == 113
+#ifdef __IO_FLOAT_EXACT
+#define LDTOA_MAX_DIG 36
+#else
 #define LDTOA_MAX_DIG 34
+#endif
 #elif __LDBL_MANT_DIG__ == 106
 #define LDTOA_MAX_DIG 32
 #elif __LDBL_MANT_DIG__ == 64
+#ifdef __IO_FLOAT_EXACT
+#define LDTOA_MAX_DIG 21
+#else
 #define LDTOA_MAX_DIG 20
+#endif
 #endif
 
 #define DTOA_MAX_DIG      17
