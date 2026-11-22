@@ -43,6 +43,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef __clang__
+/* clang warns about each operation which isn't lock-free */
+#pragma clang diagnostic ignored "-Watomic-alignment"
+#endif
+
 #define check(condition, message)                      \
     do {                                               \
         if (!(condition)) {                            \
@@ -64,7 +69,6 @@ static atomic_flag flag = ATOMIC_FLAG_INIT;
 int
 main(void)
 {
-#ifdef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1
     bool (*test_and_set)(volatile atomic_flag *) = atomic_flag_test_and_set;
     void (*fence)(memory_order) = atomic_thread_fence;
 
@@ -78,12 +82,6 @@ main(void)
     (atomic_thread_fence)(memory_order_seq_cst);
     (atomic_signal_fence)(memory_order_seq_cst);
     fence(memory_order_acq_rel);
-#else
-    /* picolibc only defines these where the compiler implements them inline */
-    (void)flag;
-    printf("no inline atomics, skipping\n");
-    return 77;
-#endif
 
     printf("success\n");
     return 0;

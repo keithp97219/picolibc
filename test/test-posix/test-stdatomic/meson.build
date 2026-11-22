@@ -37,5 +37,22 @@ dir_tests = [
   'test-atomic_flag_test_and_set',
 ]
 
+# Its threads contend for the library's locks
+dir_thread_tests = [
+  'test-stdatomic',
+]
+
 # glibc leaves the atomic functions to libatomic, which may not be installed
-test_skip_native += ['test-atomic_flag_test_and_set']
+stdatomic_native_tests = ['test-atomic_flag_test_and_set', 'test-stdatomic']
+if enable_native_tests and cc.links('''
+    struct s { char c[32]; };
+    _Atomic struct s a;
+    int main(void) { struct s v = a; return v.c[0]; }''',
+                                    args: native_c_args + ['-latomic'],
+                                    name: 'native libatomic')
+  foreach t : stdatomic_native_tests
+    test_native_link_args += {t: ['-latomic']}
+  endforeach
+else
+  test_skip_native += stdatomic_native_tests
+endif
