@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include <errno.h>
 #include <limits.h>
 #include <regex.h>
@@ -291,7 +291,7 @@ main(void)
     int        i;
     char       pattern[300], string[300];
 
-#if defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_SIGNALS
     /* Back-references can take exponential time; don't hang the run */
     alarm(60);
 #endif

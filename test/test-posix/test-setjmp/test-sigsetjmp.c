@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* sigaltstack and SA_ONSTACK are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SIGNAL_JUMP)
+#if TEST_POSIX_SIGNAL_JUMP
 
 #include <fenv.h>
 #include <limits.h>
@@ -48,7 +48,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
 #include <pthread.h>
 #endif
 
@@ -318,7 +318,7 @@ check_mask(void)
     set_mask(SIG_UNBLOCK, SIGUSR1);
 }
 
-#if defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_SIGNALS
 /* Jumps out of signal handlers */
 static volatile sig_atomic_t handled;
 static volatile int          use_longjmp;
@@ -406,7 +406,7 @@ check_handler(void)
 static void
 check_altstack(void)
 {
-#if defined(__PICOLIBC_XSI_SIGNALS) && defined(SA_ONSTACK)
+#if TEST_XSI_SIGNALS && defined(SA_ONSTACK)
     stack_t ss, cur;
     int     n;
 
@@ -433,9 +433,9 @@ check_altstack(void)
     alt_base = NULL;
 #endif
 }
-#endif /* __PICOLIBC_POSIX_SIGNALS */
+#endif /* TEST_POSIX_SIGNALS */
 
-#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
 /* sigsetjmp saves the calling thread's mask */
 static void *
 thread(void *arg)
@@ -472,13 +472,13 @@ main(void)
     check_registers(1);
     check_fenv();
     check_mask();
-#if defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_SIGNALS
     check_handler();
     check_altstack();
 #else
     printf("no signal handlers, jumps out of them not checked\n");
 #endif
-#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
     check_thread();
 #endif
     printf("success\n");

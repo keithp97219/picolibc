@@ -38,15 +38,14 @@
 #ifdef TEST_GLIBC
 #define _DEFAULT_SOURCE
 #endif
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include <errno.h>
 #include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
-#if defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0 && defined(_POSIX_MEMORY_PROTECTION) \
-    && _POSIX_MEMORY_PROTECTION > 0
+#if TEST_POSIX_MAPPED_FILES && TEST_POSIX_MEMORY_PROTECTION
 #include <sys/mman.h>
 #define HAVE_GUARD_PAGE
 #endif

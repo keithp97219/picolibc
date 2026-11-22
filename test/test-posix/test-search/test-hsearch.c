@@ -36,7 +36,7 @@
 #define _POSIX_C_SOURCE 202405L
 /* hcreate, hdestroy and hsearch are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <errno.h>
 #include <search.h>
@@ -44,7 +44,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include "../is-qemu.h"
@@ -86,7 +86,7 @@ lookup(const char *key, ACTION action, void *data)
     return hsearch(item, action);
 }
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
 
 /* Children have no room to print, so a failed check exits with its number */
 static int step;
@@ -212,7 +212,7 @@ run_child(void (*f)(void), const char *name)
     }
 }
 
-#endif /* __PICOLIBC_POSIX_MULTI_PROCESS */
+#endif /* TEST_POSIX_MULTI_PROCESS */
 
 int
 main(void)
@@ -291,7 +291,7 @@ main(void)
         printf("table full after %d entries\n", total);
     hdestroy();
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
     /* qemu-user doesn't apply RLIMIT_DATA */
     if (is_qemu()) {
         printf("qemu: skipping the RLIMIT_DATA checks\n");
