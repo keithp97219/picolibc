@@ -36,6 +36,8 @@
 set(tests
   test-argv
   test-atomic
+  test-atomic-irq
+  test-atomic-irq-hook
   test-environ
   test-getdate
   test-getopt

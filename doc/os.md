@@ -539,11 +539,40 @@ and stops with an error if the header defines one of those itself.
       libatomic and others from picolibc (picolibc's `libc.a` searched
       first for one call, libatomic for another), the two sets use
       different locks and don't exclude each other on the same
-      object; link one or the other. Without atomic read-modify-write
-      instructions (armv6-m, RISC-V without A), GCC still accesses
-      `char`, `short` and `int` objects with plain loads and stores,
-      which the locks don't exclude, and on bare metal nothing
-      excludes interrupt handlers.
+      object; link one or the other.
+
+      Without atomic read-modify-write instructions
+      (`__GCC_ATOMIC_INT_LOCK_FREE < 2`: armv6-m, armv4t and armv5,
+      RISC-V without A), GCC still accesses `char`, `short` and `int`
+      objects with plain loads and stores and calls the library only
+      for the rest, so no lock could exclude those accesses. picolibc
+      assumes these targets are single-core, and on Arm and RISC-V
+      the library masks interrupts around each operation instead of
+      taking the lock table, which they don't have. That makes every
+      library operation indivisible against threads and interrupt
+      handlers alike, so the inline loads and stores stay correct.
+      The masking goes through a pair of hooks declared in
+      `<sys/lock.h>`:
+
+          unsigned long __retarget_atomic_irq_save(void);
+          void __retarget_atomic_irq_restore(unsigned long state);
+
+      `__retarget_atomic_irq_save` masks interrupts and returns the
+      previous state; `__retarget_atomic_irq_restore` puts that state
+      back. They nest, and a library operation never calls anything
+      else between the two. The weak defaults, in
+      `libc/machine/*/atomic_irq.c`, assume privileged bare metal:
+      on M-profile Arm they set PRIMASK (`cpsid i`), on armv4t and
+      armv5 the CPSR I bit (built in ARM state, so Thumb code reaches
+      them by interworking), neither masking FIQ or NMI; on RISC-V
+      they clear `mstatus.MIE`, which assumes M-mode. An RTOS, or a
+      program running unprivileged, in S-mode or with handlers on
+      FIQ or NMI touching atomic objects, defines both with its own
+      interrupt lock (Zephyr's `irq_lock` and `irq_unlock`, for
+      example). Other architectures without atomic int (m68k, msp430,
+      AVR, SuperH, xtensa lx106 and the like) have no default and
+      keep the lock table, so plain loads and stores and interrupt
+      handlers still race with the library there.
 
    The OS's part of each group is the group's interfaces that picolibc
    doesn't implement:

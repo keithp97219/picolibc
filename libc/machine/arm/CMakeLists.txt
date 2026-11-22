@@ -37,6 +37,7 @@ add_subdirectory(machine)
 
 picolibc_sources_flags("-fno-builtin"
   aeabi_memset.c
+  atomic_irq.c
   bzero.c
   interrupt.c
   memchr.c
