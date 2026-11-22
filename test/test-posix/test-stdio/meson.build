@@ -37,6 +37,7 @@ dir_tests = [
   'test-ctermid',
   'test-dprintf',
   'test-fclose-std',
+  'test-fcloseall',
   'test-fdopen',
   'test-fflush',
   'test-fgetc',

@@ -176,6 +176,17 @@ typedef long __ssize_t;
 #endif
 
 #ifndef __machine_mbstate_t_defined
+/*
+ * An OS layer may set a minimum size for mbstate_t in <sys/_mbstate.h>
+ * (__MBSTATE_SIZE_MIN), when programs built for that OS assume its usual
+ * C library's mbstate_t is at least that large (see doc/os.md).
+ */
+#if defined(__has_include)
+#if __has_include(<sys/_mbstate.h>)
+#include <sys/_mbstate.h>
+#endif
+#endif
+
 /* Conversion state information.  */
 typedef struct {
     int __count;
@@ -184,6 +195,9 @@ typedef struct {
         unsigned char __wchb[4];
         __uint32_t    __ucs;
         __uint16_t    __ucs2;
+#if defined(__MBSTATE_SIZE_MIN)
+        unsigned char __pad[__MBSTATE_SIZE_MIN - sizeof(int)];
+#endif
     } __value; /* Value so far.  */
 } __mbstate_t;
 #endif

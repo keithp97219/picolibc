@@ -86,6 +86,19 @@ int scandirat(int, const char *, struct dirent ***, int (*)(const struct dirent 
 int versionsort(const struct dirent **, const struct dirent **);
 #endif
 
+/*
+ * The transitional large file names: struct dirent already holds a
+ * 64-bit d_ino, so dirent64 names the plain structure
+ */
+#if __LARGEFILE64_VISIBLE
+#define dirent64      dirent
+#define readdir64     readdir
+#define readdir64_r   readdir_r
+#define scandir64     scandir
+#define alphasort64   alphasort
+#define versionsort64 versionsort
+#endif
+
 _END_STD_C
 
 #endif /*_DIRENT_H_*/

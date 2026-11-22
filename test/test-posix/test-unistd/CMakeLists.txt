@@ -58,6 +58,7 @@ set(tests
   test-ftruncate
   test-getcwd
   test-getcwd-long
+  test-getdtablesize
   test-getentropy
   test-getgid
   test-getgroups
@@ -122,6 +123,7 @@ set(tests
   test-unistd_h-process
   test-unlink
   test-unlinkat
+  test-usleep
   test-write
   )
 

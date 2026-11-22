@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 picolibc_sources(
+  canonicalize_file_name.c
   ptsname.c
   realpath.c
   setkey.c

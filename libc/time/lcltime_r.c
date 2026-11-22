@@ -50,6 +50,31 @@ localtime_r(const time_t * __restrict tim_p, struct tm * __restrict res)
 
     __LIBC_LOCK();
 
+#ifdef __TZIF
+    {
+        /* A TZif zone's types, until its footer rule takes over */
+        const struct __tzif_type *tt = NULL;
+
+        if (__tzif_zone)
+            tt = __tzif_type_at(__tzif_zone, *tim_p);
+        if (tt) {
+            res->tm_isdst = tt->isdst;
+            offset = -(long)tt->utoff;
+            res->tm_zone = __tzif_zone->abbr + tt->abbrind;
+        } else {
+            if (__tzinfo.rule[0].offset != __tzinfo.rule[1].offset)
+                res->tm_isdst = __tz_isdst(*tim_p, year, res->tm_yday);
+            else
+                res->tm_isdst = 0;
+            offset = __tzinfo.rule[res->tm_isdst].offset;
+            if (__tzif_zone)
+                res->tm_zone = __tzif_zone->footer_name[res->tm_isdst];
+            else
+                res->tm_zone = tzname[res->tm_isdst];
+        }
+        res->tm_gmtoff = -offset;
+    }
+#else
     if (daylight)
         res->tm_isdst = __tz_isdst(*tim_p, year, res->tm_yday);
     else
@@ -58,6 +83,7 @@ localtime_r(const time_t * __restrict tim_p, struct tm * __restrict res)
     offset = (res->tm_isdst == 1 ? __tzinfo.rule[1].offset : __tzinfo.rule[0].offset);
     res->tm_gmtoff = -offset;
     res->tm_zone = tzname[res->tm_isdst == 1];
+#endif
 
     hours = (int)(offset / SECSPERHOUR);
     offset = offset % SECSPERHOUR;

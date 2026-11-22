@@ -46,6 +46,7 @@ posix_test_dirs = [
   'test-dirent',
   'test-endian',
   'test-errno',
+  'test-error',
   'test-fcntl',
   'test-fenv',
   'test-fmtmsg',
