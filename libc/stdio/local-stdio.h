@@ -264,42 +264,25 @@ bufio_get_buf_size(int fd)
 #endif
 
 #ifdef __STDIO_EXIT_FLUSH
+/* The list of open streams flushed by fflush(NULL) and at exit; see bufio_exit_flush.c */
 extern FILE *__stdio_file_list;
-
-static inline void
-bufio_add_file(FILE *f)
-{
-    struct __file_bufio *bf = (struct __file_bufio *)f;
-
-    __LIBC_LOCK();
-    bf->next = __stdio_file_list;
-    __stdio_file_list = &(bf->xfile.cfile.file);
-    __LIBC_UNLOCK();
-}
-
-static inline void
-bufio_remove_file(FILE *f)
-{
-    FILE               **prev;
-    struct __file_bufio *bf;
-
-    __LIBC_LOCK();
-    for (prev = &__stdio_file_list; (bf = (struct __file_bufio *)*prev); prev = &bf->next) {
-        if (&(bf->xfile.cfile.file) == f) {
-            *prev = bf->next;
-            break;
-        }
-    }
-    __LIBC_UNLOCK();
-}
+void         __bufio_add_file(FILE *f);
+FILE        *__bufio_take_file(void);
+/* Weak so that fclose doesn't pull in the list */
+void         __bufio_remove_file(FILE *f) __weak;
+int          __bufio_flush_all(void) __weak;
+#define bufio_add_file(f) __bufio_add_file(f)
+#define bufio_remove_file(f)        \
+    do {                            \
+        if (__bufio_remove_file)    \
+            __bufio_remove_file(f); \
+    } while (0)
 #else
 #define bufio_add_file(f)
 #define bufio_remove_file(f)
 #endif
 
-int  __stdio_flags(const char *mode, int *optr);
-
-void _bufio_exit_flush(void) __weak;
+int __stdio_flags(const char *mode, int *optr);
 
 #ifdef __STDIO_LOCKING
 void __flockfile_init(FILE *f);

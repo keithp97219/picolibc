@@ -131,5 +131,7 @@ fopencookie(void *cookie, const char *mode, cookie_io_functions_t io_funcs)
         pf, pf->buf, BUFSIZ, fopencookie_read, fopencookie_write,
         io_funcs.seek ? fopencookie_seek : NULL, fopencookie_close, open_flags, __BFALL);
 
+    bufio_add_file(&pf->bfile.xfile.cfile.file);
+
     return &pf->bfile.xfile.cfile.file;
 }

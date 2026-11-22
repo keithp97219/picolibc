@@ -40,9 +40,11 @@ dir_tests = [
   'test-fcloseall',
   'test-fdopen',
   'test-fflush',
+  'test-fflush-all',
   'test-fgetc',
   'test-fileno',
   'test-fmemopen',
+  'test-fopencookie-flush',
   'test-fopen',
   'test-fprintf',
   'test-freopen',
@@ -67,5 +69,6 @@ dir_tests = [
 
 # These need threads; they use the library's own locks
 dir_thread_tests = [
+  'test-fflush-threads',
   'test-flockfile',
 ]

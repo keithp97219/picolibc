@@ -60,5 +60,7 @@ funopen(const void *cookie, ssize_t (*readfn)(void *cookie, void *buf, size_t n)
     *bf = (struct __file_bufio)FDEV_SETUP_BUFIO_PTR(cookie, buf, BUFSIZ, readfn, writefn, seekfn,
                                                     closefn, open_flags, __BFALL);
 
-    return (FILE *)bf;
+    bufio_add_file(&(bf->xfile.cfile.file));
+
+    return &(bf->xfile.cfile.file);
 }
