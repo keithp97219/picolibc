@@ -72,6 +72,10 @@ enum locale_id {
     locale_UCS_4LE,
     locale_UCS_4BE,
 #endif
+#ifdef __MB_EXTENDED_CHARSETS_GB18030
+    /* Before locale_EXTENDED_BASE: bytes 0x80-0xff have no ctype */
+    locale_GB18030,
+#endif
 #ifdef __MB_EXTENDED_CHARSETS_ISO
     locale_ISO_BASE,
     locale_EXTENDED_BASE = locale_ISO_BASE,
@@ -320,6 +324,10 @@ __locale_mb_cur_max_l(locale_t locale)
     case locale_SJIS:
         return 2;
 #endif
+#ifdef __MB_EXTENDED_CHARSETS_GB18030
+    case locale_GB18030:
+        return 4;
+#endif
 #endif
     default:
         return 1;
@@ -329,16 +337,20 @@ __locale_mb_cur_max_l(locale_t locale)
 static inline int
 __locale_cjk_lang(void)
 {
-#ifdef __MB_EXTENDED_CHARSETS_JIS
     switch (__locale_id(__get_current_locale())) {
+#ifdef __MB_EXTENDED_CHARSETS_JIS
     case locale_JIS:
     case locale_EUCJP:
     case locale_SJIS:
         return 1;
+#endif
+#ifdef __MB_EXTENDED_CHARSETS_GB18030
+    case locale_GB18030:
+        return 1;
+#endif
     default:
         break;
     }
-#endif
     return 0;
 }
 

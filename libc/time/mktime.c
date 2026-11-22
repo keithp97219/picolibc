@@ -269,6 +269,142 @@ isdst_at(time_t t)
     return __tz_isdst(t, utc.tm_year + YEAR_BASE, utc.tm_yday);
 }
 
+#ifdef __TZIF
+/* The UT offset and isdst at t in the TZif zone; call with the lock held */
+static long
+tzif_offset_at(time_t t, int *isdst)
+{
+    const struct __tzif_type *tt = __tzif_type_at(__tzif_zone, t);
+
+    if (tt) {
+        *isdst = tt->isdst;
+        return tt->utoff;
+    }
+    *isdst = __tzinfo.rule[0].offset != __tzinfo.rule[1].offset && isdst_at(t);
+    return -(long)__tzinfo.rule[*isdst].offset;
+}
+
+/*
+ * The UT offset that makes local time tim, read as UTC, a time in the
+ * TZif zone; call with the lock held. The offsets in effect around
+ * tim are tried in turn, each giving a time t = tim - offset that it
+ * may or may not be the offset of. Of those that are, one with the
+ * isdst asked for (want >= 0) is chosen, then standard time over
+ * daylight saving time, as with rule strings. With none of them, tim
+ * falls in a gap left by a forward change, and the offset before the
+ * change is used, moving tim forward over the gap. An isdst asked for
+ * and not valid still picks an offset with that isdst, as with rule
+ * strings.
+ */
+static long
+tzif_mktime_offset(time_t tim, int want)
+{
+    static const int8_t  near[] = { -1, 0, -2, 1 };
+    const struct __tzif *z = __tzif_zone;
+    long                 off[6];
+    uint8_t              dst[6], valid[6];
+    int                  n = 0, i, best = -1;
+    uint32_t             lo = 0, hi = z->timecnt;
+    int64_t              k;
+
+    /* The number of transitions at or before tim */
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        if (z->trans[mid] <= tim)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    k = lo;
+
+    /*
+     * Candidates: the types around transition k, nearest first, type 0
+     * before the first transition, and the footer rules near the end
+     */
+    for (i = 0; i < (int)(sizeof(near) + 2); i++) {
+        long o;
+        int  d, c;
+
+        if (i < (int)sizeof(near)) {
+            int64_t j = k + near[i];
+            if (j < -1 || j >= (int64_t)z->timecnt)
+                continue;
+            if (j == -1) {
+                /* Type 0, unless the footer covers all time */
+                if (z->timecnt == 0 && z->footer)
+                    continue;
+                o = z->types[0].utoff;
+                d = z->types[0].isdst;
+            } else {
+                o = z->types[z->idx[j]].utoff;
+                d = z->types[z->idx[j]].isdst;
+            }
+        } else {
+            if (!z->footer || k + 1 < (int64_t)z->timecnt)
+                break;
+            d = i - (int)sizeof(near);
+            o = -(long)__tzinfo.rule[d].offset;
+        }
+        for (c = 0; c < n; c++)
+            if (off[c] == o && dst[c] == d)
+                break;
+        if (c == n) {
+            time_t t;
+            int    td;
+
+            off[n] = o;
+            dst[n] = (uint8_t)d;
+            valid[n] = !__picolibc_add_overflow(tim, (time_t)-o, &t) && tzif_offset_at(t, &td) == o
+                && td == d;
+            n++;
+        }
+    }
+
+    if (want >= 0) {
+        for (i = 0; i < n && best < 0; i++)
+            if (valid[i] && dst[i] == (want > 0))
+                best = i;
+        for (i = 0; i < n && best < 0; i++)
+            if (dst[i] == (want > 0))
+                best = i;
+    }
+    for (i = 0; i < n && best < 0; i++)
+        if (valid[i] && !dst[i])
+            best = i;
+    for (i = 0; i < n && best < 0; i++)
+        if (valid[i])
+            best = i;
+    if (best >= 0)
+        return off[best];
+
+    /* In a gap: the offset before the transition that made it */
+    for (i = -2; i <= 1; i++) {
+        int64_t j = k + i;
+        long    before, after;
+
+        if (j < 0 || j >= (int64_t)z->timecnt)
+            continue;
+        before = j ? z->types[z->idx[j - 1]].utoff : z->types[0].utoff;
+        after = z->types[z->idx[j]].utoff;
+        if (before < after && z->trans[j] + before <= tim && tim < z->trans[j] + after)
+            return before;
+    }
+
+    /* In the footer's years, the smaller of its offsets, which is the one before a gap */
+    if (z->footer && k + 1 >= (int64_t)z->timecnt) {
+        long std_off = -(long)__tzinfo.rule[0].offset;
+        long dst_off = -(long)__tzinfo.rule[1].offset;
+        return std_off < dst_off ? std_off : dst_off;
+    }
+
+    /* Anything else, the smallest offset around tim */
+    for (i = 1, best = 0; i < n; i++)
+        if (off[i] < off[best])
+            best = i;
+    return n ? off[best] : 0;
+}
+#endif
+
 time_t
 mktime(struct tm *tim_p)
 {
@@ -284,23 +420,31 @@ mktime(struct tm *tim_p)
     tzset();
 
     __LIBC_LOCK();
-    if (daylight) {
-        if (tim_p->tm_isdst > 0)
-            isdst = 1;
-        else if (tim_p->tm_isdst < 0) {
-            /*
-             * Standard time, unless that is a DST time and the DST
-             * reading is valid. In the gap at the start of DST,
-             * neither is, and standard time is used.
-             */
-            time_t t;
-            if (!__picolibc_add_overflow(tim, (time_t)__tzinfo.rule[0].offset, &t) && isdst_at(t)
-                && !__picolibc_add_overflow(tim, (time_t)__tzinfo.rule[1].offset, &t)
-                && isdst_at(t))
+#ifdef __TZIF
+    if (__tzif_zone)
+        offset = -(time_t)tzif_mktime_offset(tim, tim_p->tm_isdst);
+    else
+#endif
+    {
+        if (daylight) {
+            if (tim_p->tm_isdst > 0)
                 isdst = 1;
+            else if (tim_p->tm_isdst < 0) {
+                /*
+                 * Standard time, unless that is a DST time and the DST
+                 * reading is valid. In the gap at the start of DST,
+                 * neither is, and standard time is used.
+                 */
+                time_t t;
+                if (!__picolibc_add_overflow(tim, (time_t)__tzinfo.rule[0].offset, &t)
+                    && isdst_at(t)
+                    && !__picolibc_add_overflow(tim, (time_t)__tzinfo.rule[1].offset, &t)
+                    && isdst_at(t))
+                    isdst = 1;
+            }
         }
+        offset = (time_t)__tzinfo.rule[isdst].offset;
     }
-    offset = (time_t)__tzinfo.rule[isdst].offset;
     __LIBC_UNLOCK();
 
     /* The members are set as localtime would set them */

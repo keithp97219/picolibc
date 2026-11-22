@@ -104,18 +104,6 @@
 #define _POINTER_INT short
 #endif
 
-#ifdef __i386__
-#if defined(__linux__) || defined(__RDOS__)
-/* we want the reentrancy structure to be returned by a function */
-#define HAVE_GETDATE
-#ifndef __LARGE64_FILES
-#define __LARGE64_FILES 1
-#endif
-/* we use some glibc header files so turn on glibc large file feature */
-#define _LARGEFILE64_SOURCE 1
-#endif
-#endif
-
 #ifdef __mn10200__
 #define __SMALL_BITFIELDS
 #endif
@@ -243,6 +231,7 @@
 #undef __MB_EXTENDED_CHARSETS_ISO
 #undef __MB_EXTENDED_CHARSETS_WINDOWS
 #undef __MB_EXTENDED_CHARSETS_JIS
+#undef __MB_EXTENDED_CHARSETS_GB18030
 #endif
 
 /* If __MB_EXTENDED_CHARSETS_ALL is set, we want all of the extended
@@ -260,7 +249,8 @@
 #define __MB_EXTENDED_CHARSETS_NON_UNICODE
 #endif
 
-#if defined(__MB_EXTENDED_CHARSETS_UCS) || defined(__MB_EXTENDED_CHARSETS_NON_UNICODE)
+#if defined(__MB_EXTENDED_CHARSETS_UCS) || defined(__MB_EXTENDED_CHARSETS_NON_UNICODE) \
+    || defined(__MB_EXTENDED_CHARSETS_GB18030)
 #define __MB_EXTENDED_CHARSETS_ANY
 #endif
 

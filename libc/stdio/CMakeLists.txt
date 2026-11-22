@@ -55,6 +55,7 @@ picolibc_sources(
   ecvt_r.c
   exchange.c
   fclose.c
+  fcloseall.c
   fcvt.c
   fcvtf.c
   fcvtf_r.c
@@ -225,6 +226,7 @@ if(__IO_FLOAT_EXACT)
     atof_ryu.c
     dtoa_ryu.c
     ftoa_ryu.c
+    ryu_d2d.c
     ryu_divpow2.c
     ryu_log10.c
     ryu_log2pow5.c

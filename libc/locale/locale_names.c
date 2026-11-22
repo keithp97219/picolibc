@@ -47,6 +47,9 @@ const char * const __locale_names[locale_END - locale_BASE] = {
     [locale_UCS_4LE - locale_BASE] = "C.UCS-4LE",
     [locale_UCS_4BE - locale_BASE] = "C.UCS-4BE",
 #endif
+#ifdef __MB_EXTENDED_CHARSETS_GB18030
+    [locale_GB18030 - locale_BASE] = "C.GB18030",
+#endif
 #ifdef __MB_EXTENDED_CHARSETS_ISO
     [locale_ISO_8859_1 - locale_BASE] = "C.ISO-8859-1",
     [locale_ISO_8859_2 - locale_BASE] = "C.ISO-8859-2",

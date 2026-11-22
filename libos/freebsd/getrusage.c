@@ -36,6 +36,7 @@
 #include "local-resource.h"
 #include <freebsd/freebsd-timeval-struct.h>
 #include <freebsd/freebsd-rusage-struct.h>
+#include "../common/local-rusage.h"
 
 int
 getrusage(int who, struct rusage *usage)
@@ -59,9 +60,6 @@ getrusage(int who, struct rusage *usage)
     }
     if (_syscall(FREEBSD_SYS_getrusage, kwho, &kusage) < 0)
         return -1;
-    usage->ru_utime.tv_sec = kusage.ru_utime.tv_sec;
-    usage->ru_utime.tv_usec = kusage.ru_utime.tv_usec;
-    usage->ru_stime.tv_sec = kusage.ru_stime.tv_sec;
-    usage->ru_stime.tv_usec = kusage.ru_stime.tv_usec;
+    _RUSAGE_FROM_OS(usage, &kusage);
     return 0;
 }

@@ -163,8 +163,14 @@ result |= test(__LINE__, " 12.0 Hot Pockets", "%1$*5$.*4$f %2$s %3$ss", printf_f
 result |= test(__LINE__, " 12.0 Hot Pockets 5", "%1$5.*4$f %2$s %3$ss %5$d", printf_float(12.0),
                "Hot", "Pocket", 1, 5);
 #if !defined(__PICOLIBC__) || defined(__IO_FLOAT_EXACT)
+#ifdef _HAS_IO_FLOAT
+/* 321.7654f is 321.765411376953125 */
+#define FLOAT_321 "321.765411"
+#else
+#define FLOAT_321 "321.765400"
+#endif
 result |= test(__LINE__,
-               "   12345  1234    11145401322     321.765400   3.217654e+02   5    test-string",
+               "   12345  1234    11145401322     " FLOAT_321 "   3.217654e+02   5    test-string",
                "%1$*5$d %2$*6$hi %3$*7$lo %4$*8$f %9$*12$e %10$*13$g %11$*14$s", 12345, 1234,
                1234567890, printf_float(321.7654), 8, 5, 14, 14, printf_float(321.7654),
                printf_float(5.0000001), "test-string", 14, 3, 14);
@@ -184,7 +190,8 @@ result |= test(__LINE__, "3.14      ", "%-*.*f", 10, 2, printf_float(3.14159265)
 #if !(defined(__PICOLIBC__) && !defined(__IO_FLOAT_EXACT))
 #ifndef LOW_FLOAT
 #ifdef __PICOLIBC__
-#define SQRT2_60 "1414213562373095000000000000000000000000000000000000000000000.000"
+/* picolibc generates at most 17 significant digits */
+#define SQRT2_60 "1414213562373095100000000000000000000000000000000000000000000.000"
 #else
 #define SQRT2_60 "1414213562373095053224405813183213153460812619236586568024064.000"
 #endif

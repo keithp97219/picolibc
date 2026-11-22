@@ -36,6 +36,7 @@
 #include "local-os.h"
 #include "local-wait.h"
 #include "local-cancel.h"
+#include "local-rusage.h"
 #include <sys/resource.h>
 
 pid_t
@@ -52,12 +53,8 @@ wait3(int *wstatus, int options, struct rusage *rusage)
     if (ret > 0) {
         if (wstatus)
             *wstatus = _wait_status_from_os(kstatus);
-        if (rusage) {
-            rusage->ru_utime.tv_sec = kusage.ru_utime.tv_sec;
-            rusage->ru_utime.tv_usec = kusage.ru_utime.tv_usec;
-            rusage->ru_stime.tv_sec = kusage.ru_stime.tv_sec;
-            rusage->ru_stime.tv_usec = kusage.ru_stime.tv_usec;
-        }
+        if (rusage)
+            _RUSAGE_FROM_OS(rusage, &kusage);
     }
     return ret;
 }

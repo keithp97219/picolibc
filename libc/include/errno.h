@@ -52,6 +52,13 @@ _BEGIN_STD_C
 
 #if __GNU_VISIBLE
 char *_user_strerror(int errnum, int internal, int *errptr) __picolibc_export;
+
+/*
+ * argv[0] and its last component, set before main where the startup
+ * code records argv (__argv); NULL otherwise
+ */
+extern __picolibc_export char *program_invocation_name;
+extern __picolibc_export char *program_invocation_short_name;
 #endif
 
 #ifdef __GLOBAL_ERRNO

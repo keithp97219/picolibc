@@ -102,4 +102,16 @@ void __double_computePow5(const uint32_t i, uint64_t * const result);
 
 void __double_computeInvPow5(const uint32_t i, uint64_t * const result);
 
+// A floating decimal representing m * 10^e.
+typedef struct floating_decimal_64 {
+    uint64_t mantissa;
+    // Decimal exponent's range is -342 to 308
+    // inclusive, and can fit in a short if needed.
+    int16_t  exponent;
+    int16_t  olength;
+} floating_decimal_64;
+
+floating_decimal_64 __ryu_d2d(uint64_t m2, int32_t e2, int max_digits, bool fmode,
+                              int max_decimals);
+
 #endif // RYU_COMMON_H

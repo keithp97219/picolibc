@@ -98,8 +98,6 @@ const struct test fcvt_tests[] = {
     { 1.23456e0,             4,  1,  0, "12346",           BUF_LEN },
     { 1.23456e1,             4,  2,  0, "123456",          BUF_LEN },
     { 1.23456e2,             4,  3,  0, "1234560",         BUF_LEN },
-    { 1.23456e3,             4,  4,  0, "12345600",        BUF_LEN },
-    { 1.23456e4,             4,  5,  0, "123456000",       BUF_LEN },
     { 1.23456e5,             4,  6,  0, "1234560000",      BUF_LEN },
     { 1.23456e6,             4,  7,  0, "12345600000",     BUF_LEN },
     { 1.23456e7,             4,  8,  0, "123456000000",    BUF_LEN },
@@ -113,10 +111,23 @@ const struct test fcvt_tests[] = {
 
 #define N_FCVT_TESTS (sizeof(fcvt_tests) / sizeof(fcvt_tests[0]))
 
+/* These values differ when converted to float */
+const struct test fcvt_double_tests[] = {
+#if __SIZEOF_DOUBLE__ == 4
+    { 1.23456e3, 4, 4, 0, "12345601",  BUF_LEN },
+    { 1.23456e4, 4, 5, 0, "123455996", BUF_LEN },
+#else
+    { 1.23456e3, 4, 4, 0, "12345600", BUF_LEN },
+    { 1.23456e4, 4, 5, 0, "123456000", BUF_LEN },
+#endif
+};
+
+#define N_FCVT_DOUBLE_TESTS (sizeof(fcvt_double_tests) / sizeof(fcvt_double_tests[0]))
+
 const struct test fcvt_extra_tests[] = {
 #ifdef __PICOLIBC__
 #if __SIZEOF_DOUBLE__ == 4
-    { 0x1.fffffep127, 9, 39, 0, "340282350000000000000000000000000000000000000000", BUF_LEN },
+    { 0x1.fffffep127, 9, 39, 0, "340282347000000000000000000000000000000000000000", BUF_LEN },
 #else
     { 0x1.fffffffffffffp1023, 17, 309, 0,
       "17976931348623157"
@@ -152,8 +163,12 @@ const struct test fcvt_extra_tests[] = {
 #define N_FCVT_EXTRA_TESTS (sizeof(fcvt_extra_tests) / sizeof(fcvt_extra_tests[0]))
 
 const struct test fcvtf_tests[] = {
+    /* 1.23456e3f is 1234.56005859375 */
+    { 1.23456e3,      4, 4,  0, "12345601",                                         BUF_LEN },
+    /* 1.23456e4f is 12345.599609375 */
+    { 1.23456e4,      4, 5,  0, "123455996",                                        BUF_LEN },
 #ifdef __PICOLIBC__
-    { 0x1.fffffep127, 9, 39, 0, "340282350000000000000000000000000000000000000000", BUF_LEN },
+    { 0x1.fffffep127, 9, 39, 0, "340282347000000000000000000000000000000000000000", BUF_LEN },
 #else
     /* glibc uses the double path for this operation */
     { 0x1.fffffep127, 9, 39, 0, "340282346638528859811704183484516925440000000000", BUF_LEN },
@@ -218,6 +233,7 @@ main(void)
     static char buf[BUF_LEN];
 
     many_tests(fcvt_tests, fcvt_r, N_FCVT_TESTS, SKIP_LONGISH_FLOAT);
+    many_tests(fcvt_double_tests, fcvt_r, N_FCVT_DOUBLE_TESTS, SKIP_LONGISH_FLOAT);
     many_tests(fcvt_extra_tests, fcvt_r, N_FCVT_EXTRA_TESTS, SKIP_LONG_FLOAT);
     many_tests(ecvt_tests, ecvt_r, N_ECVT_TESTS, SKIP_LONGISH_FLOAT);
 #ifdef __PICOLIBC__

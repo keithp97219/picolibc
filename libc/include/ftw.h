@@ -68,6 +68,11 @@ struct FTW {
 int nftw(const char *, int (*)(const char *, const struct stat *, int, struct FTW *), int, int)
     __picolibc_export;
 
+/* The transitional large file names: struct stat is already large */
+#if __LARGEFILE64_VISIBLE
+#define nftw64 nftw
+#endif
+
 #endif /* __XSI_VISIBLE || __MISC_VISIBLE */
 
 _END_STD_C
