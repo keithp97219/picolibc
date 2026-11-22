@@ -37,10 +37,18 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <errno.h>
+#include <stdarg.h>
 
 int
-ioctl(int fd, unsigned long op, void *arg)
+ioctl(int fd, unsigned long op, ...)
 {
+    va_list ap;
+    void   *arg;
+
+    /* Every request handled here takes a pointer */
+    va_start(ap, op);
+    arg = va_arg(ap, void *);
+    va_end(ap);
     switch (op) {
     case TIOCGWINSZ:
         return tcgetwinsize(fd, arg);

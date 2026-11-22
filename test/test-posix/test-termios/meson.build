@@ -36,6 +36,7 @@
 dir_tests = [
   'test-cfsetispeed',
   'test-cfsetspeed',
+  'test-ioctl',
   'test-tcdrain',
   'test-tcflow',
   'test-tcflush',

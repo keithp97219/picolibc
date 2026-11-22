@@ -88,4 +88,5 @@ picolibc_headers(sys
   utsname.h
   wait.h
   _wait.h
+  _winsize.h
   )

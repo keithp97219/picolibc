@@ -38,10 +38,12 @@
 
 #include <sys/cdefs.h>
 #include <sys/_types.h>
+#include <sys/_winsize.h>
 
 _BEGIN_STD_C
 
-int ioctl(int fd, unsigned long op, void *param);
+/* Variadic like everywhere else: the third argument is optional */
+int ioctl(int __fd, unsigned long __request, ...);
 
 #define TIOCGWINSZ (('T' << 8) | 1)
 #define TIOCSWINSZ (('T' << 8) | 2)
