@@ -79,6 +79,7 @@ if fs.is_dir(machine_dir)
     'getauxval.c',
     'getcwd.c',
     'getentropy.c',
+    'getlogin_r.c',
     'getrandom.c',
     'getgroups.c',
     'gethostname.c',

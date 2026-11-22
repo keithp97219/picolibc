@@ -62,6 +62,7 @@ dir_tests = [
   'test-gethostid',
   'test-gethostname',
   'test-getlogin',
+  'test-getlogin-loginuid',
   'test-getlogin_r',
   'test-getpgid',
   'test-getresgid',
