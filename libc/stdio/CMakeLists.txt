@@ -55,6 +55,7 @@ picolibc_sources(
   ecvt_r.c
   exchange.c
   fclose.c
+  fcloseall.c
   fcvt.c
   fcvtf.c
   fcvtf_r.c

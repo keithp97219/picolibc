@@ -536,6 +536,10 @@ FILE   *popen(const char *command, const char *type) __picolibc_export;
 int     pclose(FILE *stream) __picolibc_export;
 #endif
 
+#if __GNU_VISIBLE
+int fcloseall(void) __picolibc_export;
+#endif
+
 #if __BSD_VISIBLE
 FILE *funopen(const void *cookie, ssize_t (*readfn)(void *cookie, void *buf, size_t n),
               ssize_t (*writefn)(void *cookie, const void *buf, size_t n),
