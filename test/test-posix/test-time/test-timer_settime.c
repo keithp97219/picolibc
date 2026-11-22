@@ -255,6 +255,23 @@ main(void)
     }
 #endif
 
+#if TEST_POSIX_THREAD_CPUTIME
+    /* A timer on the thread CPU-time clock, which the system may leave to run time */
+    if (sysconf(_SC_THREAD_CPUTIME) > 0) {
+        ev.sigev_value.sival_int = 8;
+        check(timer_create(CLOCK_THREAD_CPUTIME_ID, &ev, &t1) == 0, "thread CPU-time timer");
+        memset(&its, 0, sizeof(its));
+        its.it_value.tv_nsec = 50000000;
+        check(timer_settime(t1, 0, &its, NULL) == 0, "arm thread CPU-time timer");
+        start = mono_ns();
+        while (!pending(SIGUSR1) && mono_ns() - start < 10000000000LL)
+            ;
+        check(wait_for(SIGUSR1, &info) == SIGUSR1 && info.si_value.sival_int == 8,
+              "thread CPU-time timer fires");
+        check(timer_delete(t1) == 0, "timer_delete thread CPU-time");
+    }
+#endif
+
     /* EINVAL for an unknown clock */
     errno = 0;
     check(timer_create((clockid_t)12345, &ev, &t1) == -1 && errno == EINVAL, "bad clock");

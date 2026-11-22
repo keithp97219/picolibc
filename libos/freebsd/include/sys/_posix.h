@@ -90,9 +90,10 @@
 #define __PICOLIBC_OS_XSI_USER_GROUPS          202405L
 
 /*
- * FreeBSD has the process CPU-time clocks (clock_getcpuclockid), but
- * ktimer_create rejects them, a known variance (doc/os.md), so
- * __PICOLIBC_OS_CPUTIME stays undefined.
+ * FreeBSD has the process and thread CPU-time clocks
+ * (clock_getcpuclockid, pthread_getcpuclockid), but ktimer_create
+ * rejects them, a known variance (doc/os.md), so __PICOLIBC_OS_CPUTIME
+ * and __PICOLIBC_OS_THREAD_CPUTIME stay undefined.
  *
  * FreeBSD delivers 62 real-time signals; picolibc numbers 31, so
  * __PICOLIBC_OS_RTSIG_MAX stays undefined
@@ -114,7 +115,6 @@
 #define __PICOLIBC_OS_THREADS                      202405L
 #define __PICOLIBC_OS_THREAD_ATTR_STACKADDR        202405L
 #define __PICOLIBC_OS_THREAD_ATTR_STACKSIZE        202405L
-#define __PICOLIBC_OS_THREAD_CPUTIME               202405L
 #define __PICOLIBC_OS_THREAD_PRIO_INHERIT          202405L
 #define __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING   202405L
 #define __PICOLIBC_OS_THREAD_PRIO_PROTECT          202405L
