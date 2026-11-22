@@ -368,9 +368,16 @@ child(void)
 int
 main(void)
 {
-    int   subsidiary, manager = open_pty(&subsidiary, O_NOCTTY);
-    pid_t pid;
-    int   status;
+    int      subsidiary, manager = open_pty(&subsidiary, O_NOCTTY);
+    pid_t    pid;
+    int      status;
+    sigset_t set;
+
+    /* SIGTTOU takes its default action, though sshd, say, may have left it ignored */
+    check(signal(SIGTTOU, SIG_DFL) != SIG_ERR, "SIGTTOU default");
+    sigemptyset(&set);
+    sigaddset(&set, SIGTTOU);
+    check(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0, "SIGTTOU unblocked");
 
     /* A terminal that isn't the caller's controlling terminal */
     errno = 0;
