@@ -107,20 +107,22 @@ Supporting OS subroutine required: None
 
 #define TZNAME_MIN 3 /* POSIX min TZ abbr size local def */
 
-static const tzrule_t default_tzrule = { 'J', 0, 0, 0, 0, (time_t)0, 0L };
+/*
+ * Parse the POSIX TZ string tzenv into names and rules. Without a
+ * DST part, the second name and rule copy the first. When tzenv is
+ * NULL or not a valid rule string, sets them to GMT and returns false.
+ */
+static bool __tzparse(const char *tzenv, char new_tzname[2][TZNAME_MAX + 2],
+                      tzrule_t new_tzrule[2]);
 
-void
-tzset(void)
+bool
+__tzparse(const char *tzenv, char new_tzname[2][TZNAME_MAX + 2], tzrule_t new_tzrule[2])
 {
     unsigned short hh, mm, ss, m, w, d;
     int            sign, n;
     int            i, ch;
     bool           dst_valid = false;
-    char          *tzenv;
-    char           new_tzname[2][TZNAME_MAX + 2];
-    tzrule_t       new_tzrule[2] = {};
-
-    tzenv = getenv("TZ");
+    bool           ok = true;
 
     if (tzenv == NULL)
         goto bail;
@@ -294,12 +296,28 @@ done:
     if (!dst_valid) {
         if (false) {
         bail:
+            ok = false;
             strcpy(new_tzname[0], "GMT");
-            new_tzrule[0] = default_tzrule;
+            /* UTC; __tzcalc_limits sets change */
+            new_tzrule[0].ch = 'J';
+            new_tzrule[0].m = 0;
+            new_tzrule[0].n = 0;
+            new_tzrule[0].d = 0;
+            new_tzrule[0].s = 0;
+            new_tzrule[0].offset = 0;
         }
         strcpy(new_tzname[1], new_tzname[0]);
         new_tzrule[1] = new_tzrule[0];
     }
+    return ok;
+}
+
+/*
+ * Make names and rules the current time zone.
+ */
+static void
+__tzset_install(char new_tzname[2][TZNAME_MAX + 2], tzrule_t new_tzrule[2])
+{
     __LIBC_LOCK();
     {
         /* Copy in the new values */
@@ -314,4 +332,17 @@ done:
         daylight = new_tzrule[0].offset != new_tzrule[1].offset;
     }
     __LIBC_UNLOCK();
+}
+
+void
+tzset(void)
+{
+    char    *tzenv;
+    char     new_tzname[2][TZNAME_MAX + 2];
+    tzrule_t new_tzrule[2] = {};
+
+    tzenv = getenv("TZ");
+
+    __tzparse(tzenv, new_tzname, new_tzrule);
+    __tzset_install(new_tzname, new_tzrule);
 }
