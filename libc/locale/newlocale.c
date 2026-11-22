@@ -86,9 +86,9 @@ newlocale(int category_mask, const char *name, locale_t base)
      * from base, or from the POSIX locale for a new object
      */
     if ((category_mask & LC_CTYPE_MASK) == 0)
-        locale = base ? base : locale_C;
+        locale = base ? __locale_id(base) : locale_C;
 
-    return locale;
+    return __locale_from_id(locale);
 }
 
 #endif

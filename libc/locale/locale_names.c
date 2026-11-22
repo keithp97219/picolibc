@@ -202,7 +202,7 @@ __find_locale(const char *name)
 
     /* POSIX is an alias for C */
     if (!strcmp(name, "POSIX"))
-        name = __locale_name(locale_C);
+        name = __locale_name(__locale_from_id(locale_C));
 
     lang_end = __find_locale_sep(name);
 

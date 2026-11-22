@@ -4,6 +4,6 @@
 #ifndef _SYS__LOCALE_H
 #define _SYS__LOCALE_H
 
-typedef int locale_t;
+typedef struct __locale *locale_t;
 
 #endif /* _SYS__LOCALE_H */

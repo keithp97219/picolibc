@@ -75,7 +75,7 @@ setlocale(int category, const char *name)
     switch (category) {
     case LC_ALL:
     case LC_CTYPE:
-        __global_locale = locale;
+        __global_locale = __locale_from_id(locale);
         break;
     default:
         break;
