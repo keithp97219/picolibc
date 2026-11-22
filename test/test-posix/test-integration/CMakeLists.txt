@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-largefile64
   test-namespace
   test-exit-thread
   test-sbrk-blocked

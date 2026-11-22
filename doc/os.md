@@ -815,6 +815,17 @@ many with `__PICOLIBC_OS_RTSIG_MAX` in `<sys/_posix.h>`, which
 `<limits.h>` publishes as `RTSIG_MAX`, and through
 `sysconf(_SC_RTSIG_MAX)`.
 
+### `<sys/_mbstate.h>`: mbstate_t size
+
+`<sys/_types.h>` includes this header when it exists. It may define
+`__MBSTATE_SIZE_MIN`, the smallest size in bytes `mbstate_t` may have.
+picolibc's own conversion state takes 8 bytes, but programs built for
+an OS may assume its usual C library's layout: gnulib's `mbszero`
+clears 12 bytes of `mbstate_t` when the compiler defines `__FreeBSD__`
+(and 28 for `__NetBSD__`), so `libos/freebsd` sets 12. Like
+`__PTHREAD_FUTEX_T`, the size belongs to the OS layer picolibc is built
+with, not to `<sys/_posix.h>`.
+
 ### Networking
 
 The network headers require their OS headers and stop with an error

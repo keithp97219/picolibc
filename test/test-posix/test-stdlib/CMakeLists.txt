@@ -37,6 +37,7 @@ set(tests
   test-a64l
   test-abort-status
   test-atexit-thread
+  test-canonicalize_file_name
   test-exit
   test-getsubopt
   test-grantpt

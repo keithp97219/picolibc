@@ -104,18 +104,6 @@
 #define _POINTER_INT short
 #endif
 
-#ifdef __i386__
-#if defined(__linux__) || defined(__RDOS__)
-/* we want the reentrancy structure to be returned by a function */
-#define HAVE_GETDATE
-#ifndef __LARGE64_FILES
-#define __LARGE64_FILES 1
-#endif
-/* we use some glibc header files so turn on glibc large file feature */
-#define _LARGEFILE64_SOURCE 1
-#endif
-#endif
-
 #ifdef __mn10200__
 #define __SMALL_BITFIELDS
 #endif
