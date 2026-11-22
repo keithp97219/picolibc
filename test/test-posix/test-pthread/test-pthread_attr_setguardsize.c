@@ -34,11 +34,11 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && _POSIX_THREAD_ATTR_STACKSIZE > 0 && _POSIX_THREAD_ATTR_STACKADDR > 0 \
-    && _POSIX_THREAD_PRIORITY_SCHEDULING > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_THREADS && TEST_POSIX_THREAD_ATTR_STACKSIZE && TEST_POSIX_THREAD_ATTR_STACKADDR \
+    && TEST_POSIX_THREAD_PRIORITY_SCHEDULING && TEST_POSIX_MULTI_PROCESS
 
 #include <errno.h>
 #include <limits.h>

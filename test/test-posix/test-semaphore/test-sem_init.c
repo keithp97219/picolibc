@@ -38,11 +38,11 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_MAPPED_FILES > 0 && _POSIX_SEMAPHORES > 0 && _POSIX_THREADS > 0 && _POSIX_TIMEOUTS > 0 \
-    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MAPPED_FILES && TEST_POSIX_SEMAPHORES && TEST_POSIX_THREADS && TEST_POSIX_TIMEOUTS \
+    && TEST_POSIX_MULTI_PROCESS
 
 #include <errno.h>
 #include <fcntl.h>
