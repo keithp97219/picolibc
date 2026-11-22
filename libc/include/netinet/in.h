@@ -90,6 +90,12 @@ extern const struct in6_addr in6addr_loopback;
     (__IN6_ADDR32((a)->s6_addr, 0) == 0 && __IN6_ADDR32((a)->s6_addr, 1) == 0     \
      && __IN6_ADDR32((a)->s6_addr, 2) == 0 && __IN6_ADDR32((a)->s6_addr, 3) == 1)
 #define IN6_IS_ADDR_MULTICAST(a) ((a)->s6_addr[0] == 0xff)
+/* RFC 3493; not POSIX, but in every other C library */
+#define IN6_ARE_ADDR_EQUAL(a, b)                                        \
+    (__IN6_ADDR32((a)->s6_addr, 0) == __IN6_ADDR32((b)->s6_addr, 0)     \
+     && __IN6_ADDR32((a)->s6_addr, 1) == __IN6_ADDR32((b)->s6_addr, 1)  \
+     && __IN6_ADDR32((a)->s6_addr, 2) == __IN6_ADDR32((b)->s6_addr, 2)  \
+     && __IN6_ADDR32((a)->s6_addr, 3) == __IN6_ADDR32((b)->s6_addr, 3))
 #define IN6_IS_ADDR_LINKLOCAL(a) ((a)->s6_addr[0] == 0xfe && ((a)->s6_addr[1] & 0xc0) == 0x80)
 #define IN6_IS_ADDR_SITELOCAL(a) ((a)->s6_addr[0] == 0xfe && ((a)->s6_addr[1] & 0xc0) == 0xc0)
 #define IN6_IS_ADDR_V4MAPPED(a)                                               \
