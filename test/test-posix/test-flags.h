@@ -76,6 +76,7 @@
 #if defined(TEST_CLAIM_ALL)
 
 #define TEST_POSIX_CLOFORK                    202405L
+#define TEST_POSIX_C_LANG_ATOMICS             202405L
 #define TEST_POSIX_C_LANG_THREADS             202405L
 #define TEST_POSIX_C_LANG_UCHAR               202405L
 #define TEST_POSIX_C_LANG_WIDE_CHAR_EXT       202405L
@@ -176,6 +177,9 @@
 /* The option groups, as <unistd.h> claims them */
 #ifdef __PICOLIBC_POSIX_CLOFORK
 #define TEST_POSIX_CLOFORK __PICOLIBC_POSIX_CLOFORK
+#endif
+#ifdef __PICOLIBC_POSIX_C_LANG_ATOMICS
+#define TEST_POSIX_C_LANG_ATOMICS __PICOLIBC_POSIX_C_LANG_ATOMICS
 #endif
 #ifdef __PICOLIBC_POSIX_C_LANG_THREADS
 #define TEST_POSIX_C_LANG_THREADS __PICOLIBC_POSIX_C_LANG_THREADS
@@ -520,6 +524,13 @@
 #define TEST_POSIX_C_LANG_THREADS 202405L
 #endif
 /* No O_CLOFORK, nor the <uchar.h> group at its POSIX.1-2024 level */
+/*
+ * The atomics group, new in POSIX.1-2024, needs libatomic, which the
+ * build links and says with TEST_LIBATOMIC when it's installed
+ */
+#ifdef TEST_LIBATOMIC
+#define TEST_POSIX_C_LANG_ATOMICS 202405L
+#endif
 
 /* The XSI groups, when the feature-test macros ask for XSI */
 #if defined(_XOPEN_UNIX) && _XOPEN_UNIX > 0
@@ -648,9 +659,10 @@
 #define TEST_POSIX_MULTI_CONCURRENT_LOCALES _POSIX_VERSION
 #endif
 #if _POSIX_VERSION >= 202405L
-/* Close-on-fork and the <uchar.h> group are new in POSIX.1-2024 */
-#define TEST_POSIX_CLOFORK      _POSIX_VERSION
-#define TEST_POSIX_C_LANG_UCHAR _POSIX_VERSION
+/* Close-on-fork, atomics and the <uchar.h> group are new in POSIX.1-2024 */
+#define TEST_POSIX_CLOFORK        _POSIX_VERSION
+#define TEST_POSIX_C_LANG_ATOMICS _POSIX_VERSION
+#define TEST_POSIX_C_LANG_UCHAR   _POSIX_VERSION
 #endif
 
 #if defined(_XOPEN_UNIX) && _XOPEN_UNIX > 0
@@ -892,6 +904,9 @@
 /* Whatever isn't there is 0 */
 #ifndef TEST_POSIX_CLOFORK
 #define TEST_POSIX_CLOFORK 0
+#endif
+#ifndef TEST_POSIX_C_LANG_ATOMICS
+#define TEST_POSIX_C_LANG_ATOMICS 0
 #endif
 #ifndef TEST_POSIX_C_LANG_THREADS
 #define TEST_POSIX_C_LANG_THREADS 0

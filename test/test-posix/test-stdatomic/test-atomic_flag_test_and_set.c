@@ -38,6 +38,12 @@
  * Call the <stdatomic.h> operations that C11 also defines as
  * functions, through their function names rather than the macros.
  */
+#include <unistd.h>
+#include "../test-flags.h"
+
+/* Skipped without the atomics group; not an OS group, so built for every target */
+#if TEST_POSIX_C_LANG_ATOMICS
+
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -86,3 +92,16 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

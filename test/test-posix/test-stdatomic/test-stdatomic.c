@@ -42,6 +42,11 @@
  */
 
 #include <unistd.h>
+#include "../test-flags.h"
+
+/* Skipped without the atomics group; not an OS group, so built for every target */
+#if TEST_POSIX_C_LANG_ATOMICS
+
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -49,7 +54,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
 #include <pthread.h>
 #endif
 
@@ -340,7 +345,7 @@ test_contention(void)
     unsigned   workers;
 
     atomic_store(&big, big_of(0));
-#if _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
     pthread_t threads[WORKERS];
 
     workers = WORKERS;
@@ -389,3 +394,16 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif
