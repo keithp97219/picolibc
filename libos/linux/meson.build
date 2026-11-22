@@ -222,6 +222,7 @@ if fs.is_dir(machine_dir)
       '_pthread_getsched.c',
       '_pthread_os_create.c',
       '_pthread_os_exit.c',
+      '_pthread_os_mutex.c',
       '_pthread_os_set_tid.c',
       '_pthread_os_sigcancel.c',
       '_pthread_pi_available.c',

@@ -70,11 +70,6 @@ libc_test_picolibc_skip = [
 
 # The OS layer lacks what these need besides the threads it has
 libc_test_os_skip = []
-if os_freebsd
-  libc_test_os_skip += [
-    'functional/pthread_mutex_pi',              # no priority inheritance
-  ]
-endif
 
 # glibc fails this one: it forks in a signal handler while raise runs
 libc_test_native_skip = [

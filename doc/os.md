@@ -778,13 +778,35 @@ fail as POSIX allows:
 | `_PTHREAD_HAVE_SIGNALS` | per-thread masks and directed signals | `pthread_kill`, `pthread_sigmask`, asynchronous cancellation (otherwise deferred only) |
 | `_PTHREAD_HAVE_CANCEL_WAKE` | without signals, `_pthread_os_cancel_wake` interrupting a thread's wait | cancellation of a thread already blocked at a cancellation point |
 | `_PTHREAD_HAVE_SCHED` | thread scheduling and the real-time priority range | `THREAD_PRIORITY_SCHEDULING`, `THREAD_PRIO_PROTECT` |
-| `_PTHREAD_HAVE_PI` | priority-inheriting lock words | `THREAD_PRIO_INHERIT` |
-| `_PTHREAD_HAVE_ROBUST` | robust mutexes, the kernel marking a dead owner's | `THREAD_ROBUST_PRIO_INHERIT`, `THREAD_ROBUST_PRIO_PROTECT` |
+| `_PTHREAD_HAVE_PI` | priority inheritance mutexes, through the OS mutex hooks | `THREAD_PRIO_INHERIT` |
+| `_PTHREAD_HAVE_ROBUST` | robust mutexes, through the OS mutex hooks | `THREAD_ROBUST_PRIO_INHERIT`, `THREAD_ROBUST_PRIO_PROTECT` |
 | `_PTHREAD_HAVE_PSHARED` | waits on words in memory shared between processes | `THREAD_PROCESS_SHARED`, process-shared semaphores |
 | `_PTHREAD_HAVE_FORK` | `fork` calling the atfork handlers | (with `MULTI_PROCESS`) |
 | `_PTHREAD_HAVE_SEM_NAMED` | `sem_open` and `sem_unlink` over files | named semaphores |
 | `_PTHREAD_HAVE_RELEASE` | OS objects kept outside the stack, freed when a thread is reclaimed | (kernel-memory thread objects) |
 | `_PTHREAD_HAVE_MAP` | the default stack allocator | |
+
+**OS mutexes.** A mutex whose protocol is `PTHREAD_PRIO_INHERIT`, or
+which is robust, needs the kernel: to boost its owner, or to mark it
+when its owner dies. With `_PTHREAD_HAVE_PI` or `_PTHREAD_HAVE_ROBUST`
+the OS implements the lock of those mutexes with eight functions,
+`_pthread_os_mutex_init`, `_destroy`, `_owner`, `_lock` (with a clock,
+an absolute timeout and a try flag), `_unlock`, `_consistent`,
+`_fork_child` and `_ceiling` (the highest ceiling of the robust
+`PTHREAD_PRIO_PROTECT` mutexes a thread holds). The core keeps the
+mutex type, priority ceilings, cancellation and condition variables,
+and its own futex code for every other mutex. For these mutexes the OS
+may use `__state`, `__owner`, `__robust_state`, `__list_next` and
+`__list_prev` as it likes; `pthread_mutex_t` is the same on every OS.
+Linux keeps the owner in `__state` for the kernel's PI and robust
+futexes, with its robust list through `__list_next`. FreeBSD's kernel
+works only on its own `struct umutex`, so `pthread_mutex_init`
+allocates one beside the mutex, as FreeBSD's libthr does: from the
+heap, with its address in `__list_next`, for a process-private mutex,
+or for a process-shared one the kernel's off-page
+(`_umtx_op(UMTX_OP_SHM)`) for the mutex's address, which each process
+maps once and caches; `__state` then names the initialization so a
+stale cached page is noticed.
 
 With the required set, the OS can claim `THREADS`, `THREAD_SAFE_FUNCTIONS`
 (given picolibc's locking), `BARRIERS`, `SPIN_LOCKS`,

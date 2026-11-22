@@ -57,17 +57,6 @@ mutex_lock_futex(pthread_mutex_t *mutex, clockid_t clock, const struct timespec 
 }
 
 static int
-mutex_lock_pi(pthread_mutex_t *mutex, int tid, clockid_t clock, const struct timespec *abstime)
-{
-    __pthread_futex_t state = 0;
-
-    if (__atomic_compare_exchange_n(&mutex->__state, &state, (__pthread_futex_t)tid, false,
-                                    __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
-        return 0;
-    return _futex_lock_pi(&mutex->__state, _pthread_mutex_pshared(mutex), clock, abstime);
-}
-
-static int
 deadlock(clockid_t clock, const struct timespec *abstime)
 {
     __pthread_futex_t never = 0;
@@ -104,11 +93,15 @@ _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock, const struct 
             return ret;
     }
 
-    if (mutex->__robust) {
-        ret = _pthread_robust_lock(mutex, self, clock, abstime, false);
-        /* As below, relocking a normal mutex must deadlock */
+    if (_pthread_mutex_os(mutex)) {
+        ret = _pthread_os_mutex_lock(mutex, self, clock, abstime, false);
+        /*
+         * The OS reports relocking with EDEADLK, but relocking a
+         * normal mutex must deadlock: wait until the timeout, if any.
+         */
         if (ret == EDEADLK && mutex->__type == PTHREAD_MUTEX_NORMAL)
             ret = deadlock(clock, abstime);
+        /* Robust PTHREAD_PRIO_PROTECT mutexes; priority inheritance excludes protection */
         if (protocol == PTHREAD_PRIO_PROTECT) {
             if (ret == 0 || ret == EOWNERDEAD)
                 _pthread_tpp_link(self, mutex);
@@ -118,17 +111,7 @@ _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock, const struct 
         return ret;
     }
 
-    if (protocol == PTHREAD_PRIO_INHERIT) {
-        ret = mutex_lock_pi(mutex, tid, clock, abstime);
-        /*
-         * The kernel reports relocking with EDEADLK, but relocking a
-         * normal mutex must deadlock: wait until the timeout, if any.
-         */
-        if (ret == EDEADLK && mutex->__type == PTHREAD_MUTEX_NORMAL)
-            ret = deadlock(clock, abstime);
-    } else
-        ret = mutex_lock_futex(mutex, clock, abstime);
-
+    ret = mutex_lock_futex(mutex, clock, abstime);
     if (ret) {
         if (protocol == PTHREAD_PRIO_PROTECT)
             _pthread_tpp_lower(self);
@@ -136,7 +119,7 @@ _pthread_mutex_lock_timed(pthread_mutex_t *mutex, clockid_t clock, const struct 
     }
     if (protocol == PTHREAD_PRIO_PROTECT)
         _pthread_tpp_link(self, mutex);
-    if (mutex->__type != PTHREAD_MUTEX_NORMAL && protocol != PTHREAD_PRIO_INHERIT)
+    if (mutex->__type != PTHREAD_MUTEX_NORMAL)
         __atomic_store_n(&mutex->__owner, tid, __ATOMIC_RELAXED);
     return 0;
 }

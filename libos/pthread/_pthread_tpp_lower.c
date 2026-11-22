@@ -58,7 +58,7 @@ _pthread_tpp_unlink(struct __pthread *self, pthread_mutex_t *mutex, int ceiling)
     }
     if (ceiling < self->tpp_max)
         return;
-    max = _pthread_robust_ceiling(self);
+    max = _pthread_os_mutex_ceiling(self);
     for (m = self->tpp_list; m; m = m->__list_next)
         if (m->__prioceiling > max)
             max = m->__prioceiling;

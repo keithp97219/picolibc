@@ -103,13 +103,6 @@
 #define _PTHREAD_PRIO_MAX LINUX_PRIO_RT_MAX
 
 /*
- * The parts of the futex word the kernel manages for priority
- * inheritance and robust mutexes
- */
-#define _PTHREAD_FUTEX_TID_MASK   LINUX_FUTEX_TID_MASK
-#define _PTHREAD_FUTEX_OWNER_DIED LINUX_FUTEX_OWNER_DIED
-
-/*
  * Cancellation uses a Linux real-time signal which picolibc's signal
  * numbers never reach, so applications can't block or catch it.
  */

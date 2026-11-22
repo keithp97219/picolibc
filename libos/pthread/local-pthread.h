@@ -122,14 +122,12 @@
  *                            thread scheduling and PTHREAD_PRIO_PROTECT
  *                            mutexes; without it they report ENOTSUP
  *                            and only SCHED_OTHER is accepted.
- *   _PTHREAD_HAVE_PI         _futex_lock_pi, _futex_unlock_pi and
- *                            _pthread_pi_available: PTHREAD_PRIO_INHERIT.
- *   _PTHREAD_HAVE_ROBUST     The _pthread_robust_ functions: robust
- *                            mutexes. PI and robust mutexes keep the
- *                            owner's tid in the futex word, under
- *                            _PTHREAD_FUTEX_TID_MASK, with
- *                            _PTHREAD_FUTEX_OWNER_DIED set by the
- *                            kernel when the owner died.
+ *   _PTHREAD_HAVE_PI         PTHREAD_PRIO_INHERIT mutexes.
+ *   _PTHREAD_HAVE_ROBUST     Robust mutexes. With either of these, the
+ *                            OS implements those mutexes (OS mutexes,
+ *                            below) with the _pthread_os_mutex_
+ *                            functions; its _pthread_os_mutex_init
+ *                            refuses any kind it can't support.
  *   _PTHREAD_HAVE_PSHARED    Futex words in shared memory work across
  *                            processes: PTHREAD_PROCESS_SHARED objects
  *                            and process-shared semaphores. Without it
@@ -173,9 +171,8 @@ typedef char _pthread_sigset_t;
 /* No PTHREAD_PRIO_PROTECT mutex held, below every priority */
 #define _PTHREAD_TPP_NONE INT16_MIN
 
-#if !defined(_PTHREAD_HAVE_PI) && !defined(_PTHREAD_HAVE_ROBUST)
-#define _PTHREAD_FUTEX_TID_MASK   UINT_MAX
-#define _PTHREAD_FUTEX_OWNER_DIED 0U
+#if defined(_PTHREAD_HAVE_PI) || defined(_PTHREAD_HAVE_ROBUST)
+#define _PTHREAD_HAVE_OS_MUTEX 1
 #endif
 
 #define __PTHREAD_STACK_DEFAULT (128 * 1024)
@@ -280,40 +277,6 @@ int  _futex_wait(__pthread_futex_t *addr, __pthread_futex_t val, bool pshared, c
                  const struct timespec *abstime);
 void _futex_wake(__pthread_futex_t *addr, int count, bool pshared);
 
-/* Priority inheritance futexes; the word holds the owner's thread id */
-#ifdef _PTHREAD_HAVE_PI
-int  _futex_lock_pi(__pthread_futex_t *addr, bool pshared, clockid_t clock,
-                    const struct timespec *abstime);
-void _futex_unlock_pi(__pthread_futex_t *addr, bool pshared);
-
-/* Whether the kernel has priority inheritance futexes */
-bool _pthread_pi_available(void);
-#else
-static inline int
-_futex_lock_pi(__pthread_futex_t *addr, bool pshared, clockid_t clock,
-               const struct timespec *abstime)
-{
-    (void)addr;
-    (void)pshared;
-    (void)clock;
-    (void)abstime;
-    return ENOTSUP;
-}
-
-static inline void
-_futex_unlock_pi(__pthread_futex_t *addr, bool pshared)
-{
-    (void)addr;
-    (void)pshared;
-}
-
-static inline bool
-_pthread_pi_available(void)
-{
-    return false;
-}
-#endif
-
 /*
  * Futex mutex: __state is 0 when unlocked, 1 when locked and 2 when
  * locked with possible waiters. Recursive and error checking mutexes
@@ -326,29 +289,89 @@ _pthread_mutex_pshared(pthread_mutex_t *mutex)
     return mutex->__pshared == PTHREAD_PROCESS_SHARED;
 }
 
-/* Robust mutex states */
-#define _PTHREAD_ROBUST_CONSISTENT     0
-#define _PTHREAD_ROBUST_INCONSISTENT   1
-#define _PTHREAD_ROBUST_NOTRECOVERABLE 2
+/*
+ * OS mutexes: those whose protocol is PTHREAD_PRIO_INHERIT or which
+ * are robust. The kernel must take part in these, boosting the
+ * owner's priority or marking the mutex when its owner dies, so the
+ * OS layer implements the lock itself with the functions below. The
+ * core still handles the mutex type (relocking recursive and error
+ * checking mutexes, __count), PTHREAD_PRIO_PROTECT ceilings,
+ * cancellation and condition variables. For OS mutexes, the OS
+ * layer may use __state, __owner, __robust_state, __list_next and
+ * __list_prev however it likes; pthread_mutex_init sets them all to
+ * zero first. Every other mutex uses the core's futex code.
+ */
+static inline bool
+_pthread_mutex_os(const pthread_mutex_t *mutex)
+{
+    return mutex->__protocol == PTHREAD_PRIO_INHERIT || mutex->__robust;
+}
+
+#ifdef _PTHREAD_HAVE_OS_MUTEX
+/*
+ * Make the filled-in mutex usable: 0, ENOTSUP for a kind the system
+ * can't support, ENOMEM or EAGAIN
+ */
+int  _pthread_os_mutex_init(pthread_mutex_t *mutex);
+
+/* Release what init set up: 0, or EBUSY while the mutex is locked */
+int  _pthread_os_mutex_destroy(pthread_mutex_t *mutex);
+
+/* The owner's thread id, or zero when no live thread holds the mutex */
+int  _pthread_os_mutex_owner(pthread_mutex_t *mutex);
 
 /*
- * Robust mutexes keep the owner's thread id in the futex word, as
- * priority inheritance ones do, so the kernel can mark them when the
- * owner dies. Locking returns 0, EOWNERDEAD, ENOTRECOVERABLE or an
- * error; unlocking assumes the caller owns the mutex.
+ * Lock, or with trylock try to: 0, or EOWNERDEAD when the caller now
+ * holds a robust mutex whose owner died (the mutex is then
+ * inconsistent), or ENOTRECOVERABLE, EBUSY (trylock), EDEADLK (the
+ * caller holds it), ETIMEDOUT or EINVAL. A new owner's __count is
+ * zero.
  */
-#ifdef _PTHREAD_HAVE_ROBUST
-int  _pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t clock,
-                          const struct timespec *abstime, bool trylock);
-void _pthread_robust_unlock(pthread_mutex_t *mutex, struct __pthread *self);
-void _pthread_robust_reset(struct __pthread *self);
-bool _pthread_robust_available(void);
-/* The highest ceiling of the PTHREAD_PRIO_PROTECT robust mutexes held */
-int  _pthread_robust_ceiling(struct __pthread *self);
+int  _pthread_os_mutex_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t clock,
+                            const struct timespec *abstime, bool trylock);
+
+/*
+ * Unlock a mutex the caller holds; a robust mutex still inconsistent
+ * becomes unrecoverable
+ */
+void _pthread_os_mutex_unlock(pthread_mutex_t *mutex, struct __pthread *self);
+
+/* Make an inconsistent robust mutex the caller holds consistent: 0, or EINVAL */
+int  _pthread_os_mutex_consistent(pthread_mutex_t *mutex);
+
+/* In the child of fork, whose only thread holds no robust mutexes */
+void _pthread_os_mutex_fork_child(struct __pthread *self);
+
+/*
+ * The highest ceiling of the robust PTHREAD_PRIO_PROTECT mutexes the
+ * thread holds (which aren't on its tpp_list), or _PTHREAD_TPP_NONE
+ */
+int  _pthread_os_mutex_ceiling(struct __pthread *self);
 #else
 static inline int
-_pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t clock,
-                     const struct timespec *abstime, bool trylock)
+_pthread_os_mutex_init(pthread_mutex_t *mutex)
+{
+    (void)mutex;
+    return ENOTSUP;
+}
+
+static inline int
+_pthread_os_mutex_destroy(pthread_mutex_t *mutex)
+{
+    (void)mutex;
+    return 0;
+}
+
+static inline int
+_pthread_os_mutex_owner(pthread_mutex_t *mutex)
+{
+    (void)mutex;
+    return 0;
+}
+
+static inline int
+_pthread_os_mutex_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t clock,
+                       const struct timespec *abstime, bool trylock)
 {
     (void)mutex;
     (void)self;
@@ -359,26 +382,27 @@ _pthread_robust_lock(pthread_mutex_t *mutex, struct __pthread *self, clockid_t c
 }
 
 static inline void
-_pthread_robust_unlock(pthread_mutex_t *mutex, struct __pthread *self)
+_pthread_os_mutex_unlock(pthread_mutex_t *mutex, struct __pthread *self)
 {
     (void)mutex;
     (void)self;
 }
 
+static inline int
+_pthread_os_mutex_consistent(pthread_mutex_t *mutex)
+{
+    (void)mutex;
+    return EINVAL;
+}
+
 static inline void
-_pthread_robust_reset(struct __pthread *self)
+_pthread_os_mutex_fork_child(struct __pthread *self)
 {
     (void)self;
 }
 
-static inline bool
-_pthread_robust_available(void)
-{
-    return false;
-}
-
 static inline int
-_pthread_robust_ceiling(struct __pthread *self)
+_pthread_os_mutex_ceiling(struct __pthread *self)
 {
     (void)self;
     return _PTHREAD_TPP_NONE;
@@ -388,9 +412,9 @@ _pthread_robust_ceiling(struct __pthread *self)
 static inline int
 _pthread_mutex_owner(pthread_mutex_t *mutex)
 {
-    /* Priority inheritance and robust mutexes hold the owner in the futex word */
-    if (mutex->__protocol == PTHREAD_PRIO_INHERIT || mutex->__robust)
-        return (int)(__atomic_load_n(&mutex->__state, __ATOMIC_RELAXED) & _PTHREAD_FUTEX_TID_MASK);
+    /* OS mutexes keep the owner their own way */
+    if (_pthread_mutex_os(mutex))
+        return _pthread_os_mutex_owner(mutex);
     return __atomic_load_n(&mutex->__owner, __ATOMIC_RELAXED);
 }
 

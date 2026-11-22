@@ -44,7 +44,9 @@
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <time.h>
 
@@ -108,6 +110,34 @@ die_with_waiter(void *arg)
     holding = 1;
     nanosleep(&pause, NULL);
     return NULL;
+}
+
+/*
+ * Waits for the mutex; the first to get it after its owner died
+ * unlocks it without making it consistent, which makes it
+ * unrecoverable for the others, waiting or not
+ */
+static void *
+abandon(void *arg)
+{
+    int ret = pthread_mutex_lock(arg);
+
+    if (ret == EOWNERDEAD || ret == 0)
+        pthread_mutex_unlock(arg);
+    return (void *)(long)ret;
+}
+
+/* Waits for the mutex, recovering it when its owner died */
+static void *
+recover(void *arg)
+{
+    int ret = pthread_mutex_lock(arg);
+
+    if (ret == EOWNERDEAD && pthread_mutex_consistent(arg) != 0)
+        ret = -1;
+    if (ret == EOWNERDEAD || ret == 0)
+        pthread_mutex_unlock(arg);
+    return (void *)(long)ret;
 }
 
 static void *
@@ -188,6 +218,75 @@ not_owner(void *arg)
     return (void *)(long)pthread_mutex_unlock(arg);
 }
 
+#define NWAITERS 4
+
+/* Threads waiting when the owner dies: one gets EOWNERDEAD, the rest ENOTRECOVERABLE */
+static void
+unrecoverable_waiters(pthread_mutex_t *mutex)
+{
+    pthread_t thread, waiters[NWAITERS];
+    void     *result;
+    int       dead = 0, unrecoverable = 0;
+
+#ifdef TEST_GLIBC
+    /* glibc wakes only one waiter, leaving the others blocked forever */
+    check(pthread_mutex_destroy(mutex) == 0, "destroy");
+    return;
+#endif
+    holding = 0;
+    check(pthread_create(&thread, NULL, die_with_waiter, mutex) == 0, "pthread_create");
+    while (!holding)
+        sched_yield();
+    for (int i = 0; i < NWAITERS; i++)
+        check(pthread_create(&waiters[i], NULL, abandon, mutex) == 0, "pthread_create");
+    check(pthread_join(thread, NULL) == 0, "pthread_join");
+    for (int i = 0; i < NWAITERS; i++) {
+        check(pthread_join(waiters[i], &result) == 0, "pthread_join");
+        if ((long)result == EOWNERDEAD)
+            dead++;
+        else if ((long)result == ENOTRECOVERABLE)
+            unrecoverable++;
+    }
+    check(dead == 1 && unrecoverable == NWAITERS - 1, "waiters after an abandoned mutex");
+    check(pthread_mutex_lock(mutex) == ENOTRECOVERABLE, "lock after waiters");
+    check(pthread_mutex_destroy(mutex) == 0, "destroy");
+}
+
+/*
+ * A process-shared mutex whose owning process is killed while a thread
+ * of another process waits for it
+ */
+static void
+killed_owner(void)
+{
+    struct timespec delay = { 0, 50 * 1000 * 1000 };
+    pthread_t       thread;
+    void           *result;
+    pid_t           pid;
+    int             ready[2], status;
+    char            c;
+
+    check(pipe(ready) == 0, "pipe");
+    pid = fork();
+    check(pid >= 0, "fork");
+    if (pid == 0) {
+        if (pthread_mutex_lock(shared) != 0)
+            _exit(1);
+        if (write(ready[1], "x", 1) != 1)
+            _exit(1);
+        for (;;)
+            pause();
+    }
+    check(read(ready[0], &c, 1) == 1, "child locked");
+    check(pthread_create(&thread, NULL, recover, shared) == 0, "pthread_create");
+    nanosleep(&delay, NULL);
+    check(kill(pid, SIGKILL) == 0, "kill");
+    check(waitpid(pid, &status, 0) == pid && WIFSIGNALED(status), "child killed");
+    check(pthread_join(thread, &result) == 0 && (long)result == EOWNERDEAD, "waiter EOWNERDEAD");
+    close(ready[0]);
+    close(ready[1]);
+}
+
 static void
 run(void)
 {
@@ -244,6 +343,10 @@ run(void)
     check(pthread_mutex_trylock(&mutex) == ENOTRECOVERABLE, "trylock ENOTRECOVERABLE");
     check(pthread_mutex_destroy(&mutex) == 0, "destroy");
 
+    /* Waiters learn of it too */
+    init_robust(&mutex, 0);
+    unrecoverable_waiters(&mutex);
+
     /* A recursive mutex's new owner doesn't inherit the dead owner's depth */
     init_robust_type(&mutex, 0, PTHREAD_MUTEX_RECURSIVE);
     check(pthread_create(&thread, NULL, die_holding_twice, &mutex) == 0, "pthread_create");
@@ -285,9 +388,101 @@ run(void)
           "child");
     check(pthread_mutex_lock(shared) == EOWNERDEAD, "process EOWNERDEAD");
     check(pthread_mutex_consistent(shared) == 0 && pthread_mutex_unlock(shared) == 0, "recover");
+    killed_owner();
+    check(pthread_mutex_lock(shared) == 0, "recovered across processes");
+    check(pthread_mutex_unlock(shared) == 0, "unlock");
+
+    /* A process-shared mutex whose owning thread exits */
+    orphan(shared);
+    pid = fork();
+    check(pid >= 0, "fork");
+    if (pid == 0) {
+        if (pthread_mutex_lock(shared) != EOWNERDEAD)
+            _exit(1);
+        if (pthread_mutex_unlock(shared) != 0)
+            _exit(2);
+        _exit(0);
+    }
+    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+          "child EOWNERDEAD");
+    check(pthread_mutex_lock(shared) == ENOTRECOVERABLE, "process ENOTRECOVERABLE");
+    check(pthread_mutex_destroy(shared) == 0, "destroy");
+
+    /* Waiters in this process, on a process-shared mutex */
+    init_robust(shared, 1);
+    unrecoverable_waiters(shared);
+
+    /* A new mutex in the same place works */
+    init_robust(shared, 1);
+    check(pthread_mutex_lock(shared) == 0 && pthread_mutex_unlock(shared) == 0, "reinitialized");
     check(pthread_mutex_destroy(shared) == 0 && munmap(shared, sizeof(*shared)) == 0, "cleanup");
 
     check(pthread_mutex_consistent(&plain) == EINVAL, "not robust");
+}
+
+/*
+ * pthread_mutex_init may need memory for a robust mutex, and must then
+ * report ENOMEM, not fail later
+ */
+static void
+out_of_memory(int pshared)
+{
+    struct rlimit   limit = { 64 * 1024 * 1024, 64 * 1024 * 1024 };
+    pthread_mutex_t mutex, *m = &mutex;
+    pid_t           pid;
+    int             status;
+
+    if (pshared) {
+        m = mmap(NULL, sizeof(*m), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+        check(m != MAP_FAILED, "mmap");
+    }
+    pid = fork();
+    check(pid >= 0, "fork");
+    if (pid == 0) {
+        pthread_mutexattr_t attr;
+        void               *list = NULL, *p;
+        size_t              size = 1024 * 1024;
+        int                 ret;
+
+        if (pthread_mutexattr_init(&attr) != 0
+            || pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST) != 0
+            || pthread_mutexattr_setpshared(
+                   &attr, pshared ? PTHREAD_PROCESS_SHARED : PTHREAD_PROCESS_PRIVATE)
+                != 0)
+            _exit(1);
+        if (setrlimit(RLIMIT_AS, &limit) != 0)
+            _exit(77);
+        /* Use up the memory */
+        while (size >= sizeof(void *)) {
+            p = malloc(size);
+            if (p) {
+                *(void **)p = list;
+                list = p;
+            } else {
+                size /= 2;
+            }
+        }
+        ret = pthread_mutex_init(m, &attr);
+        if (ret == ENOMEM)
+            _exit(0);
+        if (ret != 0)
+            _exit(2);
+        /* It needed no memory */
+        if (pthread_mutex_lock(m) != 0 || pthread_mutex_unlock(m) != 0
+            || pthread_mutex_destroy(m) != 0)
+            _exit(3);
+        _exit(0);
+    }
+    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "out of memory child");
+    if (WEXITSTATUS(status) == 77)
+        printf("can't limit the address space; not checking ENOMEM\n");
+    else if (WEXITSTATUS(status) != 0) {
+        printf("out of memory, %s: child status %d\n", pshared ? "shared" : "private",
+               WEXITSTATUS(status));
+        exit(1);
+    }
+    if (pshared)
+        munmap(m, sizeof(*m));
 }
 
 int
@@ -300,6 +495,8 @@ main(void)
     protocol = PTHREAD_PRIO_INHERIT;
     run();
 #endif
+    out_of_memory(0);
+    out_of_memory(1);
     printf("success\n");
     return 0;
 }
