@@ -41,6 +41,7 @@ set(tests
   test-fcntl-locks
   test-fcntl-setlkw
   test-fcntl-setown
+  test-o_path
   test-o_search
   test-open
   test-openat

@@ -61,6 +61,10 @@ _open_flags_from_freebsd(int kflags)
     if (kflags & FREEBSD_O_NONBLOCK)
         flags |= O_NONBLOCK;
 #endif
+#ifdef O_PATH
+    if (kflags & FREEBSD_O_PATH)
+        flags |= O_PATH;
+#endif
 #ifdef O_SYNC
     if (kflags & FREEBSD_O_SYNC)
         flags |= O_SYNC;
