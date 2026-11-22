@@ -50,6 +50,9 @@ struct rlimit {
     rlim_t rlim_max;
 };
 
+/* The priorities, resource usage and CPU limit are XSI */
+#if __XSI_VISIBLE || __MISC_VISIBLE
+
 /*
  * POSIX requires only ru_utime and ru_stime; the rest are the BSD
  * fields every Unix C library has (POSIX reserves the ru_ prefix)
@@ -73,27 +76,30 @@ struct rusage {
     long           ru_nivcsw;   /* involuntary context switches */
 };
 
-#define RLIM_INFINITY   __INT64_MAX__
-#define RLIM_SAVED_MAX  RLIM_INFINITY
-#define RLIM_SAVED_CUR  RLIM_INFINITY
-
 #define RUSAGE_SELF     0  /* calling process */
 #define RUSAGE_CHILDREN -1 /* terminated child processes */
 #if __GNU_VISIBLE
 #define RUSAGE_THREAD 1
 #endif
 
-#define PRIO_PROCESS  0
-#define PRIO_PGRP     1
-#define PRIO_USER     2
+#define PRIO_PROCESS 0
+#define PRIO_PGRP    1
+#define PRIO_USER    2
 
-#define RLIMIT_CPU    0 /* Limit on CPU time per process. */
-#define RLIMIT_FSIZE  1 /* Limit on file size. */
-#define RLIMIT_DATA   2 /* Limit on data segment size. */
-#define RLIMIT_STACK  3 /* Limit on stack size. */
-#define RLIMIT_CORE   4 /* Limit on size of core image. */
-#define RLIMIT_NOFILE 5 /* Limit on number of open files. */
-#define RLIMIT_AS     6 /* Limit on address space size. */
+#define RLIMIT_CPU   0 /* Limit on CPU time per process. */
+
+#endif /* __XSI_VISIBLE || __MISC_VISIBLE */
+
+#define RLIM_INFINITY  __INT64_MAX__
+#define RLIM_SAVED_MAX RLIM_INFINITY
+#define RLIM_SAVED_CUR RLIM_INFINITY
+
+#define RLIMIT_FSIZE   1 /* Limit on file size. */
+#define RLIMIT_DATA    2 /* Limit on data segment size. */
+#define RLIMIT_STACK   3 /* Limit on stack size. */
+#define RLIMIT_CORE    4 /* Limit on size of core image. */
+#define RLIMIT_NOFILE  5 /* Limit on number of open files. */
+#define RLIMIT_AS      6 /* Limit on address space size. */
 
 /* XSI, and visible by default as in the BSDs and glibc */
 #if __XSI_VISIBLE || __MISC_VISIBLE

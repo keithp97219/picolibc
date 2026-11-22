@@ -34,6 +34,8 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+/* RLIMIT_CPU is XSI */
+#define _XOPEN_SOURCE 800
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
