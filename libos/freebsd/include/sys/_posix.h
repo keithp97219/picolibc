@@ -102,9 +102,8 @@
  * Options built on libos/pthread with thr_new and _umtx_op. Clock
  * selection and timeouts include pthread_condattr_setclock and the
  * timed locks, so they need the threads too. Priority inheritance and
- * robust mutexes would need the kernel's umutex layout, which
- * pthread_mutex_t doesn't have. Priority protection works, but no test
- * covers it without priority inheritance yet.
+ * robust mutexes use the kernel's struct umutex, allocated beside the
+ * mutex.
  */
 #ifdef __PICOLIBC_PTHREADS
 #define __PICOLIBC_OS_BARRIERS                     202405L
@@ -116,9 +115,12 @@
 #define __PICOLIBC_OS_THREAD_ATTR_STACKADDR        202405L
 #define __PICOLIBC_OS_THREAD_ATTR_STACKSIZE        202405L
 #define __PICOLIBC_OS_THREAD_CPUTIME               202405L
+#define __PICOLIBC_OS_THREAD_PRIO_INHERIT          202405L
 #define __PICOLIBC_OS_THREAD_PRIORITY_SCHEDULING   202405L
 #define __PICOLIBC_OS_THREAD_PRIO_PROTECT          202405L
 #define __PICOLIBC_OS_THREAD_PROCESS_SHARED        202405L
+#define __PICOLIBC_OS_THREAD_ROBUST_PRIO_INHERIT   202405L
+#define __PICOLIBC_OS_THREAD_ROBUST_PRIO_PROTECT   202405L
 #define __PICOLIBC_OS_TIMEOUTS                     202405L
 #endif
 
