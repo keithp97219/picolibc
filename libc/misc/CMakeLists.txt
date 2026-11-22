@@ -45,7 +45,63 @@ picolibc_sources(
   fini.c
   init.c
   inittls.c
-  libatomic.c
+  libatomic_compare_exchange.c
+  libatomic_compare_exchange_1.c
+  libatomic_compare_exchange_16.c
+  libatomic_compare_exchange_2.c
+  libatomic_compare_exchange_4.c
+  libatomic_compare_exchange_8.c
+  libatomic_exchange.c
+  libatomic_exchange_1.c
+  libatomic_exchange_16.c
+  libatomic_exchange_2.c
+  libatomic_exchange_4.c
+  libatomic_exchange_8.c
+  libatomic_fetch_add_1.c
+  libatomic_fetch_add_16.c
+  libatomic_fetch_add_2.c
+  libatomic_fetch_add_4.c
+  libatomic_fetch_add_8.c
+  libatomic_fetch_and_1.c
+  libatomic_fetch_and_16.c
+  libatomic_fetch_and_2.c
+  libatomic_fetch_and_4.c
+  libatomic_fetch_and_8.c
+  libatomic_fetch_nand_1.c
+  libatomic_fetch_nand_16.c
+  libatomic_fetch_nand_2.c
+  libatomic_fetch_nand_4.c
+  libatomic_fetch_nand_8.c
+  libatomic_fetch_or_1.c
+  libatomic_fetch_or_16.c
+  libatomic_fetch_or_2.c
+  libatomic_fetch_or_4.c
+  libatomic_fetch_or_8.c
+  libatomic_fetch_sub_1.c
+  libatomic_fetch_sub_16.c
+  libatomic_fetch_sub_2.c
+  libatomic_fetch_sub_4.c
+  libatomic_fetch_sub_8.c
+  libatomic_fetch_xor_1.c
+  libatomic_fetch_xor_16.c
+  libatomic_fetch_xor_2.c
+  libatomic_fetch_xor_4.c
+  libatomic_fetch_xor_8.c
+  libatomic_is_lock_free.c
+  libatomic_load.c
+  libatomic_load_1.c
+  libatomic_load_16.c
+  libatomic_load_2.c
+  libatomic_load_4.c
+  libatomic_load_8.c
+  libatomic_lock.c
+  libatomic_store.c
+  libatomic_store_1.c
+  libatomic_store_16.c
+  libatomic_store_2.c
+  libatomic_store_4.c
+  libatomic_store_8.c
+  libatomic_test_and_set.c
   lock.c
   unctrl.c
   )

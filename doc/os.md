@@ -528,15 +528,22 @@ and stops with an error if the header defines one of those itself.
     - `C_LANG_ATOMICS` relies on the libatomic functions compilers
       call for atomic objects the target can't access lock-free, such
       as large structures (`__atomic_load` and the like), which
-      picolibc provides in `libc/misc/libatomic.c`. Sizes the compiler
-      accesses lock-free use its builtins; the others take locks from
-      a small table hashed by address, built from the retargetable
-      locks, so they're mutexes with threads and nothing without.
-      They're weak, so a toolchain's libatomic linked as well takes
-      over. Without atomic read-modify-write instructions (armv6-m,
-      RISC-V without A), GCC still accesses `char`, `short` and `int`
-      objects with plain loads and stores, which the locks don't
-      exclude, and on bare metal nothing excludes interrupt handlers.
+      picolibc provides in `libc/misc/libatomic_*.c`, one operation
+      and size per object so a program links only what it calls. Sizes
+      the compiler accesses lock-free use its builtins; the others
+      take locks from one small table hashed by address
+      (`libatomic_lock.c`), built from the retargetable locks, so
+      they're mutexes with threads and nothing without. They're weak,
+      so a toolchain's libatomic linked as well takes over. That is
+      per function: with a link order which takes some functions from
+      libatomic and others from picolibc (picolibc's `libc.a` searched
+      first for one call, libatomic for another), the two sets use
+      different locks and don't exclude each other on the same
+      object; link one or the other. Without atomic read-modify-write
+      instructions (armv6-m, RISC-V without A), GCC still accesses
+      `char`, `short` and `int` objects with plain loads and stores,
+      which the locks don't exclude, and on bare metal nothing
+      excludes interrupt handlers.
 
    The OS's part of each group is the group's interfaces that picolibc
    doesn't implement:

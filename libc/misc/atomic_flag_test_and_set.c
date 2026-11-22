@@ -44,7 +44,7 @@
 #ifdef __GNUCLIKE_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic ignored "-Wpragmas"
 #pragma GCC diagnostic ignored "-Wunknown-warning-option"
-/* Without inline atomics, the compiler calls libc/misc/libatomic.c */
+/* Without inline atomics, the compiler calls libc/misc/libatomic_*.c */
 #pragma GCC diagnostic ignored "-Watomic-alignment"
 #endif
 

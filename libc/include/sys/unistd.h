@@ -1104,7 +1104,7 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 /*
  * Options and option groups picolibc provides itself. C_LANG_ATOMICS
  * includes the libatomic functions compilers call for atomic objects
- * without lock-free access (libc/misc/libatomic.c)
+ * without lock-free access (libc/misc/libatomic_*.c)
  */
 #define _POSIX_REGEXP                     1
 #define _POSIX2_C_BIND                    202405L

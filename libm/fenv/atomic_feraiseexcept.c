@@ -37,7 +37,7 @@
  * GCC calls this, from the libatomic ABI, to raise the floating-point
  * exceptions of a compound assignment to an _Atomic floating-point
  * object. Weak, like the other libatomic functions in
- * libc/misc/libatomic.c, so a toolchain's libatomic can supply it.
+ * libc/misc/libatomic_*.c, so a toolchain's libatomic can supply it.
  */
 
 #include <sys/cdefs.h>
