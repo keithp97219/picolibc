@@ -49,7 +49,7 @@ FILE * const __posix_stderr = &__stderr.xfile.cfile.file;
 
 __weak_reference(__posix_stderr, stderr);
 
-#if __PICOLIBC_STDERR_BUFSIZE > 1
+#if __PICOLIBC_STDERR_BUFSIZ > 1
 /*
  * Add a destructor function to get stderr flushed on
  * exit
