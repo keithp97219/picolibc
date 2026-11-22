@@ -59,7 +59,7 @@ srcs_semihost_hexagon = [
                        'hexagon_write.c',
                        ]
 
-if not get_option('os-linux')
+if not os_linux
   srcs_libos += srcs_semihost_hexagon
 endif
 

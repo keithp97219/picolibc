@@ -35,4 +35,4 @@
 #
 # FreeBSD amd64 binaries, built and tested on FreeBSD
 #
-exec "$(dirname "$0")"/do-configure clang-x86_64-freebsd -Dtests=true -Dmultilib=false -Dsemihost=false -Dos-freebsd=true -Dtests-enable-posix-io=true -Dcrt0-test=freebsd -Doslib-test=freebsd -Dlinkerscript-test=linux "$@"
+exec "$(dirname "$0")"/do-configure clang-x86_64-freebsd -Dtests=true -Dmultilib=false -Dsemihost=false -Dos=freebsd -Dtests-enable-posix-io=true -Dcrt0-test=freebsd -Doslib-test=freebsd -Dlinkerscript-test=linux "$@"

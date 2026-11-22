@@ -145,7 +145,7 @@ if thread_local_storage
   }
 endif
 
-if has_crt0_linux and get_option('os-linux')
+if has_crt0_linux and os_linux
   picocrt_variants += {
     'name': 'linux',
     'suffix': '-linux',
@@ -154,7 +154,7 @@ if has_crt0_linux and get_option('os-linux')
   }
 endif
 
-if has_crt0_freebsd and get_option('os-freebsd')
+if has_crt0_freebsd and os_freebsd
   picocrt_variants += {
     'name': 'freebsd',
     'suffix': '-freebsd',

@@ -84,3 +84,45 @@ if has_os_fallback
 
   endforeach
 endif
+
+# With os-in-libc, the fallback sits in libc.a underneath the OS layer,
+# which provides every OS interface itself (doc/os.md) but may call
+# the fallback's helpers (__fallback_fpathconf, ...). Built with
+# __FALLBACK_HELPERS_ONLY, these objects define only __fallback_* and
+# __baremetal_* names, none of the public ones: in a single archive a
+# second definition of a public name, weak or not, could be chosen
+# over the OS layer's. kill.c and getpid.c have no helpers.
+srcs_os_fallback_helpers = []
+foreach file : srcs_os_fallback
+  if file not in ['getpid.c', 'kill.c']
+    srcs_os_fallback_helpers += file
+  endif
+endforeach
+
+if os_in_libc
+  foreach params : targets
+    target = params['name']
+    target_dir = params['dir']
+    target_c_args = params['c_args']
+
+    if meson.version().version_compare('>=1.10')
+      _lib = static_library(libfallback_name + '-helpers',
+                            files(srcs_os_fallback_helpers),
+                            build_subdir : target_dir,
+                            install : false,
+                            include_directories : inc,
+                            c_args : target_c_args + c_args + ['-D__FALLBACK_HELPERS_ONLY'])
+    else
+      target_lib_prefix = params['lib_prefix']
+      _lib = static_library(join_paths(target_dir,
+                                       target_lib_prefix + libfallback_name + '-helpers'),
+                            files(srcs_os_fallback_helpers),
+                            install : false,
+                            include_directories : inc,
+                            c_args : target_c_args + c_args + ['-D__FALLBACK_HELPERS_ONLY'])
+    endif
+
+    set_variable('libos_fallback_lib' + target, _lib)
+
+  endforeach
+endif

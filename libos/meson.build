@@ -44,15 +44,22 @@ subdir('pthread')
 
 subdir('common')
 
-if get_option('os-linux')
+if os_linux
   subdir('linux')
 endif
 
-if get_option('os-freebsd')
+if os_freebsd
   subdir('freebsd')
 endif
 
-if os_fallback_option == 'auto'
+if os_in_libc
+  # The fallback files the OS layer doesn't replace go into libc.a
+  # too (libc/meson.build); there's no separate fallback library
+  if os_fallback_option == 'true'
+    error('os-fallback=true conflicts with os-in-libc, which puts the fallback into libc.a')
+  endif
+  has_os_fallback = false
+elif os_fallback_option == 'auto'
   has_os_fallback = has_os_linux or has_os_freebsd or use_stdlib
 endif
 

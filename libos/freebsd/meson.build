@@ -371,7 +371,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
       _lib = static_library(libfreebsd_name,
                             src_os_freebsd,
                             build_subdir : target_dir,
-                            install : really_install,
+                            install : really_install and not os_in_libc,
                             install_dir : instdir,
                             include_directories : [freebsd_inc, pthread_inc, inc],
                             c_args : target_c_args + c_args)
@@ -379,13 +379,18 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
       target_lib_prefix = params['lib_prefix']
       _lib = static_library(join_paths(target_dir, target_lib_prefix + libfreebsd_name),
                             src_os_freebsd,
-                            install : really_install,
+                            install : really_install and not os_in_libc,
                             install_dir : instdir,
                             include_directories : [freebsd_inc, pthread_inc, inc],
                             c_args : target_c_args + c_args)
     endif
 
-    set_variable('lib_freebsd' + target, _lib)
+    # With os-in-libc, these objects go into libc.a (see the top
+    # meson.build) and there is no libfreebsd.a to link
+    set_variable('libos_lib' + target, _lib)
+    if not os_in_libc
+      set_variable('lib_freebsd' + target, _lib)
+    endif
 
   endforeach
 

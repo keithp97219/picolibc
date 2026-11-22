@@ -838,6 +838,34 @@ include the functions in object files with the rest of your
 application, which avoids the problem with libraries. Note that this
 mechanism requires the definition of _exit in the myos library.
 
+## Building the OS layer into libc
+
+picolibc's own OS layers are selected with `-Dos=linux` or
+`-Dos=freebsd`. By default the layer is a separate library,
+`liblinux.a` or `libfreebsd.a`, which the cross file's `oslib_default`
+makes picolibc.specs link after libc (or which `--oslib=` names), with
+`libos-fallback.a` after both. With `-Dos-in-libc=true` the layer is
+built into `libc.a` instead:
+
+ * the OS layer's files replace the generic files of the same names,
+   as machine files do, now within one archive;
+ * libos/fallback goes in underneath, built so that it defines only
+   its helpers (`__fallback_fpathconf`, `__baremetal_sysconf`, ...),
+   which the OS layer may call; every public name comes from the OS
+   layer or libc. (Within one archive a second definition of a public
+   name, even a weak one, could be picked over the OS layer's.) There
+   is no `libos-fallback.a`;
+ * no `lib<os>.a` is installed, and picolibc.specs links `-lc` alone;
+   an explicit `--oslib=` still adds the library it names;
+ * the OS headers (`<sys/_posix.h>`, `<sys/_signal.h>`, the socket ABI
+   headers and the OS's own) are installed with picolibc's headers, as
+   they are with a separate OS library, so `libc.a` and the headers
+   describe the same OS by construction.
+
+`scripts/do-x86_64-linux-unified-configure` and
+`scripts/do-clang-x86_64-freebsd-unified-configure` build these. The
+library holds one OS layer; a build produces one OS's libraries.
+
 ## Semihosting support
 
 For RISC-V and ARM processors, Picolibc provides an implementation of

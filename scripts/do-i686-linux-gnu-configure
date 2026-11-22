@@ -41,7 +41,7 @@ meson setup \
 	-Ddebug=true \
 	--cross-file "$DIR"/cross-i686-linux-gnu.txt \
 	-Dsemihost=false \
-	-Dos-linux=true \
+	-Dos=linux \
 	-Dtmpdir=/tmp/ \
 	-Dmultilib=false \
 	-Dtests=true \

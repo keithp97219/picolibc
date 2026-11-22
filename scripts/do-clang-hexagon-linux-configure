@@ -37,4 +37,4 @@ case "$*" in
 	EXTRA="-Doptimization=2"
 	;;
 esac
-exec "$(dirname "$0")"/do-configure clang-hexagon-linux -Dtests=true -Dmultilib=false -Dos-linux=true -Dtests-enable-posix-io=true -Dtest-stdin=true -Dcrt0-test=linux -Doslib-test=linux -Dlinkerscript-test=linux "$@" $EXTRA
+exec "$(dirname "$0")"/do-configure clang-hexagon-linux -Dtests=true -Dmultilib=false -Dos=linux -Dtests-enable-posix-io=true -Dtest-stdin=true -Dcrt0-test=linux -Doslib-test=linux -Dlinkerscript-test=linux "$@" $EXTRA

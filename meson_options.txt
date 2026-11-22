@@ -132,10 +132,14 @@ option('use-stdlib', type: 'boolean', value: false,
        description: 'Do not bypass the standard system library with -nostdlib (useful for native testing)')
 option('semihost', type: 'boolean', value: true,
        description: 'Include semihost bits. Disable when doing native testing.')
-option('os-linux', type: 'boolean', value: false,
-       description: 'Include libos/linux bits. Enable for native Linux OS support.')
-option('os-freebsd', type: 'boolean', value: false,
-       description: 'Include libos/freebsd bits. Enable for FreeBSD OS support.')
+option('os', type: 'combo', choices: ['none', 'linux', 'freebsd'], value: 'none',
+       description: 'OS layer (libos/<os>) providing the OS interfaces and describing the OS in <sys/_posix.h>')
+option('os-in-libc', type: 'boolean', value: false,
+       description: 'Build the os layer into libc.a instead of a separate lib<os>.a selected with --oslib')
+option('os-linux', type: 'boolean', value: false, deprecated: true,
+       description: 'Deprecated: use -Dos=linux')
+option('os-freebsd', type: 'boolean', value: false, deprecated: true,
+       description: 'Deprecated: use -Dos=freebsd')
 option('fake-semihost', type: 'boolean', value: true,
        description: 'create fake semihost library to link tests [ignored]')
 option('crt0-test', type: 'string', value: '',
@@ -184,7 +188,7 @@ option('fast-bufio', type: 'boolean', value: false,
 option('io-wchar', type: 'boolean', value: false,
        description: 'enable wide character support in printf/scanf (requires multi-byte support)')
 option('stdio-locking', type: 'boolean', value: false,
-       description: 'perform POSIX-conforming file locking for all stdio operations (always on with os-linux)')
+       description: 'perform POSIX-conforming file locking for all stdio operations (always on with an os layer)')
 option('have-fcntl', type: 'boolean', value: false,
        description: 'system provides fcntl function')
 option('fstat-bufsiz', type: 'boolean', value: false,
@@ -192,7 +196,7 @@ option('fstat-bufsiz', type: 'boolean', value: false,
 option('stderr-buffered', type: 'boolean', value: false,
        description: 'line buffer stderr on POSIX OS layers instead of writing each byte (default: false)')
 option('stdio-exit-flush', type: 'boolean', value: false,
-       description: 'flush all runtime allocated bufio files at exit and fflush(NULL) (always on with os-linux)')
+       description: 'flush all runtime allocated bufio files at exit and fflush(NULL) (always on with an os layer)')
 
 #
 # Internationalization options

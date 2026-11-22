@@ -37,7 +37,7 @@
 #
 exec "$(dirname "$0")"/do-configure arm-linux-gnueabihf \
 	-Dsemihost=false \
-	-Dos-linux=true \
+	-Dos=linux \
 	-Dtmpdir=/tmp/ \
 	-Dnative-tests=true \
 	-Dtests=true \

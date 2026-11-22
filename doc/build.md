@@ -91,6 +91,23 @@ testing the library using the host compiler and host C library.
 | use-hlt-semihosting         | false   | Selects the HLT trap instruction for semihosting on AArch32 targets with Armv8 or later |
 | use-stdlib                  | false   | Do not link tests with -nostdlib. Useful for native testing.                         |
 
+### Operating system options
+
+These choose the OS layer, the library under picolibc which provides
+the operating system interfaces (see [os.md](os.md)). Without one,
+picolibc is built for bare metal, with libos/fallback in libc.a.
+
+| Option                      | Default | Description                                                                          |
+| ------                      | ------- | -----------                                                                          |
+| os                          | none    | OS layer: `none`, `linux` (libos/linux) or `freebsd` (libos/freebsd). Its headers (`<sys/_posix.h>` and the others) are installed with picolibc's. A layer without support for the target machine is left out |
+| os-in-libc                  | false   | Build the OS layer into libc.a instead of a separate lib&lt;os&gt;.a, so programs link without `--oslib`. libos/fallback's helpers go in underneath it; no libos-fallback.a is built |
+| os-fallback                 | auto    | Build libos/fallback as a separate libos-fallback.a (true) or not (false: it goes into libc.a only without an OS layer); 'auto' is true with an OS layer. Not used with os-in-libc |
+| os-linux                    | false   | Deprecated: use `-Dos=linux`                                                         |
+| os-freebsd                  | false   | Deprecated: use `-Dos=freebsd`                                                       |
+| crt0-test                   |         | crt0 variant for tests (default: semihost, else the OS layer's)                      |
+| oslib-test                  |         | OS library for tests (default: semihost, else the OS layer). With os-in-libc it must be empty or name that OS |
+| linkerscript-test           |         | Linker script variant for tests                                                      |
+
 ### Stdio options
 
 For stdin/stdout/stderr, the application will need to provide
@@ -186,8 +203,8 @@ locking as described in [locking.md](locking.md).
 | Option                      | Default | Description                                                                          |
 | ------                      | ------- | -----------                                                                          |
 | single-thread               | false   | Disable support for locks                                                            |
-| stdio-locking               | false   | Perform POSIX-conforming per-file locking for all stdio operations (ignored when single-thread is true; always on with os-linux) |
-| posix-threads               | auto    | Provide POSIX threads (`<pthread.h>`) and real library locks from the OS layer. 'auto' enables them for os-linux on machines with thread support (currently x86); requires thread local storage and not single-thread |
+| stdio-locking               | false   | Perform POSIX-conforming per-file locking for all stdio operations (ignored when single-thread is true; always on with an os layer) |
+| posix-threads               | auto    | Provide POSIX threads (`<pthread.h>`) and real library locks from the OS layer. 'auto' enables them with an os layer on machines where it supports threads (linux: aarch64, arm, hexagon, x86; freebsd: x86); requires thread local storage and not single-thread |
 | network                     | auto    | Networking API and ABI: 'linux' and 'freebsd' use that OS layer's sockets; 'auto' selects the one being built, and 'none' otherwise |
 | network-dns                 | auto    | Look up host names missing from /etc/hosts with DNS, configured by /etc/resolv.conf. 'auto' enables it with network=linux |
 
