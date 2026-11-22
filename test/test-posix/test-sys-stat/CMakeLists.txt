@@ -38,6 +38,7 @@ set(tests
   test-fchmod
   test-fchmodat
   test-fstatat
+  test-fstatat-empty
   test-futimens
   test-lstat
   test-makedev
