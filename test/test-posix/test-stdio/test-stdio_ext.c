@@ -34,13 +34,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /*
  * The stdio_ext.h functions are a Solaris/glibc extension; check
  * picolibc and glibc (the -native test) against each other
  */
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && (defined(__PICOLIBC__) || defined(TEST_GLIBC))
+#if TEST_POSIX_FILE_SYSTEM && (defined(__PICOLIBC__) || defined(TEST_GLIBC))
 
 #include <stdio.h>
 #include <stdio_ext.h>
