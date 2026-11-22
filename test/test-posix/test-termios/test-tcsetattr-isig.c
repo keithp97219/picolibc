@@ -202,6 +202,12 @@ in_child(int (*fn)(void))
 static int  manager;
 static char name[64];
 
+static void
+on_tstp(int sig)
+{
+    (void)sig;
+}
+
 /* A process in the foreground group, which waits for SIGINT */
 static int
 foreground_member(void)
@@ -219,6 +225,12 @@ session(void)
     pid_t          member, outsider;
     int            status;
 
+    /*
+     * The session leader's process group is orphaned, and there a
+     * SIGTSTP whose default action would stop the process may be
+     * discarded even while blocked (FreeBSD's is), so catch it
+     */
+    check(signal(SIGTSTP, on_tstp) != SIG_ERR, "catch SIGTSTP");
     sigemptyset(&mask);
     sigaddset(&mask, SIGINT);
     sigaddset(&mask, SIGQUIT);

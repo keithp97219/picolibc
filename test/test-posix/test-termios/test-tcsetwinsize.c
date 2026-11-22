@@ -86,6 +86,12 @@ open_pty(int *subsidiary, int flags)
 }
 
 #ifdef __PICOLIBC__
+static void
+on_winch(int sig)
+{
+    (void)sig;
+}
+
 /* Whether a blocked signal is pending; it is taken if it is */
 static int
 pending(int sig)
@@ -114,6 +120,11 @@ session(const char *name)
     fd = open(name, O_RDWR);
     if (fd < 0 || tcgetsid(fd) != getpid())
         return 77;
+    /*
+     * SIGWINCH is ignored by default, and an ignored signal may be
+     * discarded even while blocked (FreeBSD's is), so catch it
+     */
+    check(signal(SIGWINCH, on_winch) != SIG_ERR, "catch SIGWINCH");
     sigemptyset(&set);
     sigaddset(&set, SIGWINCH);
     check(sigprocmask(SIG_BLOCK, &set, NULL) == 0, "block SIGWINCH");

@@ -112,11 +112,16 @@ take_ctty(const char *name)
     return fd;
 }
 
-/* Runs fn in a child and returns its exit status, passing 77 on */
+/*
+ * Runs fn in a child and returns its exit status, passing 77 on, while
+ * reading and discarding what reaches the manager: a pseudo-terminal's
+ * output may count as sent only once the manager has read it
+ * (FreeBSD's does), so tcdrain and writes would otherwise wait
+ */
 static int
-in_child(int (*fn)(void))
+draining(int manager, int (*fn)(void))
 {
-    pid_t pid;
+    pid_t pid, done;
     int   status;
 
     fflush(stdout);
@@ -128,7 +133,14 @@ in_child(int (*fn)(void))
         fflush(stdout);
         _exit(ret);
     }
-    check(waitpid(pid, &status, 0) == pid, "waitpid");
+    while ((done = waitpid(pid, &status, WNOHANG)) == 0) {
+        struct pollfd pfd = { .fd = manager, .events = POLLIN };
+        char          buf[64];
+
+        if (poll(&pfd, 1, 10) == 1 && (pfd.revents & POLLIN))
+            (void)!read(manager, buf, sizeof(buf));
+    }
+    check(done == pid, "waitpid");
     check(WIFEXITED(status), "child exited");
     return WEXITSTATUS(status);
 }
@@ -231,8 +243,12 @@ orphan(pid_t parent)
     snprintf(buf, sizeof(buf), "%ld\n", (long)getpid());
     say(buf);
 
-    /* The group is orphaned once the parent, its only link to the session, exits */
-    for (i = 0; getppid() == parent; i++) {
+    /*
+     * The group is orphaned once the parent, its only link to the
+     * session, exits; wait for it to be reaped, not just for this
+     * process to be adopted, as until then FreeBSD still counts it
+     */
+    for (i = 0; getppid() == parent || kill(parent, 0) == 0; i++) {
         struct timespec ts = { .tv_nsec = 10 * 1000 * 1000 };
 
         if (i == 2000) {
@@ -348,6 +364,12 @@ background(pid_t leader)
     check(pid >= 0, "fork orphan");
     if (pid == 0)
         orphan(self);
+    /*
+     * Make the group here as well, so it exists before this process
+     * exits: FreeBSD doesn't count a group made later, by a process
+     * already adopted from outside the session, as orphaned
+     */
+    (void)setpgid(pid, pid);
     return 0;
 }
 
@@ -419,7 +441,7 @@ main(void)
     strcpy(name, n);
     check(close(subsidiary) == 0, "close subsidiary");
 
-    ret = in_child(session);
+    ret = draining(manager, session);
     if (ret == 77)
         return 77;
     check(ret == 0, "session checks");
