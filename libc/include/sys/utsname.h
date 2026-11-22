@@ -55,8 +55,8 @@ int uname(struct utsname *) __picolibc_export;
 int __baremetal_uname(struct utsname *) __picolibc_export;
 
 /* Without an OS, picolibc's own uname; see <sys/_os.h> */
-#if defined(__PICOLIBC_BAREMETAL) && !defined(_LIBC)
-#define uname(__name) __baremetal_uname(__name)
+#if defined(__PICOLIBC_BAREMETAL)
+#define uname __baremetal_uname
 #endif
 
 _END_STD_C

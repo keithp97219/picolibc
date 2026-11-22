@@ -37,6 +37,7 @@
 /* TRAP_BRKPT, TRAP_TRACE and killpg are XSI interfaces */
 #define _XOPEN_SOURCE 800
 #include <signal.h>
+#include <unistd.h>
 
 /* The types <signal.h> defines */
 _Static_assert(sizeof(size_t) > 0 && sizeof(uid_t) > 0 && sizeof(pid_t) > 0

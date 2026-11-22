@@ -35,6 +35,7 @@
 srcs_signal = [
     'psiginfo.c',
     'psignal.c',
+    'raise.c',
     'sig2str.c',
     'sigaddset.c',
     'sigdelset.c',
@@ -44,6 +45,9 @@ srcs_signal = [
     'sigjmp_getsigs.c',
     'sigjmp_setsigs.c',
     'siglongjmp.c',
+    'signal.c',
+    'sigwait.c',
+    'sigwaitinfo.c',
 ]
 
 srcs_signal_use = []

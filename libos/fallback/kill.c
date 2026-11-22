@@ -33,15 +33,18 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
-#include <signal.h>
-#include <errno.h>
+#include "local-signal.h"
+
+#ifndef __weak_reference
+#define __fallback_raise raise
+#endif
 
 int
 kill(pid_t pid, int sig)
 {
+    /* Not raise, which libc may implement with kill */
     if (pid == 1) {
-        raise(sig);
+        __fallback_raise(sig);
         return 0;
     }
     errno = ESRCH;

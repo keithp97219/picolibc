@@ -35,6 +35,7 @@
 # <stdlib.h>
 
 dir_srcs = [
+  'ptsname.c',
   'realpath.c',
   'setkey.c',
 ]

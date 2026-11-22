@@ -36,7 +36,7 @@
 /*
  * picolibc's sysconf without an OS: it reports what <unistd.h> claims
  * for picolibc alone, which applications without <sys/_posix.h> reach
- * as __baremetal_sysconf. It's also the weak sysconf an OS overrides.
+ * as __baremetal_sysconf. An OS layer provides sysconf itself.
  */
 #define __PICOLIBC_BAREMETAL_IMPL
 #define _GNU_SOURCE
@@ -47,13 +47,3 @@ __baremetal_sysconf(int name)
 {
     return __sysconf_common(name);
 }
-
-#ifdef __weak_reference
-__weak_reference(__baremetal_sysconf, sysconf);
-#else
-long
-sysconf(int name)
-{
-    return __baremetal_sysconf(name);
-}
-#endif

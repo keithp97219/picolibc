@@ -44,4 +44,14 @@ picolibc_sources(
   sigjmp_getsigs.c
   sigjmp_setsigs.c
   siglongjmp.c
-  )  
+  sigwait.c
+  sigwaitinfo.c
+  )
+
+# libos/fallback's versions replace these when it is built into libc
+if(DEFINED OS_FALLBACK)
+  picolibc_sources(
+    raise.c
+    signal.c
+    )
+endif()

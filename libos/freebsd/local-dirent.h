@@ -64,6 +64,34 @@ _dt_from_freebsd(__uint8_t kdt)
     }
 }
 
+/* The largest record the kernel writes */
+#define _DIRENT_RECLEN_MAX sizeof(struct __freebsd_dirent)
+
+/* Read directory entries */
+static inline long
+_getdents(int fd, void *buf, size_t nbyte)
+{
+    return _syscall(FREEBSD_SYS_getdirentries, fd, buf, nbyte, NULL);
+}
+
+static inline __uint64_t
+_dirent_ino(const struct __freebsd_dirent *k)
+{
+    return k->d_fileno;
+}
+
+static inline size_t
+_dirent_namlen(const struct __freebsd_dirent *k)
+{
+    return k->d_namlen;
+}
+
+static inline unsigned char
+_dirent_type(const struct __freebsd_dirent *k)
+{
+    return _dt_from_freebsd(k->d_type);
+}
+
 /* Entries for removed files (whiteouts and empty slots) have no inode */
 static inline int
 _dirent_is_hole(const struct __freebsd_dirent *k)

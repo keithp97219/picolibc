@@ -40,5 +40,52 @@
 #include <linux/linux-dirent64-struct.h>
 #include <linux/linux-dirent.h>
 #include <dirent.h>
+#include <limits.h>
+#include <stddef.h>
+#include <string.h>
+
+/*
+ * The largest record the kernel writes: it rounds each one up to
+ * eight bytes, which can be more than sizeof(struct
+ * __kernel_dirent64) where 64-bit values are only four-byte aligned
+ */
+#define _DIRENT_RECLEN_MAX                                                         \
+    ((offsetof(struct __kernel_dirent64, d_name) + NAME_MAX + 1 + 7) & ~(size_t)7)
+
+/* Read directory entries */
+static inline long
+_getdents(int fd, void *buf, size_t nbyte)
+{
+    return _syscall(LINUX_SYS_getdents64, fd, buf, nbyte);
+}
+
+static inline __uint64_t
+_dirent_ino(const struct __kernel_dirent64 *k)
+{
+    return k->d_ino;
+}
+
+static inline size_t
+_dirent_namlen(const struct __kernel_dirent64 *k)
+{
+    return strlen((const char *)k->d_name);
+}
+
+static inline unsigned char
+_dirent_type(const struct __kernel_dirent64 *k)
+{
+    unsigned char type = DT_UNKNOWN;
+
+    MAP_DT(type, k->d_type);
+    return type;
+}
+
+/* Linux leaves no holes for removed entries */
+static inline int
+_dirent_is_hole(const struct __kernel_dirent64 *k)
+{
+    (void)k;
+    return 0;
+}
 
 #endif /* _LOCAL_DIRENT_H_ */

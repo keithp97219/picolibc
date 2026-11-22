@@ -693,10 +693,8 @@ int     unlinkat(int, const char *, int) __picolibc_export;
  * picolibc's ABI doesn't depend on <sys/_posix.h>: no type, structure
  * layout or library code may change with what it defines, so the
  * library is the same whether the header was right, wrong or missing
- * when picolibc was built. Only applications see its claims. The one
- * exception is a weak fallback, such as libos/fallback's sysconf, that
- * the OS replaces. Without <sys/_posix.h>, <sys/_os.h> describes
- * picolibc alone.
+ * when picolibc was built. Only applications see its claims. Without
+ * <sys/_posix.h>, <sys/_os.h> describes picolibc alone.
  */
 
 #include <sys/_os.h>
@@ -710,8 +708,12 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #ifndef __PICOLIBC_OS_SINGLE_PROCESS
 #define __PICOLIBC_OS_SINGLE_PROCESS 202405L
 #endif
+/*
+ * There's no other sysconf, even inside picolibc; an object-like
+ * macro, so sysconf still names a function
+ */
+#define sysconf __baremetal_sysconf
 #ifndef _LIBC
-#define sysconf(__name) __baremetal_sysconf(__name)
 #if __BSD_VISIBLE || __POSIX_VISIBLE >= 202405
 #define getentropy(__buffer, __length) __baremetal_getentropy(__buffer, __length)
 #endif

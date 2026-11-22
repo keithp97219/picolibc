@@ -116,14 +116,26 @@ Picolibc and which source files reference them.
 
    + libc/search/hash.c
 
+ * char *getcwd(char *buf, size_t size)
+
+   + libc/posix/unistd/getwd.c
+
  * int getentropy(void *buffer, size_t length)
 
    + libc/ssp/stack/protector.c
    + libc/stdlib/arc4random.c
 
+ * pid_t getpid(void)
+
+   + libc/signal/raise.c
+
  * int gettimeofday(struct timeval *tv, struct timezone *tz)
 
    + libc/time/time.c
+
+ * int kill(pid_t pid, int sig)
+
+   + libc/signal/raise.c
 
  * off_t lseek(int fd, off_t offset, int whence)
 
@@ -138,12 +150,32 @@ Picolibc and which source files reference them.
    + libc/posix/getlogin.c
    + libc/posix/getlogin_r.c
 
+ * ssize_t mq_timedreceive(mqd_t mqdes, char *msg, size_t len, unsigned *prio, const struct timespec *timeout)
+
+   + libc/posix/mqueue/mq_receive.c
+
+ * int mq_timedsend(mqd_t mqdes, const char *msg, size_t len, unsigned prio, const struct timespec *timeout)
+
+   + libc/posix/mqueue/mq_send.c
+
  * int open(char *path, int flags, ...)
 
    + libc/search/hash.c
    + libc/stdio/fopen.c
    + libc/stdio/freopen.c
    + libc/stdio/mktemp.c
+
+ * int pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, const struct timespec *timeout, const sigset_t *sigmask)
+
+   + libc/posix/sys-select/select.c
+
+ * int pthread_kill(pthread_t thread, int sig)
+
+   + libc/signal/raise.c
+
+ * int ptsname_r(int fd, char *buf, size_t buflen)
+
+   + libc/posix/stdlib/ptsname.c
 
  * ssize_t read(int fd, void *buf, size_t count)
 
@@ -156,9 +188,18 @@ Picolibc and which source files reference them.
 
    + libc/posix/readdir_r.c
 
+ * int sigaction(int sig, const struct sigaction *act, struct sigaction *oldact)
+
+   + libc/signal/signal.c
+
  * int sigprocmask(int how, sigset_t *set, sigset_t *oldset)
 
    + libc/search/hash_page.c
+
+ * int sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout)
+
+   + libc/signal/sigwait.c
+   + libc/signal/sigwaitinfo.c
 
  * int stat(char *path, struct stat *statbuf)
 
@@ -167,6 +208,10 @@ Picolibc and which source files reference them.
  * clock_t times(struct tms *buf)
 
    + libc/time/clock.c
+
+ * int ttyname_r(int fd, char *buf, size_t buflen)
+
+   + libc/posix/unistd/ttyname.c
 
  * int unlink(char *path)
 
@@ -255,11 +300,27 @@ application.
 Posix says that `abort` sends `SIGABRT` to the calling process as if
 the process called `raise(SIGABRT)`. It also says `abort` shall not
 return. The picolibc implementation of `abort` calls `raise`; if that
-returns, it then calls `_exit`. The picolibc version of `raise` also
-calls `_exit` for uncaught and un-ignored signals.
+returns, it then calls `_exit`. picolibc's `raise` sends the signal to
+the calling thread, with `pthread_kill` when picolibc has POSIX
+threads and with `kill` to `getpid` otherwise. Without an OS library,
+libos/fallback's `raise` delivers the signal itself and calls `_exit`
+for uncaught and un-ignored signals.
 
 ```c
 __noreturn void _exit (int status);
+pid_t   getpid(void);
+int     kill(pid_t pid, int sig);
+int     pthread_kill(pthread_t thread, int sig);
+```
+
+### signal, sigwait, sigwaitinfo
+
+`signal` sets the handler with `sigaction`; `sigwait` and
+`sigwaitinfo` wait with `sigtimedwait`:
+
+```c
+int     sigaction(int sig, const struct sigaction *act, struct sigaction *oldact);
+int     sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout);
 ```
 
 ### ndbm
@@ -329,6 +390,44 @@ functions:
 uid_t getuid(void);
 ```
 
+### getwd
+
+`getwd` is `getcwd` with a `PATH_MAX` buffer:
+
+```c
+char   *getcwd(char *buf, size_t size);
+```
+
+### select
+
+`select` is `pselect` with no signal mask:
+
+```c
+int     pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+                const struct timespec *timeout, const sigset_t *sigmask);
+```
+
+### ttyname, ptsname
+
+`ttyname` and `ptsname` call the reentrant versions into static
+buffers:
+
+```c
+int     ptsname_r(int fd, char *buf, size_t buflen);
+int     ttyname_r(int fd, char *buf, size_t buflen);
+```
+
+### mq_send, mq_receive
+
+These are the timed versions with no timeout:
+
+```c
+ssize_t mq_timedreceive(mqd_t mqdes, char *msg, size_t len, unsigned *prio,
+                        const struct timespec *timeout);
+int     mq_timedsend(mqd_t mqdes, const char *msg, size_t len, unsigned prio,
+                     const struct timespec *timeout);
+```
+
 ### readdir_r
 
 `readdir_r` copies the entry returned by `readdir`, which the OS
@@ -352,9 +451,7 @@ hooks under picolibc's thread implementation, described after
 picolibc's ABI doesn't depend on `<sys/_posix.h>`. No type, structure
 layout or library code changes with what it defines, so a picolibc
 built without the OS's header, or with a different version of it, is
-the same library. Only applications see its claims. The one exception
-is a weak fallback, such as `sysconf` in `libos/fallback`, which the
-operating system replaces with its own. The other headers below do
+the same library. Only applications see its claims. The other headers below do
 carry the OS's ABI, so picolibc's own code that uses them is built
 only with the OS layer that provides them.
 
@@ -406,8 +503,8 @@ and stops with an error if the header defines one of those itself.
    | Group | The OS provides |
    |---|---|
 | `CLOFORK` | O_CLOFORK, FD_CLOFORK and SOCK_CLOFORK in open, fcntl, dup3, pipe2, accept4 and socket |
-| `DEVICE_IO` | `close`, `poll`, `ppoll`, `pread`, `pselect`, `pwrite`, `read`, `select`, `write` |
-| `DEVICE_SPECIFIC` | `cfgetispeed`, `cfgetospeed`, `cfsetispeed`, `cfsetospeed`, `isatty`, `tcdrain`, `tcflow`, `tcflush`, `tcgetattr`, `tcgetwinsize`, `tcsendbreak`, `tcsetattr`, `tcsetwinsize`, `ttyname` |
+| `DEVICE_IO` | `close`, `poll`, `ppoll`, `pread`, `pselect`, `pwrite`, `read`, `write` |
+| `DEVICE_SPECIFIC` | `isatty`, `tcdrain`, `tcflow`, `tcflush`, `tcgetattr`, `tcgetwinsize`, `tcsendbreak`, `tcsetattr`, `tcsetwinsize`, `ttyname_r` |
 | `DEVICE_SPECIFIC_R` | `ttyname_r` |
 | `DYNAMIC_LINKING` | `dladdr`, `dlclose`, `dlerror`, `dlopen`, `dlsym` |
 | `FD_MGMT` | `dup`, `dup2`, `dup3`, `fcntl`, `ftruncate`, `lseek` |
@@ -420,9 +517,9 @@ and stops with an error if the header defines one of those itself.
 | `FILE_SYSTEM_FD` | `faccessat`, `fdopendir`, `fstatat`, `linkat`, `mkdirat`, `openat`, `renameat`, `unlinkat`, `utimensat` |
 | `MULTI_PROCESS` | `_Fork`, `_exit`, `execve`, `fork`, `getpgid`, `getpgrp`, `getpid`, `getppid`, `getrlimit`, `getsid`, `setrlimit`, `setsid`, `times`, `waitid`, `waitpid` |
 | `MULTI_PROCESS_FD` | `fexecve` |
-| `NETWORKING` | `accept`, `accept4`, `bind`, `connect`, `gethostname`, `getpeername`, `getsockname`, `getsockopt`, `if_freenameindex`, `if_indextoname`, `if_nameindex`, `if_nametoindex`, `listen`, `recv`, `recvfrom`, `recvmsg`, `send`, `sendmsg`, `sendto`, `setsockopt`, `shutdown`, `sockatmark`, `socket`, `socketpair` |
+| `NETWORKING` | `accept`, `accept4`, `bind`, `connect`, `gethostname`, `getpeername`, `getsockname`, `getsockopt`, `if_indextoname`, `if_nameindex`, `if_nametoindex`, `listen`, `recv`, `recvfrom`, `recvmsg`, `send`, `sendmsg`, `sendto`, `setsockopt`, `shutdown`, `sockatmark`, `socket`, `socketpair` |
 | `PIPE` | `pipe`, `pipe2` |
-| `SIGNALS` | `alarm`, `kill`, `pause`, `raise`, `sigaction`, `signal`, `sigpending`, `sigprocmask`, `sigsuspend`, `sigwait` |
+| `SIGNALS` | `alarm`, `kill`, `pause`, `sigaction`, `sigpending`, `sigprocmask`, `sigsuspend`, `sigtimedwait` |
 | `SINGLE_PROCESS` | `sysconf`, `uname` |
 | `SYMBOLIC_LINKS` | `lchown`, `readlink`, `symlink` |
 | `SYMBOLIC_LINKS_FD` | `readlinkat`, `symlinkat` |
@@ -482,8 +579,9 @@ it claims the single process group, which libc.a provides alone, so
 bare-metal applications get `_POSIX_SUBPROFILE` and `_POSIX_VERSION`
 `202405L`. `<unistd.h>` and `<sys/utsname.h>` send `sysconf` and
 `uname` to `__baremetal_sysconf` and `__baremetal_uname`, so an OS
-library linked anyway can't contradict those claims; the same
-functions are the weak `sysconf` and `uname` an OS replaces.
+library linked anyway can't contradict those claims. libos/fallback
+defines only those names; with an OS layer, the OS provides `sysconf`
+and `uname`.
 
 The realtime profiles of IEEE 1003.13-2003 follow from the claims:
 `<unistd.h>` defines `_POSIX_AEP_REALTIME_MINIMAL` (PSE51),
