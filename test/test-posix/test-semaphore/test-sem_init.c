@@ -126,9 +126,11 @@ main(void)
     check(sem_trywait(&sem) == -1 && errno == EAGAIN, "sem_trywait at zero");
     timeout_in(CLOCK_REALTIME, &ts, 20);
     check(sem_timedwait(&sem, &ts) == -1 && errno == ETIMEDOUT, "sem_timedwait times out");
+#if TEST_POSIX_SEMAPHORES >= 202405L
     timeout_in(CLOCK_MONOTONIC, &ts, 20);
     check(sem_clockwait(&sem, CLOCK_MONOTONIC, &ts) == -1 && errno == ETIMEDOUT,
           "sem_clockwait times out");
+#endif
     ts.tv_nsec = 1000000000L;
     check(sem_timedwait(&sem, &ts) == -1 && errno == EINVAL, "bad timeout");
     check(sem_post(&sem) == 0, "sem_post");

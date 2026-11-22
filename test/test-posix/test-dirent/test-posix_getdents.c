@@ -37,7 +37,7 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_FILE_SYSTEM && TEST_POSIX_SYMBOLIC_LINKS
+#if TEST_POSIX_FILE_SYSTEM >= 202405L && TEST_POSIX_SYMBOLIC_LINKS
 
 #include <dirent.h>
 #include <errno.h>

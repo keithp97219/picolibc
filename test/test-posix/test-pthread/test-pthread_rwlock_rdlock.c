@@ -144,24 +144,30 @@ busy_locks(void *arg)
     ts.tv_nsec = 0;
     if (pthread_rwlock_timedrdlock(&rwlock, &ts) != ETIMEDOUT)
         return (void *)3;
+#if TEST_POSIX_READER_WRITER_LOCKS >= 202405L
     if (pthread_rwlock_clockwrlock(&rwlock, CLOCK_MONOTONIC, &ts) != ETIMEDOUT)
         return (void *)4;
+#endif
 
     /* The wait lasts until the clock reaches the deadline */
     timeout_in(CLOCK_REALTIME, &ts, 30);
     if (pthread_rwlock_timedrdlock(&rwlock, &ts) != ETIMEDOUT || !reached(CLOCK_REALTIME, &ts))
         return (void *)5;
+#if TEST_POSIX_READER_WRITER_LOCKS >= 202405L
     timeout_in(CLOCK_MONOTONIC, &ts, 30);
     if (pthread_rwlock_clockrdlock(&rwlock, CLOCK_MONOTONIC, &ts) != ETIMEDOUT
         || !reached(CLOCK_MONOTONIC, &ts))
         return (void *)6;
+#endif
     timeout_in(CLOCK_REALTIME, &ts, 30);
     if (pthread_rwlock_timedwrlock(&rwlock, &ts) != ETIMEDOUT || !reached(CLOCK_REALTIME, &ts))
         return (void *)7;
+#if TEST_POSIX_READER_WRITER_LOCKS >= 202405L
     timeout_in(CLOCK_REALTIME, &ts, 30);
     if (pthread_rwlock_clockwrlock(&rwlock, CLOCK_REALTIME, &ts) != ETIMEDOUT
         || !reached(CLOCK_REALTIME, &ts))
         return (void *)8;
+#endif
     return NULL;
 }
 
@@ -176,9 +182,11 @@ free_locks(void *arg)
     if (pthread_rwlock_timedrdlock(&rwlock, &ts) != 0)
         return (void *)1;
     pthread_rwlock_unlock(&rwlock);
+#if TEST_POSIX_READER_WRITER_LOCKS >= 202405L
     if (pthread_rwlock_clockwrlock(&rwlock, CLOCK_MONOTONIC, &ts) != 0)
         return (void *)2;
     pthread_rwlock_unlock(&rwlock);
+#endif
     ts.tv_nsec = 1000000000L;
     ret = pthread_rwlock_timedwrlock(&rwlock, &ts);
     if (ret == 0)

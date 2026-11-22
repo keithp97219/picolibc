@@ -98,7 +98,11 @@ timed_lock(void *arg)
     if (clock == CLOCK_REALTIME)
         ret = pthread_mutex_timedlock(&mutex, &ts);
     else
+#if TEST_POSIX_THREADS >= 202405L
         ret = pthread_mutex_clocklock(&mutex, clock, &ts);
+#else
+        ret = EINVAL;
+#endif
     if (ret == 0)
         pthread_mutex_unlock(&mutex);
     return (void *)(intptr_t)ret;
@@ -196,11 +200,15 @@ main(void)
     check(pthread_mutex_lock(&mutex) == 0, "lock normal");
     check(in_thread(timed_lock, (void *)(intptr_t)CLOCK_REALTIME) == ETIMEDOUT,
           "timedlock times out");
+#if TEST_POSIX_THREADS >= 202405L
     check(in_thread(timed_lock, (void *)(intptr_t)CLOCK_MONOTONIC) == ETIMEDOUT,
           "clocklock times out");
+#endif
     check(pthread_mutex_unlock(&mutex) == 0, "unlock normal");
     check(in_thread(timed_lock, (void *)(intptr_t)CLOCK_REALTIME) == 0, "timedlock free mutex");
+#if TEST_POSIX_THREADS >= 202405L
     check(in_thread(timed_lock, (void *)(intptr_t)CLOCK_MONOTONIC) == 0, "clocklock free mutex");
+#endif
 
     /* An invalid timeout is only an error when the lock is busy */
     ts.tv_sec = 0;

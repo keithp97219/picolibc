@@ -41,7 +41,7 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_MULTI_PROCESS
+#if TEST_POSIX_MULTI_PROCESS >= 202405L
 
 #include <stdio.h>
 #include <stdlib.h>

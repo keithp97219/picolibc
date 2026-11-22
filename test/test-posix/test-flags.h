@@ -474,7 +474,13 @@
  * feature-test macros ask for it.
  */
 #if defined(_POSIX_VERSION) && _POSIX_VERSION >= 200112L
-#define TEST_POSIX_C_LIB_EXT          200809L
+/* getentropy, memmem, reallocarray; strlcat and strlcpy from 2.38 */
+#if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 38)
+#define TEST_POSIX_C_LIB_EXT 202405L
+#else
+#define TEST_POSIX_C_LIB_EXT 200809L
+#endif
+/* No posix_close */
 #define TEST_POSIX_DEVICE_IO          200809L
 #define TEST_POSIX_DEVICE_SPECIFIC    200809L
 #define TEST_POSIX_DEVICE_SPECIFIC_R  200809L
@@ -492,7 +498,8 @@
 #define TEST_POSIX_SHELL_FUNC         200809L
 #define TEST_POSIX_SIGNALS            200809L
 #define TEST_POSIX_SIGNAL_JUMP        200809L
-#define TEST_POSIX_SINGLE_PROCESS     200809L
+/* Secure_getenv */
+#define TEST_POSIX_SINGLE_PROCESS     202405L
 #define TEST_POSIX_SYMBOLIC_LINKS     200809L
 #define TEST_POSIX_SYMBOLIC_LINKS_FD  200809L
 #define TEST_POSIX_USER_GROUPS        200809L
@@ -514,8 +521,19 @@
 #endif
 #endif
 #if defined(_POSIX_VERSION) && _POSIX_VERSION >= 200809L
-#define TEST_POSIX_C_LANG_WIDE_CHAR_EXT     200809L
-#define TEST_POSIX_DEVICE_IO_EXT            200809L
+/* Wcslcat and wcslcpy came in 2.38 */
+#if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 38)
+#define TEST_POSIX_C_LANG_WIDE_CHAR_EXT 202405L
+#else
+#define TEST_POSIX_C_LANG_WIDE_CHAR_EXT 200809L
+#endif
+/* Asprintf and vasprintf are glibc extensions */
+#ifdef _GNU_SOURCE
+#define TEST_POSIX_DEVICE_IO_EXT 202405L
+#else
+#define TEST_POSIX_DEVICE_IO_EXT 200809L
+#endif
+/* No getlocalename_l */
 #define TEST_POSIX_MULTI_CONCURRENT_LOCALES 200809L
 #endif
 /* <threads.h>, new in 2.28 */
@@ -568,10 +586,15 @@
 #define TEST_POSIX_PRIORITIZED_IO      200809L
 #define TEST_POSIX_PRIORITY_SCHEDULING 200809L
 #define TEST_POSIX_RAW_SOCKETS         200809L
+/* The clockwait functions came in 2.30 */
+#if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 30)
+#define TEST_POSIX_READER_WRITER_LOCKS 202405L
+#else
 #define TEST_POSIX_READER_WRITER_LOCKS 200809L
-#define TEST_POSIX_REALTIME_SIGNALS    200809L
-#define TEST_POSIX_REGEXP              1
-#define TEST_POSIX_SAVED_IDS           1
+#endif
+#define TEST_POSIX_REALTIME_SIGNALS 200809L
+#define TEST_POSIX_REGEXP           1
+#define TEST_POSIX_SAVED_IDS        1
 /* The clockwait functions came in 2.30 */
 #if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 30)
 #define TEST_POSIX_SEMAPHORES 202405L

@@ -152,7 +152,8 @@ main(void)
     check(getrlimit(RLIMIT_NOFILE, &rl) == 0, "getrlimit");
     check_err(dup2(a, (int)rl.rlim_cur), EBADF, "dup2 to the descriptor limit");
 
-    /* dup3: equal descriptors fail; FD_CLOEXEC only from the flag */
+#if TEST_POSIX_FD_MGMT >= 202405L
+    /* dup3, new in POSIX.1-2024: equal descriptors fail; FD_CLOEXEC only from the flag */
     check_err(dup3(a, a, 0), EINVAL, "dup3 of a descriptor to itself");
     check_err(dup3(a, a, O_CLOEXEC), EINVAL, "dup3 of a descriptor to itself with O_CLOEXEC");
     check(fcntl(b, F_SETFD, FD_CLOEXEC) == 0, "set FD_CLOEXEC");
@@ -166,6 +167,7 @@ main(void)
     check_err(dup3(a, 52, O_APPEND), EINVAL, "dup3 with a bad flag");
     check(fcntl(52, F_GETFD) == -1, "no descriptor from a failed dup3");
     check(close(51) == 0, "close");
+#endif
 
     /* EMFILE when every descriptor is in use */
     pid = fork();

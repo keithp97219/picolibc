@@ -79,8 +79,8 @@ check_usable(locale_t l, const char *message)
     freelocale(d);
 }
 
-#ifndef __GLIBC__
-/* glibc 2.43 has no getlocalename_l */
+/* getlocalename_l is new in POSIX.1-2024; glibc 2.43 lacks it */
+#if TEST_POSIX_MULTI_CONCURRENT_LOCALES >= 202405L
 static int
 is_posix(const char *name)
 {
@@ -139,7 +139,7 @@ check_env(const char *lc_all, const char *lc_ctype, const char *lang, int mask, 
             printf("%s: newlocale didn't fail with ENOENT, errno %d\n", message, errno);
             _exit(1);
         }
-#if defined(__PICOLIBC__)
+#if defined(__PICOLIBC__) && TEST_POSIX_MULTI_CONCURRENT_LOCALES >= 202405L
         /* With C.UTF-8, the environment chooses LC_CTYPE */
         if (l != (locale_t)0 && lc_ctype && strcmp(lc_ctype, "C.UTF-8") == 0 && !lc_all
             && (mask & LC_CTYPE_MASK) && !name_is(LC_CTYPE, l, "C.UTF-8")) {
@@ -184,7 +184,7 @@ main(void)
     l = newlocale(LC_ALL_MASK, "C", (locale_t)0);
     check(l != (locale_t)0, "newlocale C");
     check_usable(l, "C object");
-#ifndef __GLIBC__
+#if TEST_POSIX_MULTI_CONCURRENT_LOCALES >= 202405L
     check(is_posix(getlocalename_l(LC_CTYPE, l)), "name of C");
     check(is_posix(getlocalename_l(LC_ALL, l)), "LC_ALL name of C");
     check(getlocalename_l(LC_ALL + LC_COLLATE + LC_CTYPE + LC_MESSAGES + LC_MONETARY + LC_NUMERIC
@@ -231,7 +231,7 @@ main(void)
     r = newlocale(LC_NUMERIC_MASK, "POSIX", b);
     check(r != (locale_t)0, "modify base");
     check_usable(r, "modified base");
-#ifndef __GLIBC__
+#if TEST_POSIX_MULTI_CONCURRENT_LOCALES >= 202405L
     check(is_posix(getlocalename_l(LC_NUMERIC, r)), "modified category");
 #endif
     freelocale(r);
@@ -240,7 +240,7 @@ main(void)
     g = duplocale(LC_GLOBAL_LOCALE);
     check(g != (locale_t)0, "duplocale(LC_GLOBAL_LOCALE)");
     check_usable(g, "copy of the global locale");
-#ifndef __GLIBC__
+#if TEST_POSIX_MULTI_CONCURRENT_LOCALES >= 202405L
     check(name_is(LC_CTYPE, g, setlocale(LC_CTYPE, NULL)), "copy has the global LC_CTYPE");
     check(name_is(LC_ALL, LC_GLOBAL_LOCALE, setlocale(LC_ALL, NULL)),
           "getlocalename_l of LC_GLOBAL_LOCALE");
@@ -248,7 +248,7 @@ main(void)
 #endif
     freelocale(g);
 
-#ifdef __PICOLIBC__
+#if defined(__PICOLIBC__) && TEST_POSIX_MULTI_CONCURRENT_LOCALES >= 202405L
     /* With multibyte support, picolibc has C.UTF-8, whose LC_CTYPE differs */
     l = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);
     if (l != (locale_t)0) {

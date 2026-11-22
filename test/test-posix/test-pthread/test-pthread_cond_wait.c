@@ -222,8 +222,10 @@ main(void)
     timeout_in(CLOCK_REALTIME, &ts, 10);
     check(pthread_cond_wait(&cond, &errorcheck) == EPERM, "wait on free mutex");
     check(pthread_cond_timedwait(&cond, &errorcheck, &ts) == EPERM, "timedwait on free mutex");
+#if TEST_POSIX_THREADS >= 202405L
     check(pthread_cond_clockwait(&cond, &errorcheck, CLOCK_MONOTONIC, &ts) == EPERM,
           "clockwait on free mutex");
+#endif
     check(pthread_mutex_unlock(&errorcheck) == EPERM, "mutex still free");
     check(pthread_mutex_lock(&errorcheck) == 0, "lock errorcheck");
     check(in_thread(wait_not_owner, &errorcheck) == 0, "wait on mutex another thread holds");
@@ -231,14 +233,18 @@ main(void)
     /* Invalid deadlines and clocks fail before the mutex is released */
     ts.tv_nsec = -1;
     check(pthread_cond_timedwait(&cond, &errorcheck, &ts) == EINVAL, "negative nanoseconds");
+#if TEST_POSIX_THREADS >= 202405L
     check(pthread_cond_clockwait(&cond, &errorcheck, CLOCK_MONOTONIC, &ts) == EINVAL,
           "clockwait negative nanoseconds");
+#endif
     ts.tv_nsec = 1000000000L;
+#if TEST_POSIX_THREADS >= 202405L
     check(pthread_cond_clockwait(&cond, &errorcheck, CLOCK_REALTIME, &ts) == EINVAL,
           "clockwait nanoseconds too large");
     timeout_in(CLOCK_REALTIME, &ts, 10);
     check(pthread_cond_clockwait(&cond, &errorcheck, CLOCK_PROCESS_CPUTIME_ID, &ts) == EINVAL,
           "unsupported clock");
+#endif
     check(pthread_mutex_lock(&errorcheck) == EDEADLK, "mutex still held after EINVAL");
 
     /* Deadlines already passed time out, and the mutex is held again */
@@ -248,8 +254,10 @@ main(void)
     ts.tv_sec = -1;
     ts.tv_nsec = 0;
     check(pthread_cond_timedwait(&cond, &errorcheck, &ts) == ETIMEDOUT, "deadline before epoch");
+#if TEST_POSIX_THREADS >= 202405L
     check(pthread_cond_clockwait(&cond, &errorcheck, CLOCK_MONOTONIC, &ts) == ETIMEDOUT,
           "clockwait deadline before epoch");
+#endif
     check(in_thread(wait_not_owner, &errorcheck) == 0, "mutex held by the waiter");
 
     /* The wait lasts until the clock reaches the deadline; the default is CLOCK_REALTIME */
@@ -257,6 +265,7 @@ main(void)
     while (pthread_cond_timedwait(&cond, &errorcheck, &ts) == 0)
         ;
     check(reached(CLOCK_REALTIME, &ts), "timedwait waited for the deadline");
+#if TEST_POSIX_THREADS >= 202405L
     timeout_in(CLOCK_MONOTONIC, &ts, 30);
     while (pthread_cond_clockwait(&cond, &errorcheck, CLOCK_MONOTONIC, &ts) == 0)
         ;
@@ -265,6 +274,7 @@ main(void)
     while (pthread_cond_clockwait(&cond, &errorcheck, CLOCK_REALTIME, &ts) == 0)
         ;
     check(reached(CLOCK_REALTIME, &ts), "clockwait waited for the realtime deadline");
+#endif
 
     /* A condition variable using CLOCK_MONOTONIC */
     check(pthread_condattr_init(&cattr) == 0, "pthread_condattr_init");

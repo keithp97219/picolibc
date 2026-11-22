@@ -37,7 +37,7 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_SPAWN && TEST_POSIX_FILE_SYSTEM && TEST_POSIX_FILE_SYSTEM_EXT \
+#if TEST_POSIX_SPAWN >= 202405L && TEST_POSIX_FILE_SYSTEM && TEST_POSIX_FILE_SYSTEM_EXT \
     && TEST_POSIX_MULTI_PROCESS
 
 #include <errno.h>

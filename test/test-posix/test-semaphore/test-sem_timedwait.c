@@ -100,9 +100,13 @@ times_out(clockid_t clock, int use_clockwait)
     int             ret;
 
     timeout_in(clock, &deadline, 30);
+#if TEST_POSIX_SEMAPHORES >= 202405L
     if (use_clockwait)
         ret = sem_clockwait(&sem, clock, &deadline);
     else
+#else
+    (void)use_clockwait;
+#endif
         ret = sem_timedwait(&sem, &deadline);
     check(ret == -1 && errno == ETIMEDOUT, "times out");
     check(clock_gettime(clock, &now) == 0, "clock_gettime");
@@ -139,8 +143,10 @@ cancelled_wait(void *arg)
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     if (which == 0)
         sem_timedwait(&sem, &ts);
+#if TEST_POSIX_SEMAPHORES >= 202405L
     else if (which == 1)
         sem_clockwait(&sem, CLOCK_REALTIME, &ts);
+#endif
     else
         sem_wait(&sem);
     return NULL;
@@ -159,21 +165,27 @@ main(void)
 
     /* Timeouts on each clock */
     times_out(CLOCK_REALTIME, 0);
+#if TEST_POSIX_SEMAPHORES >= 202405L
     times_out(CLOCK_REALTIME, 1);
     times_out(CLOCK_MONOTONIC, 1);
+#endif
 
     /* A deadline that has passed times out at once when the semaphore is locked */
     ts.tv_sec = 0;
     ts.tv_nsec = 0;
     check(sem_timedwait(&sem, &ts) == -1 && errno == ETIMEDOUT, "past deadline");
+#if TEST_POSIX_SEMAPHORES >= 202405L
     check(sem_clockwait(&sem, CLOCK_MONOTONIC, &ts) == -1 && errno == ETIMEDOUT,
           "past monotonic deadline");
+#endif
 
     /* ... and never when it can be locked */
     check(sem_post(&sem) == 0, "sem_post");
     check(sem_timedwait(&sem, &ts) == 0, "past deadline, unlocked");
     check(sem_post(&sem) == 0, "sem_post");
+#if TEST_POSIX_SEMAPHORES >= 202405L
     check(sem_clockwait(&sem, CLOCK_MONOTONIC, &ts) == 0, "past monotonic deadline, unlocked");
+#endif
 
     /* picolibc doesn't check the deadline when it needn't wait, which POSIX allows */
 #ifdef __PICOLIBC__
@@ -188,18 +200,26 @@ main(void)
     errno = 0;
     check(sem_timedwait(&sem, &ts) == -1 && errno == EINVAL, "negative nanoseconds");
     errno = 0;
+#if TEST_POSIX_SEMAPHORES >= 202405L
     check(sem_clockwait(&sem, CLOCK_REALTIME, &ts) == -1 && errno == EINVAL,
           "sem_clockwait negative nanoseconds");
+#endif
     ts.tv_nsec = 1000000000L;
     errno = 0;
+#if TEST_POSIX_SEMAPHORES >= 202405L
     check(sem_clockwait(&sem, CLOCK_MONOTONIC, &ts) == -1 && errno == EINVAL,
           "sem_clockwait a billion nanoseconds");
+#endif
     timeout_in(CLOCK_REALTIME, &ts, 1000);
     errno = 0;
+#if TEST_POSIX_SEMAPHORES >= 202405L
     check(sem_clockwait(&sem, (clockid_t)0x7fff, &ts) == -1 && errno == EINVAL, "unknown clock");
+#endif
     errno = 0;
+#if TEST_POSIX_SEMAPHORES >= 202405L
     check(sem_clockwait(&sem, CLOCK_PROCESS_CPUTIME_ID, &ts) == -1 && errno == EINVAL,
           "CPU-time clock");
+#endif
     check(value() == 0, "value unchanged");
 
     /* sem_post is async-signal-safe, and wakes a waiter from a handler */

@@ -134,6 +134,7 @@ check_copies(void)
     check(p == buf + 3, "wcpncpy with n the length");
     check(wcpncpy(buf, L"abc", 0) == buf, "wcpncpy with n 0");
 
+#if TEST_POSIX_C_LANG_WIDE_CHAR_EXT >= 202405L
     /* wcslcpy and wcslcat return the length they tried to make */
     wmemset(buf, L'x', 8);
     check(wcslcpy(buf, L"abcdef", 4) == 6, "wcslcpy truncating");
@@ -149,6 +150,7 @@ check_copies(void)
     /* No null when it would land at dst + dstsize */
     wcscpy(buf, L"abc");
     check(wcslcat(buf, L"de", 4) == 5 && wcscmp(buf, L"abc") == 0, "wcslcat with no room");
+#endif
     check(errno == SENTINEL, "errno after the copies");
 
     /* wcsdup */

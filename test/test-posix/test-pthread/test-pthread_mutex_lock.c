@@ -118,14 +118,17 @@ busy_locks(void *arg)
     ts.tv_nsec = 0;
     if (pthread_mutex_timedlock(&mutex, &ts) != ETIMEDOUT)
         return (void *)2;
+#if TEST_POSIX_THREADS >= 202405L
     clock_gettime(CLOCK_MONOTONIC, &ts);
     if (pthread_mutex_clocklock(&mutex, CLOCK_MONOTONIC, &ts) != ETIMEDOUT)
         return (void *)3;
+#endif
 
     /* The wait lasts until the clock reaches the deadline */
     timeout_in(CLOCK_REALTIME, &ts, 30);
     if (pthread_mutex_timedlock(&mutex, &ts) != ETIMEDOUT || !reached(CLOCK_REALTIME, &ts))
         return (void *)4;
+#if TEST_POSIX_THREADS >= 202405L
     timeout_in(CLOCK_MONOTONIC, &ts, 30);
     if (pthread_mutex_clocklock(&mutex, CLOCK_MONOTONIC, &ts) != ETIMEDOUT
         || !reached(CLOCK_MONOTONIC, &ts))
@@ -134,11 +137,14 @@ busy_locks(void *arg)
     if (pthread_mutex_clocklock(&mutex, CLOCK_REALTIME, &ts) != ETIMEDOUT
         || !reached(CLOCK_REALTIME, &ts))
         return (void *)6;
+#endif
 
     /* Clocks other than CLOCK_REALTIME and CLOCK_MONOTONIC aren't supported */
+#if TEST_POSIX_THREADS >= 202405L
     timeout_in(CLOCK_REALTIME, &ts, 30);
     if (pthread_mutex_clocklock(&mutex, CLOCK_PROCESS_CPUTIME_ID, &ts) != EINVAL)
         return (void *)7;
+#endif
 
     /* A negative nanoseconds field is invalid too */
     ts.tv_nsec = -1;
@@ -224,8 +230,10 @@ main(void)
     check(pthread_mutex_trylock(&mutex) == EBUSY, "trylock own errorcheck mutex");
     timeout_in(CLOCK_REALTIME, &ts, 30);
     check(pthread_mutex_timedlock(&mutex, &ts) == EDEADLK, "timed relock of errorcheck mutex");
+#if TEST_POSIX_THREADS >= 202405L
     check(pthread_mutex_clocklock(&mutex, CLOCK_MONOTONIC, &ts) == EDEADLK,
           "clock relock of errorcheck mutex");
+#endif
     check(pthread_mutex_unlock(&mutex) == 0, "unlock errorcheck");
 
     /* A destroyed mutex can be initialized again */
@@ -242,8 +250,10 @@ main(void)
     ts.tv_nsec = 0;
     check(pthread_mutex_timedlock(&mutex, &ts) == 0, "timedlock free mutex, passed deadline");
     check(pthread_mutex_unlock(&mutex) == 0, "unlock");
+#if TEST_POSIX_THREADS >= 202405L
     check(pthread_mutex_clocklock(&mutex, CLOCK_MONOTONIC, &ts) == 0,
           "clocklock free mutex, passed deadline");
+#endif
     check(pthread_mutex_unlock(&mutex) == 0, "unlock");
 
     /* A signal doesn't end the wait for a mutex */

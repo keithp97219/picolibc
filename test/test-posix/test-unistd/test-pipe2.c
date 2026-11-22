@@ -41,7 +41,7 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_FD_MGMT && TEST_POSIX_PIPE
+#if TEST_POSIX_FD_MGMT && TEST_POSIX_PIPE >= 202405L
 
 #include <errno.h>
 #include <fcntl.h>
