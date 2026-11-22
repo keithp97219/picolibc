@@ -201,7 +201,11 @@ hence the size) of the library:
    ensures that passing the output back to scanf will exactly
    re-create the original value. Output is correctly rounded up to 9
    significant digits for 32-bit floats and 17 for 64-bit floats;
-   any further digits are printed as zeros.
+   any further digits are printed as zeros. The same holds for 80-bit
+   long doubles with 21 digits and 128-bit long doubles with 36. The
+   double-double long double format, and every format when this
+   option is disabled, uses a smaller conversion with inexact results
+   beyond about 16 digits.
 
  * `-Datomic-ungetc=true` This option, which is enabled by default,
    controls whether getc/ungetc use atomic instruction sequences to

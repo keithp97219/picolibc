@@ -40,12 +40,19 @@
  * 128-bit unsigned integers and the operations picolibc uses on them,
  * with a struct of two 64-bit values where the compiler doesn't
  * provide __uint128_t.
+ *
+ * Define _U128_EMULATE to use the struct version (and the 32-bit
+ * division helpers) even when the compiler has __uint128_t; this is
+ * only useful for testing.
  */
 
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef __SIZEOF_INT128__
+/* 64x64->128 multiply, from ryu_umul128.c */
+uint64_t __umul128(uint64_t a, uint64_t b, uint64_t *productHi);
+
+#if defined(__SIZEOF_INT128__) && !defined(_U128_EMULATE)
 typedef __uint128_t _u128;
 typedef __int128_t  _i128;
 #define to_u128(x)             (x)
@@ -77,6 +84,11 @@ typedef __int128_t  _i128;
 #define _u128_lt(a, b)        ((a) < (b))
 #define _i128_lt(a, b)        ((_i128)(a) < (_i128)(b))
 #define _u128_not(a)          (~(a))
+#define _u128_make(hi, lo)    ((((_u128)(hi)) << 64) | (uint64_t)(lo))
+#define _u128_hi64(a)         ((uint64_t)((a) >> 64))
+#define _u128_lo64(a)         ((uint64_t)(a))
+#define _u128_mul_64(a, b)    ((_u128)(uint64_t)(a) * (uint64_t)(b))
+#define _u128_times_64(a, b)  ((a) * (uint64_t)(b))
 #else
 typedef struct {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -330,12 +342,219 @@ _u128_oflow(_u128 a)
 {
     return a.hi >= (0xffffffffffffffffULL - 9) / 10;
 }
+
+static inline _u128
+_u128_make(uint64_t hi, uint64_t lo)
+{
+    _u128 v;
+
+    v.hi = hi;
+    v.lo = lo;
+    return v;
+}
+
+static inline uint64_t
+_u128_hi64(_u128 a)
+{
+    return a.hi;
+}
+
+static inline uint64_t
+_u128_lo64(_u128 a)
+{
+    return a.lo;
+}
+
+/* 64x64->128 multiply */
+static inline _u128
+_u128_mul_64(uint64_t a, uint64_t b)
+{
+    _u128 v;
+
+    v.lo = __umul128(a, b, &v.hi);
+    return v;
+}
+
+/* Low 128 bits of a 128x64 multiply */
+static inline _u128
+_u128_times_64(_u128 a, uint64_t b)
+{
+    _u128 v = _u128_mul_64(a.lo, b);
+
+    v.hi += a.hi * b;
+    return v;
+}
 #endif
 
 static inline bool
 _u128_gt(_u128 a, _u128 b)
 {
     return _u128_lt(b, a);
+}
+
+/*
+ * 64-bit division by small constants. Where 64-bit division is a
+ * library call, multiply by the reciprocal instead
+ */
+#if __SIZEOF_POINTER__ < 8 || defined(_U128_EMULATE)
+static inline uint64_t
+_u64_umulh(uint64_t a, uint64_t b)
+{
+    uint64_t hi;
+
+    __umul128(a, b, &hi);
+    return hi;
+}
+
+static inline uint64_t
+_u64_div5(uint64_t x)
+{
+    return _u64_umulh(x, 0xCCCCCCCCCCCCCCCDULL) >> 2;
+}
+
+static inline uint64_t
+_u64_div10(uint64_t x)
+{
+    return _u64_umulh(x, 0xCCCCCCCCCCCCCCCDULL) >> 3;
+}
+#else
+#define _u64_div5(x)  ((uint64_t)(x) / 5)
+#define _u64_div10(x) ((uint64_t)(x) / 10)
+#endif
+
+/*
+ * Divide by 5 and 10 without a 128-bit division (which would be a
+ * library call even with __uint128_t). Split the dividend into 64-bit
+ * halves; with 2^64 = 5 * 0x3333333333333333 + 1 = 10 *
+ * 0x1999999999999999 + 6, the quotient is
+ *
+ *     hi / d * 2^64 + (hi % d) * (2^64 / d) + lo / d +
+ *     ((hi % d) * (2^64 % d) + lo % d) / d
+ *
+ * and the last term is small enough for 32-bit arithmetic
+ */
+static inline _u128
+_u128_divmod_5(_u128 a, uint32_t *rem)
+{
+    uint64_t hi = _u128_hi64(a);
+    uint64_t lo = _u128_lo64(a);
+    uint64_t qh = _u64_div5(hi);
+    uint64_t ql = _u64_div5(lo);
+    uint32_t rh = (uint32_t)hi - 5 * (uint32_t)qh;
+    uint32_t t = rh + ((uint32_t)lo - 5 * (uint32_t)ql); /* <= 8 */
+    uint32_t tq = t >= 5;
+
+    *rem = t - 5 * tq;
+    return _u128_make(qh, ql + rh * 0x3333333333333333ULL + tq);
+}
+
+static inline _u128
+_u128_divmod_10(_u128 a, uint32_t *rem)
+{
+    uint64_t hi = _u128_hi64(a);
+    uint64_t lo = _u128_lo64(a);
+    uint64_t qh = _u64_div10(hi);
+    uint64_t ql = _u64_div10(lo);
+    uint32_t rh = (uint32_t)hi - 10 * (uint32_t)qh;
+    uint32_t t = rh * 6 + ((uint32_t)lo - 10 * (uint32_t)ql); /* <= 63 */
+    uint32_t tq = (t * 205) >> 11;                            /* t / 10 for t < 1029 */
+
+    *rem = t - 10 * tq;
+    return _u128_make(qh, ql + rh * 0x1999999999999999ULL + tq);
+}
+
+static inline _u128
+_u128_div_10(_u128 a)
+{
+    uint32_t rem;
+
+    return _u128_divmod_10(a, &rem);
+}
+
+/*
+ * Split a into a / 10^19 and a % 10^19, for a < 10^19 * 2^64.
+ *
+ * Estimate the quotient as floor(a * m / 2^127) with m = floor(2^127
+ * / 10^19). That is low by less than 3, which the loop fixes.
+ */
+#define _U128_1E19 10000000000000000000ULL
+
+static inline uint64_t
+_u128_divmod_1e19(_u128 a, uint64_t *rem)
+{
+    const uint64_t m = 17014118346046923173ULL;
+    _u128          t
+        = _u128_plus_64(_u128_mul_64(_u128_hi64(a), m), _u128_hi64(_u128_mul_64(_u128_lo64(a), m)));
+    uint64_t q = _u128_lo64(_u128_rshift(t, 63));
+    _u128    r = _u128_minus(a, _u128_mul_64(q, _U128_1E19));
+
+    while (_u128_hi64(r) != 0 || _u128_lo64(r) >= _U128_1E19) {
+        r = _u128_minus_64(r, _U128_1E19);
+        q++;
+    }
+    *rem = _u128_lo64(r);
+    return q;
+}
+
+/* Number of decimal digits in a, 1 for 0 */
+static inline int
+_u128_digits(_u128 a)
+{
+    int   len = 1;
+    _u128 p = to_u128(10);
+
+    while (len < 39 && _u128_ge(a, p)) {
+        len++;
+        p = _u128_times_10(p);
+    }
+    return len;
+}
+
+/*
+ * Multiply the na-word (na <= 4) value a by the 256-bit value b (both
+ * arrays of 64-bit words, least significant first), shift the product
+ * right by shift (0 < shift < 64 * (na + 2)), add corr and return the
+ * low 256 bits in result. With na == 2, this is mul_128_256_shift from
+ * Ryu's generic_128.h, computed one 64-bit word at a time.
+ */
+static inline void
+_u128_mul_256_shift(const uint64_t *a, int na, const uint64_t *b, uint32_t shift, uint32_t corr,
+                    uint64_t *result)
+{
+    uint64_t p[10];
+    uint32_t word = shift >> 6;
+    uint32_t bit = shift & 63;
+    uint64_t carry;
+    int      i, j;
+
+    for (j = 0; j < 10; j++)
+        p[j] = 0;
+    for (i = 0; i < na; i++) {
+        carry = 0;
+        for (j = 0; j < 4; j++) {
+            _u128 t = _u128_plus_64(_u128_plus_64(_u128_mul_64(a[i], b[j]), p[i + j]), carry);
+            p[i + j] = _u128_lo64(t);
+            carry = _u128_hi64(t);
+        }
+        p[i + 4] = carry;
+    }
+
+    carry = corr;
+    for (j = 0; j < 4; j++) {
+        uint64_t v = p[j + word] >> bit;
+        if (bit)
+            v |= p[j + word + 1] << (64 - bit);
+        v += carry;
+        carry = v < carry;
+        result[j] = v;
+    }
+}
+
+static inline void
+_u128_mul_128_256_shift(const uint64_t *a, const uint64_t *b, uint32_t shift, uint32_t corr,
+                        uint64_t *result)
+{
+    _u128_mul_256_shift(a, 2, b, shift, corr, result);
 }
 
 #endif /* _LOCAL_INT128_H_ */

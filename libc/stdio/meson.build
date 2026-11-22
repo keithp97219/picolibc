@@ -226,12 +226,14 @@ srcs_dtoa_ryu = [
   'atof_ryu.c',
   'dtoa_ryu.c',
   'ftoa_ryu.c',
+  'ldtoa_ryu.c',
   'ryu_d2d.c',
   'ryu_divpow2.c',
   'ryu_log10.c',
   'ryu_log2pow5.c',
   'ryu_pow5bits.c',
   'ryu_table.c',
+  'ryu_table_128.c',
   'ryu_umul128.c',
 ]
 		

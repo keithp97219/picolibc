@@ -42,6 +42,7 @@ set(tests
   test-fwrite-fast-path
   test-put
   test-printf
+  test-printf-long-double
   test-printf-scanf
   test-printf-exact
   test-sprintf-percent-n

@@ -37,7 +37,12 @@
 
 #include "dtoa.h"
 
-#ifdef _NEED_IO_FLOAT_LARGE
+/*
+ * With exact conversions, ldtoa_ryu.c handles the 80-bit and binary128
+ * formats; this code is still used for double-double
+ */
+#if defined(_NEED_IO_FLOAT_LARGE)                                                            \
+    && !(defined(__IO_FLOAT_EXACT) && (__LDBL_MANT_DIG__ == 64 || __LDBL_MANT_DIG__ == 113))
 
 #define max(a, b)           \
     ({                      \
