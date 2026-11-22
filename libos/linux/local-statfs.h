@@ -58,6 +58,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 int _statvfsbuf(struct statvfs *buf, const struct __kernel_statfs_size *kbuf);
 
+struct statfs;
+void _statfsbuf(struct statfs *buf, const struct __kernel_statfs_size *kbuf);
+
 /*
  * pathconf and fpathconf answers for a file on the file system buf
  * describes; limits <limits.h> fixes keep their values there

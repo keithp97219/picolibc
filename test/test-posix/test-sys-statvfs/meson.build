@@ -35,6 +35,7 @@
 
 dir_tests = [
   'test-fstatvfs',
+  'test-statfs',
   'test-statvfs',
   'test-sys_statvfs_h',
 ]

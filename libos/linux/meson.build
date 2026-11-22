@@ -173,8 +173,10 @@ if fs.is_dir(machine_dir)
     'socket.c',
     'socketpair.c',
     '_statbuf.c',
+    'statfs.c',
     'statvfs.c',
     '_statvfsbuf.c',
+    'fstatfs.c',
     'fstatvfs.c',
     '_syscall_errno.c',
     'sysconf.c',
@@ -343,9 +345,10 @@ if fs.is_dir(machine_dir)
   linux_inc = include_directories(machine_dir, 'include')
 
   # The POSIX options and option groups this OS layer provides, and
-  # its signal stack sizes
+  # its signal stack sizes; and Linux's own sysinfo and statfs
   if really_install
-    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h', 'include/sys/sysinfo.h'],
+    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h', 'include/sys/sysinfo.h',
+                     'include/sys/statfs.h', 'include/sys/vfs.h'],
                     install_dir: include_dir / 'sys')
     # The socket ABI for picolibc's networking headers
     if network == 'linux'
