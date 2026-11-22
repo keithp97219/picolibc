@@ -56,6 +56,7 @@ dir_tests = [
   'test-fsync',
   'test-ftruncate',
   'test-getcwd',
+  'test-getcwd-long',
   'test-getentropy',
   'test-getgid',
   'test-getgroups',
