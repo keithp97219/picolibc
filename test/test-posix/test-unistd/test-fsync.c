@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_FSYNC > 0 && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_FSYNC && TEST_POSIX_FILE_SYSTEM
 
 #include <errno.h>
 #include <fcntl.h>
@@ -73,7 +73,7 @@ main(void)
 
     check(fsync(fd) == 0, "fsync");
 
-#ifdef __PICOLIBC_POSIX_PIPE
+#if TEST_POSIX_PIPE
     /* EBADF for a descriptor that isn't open */
     errno = 0;
     check(fsync(-1) == -1 && errno == EBADF, "fsync(-1)");

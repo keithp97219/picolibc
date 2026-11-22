@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* _XOPEN_NAME_MAX, the XSI minimum for _PC_TEXTDOMAIN_MAX, is XSI */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_PIPE)
+#if TEST_POSIX_FILE_SYSTEM && TEST_POSIX_PIPE
 
 #include <errno.h>
 #include <fcntl.h>
@@ -177,7 +177,7 @@ main(void)
     snprintf(path, sizeof(path), "%s/file", dir);
     check(unlink(path) == 0, "unlink");
 
-#ifdef __PICOLIBC_POSIX_SYMBOLIC_LINKS
+#if TEST_POSIX_SYMBOLIC_LINKS
     /* A link to itself is a loop */
     snprintf(path, sizeof(path), "%s/loop", dir);
     check(symlink("loop", path) == 0, "symlink");

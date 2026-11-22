@@ -38,7 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* sysconf reports the options <unistd.h> defines, and system limits */
 
@@ -472,7 +472,7 @@ main(void)
 #endif
     check(errno == 0, "options leave errno alone");
 
-#if defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
+#if TEST_POSIX_SINGLE_PROCESS
     /* Limits the operating system decides */
     check(sysconf(_SC_OPEN_MAX) == -1 || sysconf(_SC_OPEN_MAX) >= _POSIX_OPEN_MAX, "_SC_OPEN_MAX");
     check(sysconf(_SC_ARG_MAX) == -1 || sysconf(_SC_ARG_MAX) >= _POSIX_ARG_MAX, "_SC_ARG_MAX");
