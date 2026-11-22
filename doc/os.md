@@ -498,7 +498,7 @@ and stops with an error if the header defines one of those itself.
 | `FILE_SYSTEM_FD` | `faccessat`, `fdopendir`, `fstatat`, `linkat`, `mkdirat`, `openat`, `renameat`, `unlinkat`, `utimensat` |
 | `MULTI_PROCESS` | `_Fork`, `_exit`, `execve`, `fork`, `getpgid`, `getpgrp`, `getpid`, `getppid`, `getrlimit`, `getsid`, `setrlimit`, `setsid`, `times`, `waitid`, `waitpid` |
 | `MULTI_PROCESS_FD` | `fexecve` |
-| `NETWORKING` | `accept`, `accept4`, `bind`, `connect`, `gethostname`, `getpeername`, `getsockname`, `getsockopt`, `if_freenameindex`, `if_indextoname`, `if_nameindex`, `if_nametoindex`, `listen`, `recv`, `recvfrom`, `recvmsg`, `send`, `sendmsg`, `sendto`, `setsockopt`, `shutdown`, `sockatmark`, `socket`, `socketpair` |
+| `NETWORKING` | `accept`, `accept4`, `bind`, `connect`, `gethostname`, `getpeername`, `getsockname`, `getsockopt`, `if_indextoname`, `if_nameindex`, `if_nametoindex`, `listen`, `recv`, `recvfrom`, `recvmsg`, `send`, `sendmsg`, `sendto`, `setsockopt`, `shutdown`, `sockatmark`, `socket`, `socketpair` |
 | `PIPE` | `pipe`, `pipe2` |
 | `SIGNALS` | `alarm`, `kill`, `pause`, `sigaction`, `sigpending`, `sigprocmask`, `sigsuspend`, `sigtimedwait` |
 | `SINGLE_PROCESS` | `sysconf`, `uname` |

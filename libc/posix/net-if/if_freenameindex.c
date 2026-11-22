@@ -33,7 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-socket.h"
+#define _DEFAULT_SOURCE
+#include <net/if.h>
 #include <stdlib.h>
 
 void

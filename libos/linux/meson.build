@@ -116,7 +116,6 @@ if fs.is_dir(machine_dir)
     'gettimeofday.c',
     'getuid.c',
     'grantpt.c',
-    'if_freenameindex.c',
     'if_indextoname.c',
     'if_nameindex.c',
     'if_nametoindex.c',
