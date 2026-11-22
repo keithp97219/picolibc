@@ -39,12 +39,13 @@
  * on threaded systems, nothing on single-threaded ones. An object
  * covers each 64-byte granule it touches, and the locks for those
  * granules are taken in table order, so an object spanning two slots
- * can't deadlock against another.
+ * can't deadlock against another. Targets which mask interrupts
+ * instead (see local-atomic.h) have no table.
  */
 
 #include "local-atomic.h"
 
-#ifndef __SINGLE_THREAD
+#if !defined(__SINGLE_THREAD) && !defined(ATOMIC_IRQ_LOCK)
 
 #define ATOMIC_LOCKS        8 /* a power of two */
 #define ATOMIC_GRANULE_BITS 6
@@ -116,4 +117,4 @@ __picolibc_atomic_unlock(struct __atomic_slots slots)
             __lock_release(atomic_locks[i]);
 }
 
-#endif /* __SINGLE_THREAD */
+#endif /* !__SINGLE_THREAD && !ATOMIC_IRQ_LOCK */

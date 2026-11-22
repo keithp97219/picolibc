@@ -73,7 +73,27 @@
 #define ATOMIC_LOCK_FREE(n, mem)                                             \
     (__atomic_always_lock_free(n, 0) && ((uintptr_t)(mem) & ((n) - 1)) == 0)
 
-#ifndef __SINGLE_THREAD
+/*
+ * Without atomic read-modify-write instructions, compilers access
+ * small objects with plain loads and stores and call these functions
+ * for the rest, so no lock can exclude those accesses. These targets
+ * are taken to be single-core, and the functions mask interrupts
+ * instead, through hooks an RTOS can replace. That makes each
+ * operation indivisible against both threads and interrupt handlers.
+ * Only architectures with a default for the hooks do this; the others
+ * keep the lock table.
+ */
+#if __GCC_ATOMIC_INT_LOCK_FREE < 2 && (defined(__arm__) || defined(__riscv))
+#define ATOMIC_IRQ_LOCK
+#endif
+
+#ifdef ATOMIC_IRQ_LOCK
+
+#define ATOMIC_LOCK(mem, size)                                                           \
+    unsigned long atomic_irq = ((void)(mem), (void)(size), __retarget_atomic_irq_save())
+#define ATOMIC_UNLOCK() __retarget_atomic_irq_restore(atomic_irq)
+
+#elif !defined(__SINGLE_THREAD)
 
 /* The table slots an object covers, from first through first + count - 1, wrapping */
 struct __atomic_slots {
@@ -92,7 +112,7 @@ void                  __picolibc_atomic_unlock(struct __atomic_slots slots);
 #define ATOMIC_LOCK(mem, size) ((void)(mem), (void)(size))
 #define ATOMIC_UNLOCK()        ((void)0)
 
-#endif /* __SINGLE_THREAD */
+#endif /* ATOMIC_IRQ_LOCK */
 
 /* Operations on objects of each size the compiler names with _n */
 #define ATOMIC_SIZED_LOAD(n, T)                                                  \
