@@ -64,6 +64,7 @@ static const CHAR pstr_an[] = CQ("an");
 #if defined(STRTOD) || defined(STRTOF) || defined(STRTOLD)
 
 #define CHECK_WIDTH() 1
+#define SET_ERANGE()  (errno = ERANGE)
 #define CHECK_RANGE(flt)                                                             \
     do {                                                                             \
         int __class = fpclassify(flt);                                               \
@@ -124,6 +125,7 @@ scanf_ungetc(INT c, FLT_STREAM *s, int *lenp)
 
 #define CHECK_WIDTH() (--width != 0)
 #define CHECK_RANGE(flt)
+#define SET_ERANGE()
 
 #ifdef _NEED_IO_FLOAT
 
@@ -152,10 +154,43 @@ scanf_ungetc(INT c, FLT_STREAM *s, int *lenp)
 #include "scanf_private.h"
 
 #include "dtoa.h"
+#include <fenv.h>
+
+#ifdef __IO_FLOAT_EXACT
+#include "atof_exact.h"
+#define _NEED_IO_FLOAT_EXACT_DEC
+#endif
+
+#ifndef _CONV_FLT_ROUND_MODE
+#define _CONV_FLT_ROUND_MODE
+
+/* How to round the magnitude of the value */
+#define RND_NEAREST 0
+#define RND_DOWN    1 /* toward zero */
+#define RND_UP      2 /* away from zero */
+
+static int
+conv_flt_round_mode(uint16_t flags)
+{
+#if defined(FE_UPWARD) && defined(FE_DOWNWARD) && defined(FE_TOWARDZERO)
+    switch (fegetround()) {
+    case FE_TOWARDZERO:
+        return RND_DOWN;
+    case FE_UPWARD:
+        return (flags & FL_MINUS) ? RND_DOWN : RND_UP;
+    case FE_DOWNWARD:
+        return (flags & FL_MINUS) ? RND_UP : RND_DOWN;
+    }
+#endif
+    (void)flags;
+    return RND_NEAREST;
+}
+#endif
 
 #ifdef _NEED_IO_LONG_DOUBLE
 #define FLOAT          long double
 #define FLOAT_MIN      __LDBL_MIN__
+#define FLOAT_MAX      __LDBL_MAX__
 #define FLOAT_MANT_DIG __LDBL_MANT_DIG__
 #define FLOAT_MAX_EXP  __LDBL_MAX_EXP__
 #define FLOAT_MIN_EXP  __LDBL_MIN_EXP__
@@ -173,6 +208,7 @@ scanf_ungetc(INT c, FLT_STREAM *s, int *lenp)
 #elif defined(_NEED_IO_DOUBLE)
 #define FLOAT          double
 #define FLOAT_MIN      __DBL_MIN__
+#define FLOAT_MAX      __DBL_MAX__
 #define FLOAT_MANT_DIG __DBL_MANT_DIG__
 #define FLOAT_MAX_EXP  __DBL_MAX_EXP__
 #define FLOAT_MIN_EXP  __DBL_MIN_EXP__
@@ -186,6 +222,7 @@ scanf_ungetc(INT c, FLT_STREAM *s, int *lenp)
 #elif defined(_NEED_IO_FLOAT)
 #define FLOAT          float
 #define FLOAT_MIN      __FLT_MIN__
+#define FLOAT_MAX      __FLT_MAX__
 #define FLOAT_MANT_DIG __FLT_MANT_DIG__
 #define FLOAT_MAX_EXP  __FLT_MAX_EXP__
 #define FLOAT_MIN_EXP  __FLT_MIN_EXP__
@@ -246,6 +283,12 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
     INT          i;
     const CHAR  *p;
     int          exp;
+    int          rmode;
+#ifdef _NEED_IO_FLOAT_EXACT_DEC
+    uint32_t dw[ATOF_EXACT_NWORDS]; /* decimal significand */
+    int      nn = 0;                /* words in dw */
+    int      ndig = 0;              /* significant digits in dw */
+#endif
 
     i = scanf_getc(stream, context); /* after scanf_ungetc()	*/
 
@@ -329,6 +372,12 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
 #define base 10
 #endif
 
+#ifdef _NEED_IO_FLOAT_EXACT_DEC
+#define NO_DEC_DIGITS() (ndig == 0)
+#else
+#define NO_DEC_DIGITS() 1
+#endif
+
 #define uintdigitsmax                                                                              \
     ((base) == 10                                                                                  \
          ? (CHECK_LONG_LONG() ? uintdigitsmax_10_long_double                                       \
@@ -352,7 +401,12 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
                 if (flags & FL_ANY)
                     flags |= FL_TWO;
                 flags |= FL_ANY;
-                if (!(flags & FL_OVFL) && uintdigits > uintdigitsmax) {
+#ifdef _NEED_IO_FLOAT_EXACT_DEC
+#define DIGITS_FULL() ((base) == 10 ? ndig >= ATOF_EXACT_DIG : uintdigits > uintdigitsmax)
+#else
+#define DIGITS_FULL() (uintdigits > uintdigitsmax)
+#endif
+                if (!(flags & FL_OVFL) && DIGITS_FULL()) {
                     flags |= FL_OVFL;
                     if (base == 10) {
                         /* Check if overflow is >= 0.5 */
@@ -371,16 +425,26 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
                 } else {
                     if (flags & FL_DOT)
                         exp -= 1;
-                    uint = UF_PLUS_DIGIT(UF_TIMES_BASE(uint, base), c);
-                    if (!UF_IS_ZERO(uint))
-                        uintdigits++;
+#ifdef _NEED_IO_FLOAT_EXACT_DEC
+                    if (base == 10) {
+                        if (ndig || c) {
+                            nn = __atof_exact_mul_add(dw, nn, 10, c);
+                            ndig++;
+                        }
+                    } else
+#endif
+                    {
+                        uint = UF_PLUS_DIGIT(UF_TIMES_BASE(uint, base), c);
+                        if (!UF_IS_ZERO(uint))
+                            uintdigits++;
+                    }
                 }
 
             } else if (c == (UCHAR)((CQ('.') - CQ('0'))) && !(flags & FL_DOT)) {
                 flags |= FL_DOT;
 #ifdef _NEED_IO_C99_FORMATS
             } else if (TOLOWER(i) == CQ('x') && ((flags & (FL_ANY | FL_TWO | FL_FHEX)) == FL_ANY)
-                       && UF_IS_ZERO(uint)) {
+                       && UF_IS_ZERO(uint) && NO_DEC_DIGITS()) {
                 flags |= FL_FHEX;
                 flags &= ~(FL_ANY | FL_TWO);
                 base = 16;
@@ -461,13 +525,60 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
         if (width)
             scanf_ungetc(i, stream, context);
 
-        if (UF_IS_ZERO(uint)) {
+#if defined(_NEED_IO_C99_FORMATS)
+#define IS_HEX() (flags & FL_FHEX)
+#else
+#define IS_HEX() 0
+#endif
+
+        if (UF_IS_ZERO(uint) && (IS_HEX() || NO_DEC_DIGITS())) {
             flt = (FLOAT)0;
             break;
         }
 
-#ifdef _NEED_IO_C99_FORMATS
-        if (flags & FL_FHEX) {
+        rmode = conv_flt_round_mode(flags);
+
+#ifdef _NEED_IO_FLOAT_EXACT_DEC
+        if (!IS_HEX()) {
+            uint32_t q[ATOF_EXACT_QWORDS];
+            int      sticky;
+
+            /*
+             * Round to ATOF_EXACT_DIG digits in the current rounding
+             * direction (C23 F.5p3). overflow is 1 for a discarded
+             * part below one half, 2 for exactly one half and 3 above.
+             */
+            if (overflow
+                && (rmode == RND_UP
+                    || (rmode == RND_NEAREST && (overflow == 3 || (overflow == 2 && (dw[0] & 1))))))
+                nn = __atof_exact_mul_add(dw, nn, 1, 1);
+
+#if __SIZEOF_LONG_DOUBLE__ > 8 && defined(_NEED_IO_LONG_DOUBLE)
+            if (CHECK_LONG_LONG())
+                exp = __atof_exact_long_double(dw, nn, exp, q, &sticky);
+            else
+#endif
+#if __SIZEOF_DOUBLE__ == 8 || __SIZEOF_LONG_DOUBLE__ == 8
+                if ((CHECK_LONG() && __SIZEOF_DOUBLE__ == 8)
+                    || (CHECK_LONG_LONG() && __SIZEOF_LONG_DOUBLE__ == 8))
+                exp = __atof_exact_double(dw, nn, exp, q, &sticky);
+            else
+#endif
+                exp = __atof_exact_float(dw, nn, exp, q, &sticky);
+
+            uint = U64_TO_UF(((uint64_t)q[1] << 32) | q[0]);
+#if FLOAT_MANT_DIG > 53
+            uint = UF_OR(uint, UF_LSHIFT(U64_TO_UF(((uint64_t)q[3] << 32) | q[2]), 64));
+#endif
+            overflow = sticky;
+        }
+#define USE_BINARY() 1
+#elif defined(_NEED_IO_C99_FORMATS)
+#define USE_BINARY() (flags & FL_FHEX)
+#endif
+
+#ifdef USE_BINARY
+        if (USE_BINARY()) {
             int sig_bits;
             int min_exp;
 
@@ -509,8 +620,9 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
              */
             uint = UF_OR_64(uint, overflow);
 
-            /* Round even */
-            if (UF_AND_64(uint, 3) == 3 || UF_AND_64(uint, 6) == 6) {
+            /* Round in the current direction */
+            if (rmode == RND_NEAREST ? (UF_AND_64(uint, 3) == 3 || UF_AND_64(uint, 6) == 6)
+                                     : (rmode == RND_UP && UF_AND_64(uint, 3) != 0)) {
                 uint = UF_PLUS_DIGIT(uint, 4);
                 if (UF_GE(uint, UF_LSHIFT_64(1, FLOAT_MANT_DIG + 2))) {
                     uint = UF_RSHIFT(uint, 1);
@@ -534,7 +646,12 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
             }
 
             if (exp >= FLOAT_MAX_EXP) {
-                flt = (FLOAT)INFINITY;
+                if (rmode == RND_DOWN) {
+                    flt = FLOAT_MAX;
+                    SET_ERANGE();
+                } else {
+                    flt = (FLOAT)INFINITY;
+                }
             } else {
 #if FLOAT_MANT_DIG <= 53 || __LDBL_IS_IEC_60559__ != 0 || defined(__m68k__)
                 if (UF_LT(uint, UF_LSHIFT_64(1, (FLOAT_MANT_DIG - 1)))) {
@@ -563,7 +680,11 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
 #endif
                 CHECK_RANGE(flt);
             }
-        } else
+        }
+#endif
+#ifndef _NEED_IO_FLOAT_EXACT_DEC
+#ifdef USE_BINARY
+        else
 #endif
         {
             /*
@@ -611,6 +732,7 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
                 }
             }
         }
+#endif
         CHECK_RANGE(flt)
         break;
     } /* switch */
