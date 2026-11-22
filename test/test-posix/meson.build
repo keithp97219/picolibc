@@ -87,6 +87,7 @@ posix_test_dirs = [
   'test-sys-ipc',
   'test-sys-mman',
   'test-sys-msg',
+  'test-sys-random',
   'test-sys-resource',
   'test-sys-select',
   'test-sys-sem',

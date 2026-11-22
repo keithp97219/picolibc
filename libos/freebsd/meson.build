@@ -93,6 +93,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'futimens.c',
     'getcwd.c',
     'getentropy.c',
+    'getrandom.c',
     'getgroups.c',
     'gethostname.c',
     'getitimer.c',

@@ -60,6 +60,7 @@ inc_sys_headers_all = [
   '_os.h',
   'param.h',
   'queue.h',
+  'random.h',
   'resource.h',
   'sched.h',
   'select.h',

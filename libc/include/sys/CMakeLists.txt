@@ -60,6 +60,7 @@ picolibc_headers(sys
   _os.h
   param.h
   queue.h
+  random.h
   resource.h
   sched.h
   select.h
