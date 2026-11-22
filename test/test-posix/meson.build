@@ -117,6 +117,10 @@ posix_test_dirs = [
 test_skip = []
 test_skip_native = []
 
+# Per-test compiler and link arguments for the native variants
+test_native_c_args = {}
+test_native_link_args = {}
+
 # Thread tests use the library's own locks, not lock-valid.c
 test_skip_lock_valid = []
 
@@ -237,8 +241,8 @@ if enable_native_tests
     test(t1_name,
 	 executable(t1_name, t1_src,
 		    name_suffix: 'elf',
-		    c_args: native_c_args + test_file_name_arg + ctype_c_args + args_test_posix + native_glibc_args,
-		    link_args: native_c_args,
+		    c_args: native_c_args + test_file_name_arg + ctype_c_args + args_test_posix + native_glibc_args + test_native_c_args.get(t1, []),
+		    link_args: native_c_args + test_native_link_args.get(t1, []),
                     dependencies: [native_lib_m, native_thread_dep]),
          suite: [t1_dir, 'test-linux'],
          env: test_env

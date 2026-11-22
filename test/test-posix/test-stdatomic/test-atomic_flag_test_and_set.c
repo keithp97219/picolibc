@@ -38,10 +38,21 @@
  * Call the <stdatomic.h> operations that C11 also defines as
  * functions, through their function names rather than the macros.
  */
+#include <unistd.h>
+#include "../test-flags.h"
+
+/* Skipped without the atomics group; not an OS group, so built for every target */
+#if TEST_POSIX_C_LANG_ATOMICS
+
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef __clang__
+/* clang warns about each operation which isn't lock-free */
+#pragma clang diagnostic ignored "-Watomic-alignment"
+#endif
 
 #define check(condition, message)                      \
     do {                                               \
@@ -64,7 +75,6 @@ static atomic_flag flag = ATOMIC_FLAG_INIT;
 int
 main(void)
 {
-#ifdef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1
     bool (*test_and_set)(volatile atomic_flag *) = atomic_flag_test_and_set;
     void (*fence)(memory_order) = atomic_thread_fence;
 
@@ -78,13 +88,20 @@ main(void)
     (atomic_thread_fence)(memory_order_seq_cst);
     (atomic_signal_fence)(memory_order_seq_cst);
     fence(memory_order_acq_rel);
-#else
-    /* picolibc only defines these where the compiler implements them inline */
-    (void)flag;
-    printf("no inline atomics, skipping\n");
-    return 77;
-#endif
 
     printf("success\n");
     return 0;
 }
+
+#else
+
+#include <stdio.h>
+
+int
+main(void)
+{
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif

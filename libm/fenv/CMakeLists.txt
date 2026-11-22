@@ -34,6 +34,7 @@
 #
 
 picolibc_sources(
+  atomic_feraiseexcept.c
   fe_dfl_env.c
   fenv.c
   fegetmode.c

@@ -494,10 +494,11 @@ and stops with an error if the header defines one of those itself.
    groups made of its own code:
 
     - Groups of library functions alone are always defined, as
-      `202405L`: `C_LANG_JUMP`, `C_LANG_MATH`, `C_LANG_SUPPORT`,
-      `C_LANG_SUPPORT_R`, `C_LANG_UCHAR`, `C_LANG_WIDE_CHAR`,
-      `C_LANG_WIDE_CHAR_EXT`, `C_LIB_EXT`, `FILE_LOCKING`, `I18N`,
-      `MULTI_CONCURRENT_LOCALES` and `REGEXP`, and
+      `202405L`: `C_LANG_ATOMICS`, `C_LANG_JUMP`, `C_LANG_MATH`,
+      `C_LANG_SUPPORT`, `C_LANG_SUPPORT_R`, `C_LANG_UCHAR`,
+      `C_LANG_WIDE_CHAR`, `C_LANG_WIDE_CHAR_EXT`, `C_LIB_EXT`,
+      `FILE_LOCKING`, `I18N`, `MULTI_CONCURRENT_LOCALES` and `REGEXP`,
+      and
       `__PICOLIBC_XSI_MATH` and `__PICOLIBC_XSI_WIDE_CHAR`. picolibc
       has no message catalog format or translations, so in `I18N`,
       `catopen` finds no catalog and the `gettext` family returns
@@ -524,10 +525,25 @@ and stops with an error if the header defines one of those itself.
       `FD_MGMT` is `200809L` for want of OFD locks, still has all
       three at `202405L`: none of them locks files.
 
-    - `C_LANG_ATOMICS` isn't defined: for atomic objects the target
-      can't access lock-free, such as large structures, compilers call
-      libatomic's `__atomic_load` and the like, which picolibc
-      doesn't provide.
+    - `C_LANG_ATOMICS` relies on the libatomic functions compilers
+      call for atomic objects the target can't access lock-free, such
+      as large structures (`__atomic_load` and the like), which
+      picolibc provides in `libc/misc/libatomic_*.c`, one operation
+      and size per object so a program links only what it calls. Sizes
+      the compiler accesses lock-free use its builtins; the others
+      take locks from one small table hashed by address
+      (`libatomic_lock.c`), built from the retargetable locks, so
+      they're mutexes with threads and nothing without. They're weak,
+      so a toolchain's libatomic linked as well takes over. That is
+      per function: with a link order which takes some functions from
+      libatomic and others from picolibc (picolibc's `libc.a` searched
+      first for one call, libatomic for another), the two sets use
+      different locks and don't exclude each other on the same
+      object; link one or the other. Without atomic read-modify-write
+      instructions (armv6-m, RISC-V without A), GCC still accesses
+      `char`, `short` and `int` objects with plain loads and stores,
+      which the locks don't exclude, and on bare metal nothing
+      excludes interrupt handlers.
 
    The OS's part of each group is the group's interfaces that picolibc
    doesn't implement:
