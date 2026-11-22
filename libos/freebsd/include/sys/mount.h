@@ -97,6 +97,12 @@ int fstatfs(int __fd, struct statfs *__buf) __picolibc_export;
 int getfsstat(struct statfs *__buf, long __bufsize, int __mode) __picolibc_export;
 int getmntinfo(struct statfs **__mntbufp, int __mode) __picolibc_export;
 
+/* The transitional large file names: struct statfs holds 64-bit counts */
+#if __LARGEFILE64_VISIBLE
+#define statfs64  statfs
+#define fstatfs64 fstatfs
+#endif
+
 _END_STD_C
 
 #endif /* _SYS_MOUNT_H_ */

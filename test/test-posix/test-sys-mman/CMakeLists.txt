@@ -37,6 +37,7 @@ set(tests
   test-mlock
   test-mmap
   test-mprotect
+  test-mremap
   test-msync
   test-munmap
   test-posix_madvise

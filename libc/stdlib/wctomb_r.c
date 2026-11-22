@@ -284,6 +284,39 @@ __jis_wctomb(char *s, wchar_t wchar, mbstate_t *state)
 }
 #endif /* __MB_EXTENDED_CHARSETS_JIS */
 
+#ifdef __MB_EXTENDED_CHARSETS_GB18030
+#include "gb18030.h"
+
+static int
+__gb18030_wctomb(char *s, wchar_t wchar, mbstate_t *state)
+{
+    uint32_t code;
+
+    (void)state;
+    if (s == NULL)
+        return 0; /* not state-dependent */
+
+    code = __unicode_to_gb18030((uwchar_t)wchar);
+    if (code == GB18030_INVALID)
+        return -1;
+
+    if (code < 0x100) {
+        s[0] = (char)code;
+        return 1;
+    }
+    if (code < 0x10000) {
+        s[0] = (char)(code >> 8);
+        s[1] = (char)code;
+        return 2;
+    }
+    s[0] = (char)(code >> 24);
+    s[1] = (char)(code >> 16);
+    s[2] = (char)(code >> 8);
+    s[3] = (char)code;
+    return 4;
+}
+#endif /* __MB_EXTENDED_CHARSETS_GB18030 */
+
 #ifdef __MB_EXTENDED_CHARSETS_ISO
 
 static int
@@ -633,6 +666,9 @@ const wctomb_p __wctomb[locale_END - locale_BASE] = {
     [locale_UCS_4 - locale_BASE] = __ucs4_wctomb,
     [locale_UCS_4LE - locale_BASE] = __ucs4le_wctomb,
     [locale_UCS_4BE - locale_BASE] = __ucs4be_wctomb,
+#endif
+#ifdef __MB_EXTENDED_CHARSETS_GB18030
+    [locale_GB18030 - locale_BASE] = __gb18030_wctomb,
 #endif
 #ifdef __MB_EXTENDED_CHARSETS_ISO
     [locale_ISO_8859_1 - locale_BASE] = __iso_8859_1_wctomb,

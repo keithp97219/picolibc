@@ -882,6 +882,94 @@ __jis_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 
 #endif /* __MB_EXTENDED_CHARSETS_JIS */
 
+#ifdef __MB_EXTENDED_CHARSETS_GB18030
+
+#include "gb18030.h"
+
+/*
+ * GB18030 is not state-dependent; the state only holds the bytes of
+ * an incomplete character, with their number in __count
+ */
+static int
+__gb18030_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
+{
+    wchar_t        dummy;
+    const uint8_t *t = (const uint8_t *)s;
+    uint8_t       *wchb;
+    int            count;
+    size_t         i = 0;
+    uint8_t        ch;
+    uint32_t       code;
+    wint_t         uchar;
+
+    if (pwc == NULL)
+        pwc = &dummy;
+
+    if (s == NULL)
+        return 0; /* not state-dependent */
+
+    if (n == 0)
+        return -2;
+
+    wchb = state->__value.__wchb;
+    count = state->__count;
+    if (count < 0 || count > 3)
+        goto ilseq;
+
+    while (i < n) {
+        ch = t[i++];
+        switch (count) {
+        case 0:
+            if (ch < 0x80) {
+                *pwc = ch;
+                return ch ? 1 : 0;
+            }
+            if (ch == 0x80 || ch == 0xff)
+                goto ilseq;
+            break;
+        case 1:
+            if (0x30 <= ch && ch <= 0x39)
+                break; /* four-byte code */
+            if (ch < 0x40 || ch == 0x7f || ch == 0xff)
+                goto ilseq;
+            code = ((uint32_t)wchb[0] << 8) | ch;
+            goto convert;
+        case 2:
+            if (ch < 0x81 || ch == 0xff)
+                goto ilseq;
+            break;
+        default:
+            if (ch < 0x30 || ch > 0x39)
+                goto ilseq;
+            code = ((uint32_t)wchb[0] << 24) | ((uint32_t)wchb[1] << 16) | ((uint32_t)wchb[2] << 8)
+                | ch;
+            goto convert;
+        }
+        wchb[count++] = ch;
+    }
+    state->__count = count;
+    return -2;
+
+convert:
+    state->__count = 0;
+    uchar = __gb18030_to_unicode(code);
+    if (uchar == WEOF)
+        return -1;
+#if __SIZEOF_WCHAR_T__ == 2
+    /* No surrogate pairs */
+    if (uchar > 0xffff)
+        return -1;
+#endif
+    *pwc = (wchar_t)uchar;
+    return (int)i;
+
+ilseq:
+    state->__count = 0;
+    return -1;
+}
+
+#endif /* __MB_EXTENDED_CHARSETS_GB18030 */
+
 const mbtowc_p __mbtowc[locale_END - locale_BASE] = {
     [locale_C - locale_BASE] = __ascii_mbtowc,
     [locale_UTF_8 - locale_BASE] = __utf8_mbtowc,
@@ -892,6 +980,9 @@ const mbtowc_p __mbtowc[locale_END - locale_BASE] = {
     [locale_UCS_4 - locale_BASE] = __ucs4_mbtowc,
     [locale_UCS_4LE - locale_BASE] = __ucs4le_mbtowc,
     [locale_UCS_4BE - locale_BASE] = __ucs4be_mbtowc,
+#endif
+#ifdef __MB_EXTENDED_CHARSETS_GB18030
+    [locale_GB18030 - locale_BASE] = __gb18030_mbtowc,
 #endif
 #ifdef __MB_EXTENDED_CHARSETS_ISO
     [locale_ISO_8859_1 - locale_BASE] = __iso_8859_1_mbtowc,

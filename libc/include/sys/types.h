@@ -181,6 +181,21 @@ typedef __off_t off_t; /* file offset */
 #define _OFF_T_DECLARED
 #endif
 
+/* The transitional large file names: these types are 64 bits already */
+#if __LARGEFILE64_VISIBLE
+#ifndef _OFF64_T_DECLARED
+typedef __off_t off64_t;
+#define _OFF64_T_DECLARED
+#endif
+typedef __ino_t    ino64_t;
+typedef __blkcnt_t blkcnt64_t;
+#ifndef _FSBLKCNT64_T_DECLARED
+typedef __fsblkcnt_t fsblkcnt64_t;
+typedef __fsfilcnt_t fsfilcnt64_t;
+#define _FSBLKCNT64_T_DECLARED
+#endif
+#endif
+
 #ifndef _DEV_T_DECLARED
 typedef __dev_t dev_t; /* device number or struct cdev */
 #define _DEV_T_DECLARED

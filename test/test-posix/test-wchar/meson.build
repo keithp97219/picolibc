@@ -38,6 +38,7 @@ dir_tests = [
   'test-fwide',
   'test-mbrtowc',
   'test-mbsrtowcs',
+  'test-mbstate_t',
   'test-open_wmemstream',
   'test-towctrans',
   'test-wchar_h',

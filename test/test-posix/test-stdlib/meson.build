@@ -36,6 +36,7 @@
 dir_tests = [
   'test-a64l',
   'test-abort-status',
+  'test-canonicalize_file_name',
   'test-div',
   'test-exit',
   'test-getsubopt',

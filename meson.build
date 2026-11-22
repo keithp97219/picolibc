@@ -597,6 +597,8 @@ if get_option('mb-jis-charsets') == 'auto'
 else
   mb_jis_charsets = mb_capable and get_option('mb-jis-charsets') == 'true'
 endif
+# GB18030 is large, so mb-extended-charsets doesn't include it
+mb_gb18030_charset = mb_capable and get_option('mb-gb18030-charset')
 
 obsolete_math = get_option('newlib-obsolete-math')
 obsolete_math_float = get_option('newlib-obsolete-math-float')
@@ -1622,6 +1624,8 @@ conf_data.set('__SINGLE_THREAD', get_option('single-thread'), description: 'Disa
 conf_data.set('__HAVE_FCNTL', get_option('have-fcntl') or stdio_posix_streams, description: 'System provides fcntl function')
 conf_data.set('__MALLOC_CLEAR_FREED', get_option('malloc-clear-freed'))
 conf_data.set('__MALLOC_SMALL_BUCKET', get_option('malloc-small-bucket'))
+conf_data.set('__TZIF', get_option('tzif'),
+              description: 'Load time zones from TZif files')
 conf_data.set('__MALLOC_ERROR_ABORT', get_option('malloc-error-abort'))
 if internal_heap != 0
   conf_data.set('__INTERNAL_HEAP', internal_heap)
@@ -1700,6 +1704,7 @@ if mb_capable
   conf_data.set('__MB_EXTENDED_CHARSETS_ISO', mb_iso_charsets)
   conf_data.set('__MB_EXTENDED_CHARSETS_WINDOWS', mb_windows_charsets)
   conf_data.set('__MB_EXTENDED_CHARSETS_JIS', mb_jis_charsets)
+  conf_data.set('__MB_EXTENDED_CHARSETS_GB18030', mb_gb18030_charset)
 endif
 
 conf_data.set('__TINY_STDIO', true, description: 'Picolibc stdio comes from the avr C library')

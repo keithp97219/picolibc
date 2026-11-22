@@ -30,4 +30,22 @@ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
  */
+#ifndef _FCNTL_H_
+#define _FCNTL_H_
+
 #include <sys/fcntl.h>
+
+/* The transitional large file names: off_t is 64 bits already */
+#if __LARGEFILE64_VISIBLE
+#ifndef _OFF64_T_DECLARED
+typedef __off_t off64_t;
+#define _OFF64_T_DECLARED
+#endif
+#define open64            open
+#define openat64          openat
+#define creat64           creat
+#define posix_fadvise64   posix_fadvise
+#define posix_fallocate64 posix_fallocate
+#endif
+
+#endif /* _FCNTL_H_ */
