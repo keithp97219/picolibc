@@ -817,7 +817,10 @@ without them:
 
  * `<netinet/_tcp.h>`, for `<netinet/tcp.h>`: `TCP_NODELAY`.
 
- * `<sys/_un.h>`, for `<sys/un.h>`: `struct sockaddr_un`.
+ * `<sys/_un.h>`, for `<sys/un.h>`: `struct sockaddr_un` and
+   `sa_family_t`, the latter guarded by `_SA_FAMILY_T_DECLARED` as in
+   `<sys/_socket.h>`. It mustn't include `<sys/_socket.h>`, as
+   `<sys/un.h>` may not define the rest of `<sys/socket.h>`.
 
  * `<net/_if.h>`, for `<net/if.h>`: `IF_NAMESIZE`.
 
