@@ -114,6 +114,18 @@ shmmax(void)
 
 #define SIZE 5000
 
+/* The shm_segsz of a segment made with size bytes */
+static size_t
+segsz(size_t size)
+{
+    if (TEST_VARIANCE_SHM_SEGSZ_PAGES) {
+        size_t page = (size_t)sysconf(_SC_PAGESIZE);
+
+        return (size + page - 1) / page * page;
+    }
+    return size;
+}
+
 int
 main(void)
 {
@@ -181,7 +193,7 @@ main(void)
     check(shmget(key, SIZE, 0600) == id, "found again");
     check(shmget(key, 0, 0) == id, "found with size 0");
     check(shmget(key, 100, IPC_CREAT | 0600) == id, "found asking for less");
-    check(shmget(key, SIZE + 1, 0600) == -1 && errno == EINVAL, "EINVAL asking for more");
+    check(shmget(key, segsz(SIZE) + 1, 0600) == -1 && errno == EINVAL, "EINVAL asking for more");
     check(shmget(key, SIZE, IPC_CREAT | IPC_EXCL | 0600) == -1 && errno == EEXIST, "EEXIST");
 
     /* The new segment's shmid_ds comes from the flags, the size and the caller */
@@ -189,7 +201,7 @@ main(void)
     check(ds.shm_perm.cuid == geteuid() && ds.shm_perm.uid == geteuid(), "cuid and uid");
     check(ds.shm_perm.cgid == getegid() && ds.shm_perm.gid == getegid(), "cgid and gid");
     check((ds.shm_perm.mode & 0777) == 0640, "the low 9 bits of the mode");
-    check(ds.shm_segsz == SIZE, "shm_segsz is the size asked for");
+    check(ds.shm_segsz == segsz(SIZE), "shm_segsz is the size asked for");
     check(ds.shm_lpid == 0 && ds.shm_nattch == 0, "shm_lpid and shm_nattch");
     check(ds.shm_atime == 0 && ds.shm_dtime == 0, "shm_atime and shm_dtime");
     check(ds.shm_cpid == getpid(), "shm_cpid");

@@ -123,6 +123,18 @@ child_status(pid_t pid)
 
 #define SIZE 12345
 
+/* The shm_segsz of a segment made with size bytes */
+static size_t
+segsz(size_t size)
+{
+    if (TEST_VARIANCE_SHM_SEGSZ_PAGES) {
+        size_t page = (size_t)sysconf(_SC_PAGESIZE);
+
+        return (size + page - 1) / page * page;
+    }
+    return size;
+}
+
 int
 main(void)
 {
@@ -192,7 +204,7 @@ main(void)
     check(ds.shm_perm.uid == geteuid() && ds.shm_perm.cuid == geteuid(), "uid and cuid");
     check(ds.shm_perm.gid == getegid() && ds.shm_perm.cgid == getegid(), "gid and cgid");
     check((ds.shm_perm.mode & 0777) == 0600, "mode");
-    check(ds.shm_segsz == SIZE, "shm_segsz");
+    check(ds.shm_segsz == segsz(SIZE), "shm_segsz");
     check(ds.shm_lpid == pid, "shm_lpid is the child, which detached last");
     check(ds.shm_cpid == getpid(), "shm_cpid");
     check(ds.shm_nattch == 1, "shm_nattch");
@@ -220,7 +232,7 @@ main(void)
     check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
     check((ds.shm_perm.mode & 0777) == 0604, "mode set");
     check(ds.shm_perm.cuid == geteuid() && ds.shm_perm.cgid == getegid(), "cuid and cgid stay");
-    check(ds.shm_segsz == SIZE && ds.shm_lpid == pid && ds.shm_cpid == getpid()
+    check(ds.shm_segsz == segsz(SIZE) && ds.shm_lpid == pid && ds.shm_cpid == getpid()
               && ds.shm_nattch == 1 && ds.shm_atime == attached && ds.shm_dtime == detached,
           "the other members stay");
     check(ds.shm_ctime > detached && ds.shm_ctime <= time(NULL), "IPC_SET sets shm_ctime");
