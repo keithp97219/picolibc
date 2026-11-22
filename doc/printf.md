@@ -199,7 +199,9 @@ hence the size) of the library:
    and scanf. When enabled, printing at least 9 digits (e.g. "%.9g")
    for 32-bit floats and 17 digits (e.g. "%.17g") for 64-bit floats
    ensures that passing the output back to scanf will exactly
-   re-create the original value.
+   re-create the original value. Output is correctly rounded up to 9
+   significant digits for 32-bit floats and 17 for 64-bit floats;
+   any further digits are printed as zeros.
 
  * `-Datomic-ungetc=true` This option, which is enabled by default,
    controls whether getc/ungetc use atomic instruction sequences to

@@ -70,6 +70,7 @@ tests_printf = [
   'test-long-long',
   'test-printf',
   'test-printf-scanf',
+  'test-printf-exact',
   ]
 
 test_extra_c_args = {
