@@ -37,7 +37,11 @@
 #include <stdio-posix.h>
 
 #ifndef __PICOLIBC_STDERR_BUFSIZ
+#ifdef __STDERR_BUFFERED
+#define __PICOLIBC_STDERR_BUFSIZ BUFSIZ
+#else
 #define __PICOLIBC_STDERR_BUFSIZ 1
+#endif
 #endif
 
 static char                write_buf[__PICOLIBC_STDERR_BUFSIZ];

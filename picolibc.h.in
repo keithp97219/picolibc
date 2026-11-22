@@ -133,6 +133,9 @@
 
 #cmakedefine __IO_POS_ARGS
 
+/* stderr is line buffered rather than written a byte at a time */
+#cmakedefine __STDERR_BUFFERED
+
 #define __IO_DEFAULT '@__IO_DEFAULT@'
 
 /* Size of the tmpnam() buffer (L_tmpnam) */

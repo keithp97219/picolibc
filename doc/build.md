@@ -118,6 +118,7 @@ definitions which use the same POSIX I/O functions.
 | printf-small-ultoa          | false   | Avoid soft division routine during integer binary to decimal conversion in printf    |
 | printf-percent-n            | false   | Support the dangerous %n format specifier in printf                                  |
 | minimal-io-long-long        | false   | Support long long values in the minimal ('m') printf and scanf variants              |
+| stderr-buffered             | false   | Line buffer stderr (POSIX console and OS layers) instead of writing each byte        |
 | fast-bufio                  | false   | Improve performance of some I/O operations when using bufio                          |
 | io-wchar                    | false   | Enable wide character support in printf and scanf when mb-capable is not set         |
 
