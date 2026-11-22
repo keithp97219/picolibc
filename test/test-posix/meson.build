@@ -95,6 +95,7 @@ posix_test_dirs = [
   'test-sys-socket',
   'test-sys-stat',
   'test-sys-statvfs',
+  'test-sys-sysinfo',
   'test-sys-time',
   'test-sys-times',
   'test-sys-uio',

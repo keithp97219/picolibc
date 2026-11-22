@@ -178,6 +178,7 @@ if fs.is_dir(machine_dir)
     'fstatvfs.c',
     '_syscall_errno.c',
     'sysconf.c',
+    'sysinfo.c',
     'tcdrain.c',
     'tcflow.c',
     'tcflush.c',
@@ -344,7 +345,7 @@ if fs.is_dir(machine_dir)
   # The POSIX options and option groups this OS layer provides, and
   # its signal stack sizes
   if really_install
-    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h'],
+    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h', 'include/sys/sysinfo.h'],
                     install_dir: include_dir / 'sys')
     # The socket ABI for picolibc's networking headers
     if network == 'linux'
