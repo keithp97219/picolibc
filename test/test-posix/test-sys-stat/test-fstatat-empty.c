@@ -68,10 +68,13 @@ main(void)
         printf("fstatat(fd, \"\", AT_EMPTY_PATH): errno %d\n", errno);
         return 1;
     }
+#ifdef __PICOLIBC__
+    /* glibc takes a null path since 2.41; not under every emulator */
     if (fstatat(fd, NULL, &st, AT_EMPTY_PATH) != 0 || st.st_ino != by_fd.st_ino) {
         printf("fstatat(fd, NULL, AT_EMPTY_PATH): errno %d\n", errno);
         return 1;
     }
+#endif
     errno = 0;
     if (fstatat(fd, "", &st, 0) == 0 || errno != ENOENT) {
         printf("fstatat(fd, \"\", 0) should fail with ENOENT\n");
