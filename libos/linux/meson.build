@@ -120,7 +120,6 @@ if fs.is_dir(machine_dir)
     'getsockopt.c',
     'gettimeofday.c',
     'getuid.c',
-    'getwd.c',
     'grantpt.c',
     'if_freenameindex.c',
     'if_indextoname.c',

@@ -48,6 +48,7 @@ dir_srcs = [
   'getlogin.c',
   'getlogin_r.c',
   'getpass.c',
+  'getwd.c',
   'lockf.c',
   'posix_close.c',
   'sleep.c',

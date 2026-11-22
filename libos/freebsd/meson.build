@@ -139,7 +139,6 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'getsockopt.c',
     'gettimeofday.c',
     'getuid.c',
-    'getwd.c',
     'grantpt.c',
     'if_freenameindex.c',
     'if_indextoname.c',

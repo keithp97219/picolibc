@@ -116,6 +116,10 @@ Picolibc and which source files reference them.
 
    + libc/search/hash.c
 
+ * char *getcwd(char *buf, size_t size)
+
+   + libc/posix/unistd/getwd.c
+
  * int getentropy(void *buffer, size_t length)
 
    + libc/ssp/stack/protector.c
@@ -364,6 +368,14 @@ functions:
 
 ```c
 uid_t getuid(void);
+```
+
+### getwd
+
+`getwd` is `getcwd` with a `PATH_MAX` buffer:
+
+```c
+char   *getcwd(char *buf, size_t size);
 ```
 
 ### readdir_r
