@@ -51,6 +51,15 @@ main(void)
 #ifdef MAP_ANONYMOUS
     printf("#define LINUX_MAP_ANONYMOUS 0x%x\n", MAP_ANONYMOUS);
 #endif
+#ifdef MREMAP_MAYMOVE
+    printf("#define LINUX_MREMAP_MAYMOVE 0x%x\n", MREMAP_MAYMOVE);
+#endif
+#ifdef MREMAP_FIXED
+    printf("#define LINUX_MREMAP_FIXED 0x%x\n", MREMAP_FIXED);
+#endif
+#ifdef MREMAP_DONTUNMAP
+    printf("#define LINUX_MREMAP_DONTUNMAP 0x%x\n", MREMAP_DONTUNMAP);
+#endif
     printf("#define LINUX_MS_ASYNC 0x%x\n", MS_ASYNC);
     printf("#define LINUX_MS_SYNC 0x%x\n", MS_SYNC);
     printf("#define LINUX_MS_INVALIDATE 0x%x\n", MS_INVALIDATE);

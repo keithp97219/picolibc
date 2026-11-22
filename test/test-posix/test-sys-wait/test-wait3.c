@@ -81,8 +81,13 @@ main(void)
     check(wait3(&status, WNOHANG, &ru) == 0 && status == 12345, "WNOHANG leaves status alone");
     close(fds[1]);
     ru.ru_utime.tv_usec = -1;
+    ru.ru_minflt = -1;
     check(wait3(&status, 0, &ru) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 5, "wait3");
     check(ru.ru_utime.tv_usec >= 0 && ru.ru_utime.tv_usec < 1000000, "resource use");
+#if defined(__linux__) || defined(__FreeBSD__)
+    /* The child took page faults writing its copy of the stack */
+    check(ru.ru_minflt > 0, "child page reclaims");
+#endif
 
     pid = fork();
     check(pid >= 0, "fork");
