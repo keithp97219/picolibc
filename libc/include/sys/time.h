@@ -52,6 +52,9 @@ typedef __suseconds_t suseconds_t;
 #define _SUSECONDS_T_DECLARED
 #endif
 
+/* POSIX.1-2024 removed the interval timers and gettimeofday */
+#if __POSIX_VISIBLE < 202405 || __MISC_VISIBLE
+
 /*
  * Names of the interval timers, and structure
  * defining a timer setting.
@@ -69,6 +72,9 @@ int getitimer(int __which, struct itimerval *__value);
 int gettimeofday(struct timeval * __restrict __p, void * __restrict __tz);
 int setitimer(int __which, const struct itimerval * __restrict __value,
               struct itimerval * __restrict __ovalue);
+
+#endif
+
 int utimes(const char *, const struct timeval[2]);
 
 #if __BSD_VISIBLE

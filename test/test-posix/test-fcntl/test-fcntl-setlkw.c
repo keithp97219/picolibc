@@ -34,6 +34,8 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+/* setitimer, which POSIX.1-2024 removed */
+#define _DEFAULT_SOURCE
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
