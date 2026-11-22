@@ -44,4 +44,8 @@ dir_tests = [
   'test-wcsnlen',
   'test-wcstol',
   'test-wcwidth',
+  'test-wint_t',
 ]
+
+# test-wint_t gets a <stddef.h> that ignores __need_wint_t
+test_extra_c_args += {'test-wint_t': ['-I' + meson.current_source_dir() / 'stddef-wrapper']}
