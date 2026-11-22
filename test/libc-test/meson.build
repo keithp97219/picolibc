@@ -72,7 +72,6 @@ libc_test_picolibc_skip = [
 libc_test_os_skip = []
 if os_freebsd
   libc_test_os_skip += [
-    'functional/pthread_cancel-points',         # shm_open
     'functional/pthread_mutex_pi',              # no priority inheritance
   ]
 endif
