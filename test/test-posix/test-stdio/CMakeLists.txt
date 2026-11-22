@@ -51,6 +51,7 @@ set(tests
   test-getline
   test-pclose
   test-perror
+  test-printf-a-prec
   test-popen
   test-renameat
   test-stdio_h

@@ -50,6 +50,7 @@ dir_tests = [
   'test-getline',
   'test-pclose',
   'test-perror',
+  'test-printf-a-prec',
   'test-popen',
   'test-rename',
   'test-renameat',
