@@ -123,6 +123,7 @@
 #define OS_TIMER_ABSTIME FREEBSD_TIMER_ABSTIME
 #define OS_TIOCGPGRP     FREEBSD_TIOCGPGRP
 #define OS_TIOCGSID      FREEBSD_TIOCGSID
+#define OS_TIOCSCTTY     FREEBSD_TIOCSCTTY
 
 /* The value _syscall_raw returns for a kernel errno, and where those are */
 #define _OS_ERR(e)  _FREEBSD_ERR(e)

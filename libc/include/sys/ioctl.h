@@ -48,6 +48,7 @@ int ioctl(int __fd, unsigned long __request, ...);
 #define TIOCGWINSZ (('T' << 8) | 1)
 #define TIOCSWINSZ (('T' << 8) | 2)
 #define TIOCLINUX  (('T' << 8) | 3)
+#define TIOCSCTTY  (('T' << 8) | 4)
 
 _END_STD_C
 

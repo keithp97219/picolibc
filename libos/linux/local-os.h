@@ -183,6 +183,7 @@
 #define OS_TIOCGPGRP     LINUX_TIOCGPGRP
 #define OS_TIOCGSID      LINUX_TIOCGSID
 #define OS_TIOCLINUX     LINUX_TIOCLINUX
+#define OS_TIOCSCTTY     LINUX_TIOCSCTTY
 
 /* The value _syscall_raw returns for a kernel errno, and where those are */
 #define _OS_ERR(e)  (-(long)(e))

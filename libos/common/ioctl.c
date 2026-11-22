@@ -45,8 +45,16 @@ ioctl(int fd, unsigned long op, ...)
     va_list ap;
     void   *arg;
 
-    /* Every request handled here takes a pointer */
     va_start(ap, op);
+#ifdef OS_TIOCSCTTY
+    /* TIOCSCTTY takes an int; every other request handled here a pointer */
+    if (op == TIOCSCTTY) {
+        int steal = va_arg(ap, int);
+
+        va_end(ap);
+        return _syscall(OS_SYS_ioctl, fd, OS_TIOCSCTTY, steal);
+    }
+#endif
     arg = va_arg(ap, void *);
     va_end(ap);
     switch (op) {
