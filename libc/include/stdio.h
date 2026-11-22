@@ -540,6 +540,22 @@ int     pclose(FILE *stream) __picolibc_export;
 int fcloseall(void) __picolibc_export;
 #endif
 
+/* The transitional large file names: off_t and fpos_t are 64 bits already */
+#if __LARGEFILE64_VISIBLE
+#ifndef _OFF64_T_DECLARED
+typedef __off_t off64_t;
+#define _OFF64_T_DECLARED
+#endif
+typedef __fpos_t fpos64_t;
+#define fopen64   fopen
+#define freopen64 freopen
+#define fseeko64  fseeko
+#define ftello64  ftello
+#define fgetpos64 fgetpos
+#define fsetpos64 fsetpos
+#define tmpfile64 tmpfile
+#endif
+
 #if __BSD_VISIBLE
 FILE *funopen(const void *cookie, ssize_t (*readfn)(void *cookie, void *buf, size_t n),
               ssize_t (*writefn)(void *cookie, const void *buf, size_t n),

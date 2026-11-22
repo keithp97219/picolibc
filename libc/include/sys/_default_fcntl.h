@@ -198,9 +198,6 @@ extern int flock(int, int);
 #ifdef _LIBC
 extern int open(const char *, int, ...);
 extern int fcntl(int, int, ...);
-#ifdef __LARGE64_FILES
-extern int open64(const char *, int, ...);
-#endif
 #endif
 
 _END_STD_C

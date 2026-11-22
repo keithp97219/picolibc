@@ -68,6 +68,17 @@ struct statvfs {
 int statvfs(const char * __restrict __path, struct statvfs * __restrict __buf);
 int fstatvfs(int __fd, struct statvfs *__buf);
 
+/* The transitional large file names: struct statvfs holds 64-bit counts */
+#if __LARGEFILE64_VISIBLE
+#ifndef _FSBLKCNT64_T_DECLARED
+typedef __fsblkcnt_t fsblkcnt64_t;
+typedef __fsfilcnt_t fsfilcnt64_t;
+#define _FSBLKCNT64_T_DECLARED
+#endif
+#define statvfs64  statvfs
+#define fstatvfs64 fstatvfs
+#endif
+
 _END_STD_C
 
 #endif /* _SYS_STATVFS_H */
