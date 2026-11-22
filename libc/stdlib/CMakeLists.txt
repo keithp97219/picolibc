@@ -57,6 +57,8 @@ picolibc_sources(
   erand48.c
   _Exit.c
   _findenv.c
+  gb18030.c
+  gbtouc.c
   getenv.c
   getopt.c
   getsubopt.c
@@ -106,6 +108,7 @@ picolibc_sources(
   system.c
   uctoji.c
   uctoej.c
+  uctogb.c
   uctosj.c
   unsetenv.c
   utoa.c
