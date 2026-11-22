@@ -84,6 +84,15 @@ function(picolibc_test test)
   list(REMOVE_ITEM test_options "-D_LIBC")
   target_compile_options(${target} PRIVATE -fno-builtin ${test_options} -D_TEST_LIBC -D_TEST_LONG_DOUBLE)
 
+  # Claim-all mode for the POSIX tests (test/test-posix/CMakeLists.txt)
+  if(PICOLIBC_CLAIM_ALL_POSIX)
+    target_compile_options(${target} PRIVATE -DTEST_CLAIM_ALL)
+    string(REPLACE ";" " " claim_all "${PICOLIBC_CLAIM_ALL}")
+    set_target_properties(${target} PROPERTIES
+      RULE_LAUNCH_COMPILE "${claim_all} compile ${test} --"
+      RULE_LAUNCH_LINK "${claim_all} link ${test} --")
+  endif()
+
   target_link_options(${target} PRIVATE ${TARGET_COMPILE_OPTIONS})
 
   add_test(
@@ -91,6 +100,9 @@ function(picolibc_test test)
     COMMAND "${PICOLIBC_SCRIPTS}/${TEST_RUNNER}" $<TARGET_FILE:${target}>
     )
   set_tests_properties(${test} PROPERTIES SKIP_RETURN_CODE 77)
+  if(PICOLIBC_CLAIM_ALL_POSIX AND test IN_LIST PICOLIBC_CLAIM_ALL_EXPECT_FAIL)
+    set_tests_properties(${test} PROPERTIES WILL_FAIL ON)
+  endif()
 endfunction()
 
 foreach(test IN LISTS tests)

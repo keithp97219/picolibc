@@ -153,6 +153,47 @@ endif
 
 test_args = {}
 
+# In claim-all mode (doc/testing.md), test-flags.h claims everything.
+# Tests that then run code the library's real claims leave out are
+# expected to fail, and each test is first built by claim-all.py, which
+# swaps in a failing stand-in for a test that doesn't build.
+claim_all_c_args = []
+claim_all_build_args = []
+claim_all_expect_fail = []
+if tests_claim_all
+  claim_all = find_program('claim-all.py', required: true)
+  subdir('claim-all')
+  claim_all_c_args = ['-DTEST_CLAIM_ALL']
+  # What meson adds to the compile, as optimization can drop references
+  claim_all_build_args = []
+  if get_option('c_std') != 'none'
+    claim_all_build_args += ['-std=' + get_option('c_std')]
+  endif
+  if get_option('optimization') != 'plain'
+    claim_all_build_args += ['-O' + get_option('optimization')]
+  endif
+
+  # The claims don't vary with the target, so ask the first
+  _t0 = targets[0]
+  _expect_tests = []
+  foreach entry : posix_tests
+    _expect_tests += '::'.join([meson.current_source_dir() / entry[0] / entry[1] + '.c'] +
+                               test_extra_c_args.get(entry[1], []))
+  endforeach
+  _expect = run_command(claim_all, 'expect', meson.current_source_dir() / 'test-flags.h',
+                        meson.current_build_dir() / 'claim-all-expect.txt', _expect_tests, '--', cc.cmd_array(), _t0['c_args'],
+                        get_variable('test_c_args' + _t0['name'], test_c_args),
+                        args_test_posix, '-I' + meson.current_build_dir() / 'claim-all', inc_args,
+                        check: true)
+  foreach _line : _expect.stdout().strip().split('\n')
+    if _line != ''
+      claim_all_expect_fail += _line.split(' ')[0]
+    endif
+  endforeach
+  message('claim-all: @0@ of @1@ POSIX tests expected to fail'.format(claim_all_expect_fail.length(),
+                                                                       posix_tests.length()))
+endif
+
 foreach params : targets
   target = params['name']
   target_dir = params['dir']
@@ -180,6 +221,10 @@ foreach params : targets
   _c_args = target_c_args + get_variable('test_c_args' + target, test_c_args) + args_test_posix
   _link_args = target_c_args + _lib_files + get_variable('test_link_args' + target, test_link_args)
   _link_depends = get_variable('test_link_depends' + target, test_link_depends) + _libs
+  _crt0_file = []
+  if is_variable(crt0_test.replace('crt0', 'crt0_file') + target)
+    _crt0_file = [get_variable(crt0_test.replace('crt0', 'crt0_file') + target)]
+  endif
   foreach entry : posix_tests
     t1_dir = entry[0]
     t1 = entry[1]
@@ -200,19 +245,38 @@ foreach params : targets
       lock_source = test_lock_valid
     endif
 
+    t1_c_args = printf_compile_args_d + test_file_name_arg + test_extra_c_args.get(t1, []) + _c_args + claim_all_c_args
+    t1_link_args = printf_link_args_d + _link_args
+    t1_srcs = [t1_src]
+    t1_options = []
+    if tests_claim_all
+      # Build it once here; a test that fails gets a failing stand-in
+      t1_srcs = [custom_target(t1 + target + '-claim-all',
+                               input: t1_src,
+                               output: t1 + target + '-claim-all.c',
+                               command: [claim_all, 'build', t1, '@INPUT@', '@OUTPUT@', '--',
+                                         cc.cmd_array(), claim_all_build_args, t1_c_args, inc_args, lock_source,
+                                         _crt0_file, test_extra_libs.get(t1, []), t1_link_args],
+                               depends: _libs + _crt0_file + test_extra_libs.get(t1, []))]
+      # Code the real claims leave out may warn
+      t1_options = ['werror=false']
+    endif
+
     # Tests may share a name with their directory, so give the files a suffix
     test(t1 + target,
-	 executable(t1 + target, [t1_src] + lock_source,
+	 executable(t1 + target, t1_srcs + lock_source,
 		    name_suffix: 'elf',
-		    c_args: printf_compile_args_d + test_file_name_arg + test_extra_c_args.get(t1, []) + _c_args,
-		    link_args: printf_link_args_d + _link_args,
+		    c_args: t1_c_args,
+		    link_args: t1_link_args,
 		    objects: _objs,
 		    link_depends:  _link_depends,
                     link_with: test_extra_libs.get(t1, []),
+		    override_options: t1_options,
 		    include_directories: inc),
          depends: bios_bin,
          args: test_args.get(t1, []),
 	 timeout: 60,
+         should_fail: t1 in claim_all_expect_fail,
          suite: [t1_dir, 'test-posix'],
 	 env: test_env)
   endforeach

@@ -110,6 +110,8 @@ option('tests-enable-stack-protector', type: 'boolean', value: true,
        description: 'tests enable stack protector')
 option('tests-enable-posix-io', type: 'boolean', value: true,
        description: 'tests enable posix-io when available')
+option('tests-claim-all', type: 'boolean', value: false,
+       description: 'Build the POSIX tests claiming every option group and option, expecting the unclaimed ones to fail')
 option('test-long-double', type: 'boolean', value: true,
        description: 'Enable long double tests on targets with long double type')
 option('split-large-tests', type: 'boolean', value: false,

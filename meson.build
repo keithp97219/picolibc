@@ -166,6 +166,7 @@ else
 endif
 tests_enable_stack_protector = get_option('tests-enable-stack-protector')
 tests_enable_posix_io = get_option('tests-enable-posix-io')
+tests_claim_all = get_option('tests-claim-all')
 
 use_hlt_semihosting = false
 if get_option('use-hlt-semihosting')

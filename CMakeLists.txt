@@ -438,6 +438,7 @@ install(TARGETS c
   PUBLIC_HEADER DESTINATION include)
 
 option(TESTS "Enable tests" OFF)
+option(TESTS_CLAIM_ALL "Build the POSIX tests claiming every option group and option, expecting the unclaimed ones to fail" OFF)
 if(TESTS)
 
   # This could use some generalization, but it's good enough to do

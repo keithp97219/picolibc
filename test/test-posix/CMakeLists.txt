@@ -33,6 +33,46 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+# In claim-all mode (doc/testing.md), test-flags.h claims everything.
+# Tests that then run code the library's real claims leave out are
+# expected to fail, and claim-all.py, as the compile and link launcher,
+# swaps in a failing stand-in for a test that doesn't build.
+if(TESTS_CLAIM_ALL)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  set(PICOLIBC_CLAIM_ALL ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/claim-all.py)
+
+  set(claim_all_args ${PICOLIBC_TEST_COMPILE_OPTIONS} -D_TEST_LIBC)
+  list(REMOVE_ITEM claim_all_args -D_LIBC)
+  foreach(dir IN LISTS PICOLIBC_INCLUDE_DIRECTORIES)
+    list(APPEND claim_all_args -I${dir})
+  endforeach()
+  file(GLOB claim_all_sources ${CMAKE_CURRENT_SOURCE_DIR}/test-*/test-*.c)
+  execute_process(
+    COMMAND ${PICOLIBC_CLAIM_ALL} expect ${CMAKE_CURRENT_SOURCE_DIR}/test-flags.h
+            ${CMAKE_CURRENT_BINARY_DIR}/claim-all-expect.txt ${claim_all_sources}
+            -- ${CMAKE_C_COMPILER} ${claim_all_args}
+    OUTPUT_VARIABLE claim_all_expect
+    RESULT_VARIABLE claim_all_result)
+  if(NOT claim_all_result EQUAL 0)
+    message(FATAL_ERROR "claim-all.py expect failed")
+  endif()
+
+  # The first word of each line names a test expected to fail
+  set(PICOLIBC_CLAIM_ALL_EXPECT_FAIL)
+  string(REPLACE "\n" ";" claim_all_expect "${claim_all_expect}")
+  foreach(line IN LISTS claim_all_expect)
+    string(REGEX REPLACE " .*" "" name "${line}")
+    if(name)
+      list(APPEND PICOLIBC_CLAIM_ALL_EXPECT_FAIL ${name})
+    endif()
+  endforeach()
+  list(LENGTH PICOLIBC_CLAIM_ALL_EXPECT_FAIL claim_all_count)
+  message(STATUS "claim-all: ${claim_all_count} POSIX tests expected to fail")
+
+  # picolibc_test applies the mode to the tests below here
+  set(PICOLIBC_CLAIM_ALL_POSIX ON)
+endif()
+
 add_subdirectory(test-aio)
 add_subdirectory(test-arpa-inet)
 add_subdirectory(test-assert)
