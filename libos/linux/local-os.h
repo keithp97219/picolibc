@@ -178,6 +178,7 @@
 #define _OS_ERRNO_H <linux/linux-errno.h>
 
 /* Kernel structures */
+#define __os_dirent     __kernel_dirent64
 #define __os_itimerspec __kernel_itimerspec_time_t
 #define __os_termios    __kernel_termios2
 

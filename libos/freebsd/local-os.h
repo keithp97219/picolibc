@@ -121,6 +121,7 @@
 #define _syscall_setxid(nr, a, b, c) _syscall(nr, a, b, c)
 
 /* Kernel structures */
+#define __os_dirent     __freebsd_dirent
 #define __os_itimerspec __freebsd_itimerspec
 #define __os_termios    __freebsd_termios
 

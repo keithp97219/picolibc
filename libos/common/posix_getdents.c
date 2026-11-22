@@ -33,19 +33,21 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "local-os.h"
 #include "local-dirent.h"
 #include <limits.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 /*
- * Convert the kernel's struct dirent records in kbuf to posix_dent
- * records in buf, stopping before the first that doesn't fit in nbyte
- * and dropping the holes left by removed entries. picolibc's
- * posix_dent header is smaller than the kernel's and needs no more
- * alignment, so when kbuf is buf each converted record fits where its
- * source was. Returns the number of bytes used, and the number of
- * kernel bytes consumed in *used.
+ * Convert the kernel's dirent records in kbuf to posix_dent records in
+ * buf, stopping before the first that doesn't fit in nbyte and dropping
+ * the holes left by removed entries. picolibc's posix_dent header is
+ * smaller than the kernel's and needs no more alignment, so when kbuf
+ * is buf each converted record fits where its source was and never
+ * reaches the next one. Returns the number of bytes used, or -1 with
+ * errno set, and the number of kernel bytes consumed in *used.
  */
 static ssize_t
 __posix_getdents_convert(char *kbuf, size_t kcount, char *buf, size_t nbyte, size_t *used)
@@ -54,20 +56,24 @@ __posix_getdents_convert(char *kbuf, size_t kcount, char *buf, size_t nbyte, siz
     char  *end = in + kcount;
     size_t avail = nbyte;
 
-    _Static_assert(offsetof(struct posix_dent, d_name) <= offsetof(struct __freebsd_dirent, d_name),
+    _Static_assert(offsetof(struct posix_dent, d_name) <= offsetof(struct __os_dirent, d_name),
                    "posix_dent header");
     while (in < end) {
-        struct __freebsd_dirent *k = (struct __freebsd_dirent *)in;
-        struct posix_dent       *d = (struct posix_dent *)out;
-        __uint64_t               ino = k->d_fileno;
-        unsigned                 kreclen = k->d_reclen;
-        unsigned char            type = _dt_from_freebsd(k->d_type);
-        size_t                   namelen = k->d_namlen;
-        size_t                   reclen;
+        struct __os_dirent *k = (struct __os_dirent *)in;
+        struct posix_dent  *d = (struct posix_dent *)out;
+        __uint64_t          ino = _dirent_ino(k);
+        unsigned            kreclen = k->d_reclen;
+        unsigned char       type = _dirent_type(k);
+        size_t              namelen = _dirent_namlen(k);
+        size_t              reclen;
 
         if (_dirent_is_hole(k)) {
             in += kreclen;
             continue;
+        }
+        if ((ino_t)ino != ino) {
+            errno = EOVERFLOW;
+            return -1;
         }
         reclen = offsetof(struct posix_dent, d_name) + namelen + 1;
         reclen = (reclen + _Alignof(struct posix_dent) - 1) & ~(_Alignof(struct posix_dent) - 1);
@@ -90,10 +96,13 @@ __posix_getdents_convert(char *kbuf, size_t kcount, char *buf, size_t nbyte, siz
 ssize_t
 posix_getdents(int fd, void *buf, size_t nbyte, int flags)
 {
-    /* Room for a few of the largest records */
+    /*
+     * Room for a few of the largest records: FreeBSD wants at least a
+     * directory block (512 bytes on UFS)
+     */
     union {
-        char                    bytes[4 * sizeof(struct __freebsd_dirent)];
-        struct __freebsd_dirent align;
+        char               bytes[4 * _DIRENT_RECLEN_MAX];
+        struct __os_dirent align;
     } kbuf;
     off_t   start;
     size_t  used;
@@ -107,15 +116,14 @@ posix_getdents(int fd, void *buf, size_t nbyte, int flags)
     }
 
     for (;;) {
-        if (nbyte >= sizeof(kbuf)
-            && ((__uintptr_t)buf & (_Alignof(struct __freebsd_dirent) - 1)) == 0) {
+        if (nbyte >= sizeof(kbuf) && ((__uintptr_t)buf & (_Alignof(struct __os_dirent) - 1)) == 0) {
             /* Big enough for any kernel record; convert in place */
-            ret = _syscall(FREEBSD_SYS_getdirentries, fd, buf, nbyte, NULL);
+            ret = _getdents(fd, buf, nbyte);
             if (ret <= 0)
                 return (ssize_t)ret;
             out = __posix_getdents_convert(buf, (size_t)ret, buf, nbyte, &used);
             /* Everything fits in place; a block of holes means read on */
-            if (out > 0)
+            if (out != 0)
                 return out;
             continue;
         }
@@ -130,18 +138,22 @@ posix_getdents(int fd, void *buf, size_t nbyte, int flags)
         start = lseek(fd, 0, SEEK_CUR);
         if (start < 0)
             return -1;
-        ret = _syscall(FREEBSD_SYS_getdirentries, fd, kbuf.bytes, sizeof(kbuf), NULL);
+        ret = _getdents(fd, kbuf.bytes, sizeof(kbuf));
         if (ret <= 0)
             return (ssize_t)ret;
         out = __posix_getdents_convert(kbuf.bytes, (size_t)ret, buf, nbyte, &used);
+        if (out < 0)
+            return -1;
         if (used < (size_t)ret) {
             off_t next = start;
 
             if (used > 0) {
                 /* d_off of the last record consumed is where the next one starts */
                 size_t off = 0;
+
                 for (;;) {
-                    struct __freebsd_dirent *k = (struct __freebsd_dirent *)(kbuf.bytes + off);
+                    struct __os_dirent *k = (struct __os_dirent *)(kbuf.bytes + off);
+
                     off += k->d_reclen;
                     if (off >= used) {
                         next = k->d_off;

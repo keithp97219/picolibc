@@ -33,36 +33,36 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "local-os.h"
 #include "local-dirent.h"
 #include <string.h>
 
 struct dirent *
 readdir(DIR *dir)
 {
-    struct __freebsd_dirent *k_dirent;
-    struct dirent           *dirent;
-    size_t                   name_len;
+    struct __os_dirent *k_dirent;
+    struct dirent      *dirent;
+    size_t              name_len;
 
     for (;;) {
         if (dir->__dd_offset == dir->__dd_count) {
-            ssize_t ret = _syscall(FREEBSD_SYS_getdirentries, dir->__dd_fd, dir->__dd_buf,
-                                   sizeof(dir->__dd_buf), NULL);
+            ssize_t ret = _getdents(dir->__dd_fd, dir->__dd_buf, sizeof(dir->__dd_buf));
             if (ret <= 0)
                 return NULL;
             dir->__dd_offset = 0;
             dir->__dd_count = (size_t)ret;
         }
-        k_dirent = (struct __freebsd_dirent *)(dir->__dd_buf + dir->__dd_offset);
+        k_dirent = (struct __os_dirent *)(dir->__dd_buf + dir->__dd_offset);
         dir->__dd_offset += k_dirent->d_reclen;
         if (!_dirent_is_hole(k_dirent))
             break;
     }
 
     dirent = &dir->__dd_dirent;
-    dirent->d_ino = (ino_t)k_dirent->d_fileno;
-    dirent->d_type = _dt_from_freebsd(k_dirent->d_type);
+    dirent->d_ino = (ino_t)_dirent_ino(k_dirent);
+    dirent->d_type = _dirent_type(k_dirent);
 
-    name_len = k_dirent->d_namlen;
+    name_len = _dirent_namlen(k_dirent);
     if (name_len >= sizeof(dirent->d_name))
         name_len = sizeof(dirent->d_name) - 1;
     memcpy(dirent->d_name, k_dirent->d_name, name_len);

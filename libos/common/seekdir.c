@@ -33,24 +33,18 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "local-os.h"
 #include "local-dirent.h"
 
-/*
- * The position of the next entry readdir will return: the d_off of the
- * entry it returned last, or the directory offset when the buffer is
- * empty. long holds any FreeBSD offset.
- */
-long
-telldir(DIR *dir)
+void
+seekdir(DIR *dir, long loc)
 {
-    struct __freebsd_dirent *k;
-    size_t                   off = 0;
+    __int64_t pos = loc;
 
-    if (dir->__dd_offset == dir->__dd_count)
-        return (long)lseek(dir->__dd_fd, 0, SEEK_CUR);
-    do {
-        k = (struct __freebsd_dirent *)(dir->__dd_buf + off);
-        off += k->d_reclen;
-    } while (off < dir->__dd_offset);
-    return (long)k->d_off;
+    /* telldir reports positions that don't fit in long as -2 - index */
+    if (loc < -1 && (unsigned long)(-2 - loc) < dir->__dd_ntell)
+        pos = dir->__dd_tell[-2 - loc];
+    (void)lseek(dir->__dd_fd, pos, SEEK_SET);
+    dir->__dd_offset = 0;
+    dir->__dd_count = 0;
 }
