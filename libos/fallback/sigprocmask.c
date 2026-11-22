@@ -35,7 +35,7 @@
 
 #include "local-signal.h"
 
-#ifndef __weak_reference
+#if !defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 #define __fallback_raise raise
 #endif
 
@@ -69,6 +69,6 @@ __fallback_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
     return 0;
 }
 
-#ifdef __weak_reference
+#if defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 __weak_reference(__fallback_sigprocmask, sigprocmask);
 #endif

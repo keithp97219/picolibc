@@ -42,7 +42,7 @@
  */
 #include "local-signal.h"
 
-#ifndef __weak_reference
+#if !defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 #define __fallback_sigaction sigaction
 #endif
 
@@ -66,6 +66,6 @@ __fallback_sigaction(int sig, const struct sigaction * restrict act,
     return 0;
 }
 
-#ifdef __weak_reference
+#if defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 __weak_reference(__fallback_sigaction, sigaction);
 #endif
