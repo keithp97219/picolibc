@@ -50,19 +50,11 @@ fcloseall(void)
     int                 ret = 0;
 
 #ifdef __STDIO_EXIT_FLUSH
-    for (;;) {
-        FILE *f;
+    FILE *f;
 
-        __LIBC_LOCK();
-        f = __stdio_file_list;
-        if (f)
-            __stdio_file_list = ((struct __file_bufio *)f)->next;
-        __LIBC_UNLOCK();
-        if (!f)
-            break;
+    while ((f = __bufio_take_file()) != NULL)
         if (fclose(f) != 0)
             ret = EOF;
-    }
 #endif
     if (&stdout && fflush(stdout) != 0)
         ret = EOF;

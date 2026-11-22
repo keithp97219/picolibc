@@ -48,7 +48,8 @@
 
 /*
  * fcloseall writes out what the open streams hold. picolibc also
- * closes them (glibc only flushes), leaving stdout open
+ * closes them (glibc only flushes), leaving stdout open, including
+ * streams already flushed by fflush(NULL)
  */
 
 static char dir[] = "tmp-XXXXXX";
@@ -96,7 +97,10 @@ main(void)
     check(a != NULL && b != NULL, "fopen");
     fda = fileno(a);
     fdb = fileno(b);
-    check(fputs("hello", a) >= 0 && fputs("world", b) >= 0, "fputs");
+    check(fputs("hel", a) >= 0 && fputs("wor", b) >= 0, "fputs");
+    /* Streams fflush(NULL) has flushed are still open, and still closed */
+    check(fflush(NULL) == 0, "fflush(NULL)");
+    check(fputs("lo", a) >= 0 && fputs("ld", b) >= 0, "fputs");
 
     check(fcloseall() == 0, "fcloseall");
     contains("a", "hello");

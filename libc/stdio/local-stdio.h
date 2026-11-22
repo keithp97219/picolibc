@@ -267,6 +267,7 @@ bufio_get_buf_size(int fd)
 /* The list of open streams flushed by fflush(NULL) and at exit; see bufio_exit_flush.c */
 extern FILE *__stdio_file_list;
 void         __bufio_add_file(FILE *f);
+FILE        *__bufio_take_file(void);
 /* Weak so that fclose doesn't pull in the list */
 void         __bufio_remove_file(FILE *f) __weak;
 int          __bufio_flush_all(void) __weak;

@@ -107,6 +107,20 @@ __bufio_remove_file(FILE *f)
     stdio_list_unlock();
 }
 
+/* Remove the first stream from the list and return it, for fcloseall */
+FILE *
+__bufio_take_file(void)
+{
+    FILE *f;
+
+    stdio_list_lock();
+    f = __stdio_file_list;
+    if (f)
+        __stdio_file_list = ((struct __file_bufio *)f)->next;
+    stdio_list_unlock();
+    return f;
+}
+
 /* Flush every stream on the list, leaving them all there */
 int
 __bufio_flush_all(void)
