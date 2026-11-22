@@ -39,12 +39,22 @@
 int
 __bufio_close_nf(FILE *f)
 {
-    int ret = 0;
+    struct __file_bufio *bf = (struct __file_bufio *)f;
+    int                  ret = 0;
+    int                  close_ret;
 
     __bufio_lock(f);
     ret = __bufio_flush_locked(f);
 
     __bufio_lock_close(f);
+
+    /*
+     * The FILE and buffer stay (they're usually the static stdin,
+     * stdout and stderr), but fclose closes the descriptor
+     */
+    close_ret = bufio_close(bf);
+    if (close_ret)
+        ret = close_ret;
 
     return ret;
 }

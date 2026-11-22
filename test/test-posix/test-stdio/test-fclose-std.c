@@ -37,8 +37,10 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_MULTI_PROCESS && TEST_POSIX_SIGNALS
+#if TEST_POSIX_MULTI_PROCESS && TEST_POSIX_SIGNALS && TEST_POSIX_FD_MGMT
 
+#include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,9 +48,10 @@
 #include <unistd.h>
 
 /*
- * fclose on the standard streams, then exit: the streams are still
- * flushed at exit, which must not touch what fclose released
- * (gnulib's close_stdout does exactly this)
+ * fclose on the standard streams, then exit: fclose closes the
+ * descriptor, and the streams are still flushed at exit, which must
+ * not touch what fclose released (gnulib's close_stdout does exactly
+ * this)
  */
 
 #define check(condition, message)                      \
@@ -104,6 +107,9 @@ run(int which)
             fclose(stdin);
             break;
         }
+        /* fclose closes the descriptor too */
+        if (fcntl(which == 0 ? 1 : which == 1 ? 2 : 0, F_GETFD) != -1 || errno != EBADF)
+            _exit(3);
         free(blocks[1]);
         exit(0);
     }
