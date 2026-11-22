@@ -369,13 +369,14 @@ getopt_internal(int argc, char * const argv[], const char *shortopts, const stru
     arg_next = 0;
     switch (has_arg) {
     case OPTIONAL_ARG:
-        if (*possible_arg == '=')
+        /* '=' separates a long option from its argument; for short options it is the argument */
+        if (longopt_match >= 0 && *possible_arg == '=')
             possible_arg++;
         data->optarg = (*possible_arg != '\0') ? possible_arg : 0;
         data->optwhere = 1;
         break;
     case REQUIRED_ARG:
-        if (*possible_arg == '=')
+        if (longopt_match >= 0 && *possible_arg == '=')
             possible_arg++;
         if (*possible_arg != '\0') {
             data->optarg = possible_arg;
