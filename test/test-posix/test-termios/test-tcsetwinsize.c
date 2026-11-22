@@ -49,6 +49,9 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <termios.h>
+#if TEST_VARIANCE_CTTY_TIOCSCTTY
+#include <sys/ioctl.h>
+#endif
 #include <time.h>
 #include <unistd.h>
 
@@ -118,6 +121,10 @@ session(const char *name)
     if (setsid() == (pid_t)-1)
         return 77;
     fd = open(name, O_RDWR);
+#if TEST_VARIANCE_CTTY_TIOCSCTTY
+    /* Opening it doesn't make it the controlling terminal; TIOCSCTTY does */
+    check(fd >= 0 && ioctl(fd, TIOCSCTTY, 0) == 0, "TIOCSCTTY");
+#endif
     if (fd < 0 || tcgetsid(fd) != getpid())
         return 77;
     /*

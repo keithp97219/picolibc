@@ -144,10 +144,11 @@
 /*
  * Option groups. The terminal functions are all there, and read()
  * makes up for canonical input ending a read at a NUL byte (read.c).
- * The kernel ignores ECHOK, a known variance (doc/os.md), but opening
- * a terminal doesn't make it the controlling one without TIOCSCTTY,
- * so DEVICE_SPECIFIC isn't claimed yet
+ * The kernel ignores ECHOK, and a session leader opening a terminal
+ * gets no controlling terminal without TIOCSCTTY, which POSIX leaves
+ * implementation-defined; both are known variances (doc/os.md)
  */
+#define __PICOLIBC_OS_DEVICE_SPECIFIC   202405L
 #define __PICOLIBC_OS_DEVICE_SPECIFIC_R 202405L
 
 /*

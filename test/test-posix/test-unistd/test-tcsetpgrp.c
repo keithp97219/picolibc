@@ -50,6 +50,9 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <termios.h>
+#if TEST_VARIANCE_CTTY_TIOCSCTTY
+#include <sys/ioctl.h>
+#endif
 #include <time.h>
 #include <unistd.h>
 #include "../is-qemu.h"
@@ -316,6 +319,11 @@ child(void)
     if (setsid() < 0)
         return 2;
     manager = open_pty(&subsidiary, 0);
+#if TEST_VARIANCE_CTTY_TIOCSCTTY
+    /* Opening it doesn't make it the controlling terminal; TIOCSCTTY does */
+    if (ioctl(subsidiary, TIOCSCTTY, 0) != 0)
+        return 14;
+#endif
     pgrp = getpgrp();
     if (tcgetpgrp(subsidiary) != pgrp)
         return 3;

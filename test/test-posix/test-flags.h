@@ -1232,15 +1232,22 @@
  *    one character at a time, as ERASE does (echoing ERASE for each
  *    without ECHOE), instead of erasing the line from the display or
  *    echoing a newline (FreeBSD).
+ *
+ *  - TEST_VARIANCE_CTTY_TIOCSCTTY: a session leader opening a
+ *    terminal without O_NOCTTY doesn't make it its controlling
+ *    terminal; the tests that need one call ioctl(fd, TIOCSCTTY, 0)
+ *    after opening it, as programs there do (FreeBSD).
  */
 #if defined(__FreeBSD__) && !defined(TEST_CLAIM_ALL)
 #define TEST_VARIANCE_SHM_SEGSZ_PAGES 1
 #define TEST_VARIANCE_SHM_LPID        1
 #define TEST_VARIANCE_ECHOK           1
+#define TEST_VARIANCE_CTTY_TIOCSCTTY  1
 #else
 #define TEST_VARIANCE_SHM_SEGSZ_PAGES 0
 #define TEST_VARIANCE_SHM_LPID        0
 #define TEST_VARIANCE_ECHOK           0
+#define TEST_VARIANCE_CTTY_TIOCSCTTY  0
 #endif
 
 #endif /* _TEST_FLAGS_H_ */
