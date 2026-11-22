@@ -166,8 +166,6 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'mq_getattr.c',
     'mq_notify.c',
     'mq_open.c',
-    'mq_receive.c',
-    'mq_send.c',
     'mq_setattr.c',
     'mq_timedreceive.c',
     'mq_timedsend.c',

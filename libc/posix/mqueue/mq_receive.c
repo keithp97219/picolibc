@@ -33,7 +33,9 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-mqueue.h"
+#define _DEFAULT_SOURCE
+#include <mqueue.h>
+#include <stddef.h>
 
 ssize_t
 mq_receive(mqd_t mqdes, char *msg, size_t len, unsigned *prio)

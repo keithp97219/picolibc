@@ -150,6 +150,14 @@ Picolibc and which source files reference them.
    + libc/posix/getlogin.c
    + libc/posix/getlogin_r.c
 
+ * ssize_t mq_timedreceive(mqd_t mqdes, char *msg, size_t len, unsigned *prio, const struct timespec *timeout)
+
+   + libc/posix/mqueue/mq_receive.c
+
+ * int mq_timedsend(mqd_t mqdes, const char *msg, size_t len, unsigned prio, const struct timespec *timeout)
+
+   + libc/posix/mqueue/mq_send.c
+
  * int open(char *path, int flags, ...)
 
    + libc/search/hash.c
@@ -407,6 +415,17 @@ buffers:
 ```c
 int     ptsname_r(int fd, char *buf, size_t buflen);
 int     ttyname_r(int fd, char *buf, size_t buflen);
+```
+
+### mq_send, mq_receive
+
+These are the timed versions with no timeout:
+
+```c
+ssize_t mq_timedreceive(mqd_t mqdes, char *msg, size_t len, unsigned *prio,
+                        const struct timespec *timeout);
+int     mq_timedsend(mqd_t mqdes, const char *msg, size_t len, unsigned prio,
+                     const struct timespec *timeout);
 ```
 
 ### readdir_r

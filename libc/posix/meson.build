@@ -49,6 +49,7 @@ posix_dirs = [
   'grp',
   'libgen',
   'monetary',
+  'mqueue',
   'net-if',
   'netdb',
   'netinet-in',
