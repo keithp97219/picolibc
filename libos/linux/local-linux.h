@@ -65,6 +65,10 @@ long _syscall(long sys_call, ...);
 long _syscall_raw(long sys_call, ...);
 int  _syscall_errno(long ret);
 
+/* "/proc/self/fd/" and a descriptor number, for O_PATH descriptors */
+#define _OPATH_NAME_MAX 32
+char *_opath_name(int fd, char *buf);
+
 /*
  * Credential changes: Linux makes them per thread, so with threads
  * every thread repeats the change. Returns like _syscall.
