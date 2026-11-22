@@ -339,11 +339,20 @@ if fs.is_dir(machine_dir)
     src_os_linux_common += src_os_common[file]
   endforeach
 
-  # The shared POSIX threads code goes into this library too
+  # The shared POSIX threads code goes into this library too, except
+  # for the files this OS replaces with its own
+  src_os_linux_pthread = []
+  srcs_os_linux_pthread = []
+  foreach name, file : src_os_pthread_by_name
+    if name not in srcs_os_linux
+      src_os_linux_pthread += file
+      srcs_os_linux_pthread += name
+    endif
+  endforeach
   src_os_linux = (files(srcs_os_linux) + src_os_linux_common + src_os_linux_machine
-                  + src_os_pthread)
+                  + src_os_linux_pthread)
 
-  srcs_libos += srcs_os_linux + srcs_os_linux_common + srcs_os_pthread
+  srcs_libos += srcs_os_linux + srcs_os_linux_common + srcs_os_linux_pthread
 
   linux_inc = include_directories(machine_dir, 'include')
 

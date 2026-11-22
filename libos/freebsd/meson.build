@@ -334,11 +334,20 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     src_os_freebsd_common += src_os_common[file]
   endforeach
 
-  # The shared POSIX threads code goes into this library too
+  # The shared POSIX threads code goes into this library too, except
+  # for the files this OS replaces with its own
+  src_os_freebsd_pthread = []
+  srcs_os_freebsd_pthread = []
+  foreach name, file : src_os_pthread_by_name
+    if name not in srcs_os_freebsd
+      src_os_freebsd_pthread += file
+      srcs_os_freebsd_pthread += name
+    endif
+  endforeach
   src_os_freebsd = (files(srcs_os_freebsd) + src_os_freebsd_common + src_os_freebsd_machine
-                    + src_os_pthread)
+                    + src_os_freebsd_pthread)
 
-  srcs_libos += srcs_os_freebsd + srcs_os_freebsd_common + srcs_os_pthread
+  srcs_libos += srcs_os_freebsd + srcs_os_freebsd_common + srcs_os_freebsd_pthread
 
   freebsd_inc = include_directories('machine' / freebsd_machines[host_cpu_family], 'include')
 

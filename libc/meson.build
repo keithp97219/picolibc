@@ -41,10 +41,6 @@ if use_stdlib
   libdirs += ['native']
 endif
 
-if posix_threads
-  libdirs += ['threads']
-endif
-
 libnames = libdirs
 
 # Built into libc, the fallback OS functions replace the generic

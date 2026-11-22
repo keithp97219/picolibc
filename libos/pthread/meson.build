@@ -188,6 +188,56 @@ if posix_threads
     'thrd_create.c',
   ]
 
+  # <aio.h> and ISO C <threads.h>, built on these threads. They hold
+  # thread types by value (static mutexes, a semaphore in a request,
+  # attributes on the stack), and those types belong to the OS layer
+  # (<sys/_pthread.h>), so they're built with it, not into libc
+  srcs_os_pthread_aio = [
+    '__aio_notify.c',
+    '__aio_signal.c',
+    '__aio_submit.c',
+    'aio_cancel.c',
+    'aio_error.c',
+    'aio_fsync.c',
+    'aio_read.c',
+    'aio_return.c',
+    'aio_suspend.c',
+    'aio_write.c',
+    'lio_listio.c',
+  ]
+  foreach file : srcs_os_pthread_aio
+    srcs_os_pthread += 'aio' / file
+  endforeach
+
+  srcs_os_pthread_threads = [
+    'cnd_broadcast.c',
+    'cnd_destroy.c',
+    'cnd_init.c',
+    'cnd_signal.c',
+    'cnd_timedwait.c',
+    'cnd_wait.c',
+    'mtx_destroy.c',
+    'mtx_init.c',
+    'mtx_lock.c',
+    'mtx_timedlock.c',
+    'mtx_trylock.c',
+    'mtx_unlock.c',
+    'thrd_current.c',
+    'thrd_detach.c',
+    'thrd_equal.c',
+    'thrd_exit.c',
+    'thrd_join.c',
+    'thrd_sleep.c',
+    'thrd_yield.c',
+    'tss_create.c',
+    'tss_delete.c',
+    'tss_get.c',
+    'tss_set.c',
+  ]
+  foreach file : srcs_os_pthread_threads
+    srcs_os_pthread += 'threads' / file
+  endforeach
+
   # The thread pointer setup for new threads depends only on the machine
   pthread_machine_tls = 'machine' / host_cpu_family / 'pthread_tls_setup.c'
   if fs.is_file(pthread_machine_tls)
@@ -201,5 +251,12 @@ if posix_threads
 endif
 
 src_os_pthread = files(srcs_os_pthread + pthread_machine_srcs)
+
+# By file name, so an OS layer can replace one with its own (as it
+# does __aio_signal.c), the way OS files replace generic libc ones
+src_os_pthread_by_name = {}
+foreach file : srcs_os_pthread + pthread_machine_srcs
+  src_os_pthread_by_name += {fs.name(file): files(file)}
+endforeach
 
 pthread_inc = include_directories('.')

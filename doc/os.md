@@ -704,6 +704,14 @@ stop with an error without it; `<sys/types.h>`, `<signal.h>` and
 implements as `__pthread_cleanup_push` and `__pthread_cleanup_pop`
 over `<pthread.h>`'s `struct __pthread_cleanup`.
 
+These types are the OS layer's ABI, not libc's: no object in `libc.a`
+holds one by value. The code that does, `<aio.h>` (a static mutex and
+condition variable, a semaphore in each waiter) and ISO C `<threads.h>`
+(`mtx_init`'s attributes), lives in libos/pthread and is built with the
+OS layer. `libc.a` reaches threads only through pointers: the
+retargetable locks of `<sys/lock.h>`, `pthread_self`, `pthread_kill`
+and `pthread_setcancelstate`.
+
 ### Using picolibc's POSIX threads
 
 An OS can implement the thread interfaces itself under its own

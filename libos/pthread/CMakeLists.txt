@@ -189,6 +189,48 @@ set(PICOLIBC_PTHREAD_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/thrd_create.c
   CACHE INTERNAL "libos/pthread sources")
 
+# <aio.h> and ISO C <threads.h> on these threads, for an OS layer
+# which builds them too
+set(PICOLIBC_PTHREAD_AIO_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/__aio_notify.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/__aio_signal.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/__aio_submit.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/aio_cancel.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/aio_error.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/aio_fsync.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/aio_read.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/aio_return.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/aio_suspend.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/aio_write.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/aio/lio_listio.c
+  CACHE INTERNAL "libos/pthread aio sources")
+
+set(PICOLIBC_PTHREAD_THREADS_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/cnd_broadcast.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/cnd_destroy.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/cnd_init.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/cnd_signal.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/cnd_timedwait.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/cnd_wait.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/mtx_destroy.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/mtx_init.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/mtx_lock.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/mtx_timedlock.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/mtx_trylock.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/mtx_unlock.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/thrd_current.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/thrd_detach.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/thrd_equal.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/thrd_exit.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/thrd_join.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/thrd_sleep.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/thrd_yield.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/tss_create.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/tss_delete.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/tss_get.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/threads/tss_set.c
+  CACHE INTERNAL "libos/pthread ISO C threads sources")
+
 set(PICOLIBC_PTHREAD_INCLUDE_DIRECTORIES
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
