@@ -38,7 +38,8 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_DEVICE_SPECIFIC && TEST_POSIX_PIPE && TEST_POSIX_MULTI_PROCESS && TEST_POSIX_SIGNALS
+#if TEST_POSIX_DEVICE_SPECIFIC >= 202405L && TEST_POSIX_PIPE && TEST_POSIX_MULTI_PROCESS \
+    && TEST_POSIX_SIGNALS
 
 #include <errno.h>
 #include <fcntl.h>

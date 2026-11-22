@@ -38,6 +38,7 @@ set(tests
   test-abort-status
   test-atexit-thread
   test-canonicalize_file_name
+  test-div
   test-exit
   test-getsubopt
   test-grantpt

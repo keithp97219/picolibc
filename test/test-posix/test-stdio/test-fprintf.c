@@ -83,9 +83,13 @@ call_vsnprintf(char *buf, size_t n, const char *fmt, ...)
 int
 main(void)
 {
-    char            buf[128];
-    char           *s = NULL;
-    int             ret;
+    char buf[128];
+#if TEST_POSIX_DEVICE_IO_EXT >= 202405L
+    char *s = NULL;
+#endif
+#if TEST_POSIX_DEVICE_IO_EXT >= 202405L || TEST_POSIX_DEVICE_IO
+    int ret;
+#endif
     /* Not constants, so the compiler doesn't warn about the sizes */
     volatile size_t small = 3;
     volatile int    half = INT_MAX / 2 + 1;
@@ -110,11 +114,13 @@ main(void)
     call_vsnprintf(buf, sizeof(buf), "%2$s%1$s", "y", "x");
     same(buf, "xy", "vsnprintf numbered");
 
+#if TEST_POSIX_DEVICE_IO_EXT >= 202405L
     /* asprintf allocates the result and returns its length */
     ret = asprintf(&s, "%2$s-%1$d", 12, "ab");
     check(ret == 5 && s != NULL, "asprintf");
     same(s, "ab-12", "asprintf output");
     free(s);
+#endif
 
     /* snprintf with n zero writes nothing, s may be null, and returns the length */
     check(snprintf(NULL, 0, "%d", 12345) == 5, "snprintf NULL 0");

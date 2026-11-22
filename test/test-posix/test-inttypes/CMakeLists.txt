@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-imaxdiv
   test-inttypes_h
   )
 

@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-fd_set',
   'test-pselect',
   'test-select',
   'test-sys_select_h',

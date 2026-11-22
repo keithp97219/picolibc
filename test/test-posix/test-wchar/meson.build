@@ -43,10 +43,12 @@ dir_tests = [
   'test-towctrans',
   'test-wchar_h',
   'test-wcsnlen',
+  'test-wcspbrk',
   'test-wcstol',
   'test-wcwidth',
   'test-wcrtomb-invalid',
   'test-wint_t',
+  'test-wscanf',
 ]
 
 # test-wint_t gets a <stddef.h> that ignores __need_wint_t

@@ -61,6 +61,7 @@ dir_thread_tests = [
   'test-pthread_mutex_prio_protect',
   'test-pthread_mutex_timedlock',
   'test-pthread_mutexattr_setprotocol',
+  'test-pthread_mutexattr_setpshared',
   'test-pthread_once',
   'test-pthread_rwlock_rdlock',
   'test-pthread_rwlock_timedwrlock',

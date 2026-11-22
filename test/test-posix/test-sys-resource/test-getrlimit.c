@@ -40,6 +40,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
+#include "../test-flags.h"
 
 static const int resources[] = {
     RLIMIT_CORE, RLIMIT_CPU, RLIMIT_DATA, RLIMIT_FSIZE, RLIMIT_NOFILE, RLIMIT_STACK, RLIMIT_AS,
@@ -62,8 +63,13 @@ main(void)
     size_t        r;
 
     if (is_fake(getrlimit)) {
+#if TEST_POSIX_MULTI_PROCESS
+        printf("getrlimit is a stand-in, but POSIX_MULTI_PROCESS is claimed\n");
+        return 1;
+#else
         printf("fake getrlimit, skipping checks\n");
         return 77;
+#endif
     }
 
     for (r = 0; r < NUM_RESOURCE; r++) {

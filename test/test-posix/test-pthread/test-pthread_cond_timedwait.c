@@ -186,9 +186,11 @@ main(void)
     pthread_mutex_lock(&lock);
     timeout_in(CLOCK_MONOTONIC, &ts, 50);
     check(pthread_cond_timedwait(&cond, &lock, &ts) == ETIMEDOUT, "monotonic timedwait");
+#if TEST_POSIX_THREADS >= 202405L
     timeout_in(CLOCK_REALTIME, &ts, 50);
     check(pthread_cond_clockwait(&cond, &lock, CLOCK_REALTIME, &ts) == ETIMEDOUT,
           "realtime clockwait");
+#endif
     ts.tv_nsec = -1;
     check(pthread_cond_timedwait(&cond, &lock, &ts) == EINVAL, "bad timeout");
     pthread_mutex_unlock(&lock);
@@ -198,9 +200,11 @@ main(void)
     pthread_mutex_lock(&lock);
     timeout_in(CLOCK_REALTIME, &ts, 50);
     check(pthread_cond_timedwait(&cond, &lock, &ts) == ETIMEDOUT, "realtime timedwait");
+#if TEST_POSIX_THREADS >= 202405L
     timeout_in(CLOCK_MONOTONIC, &ts, 50);
     check(pthread_cond_clockwait(&cond, &lock, CLOCK_MONOTONIC, &ts) == ETIMEDOUT,
           "monotonic clockwait");
+#endif
     pthread_mutex_unlock(&lock);
 
     /* A recursive mutex is owned by the waiter again after the wait */

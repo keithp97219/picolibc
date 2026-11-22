@@ -41,8 +41,8 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_NETWORKING && TEST_POSIX_FD_MGMT && TEST_POSIX_MULTI_PROCESS && TEST_POSIX_PIPE \
-    && TEST_POSIX_SIGNALS
+#if TEST_POSIX_NETWORKING >= 202405L && TEST_POSIX_FD_MGMT && TEST_POSIX_MULTI_PROCESS \
+    && TEST_POSIX_PIPE && TEST_POSIX_SIGNALS
 
 #include <arpa/inet.h>
 #include <errno.h>

@@ -117,9 +117,11 @@ try_locks(void *arg)
     timeout_in(CLOCK_REALTIME, &ts, 20);
     if (pthread_rwlock_timedwrlock(&rwlock, &ts) != ETIMEDOUT)
         return (void *)2;
+#if TEST_POSIX_READER_WRITER_LOCKS >= 202405L
     timeout_in(CLOCK_MONOTONIC, &ts, 20);
     if (pthread_rwlock_clockwrlock(&rwlock, CLOCK_MONOTONIC, &ts) != ETIMEDOUT)
         return (void *)3;
+#endif
     if (held == 1) {
         /* Readers share the lock */
         if (pthread_rwlock_tryrdlock(&rwlock) != 0)
@@ -135,9 +137,11 @@ try_locks(void *arg)
         timeout_in(CLOCK_REALTIME, &ts, 20);
         if (pthread_rwlock_timedrdlock(&rwlock, &ts) != ETIMEDOUT)
             return (void *)7;
+#if TEST_POSIX_READER_WRITER_LOCKS >= 202405L
         timeout_in(CLOCK_MONOTONIC, &ts, 20);
         if (pthread_rwlock_clockrdlock(&rwlock, CLOCK_MONOTONIC, &ts) != ETIMEDOUT)
             return (void *)8;
+#endif
     }
     return NULL;
 }

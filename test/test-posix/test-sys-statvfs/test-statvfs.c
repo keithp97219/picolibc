@@ -41,6 +41,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/statvfs.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include "../test-flags.h"
 
 #ifndef TEST_FILE_NAME
 #define TEST_FILE_NAME "STATVFS.TXT"
@@ -78,8 +79,13 @@ main(void)
 
     /* Skip gracefully when the implementation is a fake ENOSYS stub */
     if (!not_fake(statvfs)) {
+#if TEST_POSIX_FILE_SYSTEM
+        printf("statvfs is a stand-in, but POSIX_FILE_SYSTEM is claimed\n");
+        return 1;
+#else
         printf("fake statvfs, skipping\n");
         return 77;
+#endif
     }
 
     struct statvfs sv;

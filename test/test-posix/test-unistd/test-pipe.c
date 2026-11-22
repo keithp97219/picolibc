@@ -96,11 +96,13 @@ emfile(int avail)
         return 4;
     if (fds[0] != -5 || fds[1] != -5)
         return 5;
+#if TEST_POSIX_PIPE >= 202405L
     errno = 0;
     if (pipe2(fds, O_CLOEXEC) != -1 || errno != EMFILE)
         return 6;
     if (fds[0] != -5 || fds[1] != -5)
         return 7;
+#endif
     /* Nothing was left open */
     if (lowest_free() != top)
         return 8;
@@ -151,7 +153,8 @@ main(void)
           "timestamps");
     check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
 
-    /* pipe2: the flags set exactly what they name */
+#if TEST_POSIX_PIPE >= 202405L
+    /* pipe2, new in POSIX.1-2024: the flags set exactly what they name */
     check(pipe2(fds, 0) == 0, "pipe2 with no flags");
     check(fcntl(fds[0], F_GETFD) == 0 && fcntl(fds[1], F_GETFD) == 0, "no FD_CLOEXEC");
     check(!(fcntl(fds[0], F_GETFL) & O_NONBLOCK), "no O_NONBLOCK");
@@ -178,6 +181,7 @@ main(void)
     } else {
         check(close(fds[0]) == 0 && close(fds[1]) == 0, "close");
     }
+#endif
 
     /* EMFILE with no descriptor free, and with just one */
     check(in_child(0) == 0, "EMFILE with none free (child status)");

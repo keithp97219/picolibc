@@ -34,5 +34,6 @@
 #
 
 dir_tests = [
+  'test-imaxdiv',
   'test-inttypes_h',
 ]

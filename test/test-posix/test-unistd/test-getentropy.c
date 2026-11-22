@@ -41,7 +41,7 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_C_LIB_EXT && TEST_POSIX_SINGLE_PROCESS
+#if TEST_POSIX_C_LIB_EXT >= 202405L && TEST_POSIX_SINGLE_PROCESS
 
 #include <errno.h>
 #include <limits.h>

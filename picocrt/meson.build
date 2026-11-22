@@ -231,6 +231,8 @@ foreach params : targets
         set_variable('crt0' + variant_suffix.underscorify() + target,
                      _crt.extract_objects(_src)
                     )
+        # The object itself, for commands that link tests by hand
+        set_variable('crt0_file' + variant_suffix.underscorify() + target, _crt)
       endif
 
       if enable_picocrt_lib

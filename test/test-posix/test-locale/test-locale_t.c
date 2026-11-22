@@ -68,7 +68,7 @@ main(void)
         printf("uselocale(loc)\n");
         return 1;
     }
-#ifdef __PICOLIBC__
+#if TEST_POSIX_MULTI_CONCURRENT_LOCALES >= 202405L
     /* POSIX.1-2024; not in every C library yet */
     if (strcmp(getlocalename_l(LC_CTYPE, loc), "C") != 0) {
         printf("getlocalename_l\n");

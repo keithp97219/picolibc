@@ -211,6 +211,7 @@ main(void)
         }
     }
 
+#if TEST_POSIX_FILE_SYSTEM >= 202405L
     /* mkostemp: the flags it accepts */
     snprintf(path, sizeof(path), "%s/appendXXXXXX", dir);
     fd = mkostemp(path, O_APPEND);
@@ -237,6 +238,7 @@ main(void)
     flags = fcntl(fd, F_GETFL);
     check(flags >= 0 && (flags & O_SYNC) == O_SYNC, "O_SYNC");
     close(fd);
+#endif
 
     /* mkdtemp: a directory with mode 0700 */
     snprintf(path, sizeof(path), "%s/dirXXXXXXX", dir);
@@ -256,8 +258,10 @@ main(void)
     strcpy(tmpl, path);
     errno = 0;
     check(mkstemp(path) == -1 && errno == EINVAL, "mkstemp with five Xs");
+#if TEST_POSIX_FILE_SYSTEM >= 202405L
     errno = 0;
     check(mkostemp(path, 0) == -1 && errno == EINVAL, "mkostemp with five Xs");
+#endif
     errno = 0;
     check(mkdtemp(path) == NULL && errno == EINVAL, "mkdtemp with five Xs");
     snprintf(path, sizeof(path), "%s/XXXXXXa", dir);

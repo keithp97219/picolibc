@@ -39,6 +39,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include <limits.h>
 #include <dirent.h>
+#include "../test-flags.h"
 
 #define dirent_name(ent) ((ent)->d_name)
 
@@ -78,8 +79,13 @@ main(void)
 #endif
 
     if (!not_fake(opendir) || !not_fake(readdir) || !not_fake(closedir)) {
+#if TEST_POSIX_FILE_SYSTEM
+        printf("opendir is a stand-in, but POSIX_FILE_SYSTEM is claimed\n");
+        return 1;
+#else
         printf("fake dirent ops, skipping\n");
         return 77;
+#endif
     }
 
     /* Clean up any leftover file from a previous run */

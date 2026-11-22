@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include "../test-flags.h"
 
 #define check(condition, message)                      \
     do {                                               \
@@ -67,8 +68,13 @@ main(void)
     struct stat st;
 
     if (fake_dirent()) {
+#if TEST_POSIX_FILE_SYSTEM_EXT
+        printf("opendir is a stand-in, but POSIX_FILE_SYSTEM_EXT is claimed\n");
+        return 1;
+#else
         printf("fake dirent ops, skipping\n");
         return 77;
+#endif
     }
 
     dir = opendir(".");

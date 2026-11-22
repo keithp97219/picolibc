@@ -459,14 +459,19 @@ do_thrd_sleep(void)
 }
 #endif
 
-/* glibc 2.43 declares these only for _GNU_SOURCE, or not at all */
-#ifndef __GLIBC__
+/*
+ * New in POSIX.1-2024; glibc 2.43 declares these only for _GNU_SOURCE,
+ * or not at all
+ */
+#if !defined(__GLIBC__) && TEST_POSIX_NETWORKING >= 202405L
 static void
 do_accept4(void)
 {
     (void)accept4(-1, NULL, NULL, 0);
 }
+#endif
 
+#if !defined(__GLIBC__) && TEST_POSIX_THREADS >= 202405L
 static void
 do_cond_clockwait(void)
 {
@@ -475,7 +480,9 @@ do_cond_clockwait(void)
     (void)pthread_cond_clockwait(&cond, &lock, CLOCK_MONOTONIC, &zero_ts);
     pthread_cleanup_pop(1);
 }
+#endif
 
+#if !defined(__GLIBC__) && TEST_POSIX_DEVICE_IO >= 202405L
 static void
 do_posix_close(void)
 {
@@ -655,9 +662,13 @@ static const struct call calls[] = {
     CP(cnd_timedwait),
     CP(thrd_sleep),
 #endif
-#ifndef __GLIBC__
+#if !defined(__GLIBC__) && TEST_POSIX_NETWORKING >= 202405L
     CP(accept4),
+#endif
+#if !defined(__GLIBC__) && TEST_POSIX_THREADS >= 202405L
     CP(cond_clockwait),
+#endif
+#if !defined(__GLIBC__) && TEST_POSIX_DEVICE_IO >= 202405L
     CP(posix_close),
     CP(ppoll),
 #endif

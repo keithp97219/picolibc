@@ -97,7 +97,9 @@ static void *
 contend(void *arg)
 {
     struct timespec ts;
-    int             ret;
+#if TEST_POSIX_THREADS >= 202405L
+    int ret;
+#endif
 
     (void)arg;
     if (pthread_mutex_trylock(&mutex) != EBUSY)
@@ -106,10 +108,12 @@ contend(void *arg)
     if (pthread_mutex_timedlock(&mutex, &ts) != ETIMEDOUT)
         return (void *)2;
     /* glibc reports EINVAL here on kernels without FUTEX_LOCK_PI2 */
+#if TEST_POSIX_THREADS >= 202405L
     timeout_in(CLOCK_MONOTONIC, &ts, 20);
     ret = pthread_mutex_clocklock(&mutex, CLOCK_MONOTONIC, &ts);
     if (ret != ETIMEDOUT && ret != EINVAL)
         return (void *)3;
+#endif
     if (pthread_mutex_unlock(&mutex) != EPERM)
         return (void *)4;
     return NULL;

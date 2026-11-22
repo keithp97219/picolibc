@@ -57,6 +57,7 @@ dir_tests = [
   'test-popen',
   'test-rename',
   'test-renameat',
+  'test-scanf',
   'test-stdio_h',
   'test-stdio_h-names',
   'test-stdio_h-xsi',
@@ -65,6 +66,7 @@ dir_tests = [
   'test-stderr-buffering',
   'test-stdout-buffering',
   'test-tmpnam',
+  'test-vsprintf',
 ]
 
 # These need threads; they use the library's own locks

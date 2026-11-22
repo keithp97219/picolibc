@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-isgreater',
   'test-j0-errors',
   'test-math_h',
   'test-math_h-names',
