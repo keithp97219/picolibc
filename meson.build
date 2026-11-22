@@ -1606,6 +1606,8 @@ conf_data.set('__IO_LONG_LONG', io_long_long)
 conf_data.set('__IO_MINIMAL_LONG_LONG', minimal_io_long_long)
 conf_data.set('__FAST_BUFIO', fast_bufio)
 conf_data.set('__FSTAT_BUFSIZ', get_option('fstat-bufsiz'))
+conf_data.set('__STDERR_BUFFERED', get_option('stderr-buffered'),
+              description: 'stderr is line buffered rather than written a byte at a time')
 conf_data.set('__IO_POS_ARGS', io_pos_args)
 conf_data.set('__IO_C99_FORMATS', io_c99_formats)
 conf_data.set('__IO_FLOAT_EXACT', io_float_exact)

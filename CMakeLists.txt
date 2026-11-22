@@ -247,6 +247,10 @@ if(NOT DEFINED __IO_MINIMAL_LONG_LONG)
   option(__IO_MINIMAL_LONG_LONG "Support long long in minimal printf/scanf" OFF)
 endif()
 
+if(NOT DEFINED __STDERR_BUFFERED)
+  option(__STDERR_BUFFERED "Line buffer stderr instead of writing each byte" OFF)
+endif()
+
 if(NOT DEFINED __IO_POS_ARGS)
   option(__IO_POS_ARGS "Support positional args in integer printf/scanf" OFF)
 endif()
