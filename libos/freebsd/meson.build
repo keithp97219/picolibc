@@ -167,6 +167,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'seteuid.c',
     'setgid.c',
     'setitimer.c',
+    'setmntent.c',
     'setpriority.c',
     'setrlimit.c',
     'setsockopt.c',

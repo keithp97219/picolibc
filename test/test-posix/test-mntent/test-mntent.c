@@ -48,7 +48,8 @@
 /*
  * <mntent.h> (BSD/glibc, not POSIX): parse an fstab-format table,
  * with comments, blank lines, octal escapes and missing numbers,
- * write one back with addmntent and find options with hasmntopt
+ * write one back with addmntent and find options with hasmntopt, and
+ * read the mounted file system table
  */
 
 #define check(condition, message)                      \
@@ -115,6 +116,24 @@ main(void)
           "added entry reads back");
     endmntent(f);
     check(unlink(name) == 0, "cleanup");
+
+#if TEST_POSIX_MULTI_PROCESS
+    /*
+     * The mounted file system table (Linux's /etc/mtab; FreeBSD has
+     * none, and the OS layer makes one from getmntinfo) lists /
+     */
+    {
+        int root = 0;
+
+        f = setmntent(MOUNTED, "r");
+        check(f != NULL, "setmntent(MOUNTED)");
+        while ((m = getmntent(f)) != NULL)
+            if (strcmp(m->mnt_dir, "/") == 0 && m->mnt_type[0] != '\0')
+                root = 1;
+        endmntent(f);
+        check(root, "/ is mounted");
+    }
+#endif
     printf("success\n");
     return 0;
 }
