@@ -46,6 +46,8 @@ set(tests
   test-time_h
   test-timer_create
   test-timer_settime
+  test-tzif
+  test-tzif-zones
   )
 
 foreach(test IN LISTS tests)
