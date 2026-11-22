@@ -94,7 +94,6 @@ main(void)
     size_t      len;
     char       *got, *copy, *comp, *save;
     int         level, levels, dfd;
-    int         limited = 0;
 
     check(getcwd(top, sizeof(top)) != NULL && top[0] == '/', "getcwd");
     check(mkdtemp(dir) != NULL, "scratch directory");
@@ -115,18 +114,6 @@ main(void)
         strcat(expect, name);
         errno = 0;
         got = getcwd(big, sizeof(big));
-#if defined(__linux__) && defined(__PICOLIBC__)
-        /*
-         * picolibc's Linux getcwd is the kernel's alone, which stops at
-         * 4096 bytes with ENAMETOOLONG; only the FreeBSD layer walks
-         * up the directories beyond the kernel's limit so far
-         */
-        if (!got && errno == ENAMETOOLONG && strlen(expect) >= 4096) {
-            limited = 1;
-            levels++;
-            break;
-        }
-#endif
         check(got == big, "getcwd");
         if (strcmp(big, expect) != 0) {
             printf("level %d: getcwd gave %s\n", levels, big);
@@ -134,47 +121,45 @@ main(void)
         }
     }
 
-    if (!limited) {
-        /* A null buffer of size zero grows past PATH_MAX as needed */
-        len = strlen(expect);
-        got = getcwd(NULL, 0);
-        check(got != NULL && strcmp(got, expect) == 0, "getcwd(NULL, 0)");
-        free(got);
-        got = getcwd(NULL, len + 1);
-        check(got != NULL && strcmp(got, expect) == 0, "getcwd(NULL, exact)");
-        free(got);
-        errno = 0;
-        check(getcwd(NULL, len) == NULL && errno == ERANGE, "getcwd(NULL, short)");
+    /* A null buffer of size zero grows past PATH_MAX as needed */
+    len = strlen(expect);
+    got = getcwd(NULL, 0);
+    check(got != NULL && strcmp(got, expect) == 0, "getcwd(NULL, 0)");
+    free(got);
+    got = getcwd(NULL, len + 1);
+    check(got != NULL && strcmp(got, expect) == 0, "getcwd(NULL, exact)");
+    free(got);
+    errno = 0;
+    check(getcwd(NULL, len) == NULL && errno == ERANGE, "getcwd(NULL, short)");
 
-        /* The buffer size: an exact fit, else ERANGE */
-        memset(big, 0, sizeof(big));
-        check(getcwd(big, len + 1) == big && strcmp(big, expect) == 0, "an exact fit");
-        errno = 0;
-        check(getcwd(big, len) == NULL && errno == ERANGE, "one byte short");
-        errno = 0;
-        check(getcwd(big, PATH_MAX) == NULL && errno == ERANGE, "PATH_MAX bytes");
+    /* The buffer size: an exact fit, else ERANGE */
+    memset(big, 0, sizeof(big));
+    check(getcwd(big, len + 1) == big && strcmp(big, expect) == 0, "an exact fit");
+    errno = 0;
+    check(getcwd(big, len) == NULL && errno == ERANGE, "one byte short");
+    errno = 0;
+    check(getcwd(big, PATH_MAX) == NULL && errno == ERANGE, "PATH_MAX bytes");
 
-        /* Walk back down the name from the root to the same directory */
-        check(stat(".", &deep) == 0, "stat the deepest directory");
-        copy = strdup(expect);
-        check(copy != NULL, "strdup");
-        check(chdir("/") == 0, "chdir to the root");
-        for (comp = strtok_r(copy, "/", &save); comp; comp = strtok_r(NULL, "/", &save))
-            check(chdir(comp) == 0, "chdir down one component");
-        free(copy);
-        check(stat(".", &st) == 0 && st.st_dev == deep.st_dev && st.st_ino == deep.st_ino,
-              "the name leads back to the same directory");
+    /* Walk back down the name from the root to the same directory */
+    check(stat(".", &deep) == 0, "stat the deepest directory");
+    copy = strdup(expect);
+    check(copy != NULL, "strdup");
+    check(chdir("/") == 0, "chdir to the root");
+    for (comp = strtok_r(copy, "/", &save); comp; comp = strtok_r(NULL, "/", &save))
+        check(chdir(comp) == 0, "chdir down one component");
+    free(copy);
+    check(stat(".", &st) == 0 && st.st_dev == deep.st_dev && st.st_ino == deep.st_ino,
+          "the name leads back to the same directory");
 
-        /* An ancestor that can be searched but not read: EACCES */
-        if (geteuid() != 0) {
-            check(fchmod(dfd, 0100) == 0, "remove read permission");
-            errno = 0;
-            got = getcwd(big, sizeof(big));
-            check(got == NULL && errno == EACCES, "EACCES from an unreadable ancestor");
-            check(fchmod(dfd, 0700) == 0, "restore read permission");
-            check(getcwd(big, sizeof(big)) == big && strcmp(big, expect) == 0,
-                  "getcwd after restoring permission");
-        }
+    /* An ancestor that can be searched but not read: EACCES */
+    if (geteuid() != 0) {
+        check(fchmod(dfd, 0100) == 0, "remove read permission");
+        errno = 0;
+        got = getcwd(big, sizeof(big));
+        check(got == NULL && errno == EACCES, "EACCES from an unreadable ancestor");
+        check(fchmod(dfd, 0700) == 0, "restore read permission");
+        check(getcwd(big, sizeof(big)) == big && strcmp(big, expect) == 0,
+              "getcwd after restoring permission");
     }
 
     /* Remove the directories on the way back up */
@@ -184,10 +169,6 @@ main(void)
     }
     check(close(dfd) == 0, "close");
     check(chdir(top) == 0 && rmdir(dir) == 0, "remove the scratch directory");
-    if (limited) {
-        printf("getcwd stops at the kernel's limit here, skipping\n");
-        return 77;
-    }
     printf("success\n");
     return 0;
 }
