@@ -187,7 +187,9 @@ int fchmodat(int, const char *, mode_t, int);
 int fstatat(int, const char * __restrict, struct stat * __restrict, int);
 int mkdirat(int, const char *, mode_t);
 int mkfifoat(int, const char *, mode_t);
+#if __XSI_VISIBLE || __MISC_VISIBLE
 int mknodat(int, const char *, mode_t, dev_t);
+#endif
 int utimensat(int, const char *, const struct timespec[2], int);
 #endif
 

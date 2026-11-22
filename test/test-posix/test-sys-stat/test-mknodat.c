@@ -34,6 +34,8 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+/* mknodat is an XSI interface */
+#define _XOPEN_SOURCE 800
 /* glibc declares mknodat only with _GNU_SOURCE */
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
