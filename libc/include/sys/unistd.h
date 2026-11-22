@@ -1151,6 +1151,9 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #if defined(__PICOLIBC_OS_SIGNALS)
 /* Sigsetjmp saves the signal mask */
 #define __PICOLIBC_POSIX_SIGNAL_JUMP __PICOLIBC_OS_SIGNALS
+#elif defined(__PICOLIBC_BAREMETAL)
+/* Without an OS, the mask sigsetjmp saves is libos/fallback's */
+#define __PICOLIBC_POSIX_SIGNAL_JUMP 202405L
 #endif
 #if defined(__PICOLIBC_OS_FILE_SYSTEM)
 /* The user and group databases are files */

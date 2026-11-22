@@ -498,7 +498,8 @@ and stops with an error if the header defines one of those itself.
    and `__PICOLIBC_XSI_WIDE_CHAR`) are always defined, and groups of
    picolibc code over OS groups follow those (`FILE_SYSTEM_GLOB`, `FILE_SYSTEM_R`,
    `SYSTEM_DATABASE`, `SYSTEM_DATABASE_R` and `USER_GROUPS_R` follow
-   `FILE_SYSTEM`; `SIGNAL_JUMP` follows `SIGNALS`;
+   `FILE_SYSTEM`; `SIGNAL_JUMP` follows `SIGNALS`, and is `202405L`
+   without an OS;
    `WIDE_CHAR_DEVICE_IO` follows `DEVICE_IO`). The OS's part of each
    group is the group's interfaces that picolibc doesn't implement:
 
@@ -583,7 +584,9 @@ bare-metal applications get `_POSIX_SUBPROFILE` and `_POSIX_VERSION`
 `uname` to `__baremetal_sysconf` and `__baremetal_uname`, so an OS
 library linked anyway can't contradict those claims. libos/fallback
 defines only those names; with an OS layer, the OS provides `sysconf`
-and `uname`.
+and `uname`. Bare metal also gets `SIGNAL_JUMP`: `sigsetjmp` and
+`siglongjmp` need only the signal mask, which libos/fallback's
+`sigprocmask` keeps.
 
 The realtime profiles of IEEE 1003.13-2003 follow from the claims:
 `<unistd.h>` defines `_POSIX_AEP_REALTIME_MINIMAL` (PSE51),
