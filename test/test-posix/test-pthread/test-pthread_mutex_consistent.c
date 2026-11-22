@@ -228,6 +228,11 @@ unrecoverable_waiters(pthread_mutex_t *mutex)
     void     *result;
     int       dead = 0, unrecoverable = 0;
 
+#ifdef TEST_GLIBC
+    /* glibc wakes only one waiter, leaving the others blocked forever */
+    check(pthread_mutex_destroy(mutex) == 0, "destroy");
+    return;
+#endif
     holding = 0;
     check(pthread_create(&thread, NULL, die_with_waiter, mutex) == 0, "pthread_create");
     while (!holding)
