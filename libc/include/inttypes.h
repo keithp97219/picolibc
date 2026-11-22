@@ -375,10 +375,31 @@ intmax_t  wcstoimax(const _wchar_t  *__restrict, _wchar_t  **__restrict, int);
 uintmax_t wcstoumax(const _wchar_t * __restrict, _wchar_t ** __restrict, int);
 
 #if __BSD_VISIBLE
-intmax_t  strtoimax_l(const char  *__restrict, char **_restrict, int, locale_t);
-uintmax_t strtoumax_l(const char * __restrict, char **_restrict, int, locale_t);
-intmax_t  wcstoimax_l(const _wchar_t  *__restrict, _wchar_t **_restrict, int, locale_t);
-uintmax_t wcstoumax_l(const _wchar_t * __restrict, _wchar_t **_restrict, int, locale_t);
+intmax_t  strtoimax_l(const char  *__restrict, char  **__restrict, int, locale_t);
+uintmax_t strtoumax_l(const char * __restrict, char ** __restrict, int, locale_t);
+intmax_t  wcstoimax_l(const _wchar_t  *__restrict, _wchar_t  **__restrict, int, locale_t);
+uintmax_t wcstoumax_l(const _wchar_t * __restrict, _wchar_t ** __restrict, int, locale_t);
+#endif
+
+/*
+ * The PRIB macros are C23's, and ISO C reserves only PRI followed by a
+ * lower case letter or X
+ */
+#if __ISO_C_VISIBLE < 2023 && !__MISC_VISIBLE
+#undef PRIB8
+#undef PRIBLEAST8
+#undef PRIBFAST8
+#undef PRIB16
+#undef PRIBLEAST16
+#undef PRIBFAST16
+#undef PRIB32
+#undef PRIBLEAST32
+#undef PRIBFAST32
+#undef PRIB64
+#undef PRIBLEAST64
+#undef PRIBFAST64
+#undef PRIBMAX
+#undef PRIBPTR
 #endif
 
 _END_STD_C
