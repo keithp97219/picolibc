@@ -644,11 +644,35 @@ printf_percent_n = get_option('printf-percent-n')
 minimal_io_long_long = get_option('minimal-io-long-long')
 fast_bufio = get_option('fast-bufio')
 io_wchar = get_option('io-wchar')
+# The OS layer. os-linux and os-freebsd are deprecated spellings of
+# -Dos=linux and -Dos=freebsd
+os = get_option('os')
+foreach _os : ['linux', 'freebsd']
+  if get_option('os-' + _os)
+    if os != 'none' and os != _os
+      error('os-@0@ conflicts with os=@1@'.format(_os, os))
+    endif
+    os = _os
+  endif
+endforeach
+
+# An OS layer which has no support for this machine is left out
+if os != 'none' and not fs.is_dir('libos' / os / 'machine' / host_cpu_family)
+  message('libos/@0@ does not support @1@; building without an OS layer'.format(os, host_cpu_family))
+  os = 'none'
+endif
+os_linux = os == 'linux'
+os_freebsd = os == 'freebsd'
+
+# Build the OS layer into libc.a instead of lib<os>.a
+os_in_libc = get_option('os-in-libc')
+if os_in_libc and os == 'none'
+  error('os-in-libc requires an os layer (-Dos=...)')
+endif
+
 # Linux and FreeBSD builds get the POSIX stream behaviour: a lock for each stream
 # (XSH 2.5) and every stream flushed at exit (ISO C exit)
-os_freebsd = get_option('os-freebsd') and fs.is_dir('libos/freebsd/machine' / host_cpu_family)
-stdio_posix_streams = ((get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family))
-                       or os_freebsd)
+stdio_posix_streams = os_linux or os_freebsd
 stdio_locking = ((get_option('stdio-locking') or stdio_posix_streams)
                  and not get_option('single-thread'))
 stdio_exit_flush = get_option('stdio-exit-flush') or stdio_posix_streams
@@ -1645,7 +1669,7 @@ posix_threads_freebsd_machines = ['x86']
 posix_threads_possible = thread_local_storage and not get_option('single-thread')
 if get_option('posix-threads') == 'auto'
   posix_threads = (posix_threads_possible
-                   and ((get_option('os-linux') and host_cpu_family in posix_threads_linux_machines)
+                   and ((os_linux and host_cpu_family in posix_threads_linux_machines)
                         or (os_freebsd and host_cpu_family in posix_threads_freebsd_machines)))
 else
   posix_threads = get_option('posix-threads') == 'true'
@@ -1658,7 +1682,7 @@ conf_data.set('__PICOLIBC_PTHREADS', posix_threads, description: 'POSIX threads 
 
 # The networking API and ABI, which come from the OS layer or network stack
 network = get_option('network')
-network_linux_possible = get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
+network_linux_possible = os_linux
 if network == 'auto'
   if network_linux_possible
     network = 'linux'
@@ -1853,19 +1877,15 @@ if fs.is_dir(machine_dir)
   inc_dirs = [machine_dir] + inc_dirs
 endif
 
-# libos/linux supplies <sys/_posix.h>, which <unistd.h> includes
-if get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family)
-  inc_dirs = ['libos/linux/include'] + inc_dirs
-endif
-
 # libos/pthread supplies <sys/_pthread.h>, the thread types
-if posix_threads or (get_option('os-linux') and fs.is_dir('libos/linux/machine' / host_cpu_family))
+if posix_threads or os_linux
   inc_dirs = ['libos/pthread/include'] + inc_dirs
 endif
 
-# As does libos/freebsd
-if os_freebsd
-  inc_dirs = ['libos/freebsd/include'] + inc_dirs
+# The OS layer supplies <sys/_posix.h>, which <unistd.h> includes, and
+# the other OS headers
+if os != 'none'
+  inc_dirs = ['libos' / os / 'include'] + inc_dirs
 endif
 
 inc = include_directories(inc_dirs)
@@ -2053,6 +2073,15 @@ if oslib_test_variant != ''
   oslib_test = 'lib_' + oslib_test_variant
 endif
 
+# Tests link a separate OS library, or the OS layer in libc.a
+test_own_os = oslib_test != ''
+if os_in_libc
+  if oslib_test_variant != os
+    error('oslib-test=@0@ conflicts with os-in-libc, which builds @1@ into libc'.format(oslib_test_variant, os))
+  endif
+  oslib_test = ''
+endif
+
 if linkerscript_test_variant != ''
   linkerscript_test = 'picolibc_' + linkerscript_test_variant
 else
@@ -2063,7 +2092,7 @@ endif
 # parameters. Otherwise, we're using the native C library for OS
 # functions so we don't need this.
 
-if oslib_test != ''
+if test_own_os
   foreach params : [default_target] + targets
 
     target = params['name']
@@ -2196,6 +2225,17 @@ foreach params : targets
     endif
     libsrcs_target += get_variable('src_' + libname + target, [])
   endforeach
+
+  # os-in-libc: the OS layer's objects, which replaced the generic
+  # files of the same names (srcs_libos), join libc.a, followed by the
+  # fallback helpers underneath them (libos/fallback/meson.build)
+  if os_in_libc
+    foreach _lib : ['libos_lib', 'libos_fallback_lib']
+      if is_variable(_lib + target)
+        libobjs += get_variable(_lib + target).extract_all_objects(recursive:true)
+      endif
+    endforeach
+  endif
 
   instdir = join_paths(lib_dir, target_dir)
 
@@ -2505,7 +2545,8 @@ endif
 
 oslib_spec='%{-oslib=*:-l%*}'
 oslib_default = meson.get_external_property('oslib_default', '')
-if oslib_default != ''
+# With os-in-libc, libc.a holds the OS layer: no second one by default
+if oslib_default != '' and not os_in_libc
   oslib_spec+='%{!-oslib:-l@0@}'.format(oslib_default)
 endif
 

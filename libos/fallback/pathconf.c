@@ -40,7 +40,7 @@
 #include <limits.h>
 #include <stdint.h>
 
-#ifndef __weak_reference
+#if !defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 #define __fallback_pathconf pathconf
 #error
 #endif
@@ -52,6 +52,6 @@ __fallback_pathconf(const char *path, int name)
     return fpathconf(0, name);
 }
 
-#ifdef __weak_reference
+#if defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 __weak_reference(__fallback_pathconf, pathconf);
 #endif

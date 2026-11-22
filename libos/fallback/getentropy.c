@@ -80,9 +80,9 @@ __baremetal_getentropy(void *buffer, size_t length)
     return 0;
 }
 
-#ifdef __weak_reference
+#if defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 __weak_reference(__baremetal_getentropy, getentropy);
-#else
+#elif !defined(__FALLBACK_HELPERS_ONLY)
 int
 getentropy(void *buffer, size_t length)
 {

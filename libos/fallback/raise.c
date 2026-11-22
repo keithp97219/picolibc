@@ -75,6 +75,6 @@ __fallback_raise(int sig)
     return 0;
 }
 
-#ifdef __weak_reference
+#if defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 __weak_reference(__fallback_raise, raise);
 #endif

@@ -1,7 +1,8 @@
+#!/bin/sh
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
-# Copyright © 2024 Keith Packard
+# Copyright © 2026 Keith Packard
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -31,21 +32,8 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
-
-# <aio.h>, built on POSIX threads
-
-if posix_threads
-  dir_srcs = [
-    '__aio_notify.c',
-    '__aio_signal.c',
-    '__aio_submit.c',
-    'aio_cancel.c',
-    'aio_error.c',
-    'aio_fsync.c',
-    'aio_read.c',
-    'aio_return.c',
-    'aio_suspend.c',
-    'aio_write.c',
-    'lio_listio.c',
-  ]
-endif
+#
+# FreeBSD amd64 binaries, built and tested on FreeBSD, with
+# libos/freebsd built into libc.a (no libfreebsd.a, no --oslib)
+#
+exec "$(dirname "$0")"/do-clang-x86_64-freebsd-configure -Dos-in-libc=true "$@"

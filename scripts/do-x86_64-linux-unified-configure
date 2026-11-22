@@ -1,7 +1,8 @@
+#!/bin/sh
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
-# Copyright © 2024 Keith Packard
+# Copyright © 2026 Keith Packard
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -31,48 +32,8 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
-
-# ISO C threads, built on POSIX threads
-
-srcs_threads = [
-  'cnd_broadcast.c',
-  'cnd_destroy.c',
-  'cnd_init.c',
-  'cnd_signal.c',
-  'cnd_timedwait.c',
-  'cnd_wait.c',
-  'mtx_destroy.c',
-  'mtx_init.c',
-  'mtx_lock.c',
-  'mtx_timedlock.c',
-  'mtx_trylock.c',
-  'mtx_unlock.c',
-  'thrd_create.c',
-  'thrd_current.c',
-  'thrd_detach.c',
-  'thrd_equal.c',
-  'thrd_exit.c',
-  'thrd_join.c',
-  'thrd_sleep.c',
-  'thrd_yield.c',
-  'tss_create.c',
-  'tss_delete.c',
-  'tss_get.c',
-  'tss_set.c',
-]
-
-srcs_threads_use = []
-foreach file : srcs_threads
-  s_file = fs.replace_suffix(file, '.S')
-  if file in srcs_machine
-    message('libc/threads/' + file + ': machine overrides generic')
-  elif s_file in srcs_machine
-    message('libc/threads/' + s_file + ': machine overrides generic')
-  elif file in srcs_libos
-    message('libc/threads/' + file + ': libos overrides generic')
-  else
-    srcs_threads_use += file
-  endif
-endforeach
-
-src_threads = files(srcs_threads_use)
+#
+# Native linux binaries, with libos/linux built into libc.a
+# (no liblinux.a, no --oslib)
+#
+exec "$(dirname "$0")"/do-x86_64-linux-gnu-configure -Dos-in-libc=true "$@"

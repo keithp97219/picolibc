@@ -336,11 +336,20 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     src_os_freebsd_common += src_os_common[file]
   endforeach
 
-  # The shared POSIX threads code goes into this library too
+  # The shared POSIX threads code goes into this library too, except
+  # for the files this OS replaces with its own
+  src_os_freebsd_pthread = []
+  srcs_os_freebsd_pthread = []
+  foreach name, file : src_os_pthread_by_name
+    if name not in srcs_os_freebsd
+      src_os_freebsd_pthread += file
+      srcs_os_freebsd_pthread += name
+    endif
+  endforeach
   src_os_freebsd = (files(srcs_os_freebsd) + src_os_freebsd_common + src_os_freebsd_machine
-                    + src_os_pthread)
+                    + src_os_freebsd_pthread)
 
-  srcs_libos += srcs_os_freebsd + srcs_os_freebsd_common + srcs_os_pthread
+  srcs_libos += srcs_os_freebsd + srcs_os_freebsd_common + srcs_os_freebsd_pthread
 
   freebsd_inc = include_directories('machine' / freebsd_machines[host_cpu_family], 'include')
 
@@ -374,7 +383,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
       _lib = static_library(libfreebsd_name,
                             src_os_freebsd,
                             build_subdir : target_dir,
-                            install : really_install,
+                            install : really_install and not os_in_libc,
                             install_dir : instdir,
                             include_directories : [freebsd_inc, pthread_inc, inc],
                             c_args : target_c_args + c_args)
@@ -382,13 +391,18 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
       target_lib_prefix = params['lib_prefix']
       _lib = static_library(join_paths(target_dir, target_lib_prefix + libfreebsd_name),
                             src_os_freebsd,
-                            install : really_install,
+                            install : really_install and not os_in_libc,
                             install_dir : instdir,
                             include_directories : [freebsd_inc, pthread_inc, inc],
                             c_args : target_c_args + c_args)
     endif
 
-    set_variable('lib_freebsd' + target, _lib)
+    # With os-in-libc, these objects go into libc.a (see the top
+    # meson.build) and there is no libfreebsd.a to link
+    set_variable('libos_lib' + target, _lib)
+    if not os_in_libc
+      set_variable('lib_freebsd' + target, _lib)
+    endif
 
   endforeach
 

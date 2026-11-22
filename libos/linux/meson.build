@@ -340,11 +340,20 @@ if fs.is_dir(machine_dir)
     src_os_linux_common += src_os_common[file]
   endforeach
 
-  # The shared POSIX threads code goes into this library too
+  # The shared POSIX threads code goes into this library too, except
+  # for the files this OS replaces with its own
+  src_os_linux_pthread = []
+  srcs_os_linux_pthread = []
+  foreach name, file : src_os_pthread_by_name
+    if name not in srcs_os_linux
+      src_os_linux_pthread += file
+      srcs_os_linux_pthread += name
+    endif
+  endforeach
   src_os_linux = (files(srcs_os_linux) + src_os_linux_common + src_os_linux_machine
-                  + src_os_pthread)
+                  + src_os_linux_pthread)
 
-  srcs_libos += srcs_os_linux + srcs_os_linux_common + srcs_os_pthread
+  srcs_libos += srcs_os_linux + srcs_os_linux_common + srcs_os_linux_pthread
 
   linux_inc = include_directories(machine_dir, 'include')
 
@@ -378,7 +387,7 @@ if fs.is_dir(machine_dir)
       _lib = static_library(liblinux_name,
 			    src_os_linux,
                             build_subdir : target_dir,
-			    install : really_install,
+			    install : really_install and not os_in_libc,
 			    install_dir : instdir,
 			    include_directories : [linux_inc, pthread_inc, inc],
 			    c_args : target_c_args + c_args)
@@ -386,13 +395,18 @@ if fs.is_dir(machine_dir)
       target_lib_prefix = params['lib_prefix']
       _lib = static_library(join_paths(target_dir, target_lib_prefix + liblinux_name),
 			    src_os_linux,
-			    install : really_install,
+			    install : really_install and not os_in_libc,
 			    install_dir : instdir,
 			    include_directories : [linux_inc, pthread_inc, inc],
 			    c_args : target_c_args + c_args)
     endif
 
-    set_variable('lib_linux' + target, _lib)
+    # With os-in-libc, these objects go into libc.a (see the top
+    # meson.build) and there is no liblinux.a to link
+    set_variable('libos_lib' + target, _lib)
+    if not os_in_libc
+      set_variable('lib_linux' + target, _lib)
+    endif
     
   endforeach
 

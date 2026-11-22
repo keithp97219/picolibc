@@ -48,7 +48,7 @@ extern char __heap_end[];
 
 static char *__brk = __heap_start;
 
-#ifndef __weak_reference
+#if !defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 #define __fallback_sbrk sbrk
 #endif
 
@@ -71,6 +71,6 @@ __fallback_sbrk(ptrdiff_t incr)
     return ret;
 }
 
-#ifdef __weak_reference
+#if defined(__weak_reference) && !defined(__FALLBACK_HELPERS_ONLY)
 __weak_reference(__fallback_sbrk, sbrk);
 #endif
