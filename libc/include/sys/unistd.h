@@ -35,6 +35,8 @@ SUCH DAMAGE.
 #define __need_NULL
 #include <stddef.h>
 #include <sys/_types.h>
+/* Whether there's an OS; the bare-metal names below depend on it */
+#include <sys/_os.h>
 
 _BEGIN_STD_C
 
@@ -167,7 +169,7 @@ char *getcwd(char *__buf, size_t __size) __picolibc_export;
 int getdomainname(char *__name, size_t __len) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || __POSIX_VISIBLE >= 202405
-int getentropy(void *, size_t) __picolibc_export;
+int getentropy(void *, size_t) __baremetal_name(getentropy) __picolibc_export;
 int __baremetal_getentropy(void *, size_t) __picolibc_export;
 #endif
 gid_t getegid(void) __picolibc_export;
@@ -296,7 +298,7 @@ unsigned sleep(unsigned int __seconds) __picolibc_export;
 #if __XSI_VISIBLE
 void swab(const void * __restrict, void * __restrict, ssize_t) __picolibc_export;
 #endif
-long  sysconf(int __name) __picolibc_export;
+long  sysconf(int __name) __baremetal_name(sysconf) __picolibc_export;
 long  __baremetal_sysconf(int __name) __picolibc_export;
 pid_t tcgetpgrp(int __fildes) __picolibc_export;
 int   tcsetpgrp(int __fildes, pid_t __pgrp_id) __picolibc_export;
@@ -708,14 +710,11 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #ifndef __PICOLIBC_OS_SINGLE_PROCESS
 #define __PICOLIBC_OS_SINGLE_PROCESS 202405L
 #endif
-/*
- * There's no other sysconf, even inside picolibc; an object-like
- * macro, so sysconf still names a function
- */
+/* Compilers without assembler names: see __baremetal_name in <sys/cdefs.h> */
+#if !defined(_LIBC) && !defined(__ASMNAME)
 #define sysconf __baremetal_sysconf
-#ifndef _LIBC
 #if __BSD_VISIBLE || __POSIX_VISIBLE >= 202405
-#define getentropy(__buffer, __length) __baremetal_getentropy(__buffer, __length)
+#define getentropy __baremetal_getentropy
 #endif
 #endif
 #endif

@@ -51,11 +51,11 @@ struct utsname {
     char machine[_UTSNAME_LENGTH];  /* name of the hardware type the system is running on */
 };
 
-int uname(struct utsname *) __picolibc_export;
+int uname(struct utsname *) __baremetal_name(uname) __picolibc_export;
 int __baremetal_uname(struct utsname *) __picolibc_export;
 
-/* Without an OS, picolibc's own uname; see <sys/_os.h> */
-#if defined(__PICOLIBC_BAREMETAL)
+/* Compilers without assembler names: see __baremetal_name in <sys/cdefs.h> */
+#if defined(__PICOLIBC_BAREMETAL) && !defined(_LIBC) && !defined(__ASMNAME)
 #define uname __baremetal_uname
 #endif
 

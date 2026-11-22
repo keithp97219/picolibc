@@ -48,12 +48,28 @@
 #ifndef _SYS__OS_H_
 #define _SYS__OS_H_
 
+#include <sys/cdefs.h>
+
 #if defined(__has_include)
 #if __has_include(<sys/_posix.h>) && !defined(__PICOLIBC_BAREMETAL_IMPL)
 #include <sys/_posix.h>
 #else
 #define __PICOLIBC_BAREMETAL 1
 #endif
+#endif
+
+/*
+ * Without an OS (__PICOLIBC_BAREMETAL), applications reach picolibc's
+ * own sysconf, uname and getentropy, __baremetal_<f>, under the
+ * standard names. An assembler name keeps <f> a real function
+ * ((f)(...), &f); compilers without one get a macro instead, defined
+ * where <f> is declared. picolibc's own code keeps the public names, so
+ * an OS can supply them.
+ */
+#if defined(__PICOLIBC_BAREMETAL) && !defined(_LIBC) && defined(__ASMNAME)
+#define __baremetal_name(f) _ASMNAME("__baremetal_" #f)
+#else
+#define __baremetal_name(f)
 #endif
 
 #endif /* _SYS__OS_H_ */
