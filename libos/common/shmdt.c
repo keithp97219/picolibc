@@ -33,10 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "local-os.h"
 #include "local-ipc.h"
+#include <sys/shm.h>
 
 int
-msgget(key_t key, int flags)
+shmdt(const void *addr)
 {
-    return (int)_syscall(FREEBSD_SYS_msgget, _key_to_freebsd(key), flags);
+    return (int)_syscall(OS_SYS_shmdt, addr);
 }

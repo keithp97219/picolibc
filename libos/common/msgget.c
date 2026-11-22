@@ -33,14 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-timer.h"
+#include "local-os.h"
+#include "local-ipc.h"
+#include <sys/msg.h>
 
 int
-timer_delete(timer_t timerid)
+msgget(key_t key, int flags)
 {
-#ifdef __PICOLIBC_PTHREADS
-    if (_timer_delete_thread(timerid))
-        return 0;
-#endif
-    return (int)_syscall(LINUX_SYS_timer_delete, _timer_id(timerid));
+    return (int)_syscall(OS_SYS_msgget, _key_to_os(key), flags);
 }

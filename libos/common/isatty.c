@@ -33,13 +33,13 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-ipc.h"
-#include <sys/shm.h>
+#include "local-os.h"
+#include "local-termios.h"
 
-void *
-shmat(int id, const void *addr, int flags)
+int
+isatty(int fd)
 {
-    long ret = _syscall(LINUX_SYS_shmat, id, addr, flags);
+    struct __os_termios ktermios;
 
-    return ret == -1 ? SHM_FAILED : (void *)ret;
+    return _syscall(OS_SYS_ioctl, fd, OS_TCGETATTR, &ktermios) == 0;
 }

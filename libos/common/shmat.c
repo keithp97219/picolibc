@@ -33,10 +33,14 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-mman.h"
+#include "local-os.h"
+#include "local-ipc.h"
+#include <sys/shm.h>
 
-int
-mlock(const void *addr, size_t len)
+void *
+shmat(int id, const void *addr, int flags)
 {
-    return (int)_syscall(FREEBSD_SYS_mlock, addr, len);
+    long ret = _syscall(OS_SYS_shmat, id, addr, flags);
+
+    return ret == -1 ? SHM_FAILED : (void *)ret;
 }

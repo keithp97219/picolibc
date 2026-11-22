@@ -33,11 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "local-os.h"
 #include "local-ipc.h"
-#include <sys/shm.h>
+#include <sys/sem.h>
 
 int
-shmdt(const void *addr)
+semget(key_t key, int nsems, int flags)
 {
-    return (int)_syscall(LINUX_SYS_shmdt, addr);
+    return (int)_syscall(OS_SYS_semget, _key_to_os(key), nsems, flags);
 }

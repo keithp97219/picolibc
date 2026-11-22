@@ -33,18 +33,15 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-timer.h"
+#include "local-os.h"
+#include "local-termios.h"
 
-int
-timer_gettime(timer_t timerid, struct itimerspec *value)
+pid_t
+tcgetsid(int fd)
 {
-    struct __kernel_itimerspec_time_t kvalue;
+    int sid;
 
-    if (_syscall(LINUX_SYS_timer_gettime_time_t, _timer_id(timerid), &kvalue) < 0)
-        return -1;
-    value->it_interval.tv_sec = kvalue.it_interval.tv_sec;
-    value->it_interval.tv_nsec = kvalue.it_interval.tv_nsec;
-    value->it_value.tv_sec = kvalue.it_value.tv_sec;
-    value->it_value.tv_nsec = kvalue.it_value.tv_nsec;
-    return 0;
+    if (_syscall(OS_SYS_ioctl, fd, OS_TIOCGSID, &sid) < 0)
+        return (pid_t)-1;
+    return (pid_t)sid;
 }

@@ -33,10 +33,19 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-ipc.h"
+#include "local-os.h"
+#include "local-timer.h"
 
 int
-shmget(key_t key, size_t size, int flags)
+timer_gettime(timer_t timerid, struct itimerspec *value)
 {
-    return (int)_syscall(FREEBSD_SYS_shmget, _key_to_freebsd(key), size, flags);
+    struct __os_itimerspec kvalue;
+
+    if (_syscall(OS_SYS_timer_gettime, _timer_id(timerid), &kvalue) < 0)
+        return -1;
+    value->it_interval.tv_sec = kvalue.it_interval.tv_sec;
+    value->it_interval.tv_nsec = kvalue.it_interval.tv_nsec;
+    value->it_value.tv_sec = kvalue.it_value.tv_sec;
+    value->it_value.tv_nsec = kvalue.it_value.tv_nsec;
+    return 0;
 }

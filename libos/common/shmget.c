@@ -33,11 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "local-os.h"
 #include "local-ipc.h"
 #include <sys/shm.h>
 
 int
 shmget(key_t key, size_t size, int flags)
 {
-    return (int)_syscall(LINUX_SYS_shmget, key, size, flags);
+    return (int)_syscall(OS_SYS_shmget, _key_to_os(key), size, flags);
 }

@@ -33,10 +33,15 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-ipc.h"
+#include "local-os.h"
+#include "local-timer.h"
 
 int
-semget(key_t key, int nsems, int flags)
+timer_delete(timer_t timerid)
 {
-    return (int)_syscall(FREEBSD_SYS_semget, _key_to_freebsd(key), nsems, flags);
+#ifdef __PICOLIBC_PTHREADS
+    if (_timer_delete_thread(timerid))
+        return 0;
+#endif
+    return (int)_syscall(OS_SYS_timer_delete, _timer_id(timerid));
 }

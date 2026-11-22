@@ -33,8 +33,10 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-termios.h"
+#include "local-os.h"
 #include <sys/ioctl.h>
+#include <termios.h>
+#include <errno.h>
 
 int
 ioctl(int fd, unsigned long op, void *arg)
@@ -44,8 +46,11 @@ ioctl(int fd, unsigned long op, void *arg)
         return tcgetwinsize(fd, arg);
     case TIOCSWINSZ:
         return tcsetwinsize(fd, arg);
+#ifdef OS_TIOCLINUX
+    case TIOCLINUX:
+        return _syscall(OS_SYS_ioctl, fd, OS_TIOCLINUX, arg);
+#endif
     default:
-        /* TIOCLINUX is Linux's alone */
         errno = EINVAL;
         return -1;
     }

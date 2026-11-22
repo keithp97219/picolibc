@@ -33,23 +33,15 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
-#include <sys/ioctl.h>
-#include <termios.h>
-#include <errno.h>
+#include "local-os.h"
+#include <unistd.h>
 
-int
-ioctl(int fd, unsigned long op, void *arg)
+pid_t
+tcgetpgrp(int fd)
 {
-    switch (op) {
-    case TIOCGWINSZ:
-        return tcgetwinsize(fd, arg);
-    case TIOCSWINSZ:
-        return tcsetwinsize(fd, arg);
-    case TIOCLINUX:
-        return _syscall(LINUX_SYS_ioctl, fd, LINUX_TIOCLINUX, arg);
-    default:
-        errno = EINVAL;
-        return -1;
-    }
+    int pgrp;
+
+    if (_syscall(OS_SYS_ioctl, fd, OS_TIOCGPGRP, &pgrp) < 0)
+        return (pid_t)-1;
+    return (pid_t)pgrp;
 }

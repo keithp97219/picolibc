@@ -33,11 +33,11 @@ OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "local-linux.h"
+#include "local-os.h"
 #include <sys/mman.h>
 
 int
-mlock(const void *addr, size_t len)
+munlock(const void *addr, size_t len)
 {
-    return (int)_syscall(LINUX_SYS_mlock, addr, len);
+    return (int)_syscall(OS_SYS_munlock, addr, len);
 }

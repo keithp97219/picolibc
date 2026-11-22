@@ -33,14 +33,11 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-termios.h"
+#include "local-os.h"
+#include "local-timer.h"
 
-pid_t
-tcgetsid(int fd)
+int
+timer_getoverrun(timer_t timerid)
 {
-    int sid;
-
-    if (_syscall(LINUX_SYS_ioctl, fd, LINUX_TIOCGSID, &sid) < 0)
-        return (pid_t)-1;
-    return (pid_t)sid;
+    return (int)_syscall(OS_SYS_timer_getoverrun, _timer_id(timerid));
 }
