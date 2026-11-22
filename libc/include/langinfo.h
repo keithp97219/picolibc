@@ -173,7 +173,8 @@ enum {
     CRNCYSTR, /* currency symbol */
 #define CRNCYSTR CRNCYSTR
 
-    /* month names used without a day (%OB) */
+#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
+    /* month names used without a day (%OB), new in POSIX.1-2024 */
     ALTMON_1,
 #define ALTMON_1 ALTMON_1
     ALTMON_2,
@@ -224,6 +225,7 @@ enum {
 #define ABALTMON_11 ABALTMON_11
     ABALTMON_12,
 #define ABALTMON_12 ABALTMON_12
+#endif
 };
 
 _BEGIN_STD_C
