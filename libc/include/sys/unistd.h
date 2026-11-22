@@ -862,6 +862,11 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #error \
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
+#if defined(__PICOLIBC_POSIX_DEVICE_IO_EXT) || defined(__PICOLIBC_XSI_C_LANG_SUPPORT) \
+    || defined(__PICOLIBC_XSI_DBM)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
 
 /* The options and constants the OS provides */
 #ifdef __PICOLIBC_OS_ADVISORY_INFO
@@ -1175,6 +1180,18 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #if defined(__PICOLIBC_OS_DEVICE_IO)
 /* Wide streams are built on the OS's I/O */
 #define __PICOLIBC_POSIX_WIDE_CHAR_DEVICE_IO __PICOLIBC_OS_DEVICE_IO
+#endif
+#if defined(__PICOLIBC_OS_DEVICE_IO)
+/* Dprintf writes to a file descriptor; the memory streams need nothing */
+#define __PICOLIBC_POSIX_DEVICE_IO_EXT __PICOLIBC_OS_DEVICE_IO
+#endif
+#if defined(__PICOLIBC_OS_FILE_SYSTEM)
+/* Getdate reads the templates file DATEMSK names */
+#define __PICOLIBC_XSI_C_LANG_SUPPORT __PICOLIBC_OS_FILE_SYSTEM
+#endif
+#if defined(__PICOLIBC_OS_FILE_SYSTEM)
+/* The databases are files */
+#define __PICOLIBC_XSI_DBM __PICOLIBC_OS_FILE_SYSTEM
 #endif
 
 /*

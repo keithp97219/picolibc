@@ -37,7 +37,8 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_PIPE) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if defined(__PICOLIBC_POSIX_DEVICE_IO_EXT) && defined(__PICOLIBC_POSIX_PIPE) \
+    && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
 
 #include <errno.h>
 #include <fcntl.h>

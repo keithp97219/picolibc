@@ -39,8 +39,8 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES) \
-    && defined(__PICOLIBC_POSIX_FD_MGMT)
+#if defined(__PICOLIBC_XSI_DBM) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)              \
+    && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES) && defined(__PICOLIBC_POSIX_FD_MGMT)
 
 #include <dirent.h>
 #include <errno.h>
