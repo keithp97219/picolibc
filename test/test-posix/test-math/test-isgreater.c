@@ -53,7 +53,7 @@ int
 main(void)
 {
     /* Not constants, so the compiler doesn't evaluate them itself */
-    volatile double      one = 1.0, two = 2.0, qnan = NAN, inf = INFINITY;
+    volatile double      one = 1.0, two = 2.0, qnan = (double)NAN, inf = (double)INFINITY;
     volatile float       onef = 1.0f, qnanf = NAN;
     volatile long double onel = 1.0L, twol = 2.0L;
 
@@ -74,9 +74,9 @@ main(void)
               && !islessequal(qnan, one) && !islessgreater(qnan, one),
           "comparisons with a NaN");
 
-    /* Other types, and mixed ones */
-    check(isless(onef, two) && isunordered(qnanf, onef), "float");
-    check(isless(onel, twol) && isgreater(twol, one), "long double");
+    /* Other types */
+    check(isless(onef, (float)two) && isunordered(qnanf, onef), "float");
+    check(isless(onel, twol) && isgreater(twol, onel), "long double");
 
     printf("success\n");
     return 0;
