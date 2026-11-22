@@ -152,12 +152,13 @@
 
 /*
  * XSI option groups. The System V IPC functions are there, and
- * shmget checks the permissions of a segment it finds (shmget.c), but
- * shmdt doesn't set shm_lpid, so XSI_IPC isn't claimed. shm_segsz
- * counts whole pages, a known variance (doc/os.md)
+ * shmget checks the permissions of a segment it finds (shmget.c).
+ * shm_segsz counts whole pages, and only shmat sets shm_lpid, not
+ * shmdt, known variances (doc/os.md)
  */
 #define __PICOLIBC_OS_XSI_DEVICE_SPECIFIC    202405L
 #define __PICOLIBC_OS_XSI_GENERAL_TERMINAL_R 202405L
+#define __PICOLIBC_OS_XSI_IPC                202405L
 
 /* Sockets, with picolibc built for the FreeBSD network interfaces */
 #ifdef __PICOLIBC_NETWORK_FREEBSD

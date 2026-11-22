@@ -1223,11 +1223,17 @@
  *    of a System V shared memory segment rounded up to whole pages,
  *    not the size asked for, and shmget compares a size asked for an
  *    existing segment with that (FreeBSD).
+ *
+ *  - TEST_VARIANCE_SHM_LPID: only shmat sets shmid_ds's shm_lpid;
+ *    neither shmdt nor fork, which gives the child the parent's
+ *    attachments, changes it (FreeBSD).
  */
 #if defined(__FreeBSD__) && !defined(TEST_CLAIM_ALL)
 #define TEST_VARIANCE_SHM_SEGSZ_PAGES 1
+#define TEST_VARIANCE_SHM_LPID        1
 #else
 #define TEST_VARIANCE_SHM_SEGSZ_PAGES 0
+#define TEST_VARIANCE_SHM_LPID        0
 #endif
 
 #endif /* _TEST_FLAGS_H_ */
