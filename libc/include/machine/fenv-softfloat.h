@@ -49,7 +49,6 @@
  * define fenv_t and fexcept_t to match the hardware ABI.  Otherwise, it
  * doesn't matter how you define them.
  */
-#include <errno.h>
 
 __declare_fenv_inline(int) feclearexcept(int __excepts)
 {
