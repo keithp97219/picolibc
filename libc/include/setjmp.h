@@ -63,6 +63,15 @@ void            __sigjmp_setsigs(sigjmp_buf __jmpb) __picolibc_export;
 #define sigsetjmp(__e, __s) (__sigjmp_getsigs((__e), (__s)), setjmp((__e)[0].__jmpb))
 #endif
 
+#if __MISC_VISIBLE || (__XSI_VISIBLE && __XSI_VISIBLE < 800)
+/*
+ * XSI until POSIX.1-2024 removed them: setjmp and longjmp that
+ * leave the signal mask alone, which picolibc's always do
+ */
+#define _setjmp(__e)       setjmp(__e)
+#define _longjmp(__e, __v) longjmp((__e), (__v))
+#endif
+
 _END_STD_C
 
 #endif /* _SETJMP_H_ */
