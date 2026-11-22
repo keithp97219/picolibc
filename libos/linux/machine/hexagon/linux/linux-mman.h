@@ -62,6 +62,9 @@
 #define LINUX_MCL_CURRENT           0x1
 #define LINUX_MCL_FUTURE            0x2
 #define LINUX_MCL_ONFAULT           0x4
+#define LINUX_MREMAP_DONTUNMAP      0x4
+#define LINUX_MREMAP_FIXED          0x2
+#define LINUX_MREMAP_MAYMOVE        0x1
 #define LINUX_MS_ASYNC              0x1
 #define LINUX_MS_INVALIDATE         0x2
 #define LINUX_MS_SYNC               0x4

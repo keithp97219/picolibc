@@ -44,6 +44,7 @@ set(tests
   test-printf
   test-printf-long-double
   test-printf-scanf
+  test-printf-exact
   test-sprintf-percent-n
   test-sprintf-s
   test-strfromf

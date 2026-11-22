@@ -115,12 +115,11 @@ static const struct {
     { "%.2f",  1.375,                                     "1.38"                 },
     { "%.1f",  1.375,                                     "1.4"                  },
     { "%.15f", 1.1,                                       "1.100000000000000"    },
+    { "%.16f", 1.1,                                       "1.1000000000000001"   },
 #ifdef __PICOLIBC__
-    { "%.16f", 1.1,                                       "1.1000000000000000"   },
-    { "%.17f", 1.1,                                       "1.10000000000000000"  },
+    /* picolibc generates at most 17 significant digits */
+    { "%.17f", 1.1,                                       "1.10000000000000010"  },
 #else
-    /* glibc stdio adds non-zero digits beyond needed precision */
-    { "%.16f", 1.1, "1.1000000000000001" },
     { "%.17f", 1.1, "1.10000000000000009" },
 #endif
     { "%.2e",  1500001.0,                                 "1.50e+06"             },
@@ -147,18 +146,18 @@ static const struct {
     /* pi in double precision, printed to a few extra places */
     { "%.15f", M_PI,                                      "3.141592653589793"    },
 #ifdef __PICOLIBC__
-    { "%.18f", M_PI,                                      "3.141592653589793000" },
+    /* picolibc generates at most 17 significant digits */
+    { "%.18f", M_PI,                                      "3.141592653589793100" },
 #else
-    /* glibc stdio adds non-zero digits beyond needed precision */
     { "%.18f", M_PI, "3.141592653589793116" },
 #endif
 
 /* exact conversion of large integers */
 #ifdef __PICOLIBC__
+    /* picolibc generates at most 17 significant digits */
     { "%.0f",  340282366920938463463374607431768211456.0,
-     "340282366920938500000000000000000000000"                                   },
+     "340282366920938460000000000000000000000"                                   },
 #else
-    /* glibc stdio adds non-zero digits beyond needed precision */
     { "%.0f", 340282366920938463463374607431768211456.0,
       "340282366920938463463374607431768211456" },
 #endif

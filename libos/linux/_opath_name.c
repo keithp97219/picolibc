@@ -37,7 +37,7 @@
 #include <string.h>
 
 /*
- * Descriptors opened O_SEARCH (Linux O_PATH) refuse fchmod and fsync
+ * Descriptors opened O_SEARCH or O_PATH (both Linux O_PATH) refuse fchmod and fsync
  * with EBADF. Name the open file through /proc/self/fd instead, as
  * musl does. Returns buf holding the name, or NULL when fd isn't an
  * O_PATH descriptor. buf holds at least _OPATH_NAME_MAX bytes.

@@ -596,6 +596,8 @@ if get_option('mb-jis-charsets') == 'auto'
 else
   mb_jis_charsets = mb_capable and get_option('mb-jis-charsets') == 'true'
 endif
+# GB18030 is large, so mb-extended-charsets doesn't include it
+mb_gb18030_charset = mb_capable and get_option('mb-gb18030-charset')
 
 obsolete_math = get_option('newlib-obsolete-math')
 obsolete_math_float = get_option('newlib-obsolete-math-float')
@@ -1699,6 +1701,7 @@ if mb_capable
   conf_data.set('__MB_EXTENDED_CHARSETS_ISO', mb_iso_charsets)
   conf_data.set('__MB_EXTENDED_CHARSETS_WINDOWS', mb_windows_charsets)
   conf_data.set('__MB_EXTENDED_CHARSETS_JIS', mb_jis_charsets)
+  conf_data.set('__MB_EXTENDED_CHARSETS_GB18030', mb_gb18030_charset)
 endif
 
 conf_data.set('__TINY_STDIO', true, description: 'Picolibc stdio comes from the avr C library')

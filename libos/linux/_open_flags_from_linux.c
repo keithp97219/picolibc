@@ -62,9 +62,17 @@ _open_flags_from_linux(int kflags)
         flags |= O_SYNC;
     else if (kflags & LINUX_O_DSYNC)
         flags |= O_DSYNC;
+    /*
+     * O_SEARCH and O_PATH both open Linux O_PATH descriptors, which
+     * can't be told apart, so report both
+     */
 #ifdef O_SEARCH
     if (kflags & LINUX_O_PATH)
         flags |= O_SEARCH;
+#endif
+#ifdef O_PATH
+    if (kflags & LINUX_O_PATH)
+        flags |= O_PATH;
 #endif
     return flags;
 }

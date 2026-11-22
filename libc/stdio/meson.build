@@ -226,6 +226,7 @@ srcs_dtoa_ryu = [
   'dtoa_ryu.c',
   'ftoa_ryu.c',
   'ldtoa_ryu.c',
+  'ryu_d2d.c',
   'ryu_divpow2.c',
   'ryu_log10.c',
   'ryu_log2pow5.c',

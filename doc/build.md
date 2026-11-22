@@ -143,6 +143,7 @@ Picolibc supports the same charsets for locales and iconv.
 | mb-iso-charsets             | false   | Enable ISO-8859 charsets (ISO 8859-1 through ISO 8859-16)                            |
 | mb-jis-charsets             | false   | Enable JIS charsets (JIS X 0208, EUC-JP and Shift-JIS)                               |
 | mb-windows-charsets         | false   | Enable various code-page based charsets                                              |
+| mb-gb18030-charset          | false   | Enable GB18030-2022 (35kB of tables, not part of mb-extended-charsets)               |
 
 ### Startup/shutdown options
 

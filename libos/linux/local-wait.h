@@ -69,12 +69,25 @@ _wait_status_from_linux(int kstatus)
 /*
  * The kernel's struct rusage: two timevals in the kernel's layout,
  * which differs from picolibc's on 32-bit architectures, then
- * fourteen longs picolibc doesn't report.
+ * fourteen longs.
  */
 struct __kernel_wait_rusage {
     struct __kernel_timeval ru_utime;
     struct __kernel_timeval ru_stime;
-    long                    ru_other[14];
+    long                    ru_maxrss;
+    long                    ru_ixrss;
+    long                    ru_idrss;
+    long                    ru_isrss;
+    long                    ru_minflt;
+    long                    ru_majflt;
+    long                    ru_nswap;
+    long                    ru_inblock;
+    long                    ru_oublock;
+    long                    ru_msgsnd;
+    long                    ru_msgrcv;
+    long                    ru_nsignals;
+    long                    ru_nvcsw;
+    long                    ru_nivcsw;
 };
 
 /* Take a SIGCHLD a collected status leaves pending */

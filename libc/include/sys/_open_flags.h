@@ -32,6 +32,7 @@
 #define _FDIRECTORY 0x200000
 #define _FEXECSRCH  0x400000
 #define _FNOFORK    0x800000
+#define _FPATH      0x1000000 /* only name the file (O_PATH) */
 
 /* O_EXEC and O_SEARCH are file access modes too */
 #define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR | _FEXECSRCH)
@@ -72,6 +73,17 @@
 
 #if __BSD_VISIBLE
 #define O_DIRECT _FDIRECT
+#endif
+
+/*
+ * Open only to name the file: no reads or writes, but fstat, fchdir
+ * and the *at functions work. Not an access mode; each OS layer maps
+ * it to its own (Linux, FreeBSD 14 and later). Layers without one
+ * (semihosting) ignore it, as they do the other flags they can't
+ * pass on, and open the file with the access mode given
+ */
+#if __BSD_VISIBLE || __GNU_VISIBLE
+#define O_PATH _FPATH
 #endif
 
 #define O_DSYNC _FSYNC

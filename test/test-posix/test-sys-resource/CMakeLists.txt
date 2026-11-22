@@ -36,6 +36,7 @@
 set(tests
   test-getpriority
   test-getrusage
+  test-getrusage-fields
   test-setpriority
   test-setpriority-thread
   test-setrlimit

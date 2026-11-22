@@ -210,6 +210,8 @@ option('mb-jis-charsets', type: 'combo', choices: ['true', 'false', 'auto'], val
        description: 'enable additional JIS multibyte encodings')
 option('mb-windows-charsets', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
        description: 'enable additional Windows encodings')
+option('mb-gb18030-charset', type: 'boolean', value: false,
+       description: 'enable the GB18030 encoding (about 35kB of tables)')
 
 #
 # Startup/shutdown options

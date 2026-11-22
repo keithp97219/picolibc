@@ -110,6 +110,8 @@
 
 #cmakedefine __MB_EXTENDED_CHARSETS_JIS
 
+#cmakedefine __MB_EXTENDED_CHARSETS_GB18030
+
 #cmakedefine __NANO_FORMATTED_IO
 
 #cmakedefine __NANO_MALLOC
