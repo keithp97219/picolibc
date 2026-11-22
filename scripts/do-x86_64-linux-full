@@ -5,10 +5,15 @@
 #
 exec "$(dirname "$0")"/do-x86_64-linux-gnu-configure \
      --prefix=/usr/local \
+     -Dio-long-long=true \
      -Dio-long-double=true \
+     -Dio-pos-args=true \
+     -Dprintf-percent-n=true \
      -Dmb-capable=true \
+     -Dmb-extended-charsets=true \
      -Dio-percent-b=true \
      -Dfast-bufio=true \
+     -Dfstat-bufsiz=true \
      -Dstdio-exit-flush=true \
      -Dio-wchar=true \
      -Dstdio-locking=true \
