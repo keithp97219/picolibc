@@ -55,6 +55,19 @@ _END_STD_C
 
 #endif /* !defined(__SINGLE_THREAD) */
 
+/*
+ * Interrupt masking for the libatomic functions on targets without
+ * atomic read-modify-write instructions (__GCC_ATOMIC_INT_LOCK_FREE <
+ * 2), which picolibc assumes are single-core. Save masks interrupts
+ * and returns the previous state, restore puts that state back. The
+ * defaults are weak and assume privileged bare metal; an RTOS replaces
+ * them with its own interrupt lock.
+ */
+_BEGIN_STD_C
+unsigned long __retarget_atomic_irq_save(void);
+void          __retarget_atomic_irq_restore(unsigned long state);
+_END_STD_C
+
 #define __LIBC_LOCK()   __lock_acquire_recursive(&__lock___libc_recursive_mutex)
 #define __LIBC_UNLOCK() __lock_release_recursive(&__lock___libc_recursive_mutex)
 __LOCK_INIT_RECURSIVE(__libc_recursive_mutex)

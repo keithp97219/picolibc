@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 srcs_machine = [
+  'atomic_irq.c',
   'ieeefp.c',
   'memcpy-asm.S',
   'memcpy.c',

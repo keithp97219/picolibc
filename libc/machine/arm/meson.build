@@ -37,6 +37,7 @@ srcs_machine = [
   'strcmp.S',
   'strcpy.S',
   'aeabi_memset.c',
+  'atomic_irq.c',
   'bzero.c',
   'interrupt.c',
   'memchr.c',

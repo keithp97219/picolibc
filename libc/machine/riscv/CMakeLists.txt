@@ -36,6 +36,7 @@
 add_subdirectory(machine)
 
 picolibc_sources_flags("-fno-builtin"
+  atomic_irq.c
   ieeefp.c
   memcpy-asm.S
   memcpy.c
