@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* nftw is an XSI interface */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)
+#if TEST_POSIX_FILE_SYSTEM && TEST_POSIX_SYMBOLIC_LINKS
 
 #include <errno.h>
 #include <fcntl.h>

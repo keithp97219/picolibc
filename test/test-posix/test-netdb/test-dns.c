@@ -35,9 +35,10 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_NETWORK_DNS) && _POSIX_THREADS > 0
+#if defined(__PICOLIBC_NETWORK_DNS) && TEST_POSIX_THREADS
 
 #include <arpa/inet.h>
 #include <errno.h>

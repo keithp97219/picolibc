@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* posix_openpt, grantpt, unlockpt and ptsname are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_DEVICE_SPECIFIC && TEST_POSIX_MULTI_PROCESS
 
 #include <errno.h>
 #include <fcntl.h>

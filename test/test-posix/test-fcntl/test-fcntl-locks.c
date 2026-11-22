@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_FD_MGMT)
+#if TEST_POSIX_MULTI_PROCESS && TEST_POSIX_FD_MGMT
 
 #include <errno.h>
 #include <fcntl.h>
@@ -139,8 +139,7 @@ main(void)
         check(close(fd2) == 0, "close");
     } else {
         /* Open file description locks came with POSIX.1-2024's FD_MGMT */
-        check(__PICOLIBC_POSIX_FD_MGMT < 202405L && errno == EINVAL,
-              "no open file description locks");
+        check(TEST_POSIX_FD_MGMT < 202405L && errno == EINVAL, "no open file description locks");
     }
 #endif
     check(close(fd) == 0 && unlink("file") == 0 && chdir("..") == 0 && rmdir(dir) == 0, "cleanup");

@@ -45,7 +45,7 @@
 #endif
 #include <signal.h>
 #include <assert.h>
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include <errno.h>
 #include <stdio.h>
 
@@ -93,7 +93,7 @@ main(void)
         return 1;
     }
 
-#if defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_SIGNALS
     /* Invalid signals, and catching or ignoring SIGKILL, are EINVAL */
     errno = 0;
     if (signal(-1, handle_usr1) != SIG_ERR || errno != EINVAL) {

@@ -35,10 +35,10 @@
 
 #define _POSIX_C_SOURCE 202405L
 #define _XOPEN_SOURCE   800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_XSI_USER_GROUPS)
+#if TEST_XSI_USER_GROUPS
 
 #include <errno.h>
 #include <grp.h>

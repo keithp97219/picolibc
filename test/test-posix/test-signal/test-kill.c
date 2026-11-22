@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_SIGNALS
 
 #include <errno.h>
 #include <signal.h>
@@ -92,7 +92,7 @@ main(void)
     caught = 0;
     check(kill(-getpgrp(), SIGUSR1) == 0 && caught == SIGUSR1, "kill to -pgrp");
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
     /* ESRCH once the process is gone */
     child = fork();
     check(child >= 0, "fork");

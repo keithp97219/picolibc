@@ -184,11 +184,10 @@ static const int advice[] = {
     POSIX_FADV_RANDOM,   POSIX_FADV_SEQUENTIAL, POSIX_FADV_WILLNEED,
 };
 
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* The functions need system support */
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM_FD) && defined(__PICOLIBC_POSIX_FD_MGMT) \
-    && _POSIX_ADVISORY_INFO > 0
+#if TEST_POSIX_FILE_SYSTEM_FD && TEST_POSIX_FD_MGMT && TEST_POSIX_ADVISORY_INFO
 #define CHECK_PROTOTYPES
 
 /* The prototypes */
