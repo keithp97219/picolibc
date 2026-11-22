@@ -75,6 +75,7 @@ inc_headers = [
   'malloc.h',
   'math.h',
   'memory.h',
+  'mntent.h',
   'monetary.h',
   'mqueue.h',
   'ndbm.h',
