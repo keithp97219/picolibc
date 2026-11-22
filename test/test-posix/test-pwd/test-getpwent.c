@@ -49,6 +49,8 @@ static const char          pwd_contents[] = "root:x:0:0:root:/root:/bin/bash\n"
 static const struct passwd expect[] = {
     {
      .pw_name = "root",
+     .pw_passwd = "x",
+     .pw_gecos = "root",
      .pw_uid = 0,
      .pw_gid = 0,
      .pw_dir = "/root",
@@ -56,6 +58,8 @@ static const struct passwd expect[] = {
      },
     {
      .pw_name = "sys",
+     .pw_passwd = "x",
+     .pw_gecos = "sys",
      .pw_uid = 3,
      .pw_gid = 3,
      .pw_dir = "/dev",
@@ -63,6 +67,8 @@ static const struct passwd expect[] = {
      },
     {
      .pw_name = "nohome",
+     .pw_passwd = "x",
+     .pw_gecos = "",
      .pw_uid = 4,
      .pw_gid = 3,
      .pw_dir = "",
@@ -70,6 +76,8 @@ static const struct passwd expect[] = {
      },
     {
      .pw_name = "user",
+     .pw_passwd = "x",
+     .pw_gecos = "Sample user account",
      .pw_uid = 1000,
      .pw_gid = 4,
      .pw_dir = "/home/user",
@@ -99,7 +107,9 @@ main(void)
     while (fgetpwent_r(f, &pwd, buf, BUFSIZ, &pwd_ret) == 0) {
         if (strcmp(pwd_ret->pw_name, expect[e].pw_name) != 0 || pwd_ret->pw_uid != expect[e].pw_uid
             || pwd_ret->pw_gid != expect[e].pw_gid || strcmp(pwd_ret->pw_dir, expect[e].pw_dir) != 0
-            || strcmp(pwd_ret->pw_shell, expect[e].pw_shell) != 0) {
+            || strcmp(pwd_ret->pw_shell, expect[e].pw_shell) != 0
+            || strcmp(pwd_ret->pw_passwd, expect[e].pw_passwd) != 0
+            || strcmp(pwd_ret->pw_gecos, expect[e].pw_gecos) != 0) {
             printf("Entry %zd incorrect:\n", e);
             printf("    name:  got '%s' want '%s'\n", pwd_ret->pw_name, expect[e].pw_name);
             printf("    uid:   got %ld want %ld\n", (long)pwd_ret->pw_uid, (long)expect[e].pw_uid);

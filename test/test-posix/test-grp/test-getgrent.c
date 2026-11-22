@@ -111,7 +111,8 @@ main(void)
 
     e = 0;
     while (fgetgrent_r(f, &grp, buf, BUFSIZ, &grp_ret) == 0) {
-        if (strcmp(grp_ret->gr_name, expect[e].gr_name) != 0 || grp_ret->gr_gid != expect[e].gr_gid
+        if (strcmp(grp_ret->gr_name, expect[e].gr_name) != 0 || strcmp(grp_ret->gr_passwd, "x") != 0
+            || grp_ret->gr_gid != expect[e].gr_gid
             || !same_mem(grp_ret->gr_mem, expect[e].gr_mem)) {
             printf("Entry %zd incorrect:\n", e);
             printf("    name: got '%s' want '%s'\n", grp_ret->gr_name, expect[e].gr_name);
