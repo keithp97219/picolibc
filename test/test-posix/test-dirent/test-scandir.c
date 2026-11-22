@@ -116,8 +116,13 @@ main(void)
     int             n;
 
     if (fake_dirent()) {
+#if TEST_POSIX_FILE_SYSTEM_EXT
+        printf("opendir is a stand-in, but POSIX_FILE_SYSTEM_EXT is claimed\n");
+        return 1;
+#else
         printf("fake dirent ops, skipping\n");
         return 77;
+#endif
     }
 
     for (i = 0; i < NFILES; i++) {

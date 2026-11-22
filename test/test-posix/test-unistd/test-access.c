@@ -38,6 +38,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include "../test-flags.h"
 
 #ifndef TEST_FILE_NAME
 #define TEST_FILE_NAME "ACCESS.TXT"
@@ -71,8 +72,13 @@ main(void)
 #endif
 
     if (!not_fake(access)) {
+#if TEST_POSIX_FILE_SYSTEM
+        printf("access is a stand-in, but POSIX_FILE_SYSTEM is claimed\n");
+        return 1;
+#else
         printf("fake access, skipping\n");
         return 77;
+#endif
     }
 
     /* Clean up any leftover files from previous test runs */
