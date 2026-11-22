@@ -33,13 +33,28 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
+#include "local-termios.h"
 #include <unistd.h>
 
 int
 tcsetpgrp(int fd, pid_t pgrp)
 {
-    int kpgrp = pgrp;
+    struct __freebsd_termios kt;
+    int                      kpgrp = pgrp;
 
+    /*
+     * FreeBSD's pipes and sockets take TIOCSPGRP as the owner that
+     * gets SIGIO; only a terminal has a foreground process group
+     */
+    if (_tcgetattr_freebsd(fd, &kt) < 0)
+        return -1;
+    /*
+     * FreeBSD says EPERM for a negative group, as for one outside the
+     * session; it isn't a process group ID at all
+     */
+    if (pgrp < 0) {
+        errno = EINVAL;
+        return -1;
+    }
     return (int)_syscall(FREEBSD_SYS_ioctl, fd, FREEBSD_TIOCSPGRP, &kpgrp);
 }
