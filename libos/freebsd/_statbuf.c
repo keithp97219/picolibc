@@ -34,13 +34,14 @@
  */
 
 #include "local-freebsd.h"
+#include "local-dev.h"
 #include <freebsd/freebsd-timespec-struct.h>
 #include <freebsd/freebsd-stat-struct.h>
 
 int
 _statbuf(struct stat *statbuf, const struct __freebsd_stat *kstat)
 {
-    statbuf->st_dev = kstat->st_dev;
+    statbuf->st_dev = _dev_from_freebsd(kstat->st_dev);
     statbuf->st_ino = kstat->st_ino;
     /* FreeBSD's file type and permission bits are the traditional ones, as here */
     statbuf->st_mode = kstat->st_mode;
@@ -50,7 +51,7 @@ _statbuf(struct stat *statbuf, const struct __freebsd_stat *kstat)
     /* FreeBSD reports NODEV for anything but a device; picolibc reports 0 */
     statbuf->st_rdev = 0;
     if (S_ISCHR(statbuf->st_mode) || S_ISBLK(statbuf->st_mode))
-        statbuf->st_rdev = kstat->st_rdev;
+        statbuf->st_rdev = _dev_from_freebsd(kstat->st_rdev);
     statbuf->st_size = kstat->st_size;
     statbuf->st_blksize = kstat->st_blksize;
     statbuf->st_blocks = kstat->st_blocks;

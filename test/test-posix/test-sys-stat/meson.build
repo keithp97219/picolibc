@@ -40,6 +40,7 @@ dir_tests = [
   'test-fstatat',
   'test-futimens',
   'test-lstat',
+  'test-makedev',
   'test-mkdir',
   'test-mkdirat',
   'test-mkfifo',

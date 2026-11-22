@@ -154,13 +154,13 @@ int __fstatvfs_host(int fd, struct if_statvfs *if_statvfs);
 
 #define STAT_FROM_IF(p, i)                                                 \
     do {                                                                   \
-        (p)->st_dev = __make_dev((i)->st_dev_major, (i)->st_dev_minor);    \
+        (p)->st_dev = makedev((i)->st_dev_major, (i)->st_dev_minor);    \
         (p)->st_ino = (i)->st_ino;                                         \
         (p)->st_mode = (i)->st_mode;                                       \
         (p)->st_nlink = (i)->st_nlink;                                     \
         (p)->st_uid = (i)->st_uid;                                         \
         (p)->st_gid = (i)->st_gid;                                         \
-        (p)->st_rdev = __make_dev((i)->st_rdev_major, (i)->st_rdev_minor); \
+        (p)->st_rdev = makedev((i)->st_rdev_major, (i)->st_rdev_minor); \
         (p)->st_size = (i)->st_size;                                       \
         (p)->st_blksize = (i)->st_blksize;                                 \
         (p)->st_blocks = (i)->st_blocks;                                   \

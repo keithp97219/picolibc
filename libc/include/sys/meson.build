@@ -72,6 +72,7 @@ inc_sys_headers_all = [
   '_stdint.h',
   'string.h',
   'syslimits.h',
+  'sysmacros.h',
   'termios.h',
   'timeb.h',
   'time.h',

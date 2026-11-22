@@ -72,6 +72,7 @@ picolibc_headers(sys
   _stdint.h
   string.h
   syslimits.h
+  sysmacros.h
   termios.h
   timeb.h
   time.h
