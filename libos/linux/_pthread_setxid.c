@@ -39,9 +39,9 @@
 
 /* The change every thread makes, and how many have yet to make it */
 static struct {
-    long         nr, a, b, c;
-    unsigned int remaining;
-    int          failed;
+    long              nr, a, b, c;
+    __pthread_futex_t remaining;
+    int               failed;
 } setxid;
 
 /* Runs in each other thread, from the handler of _PTHREAD_SIGCANCEL */

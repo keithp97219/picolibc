@@ -53,7 +53,7 @@
  *   struct __pthread_os      Per-thread OS data, embedded in each
  *                            descriptor as 'os' (at least one member).
  *
- *   _pthread_exit_word(t)    The futex word (unsigned int *) which the
+ *   _pthread_exit_word(t)    The futex word (__pthread_futex_t *) which the
  *   _PTHREAD_EXIT_DONE       OS sets to _PTHREAD_EXIT_DONE, and wakes
  *                            with _futex_wake semantics (pshared), once
  *                            thread t has exited and no longer uses
@@ -63,7 +63,7 @@
  *
  *   and these functions, declared below:
  *
- *   _futex_wait, _futex_wake  Wait on and wake a 32-bit word, as
+ *   _futex_wait, _futex_wake  Wait on and wake a __pthread_futex_t, as
  *                            described below.
  *   _pthread_os_stack_alloc, Allocate and free the stacks picolibc
  *   _pthread_os_stack_free   provides, unless _PTHREAD_HAVE_MAP selects
@@ -220,7 +220,7 @@ struct __pthread {
     int                        detach_state;
 
     /* Non-zero while a new thread waits for its creator to set its scheduling */
-    unsigned int               start_wait;
+    __pthread_futex_t          start_wait;
     int                        start_error;
 
     /*
@@ -270,21 +270,22 @@ _pthread_self(void)
  * waiters. pshared says whether the word may be shared with other
  * processes, and is the same for every wait and wake on a word.
  */
-int  _futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t clock,
+int  _futex_wait(__pthread_futex_t *addr, __pthread_futex_t val, bool pshared, clockid_t clock,
                  const struct timespec *abstime);
-void _futex_wake(unsigned int *addr, int count, bool pshared);
+void _futex_wake(__pthread_futex_t *addr, int count, bool pshared);
 
 /* Priority inheritance futexes; the word holds the owner's thread id */
 #ifdef _PTHREAD_HAVE_PI
-int  _futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock,
+int  _futex_lock_pi(__pthread_futex_t *addr, bool pshared, clockid_t clock,
                     const struct timespec *abstime);
-void _futex_unlock_pi(unsigned int *addr, bool pshared);
+void _futex_unlock_pi(__pthread_futex_t *addr, bool pshared);
 
 /* Whether the kernel has priority inheritance futexes */
 bool _pthread_pi_available(void);
 #else
 static inline int
-_futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock, const struct timespec *abstime)
+_futex_lock_pi(__pthread_futex_t *addr, bool pshared, clockid_t clock,
+               const struct timespec *abstime)
 {
     (void)addr;
     (void)pshared;
@@ -294,7 +295,7 @@ _futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock, const struct t
 }
 
 static inline void
-_futex_unlock_pi(unsigned int *addr, bool pshared)
+_futex_unlock_pi(__pthread_futex_t *addr, bool pshared)
 {
     (void)addr;
     (void)pshared;

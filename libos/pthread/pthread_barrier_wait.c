@@ -46,7 +46,7 @@
 static void
 barrier_lock(pthread_barrier_t *barrier, bool pshared)
 {
-    unsigned int state = 0;
+    __pthread_futex_t state = 0;
 
     if (__atomic_compare_exchange_n(&barrier->__lock, &state, 1, false, __ATOMIC_ACQUIRE,
                                     __ATOMIC_RELAXED))

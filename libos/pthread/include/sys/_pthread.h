@@ -64,6 +64,17 @@ _BEGIN_STD_C
 long __pthread_stack_min(void);
 _END_STD_C
 
+/*
+ * The word the OS waits on and wakes. 32 bits suits Linux and FreeBSD,
+ * whose kernels also write it; an OS whose wait compares another size
+ * defines __PTHREAD_FUTEX_T in its own <sys/_pthread.h> before
+ * including this one (see doc/os.md).
+ */
+#ifndef __PTHREAD_FUTEX_T
+#define __PTHREAD_FUTEX_T unsigned int
+#endif
+typedef __PTHREAD_FUTEX_T __pthread_futex_t;
+
 struct __pthread;
 
 typedef struct __pthread *pthread_t;
@@ -85,11 +96,11 @@ typedef struct {
      * inheritance mutexes, the owner's thread id, managed with the
      * kernel.
      */
-    unsigned int __state;
-    int          __type;
-    int          __pshared;
-    int          __protocol;
-    int          __prioceiling;
+    __pthread_futex_t __state;
+    int               __type;
+    int               __pshared;
+    int               __protocol;
+    int               __prioceiling;
     int          __owner; /* thread id of the owner, for recursive and error checking mutexes */
     unsigned int __count; /* recursion depth beyond the first lock */
     int          __robust;
@@ -111,9 +122,9 @@ typedef struct {
 } pthread_mutexattr_t;
 
 typedef struct {
-    unsigned int __seq;
-    __clockid_t  __clock;
-    int          __pshared;
+    __pthread_futex_t __seq;
+    __clockid_t       __clock;
+    int               __pshared;
 } pthread_cond_t;
 
 typedef struct {
@@ -122,11 +133,11 @@ typedef struct {
 } pthread_condattr_t;
 
 typedef struct {
-    unsigned int __state; /* number of readers, or UINT_MAX when write locked */
-    unsigned int __seq;   /* advanced when the lock is released with waiters */
-    unsigned int __waiters;
-    int          __writer; /* thread id of the writer */
-    int          __pshared;
+    unsigned int      __state; /* number of readers, or UINT_MAX when write locked */
+    __pthread_futex_t __seq;   /* advanced when the lock is released with waiters */
+    unsigned int      __waiters;
+    int               __writer; /* thread id of the writer */
+    int               __pshared;
 } pthread_rwlock_t;
 
 typedef struct {
@@ -134,27 +145,27 @@ typedef struct {
 } pthread_rwlockattr_t;
 
 typedef struct {
-    unsigned int __count;
-    unsigned int __waiting;
-    unsigned int __seq;  /* advanced as each group of threads leaves */
-    unsigned int __lock; /* held while a thread arrives */
-    int          __pshared;
+    unsigned int      __count;
+    unsigned int      __waiting;
+    __pthread_futex_t __seq;  /* advanced as each group of threads leaves */
+    __pthread_futex_t __lock; /* held while a thread arrives */
+    int               __pshared;
 } pthread_barrier_t;
 
 typedef struct {
     int __pshared;
 } pthread_barrierattr_t;
 
-typedef volatile int pthread_spinlock_t;
+typedef volatile int      pthread_spinlock_t;
 
-typedef int          pthread_once_t;
+typedef __pthread_futex_t pthread_once_t;
 
-typedef unsigned int pthread_key_t;
+typedef unsigned int      pthread_key_t;
 
 typedef struct {
-    unsigned int __value;
-    unsigned int __waiters;
-    int          __pshared;
+    __pthread_futex_t __value;
+    unsigned int      __waiters;
+    int               __pshared;
 } sem_t;
 
 /*

@@ -39,7 +39,7 @@
 int
 sem_post(sem_t *sem)
 {
-    unsigned int value = __atomic_load_n(&sem->__value, __ATOMIC_RELAXED);
+    __pthread_futex_t value = __atomic_load_n(&sem->__value, __ATOMIC_RELAXED);
 
     do {
         if (value == SEM_VALUE_MAX) {

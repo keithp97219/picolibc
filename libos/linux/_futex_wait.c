@@ -40,8 +40,14 @@
  * Wait for *addr to change from val, until abstime (measured on clock)
  * if abstime is not NULL.
  */
+/*
+ * Linux futexes are 32 bits, and the kernel writes the word for
+ * priority inheritance, robust mutexes and the exit word (the tid)
+ */
+_Static_assert(sizeof(__pthread_futex_t) == 4, "the futex word is 32 bits");
+
 int
-_futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t clock,
+_futex_wait(__pthread_futex_t *addr, __pthread_futex_t val, bool pshared, clockid_t clock,
             const struct timespec *abstime)
 {
     struct __kernel_timespec64 kts, *pkts = NULL;

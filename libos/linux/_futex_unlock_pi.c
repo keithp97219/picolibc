@@ -37,7 +37,7 @@
 #include "local-pthread.h"
 
 void
-_futex_unlock_pi(unsigned int *addr, bool pshared)
+_futex_unlock_pi(__pthread_futex_t *addr, bool pshared)
 {
     int op = LINUX_FUTEX_UNLOCK_PI;
 

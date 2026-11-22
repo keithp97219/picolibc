@@ -36,7 +36,7 @@
 #include "local-pthread.h"
 
 void
-_futex_wake(unsigned int *addr, int count, bool pshared)
+_futex_wake(__pthread_futex_t *addr, int count, bool pshared)
 {
     int op = pshared ? FREEBSD_UMTX_OP_WAKE : FREEBSD_UMTX_OP_WAKE_PRIVATE;
 

@@ -86,7 +86,7 @@ struct __pthread_os {
 };
 
 /* Waiting on the low half of exit_state works as amd64 is little-endian */
-#define _pthread_exit_word(t) ((unsigned int *)&(t)->os.exit_state)
+#define _pthread_exit_word(t) ((__pthread_futex_t *)&(t)->os.exit_state)
 #define _PTHREAD_EXIT_DONE    1U
 
 /*

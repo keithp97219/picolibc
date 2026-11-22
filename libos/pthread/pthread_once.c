@@ -49,13 +49,13 @@ once_cancelled(void *arg)
     pthread_once_t *once = arg;
 
     __atomic_store_n(once, 0, __ATOMIC_RELEASE);
-    _futex_wake((unsigned int *)once, INT_MAX, false);
+    _futex_wake(once, INT_MAX, false);
 }
 
 int
 pthread_once(pthread_once_t *once, void (*init_routine)(void))
 {
-    int state = __atomic_load_n(once, __ATOMIC_ACQUIRE);
+    __pthread_futex_t state = __atomic_load_n(once, __ATOMIC_ACQUIRE);
 
     while (state != 2) {
         if (state == 0) {
@@ -65,11 +65,11 @@ pthread_once(pthread_once_t *once, void (*init_routine)(void))
                 init_routine();
                 pthread_cleanup_pop(0);
                 __atomic_store_n(once, 2, __ATOMIC_RELEASE);
-                _futex_wake((unsigned int *)once, INT_MAX, false);
+                _futex_wake(once, INT_MAX, false);
                 return 0;
             }
         } else {
-            (void)_futex_wait((unsigned int *)once, 1, false, CLOCK_REALTIME, NULL);
+            (void)_futex_wait(once, 1, false, CLOCK_REALTIME, NULL);
             state = __atomic_load_n(once, __ATOMIC_ACQUIRE);
         }
     }

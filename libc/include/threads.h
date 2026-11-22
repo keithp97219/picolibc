@@ -63,8 +63,9 @@ typedef void            (*tss_dtor_t)(void *);
 
 #ifndef __once_flag_defined
 #define __once_flag_defined
-typedef int once_flag;
-#define ONCE_FLAG_INIT 0
+/* The OS's pthread_once_t, which call_once shares */
+typedef pthread_once_t once_flag;
+#define ONCE_FLAG_INIT PTHREAD_ONCE_INIT
 #endif
 
 enum {

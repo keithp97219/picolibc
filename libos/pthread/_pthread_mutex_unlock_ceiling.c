@@ -65,7 +65,7 @@ _pthread_mutex_unlock_ceiling(pthread_mutex_t *mutex, int ceiling)
         if (protocol == PTHREAD_PRIO_PROTECT)
             _pthread_tpp_unlink(self, mutex, ceiling);
     } else if (protocol == PTHREAD_PRIO_INHERIT) {
-        unsigned int state = (unsigned int)self->tid;
+        __pthread_futex_t state = (__pthread_futex_t)self->tid;
 
         /* With waiters the kernel hands the lock to the highest priority one */
         if (!__atomic_compare_exchange_n(&mutex->__state, &state, 0, false, __ATOMIC_RELEASE,

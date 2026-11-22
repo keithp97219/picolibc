@@ -42,8 +42,14 @@
  * if abstime is not NULL. The kernel takes the clock and the absolute
  * time directly.
  */
+/*
+ * UMTX_OP_WAIT_UINT compares 32 bits, and the exit word is the low
+ * half of the long thr_exit stores
+ */
+_Static_assert(sizeof(__pthread_futex_t) == 4, "the futex word is 32 bits");
+
 int
-_futex_wait(unsigned int *addr, unsigned int val, bool pshared, clockid_t clock,
+_futex_wait(__pthread_futex_t *addr, __pthread_futex_t val, bool pshared, clockid_t clock,
             const struct timespec *abstime)
 {
     struct __freebsd_umtx_time ut;

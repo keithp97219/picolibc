@@ -639,7 +639,14 @@ summarizes it.
 
 **Required:**
 
- * **Wait and wake** on a 32-bit word (`_futex_wait`, `_futex_wake`).
+ * **Wait and wake** on a word (`_futex_wait`, `_futex_wake`) of type
+   `__pthread_futex_t`. It is `unsigned int` unless the OS chooses
+   otherwise: an OS whose wait compares another size (Zephyr's
+   `k_futex` compares a `long`) defines `__PTHREAD_FUTEX_T` in its own
+   `<sys/_pthread.h>` and then includes `libos/pthread`'s. The lock
+   words in the thread types, `pthread_once_t` and with it C11's
+   `once_flag`, have that type. Linux and FreeBSD keep 32 bits, which
+   their kernels also write.
    Waits take a clock and an absolute timeout. Callers loop and
    recheck their condition, so a wait may return early (0 or EINTR),
    and an OS may convert to relative timeouts, but it may return

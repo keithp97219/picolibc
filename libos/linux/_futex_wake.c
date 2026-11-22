@@ -37,7 +37,7 @@
 #include "local-pthread.h"
 
 void
-_futex_wake(unsigned int *addr, int count, bool pshared)
+_futex_wake(__pthread_futex_t *addr, int count, bool pshared)
 {
     int op = LINUX_FUTEX_WAKE;
 

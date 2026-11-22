@@ -39,8 +39,8 @@
 static int
 mutex_lock_futex(pthread_mutex_t *mutex, clockid_t clock, const struct timespec *abstime)
 {
-    unsigned int state = 0;
-    int          ret;
+    __pthread_futex_t state = 0;
+    int               ret;
 
     if (__atomic_compare_exchange_n(&mutex->__state, &state, 1, false, __ATOMIC_ACQUIRE,
                                     __ATOMIC_RELAXED))
@@ -59,9 +59,9 @@ mutex_lock_futex(pthread_mutex_t *mutex, clockid_t clock, const struct timespec 
 static int
 mutex_lock_pi(pthread_mutex_t *mutex, int tid, clockid_t clock, const struct timespec *abstime)
 {
-    unsigned int state = 0;
+    __pthread_futex_t state = 0;
 
-    if (__atomic_compare_exchange_n(&mutex->__state, &state, (unsigned int)tid, false,
+    if (__atomic_compare_exchange_n(&mutex->__state, &state, (__pthread_futex_t)tid, false,
                                     __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
         return 0;
     return _futex_lock_pi(&mutex->__state, _pthread_mutex_pshared(mutex), clock, abstime);
@@ -70,8 +70,8 @@ mutex_lock_pi(pthread_mutex_t *mutex, int tid, clockid_t clock, const struct tim
 static int
 deadlock(clockid_t clock, const struct timespec *abstime)
 {
-    unsigned int never = 0;
-    int          ret;
+    __pthread_futex_t never = 0;
+    int               ret;
 
     do
         ret = _futex_wait(&never, 0, false, clock, abstime);

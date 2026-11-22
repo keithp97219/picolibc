@@ -60,7 +60,8 @@ monotonic_to_realtime(struct timespec *rt, const struct timespec *abstime)
 }
 
 int
-_futex_lock_pi(unsigned int *addr, bool pshared, clockid_t clock, const struct timespec *abstime)
+_futex_lock_pi(__pthread_futex_t *addr, bool pshared, clockid_t clock,
+               const struct timespec *abstime)
 {
     struct __kernel_timespec64 kts, *pkts = NULL;
     struct timespec            rt;

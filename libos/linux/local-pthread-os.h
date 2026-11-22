@@ -142,7 +142,7 @@ struct __pthread_os {
  * The kernel clears the thread id and wakes the futex there once an
  * exiting thread no longer uses its memory
  */
-#define _pthread_exit_word(t) ((unsigned int *)&(t)->tid)
+#define _pthread_exit_word(t) ((__pthread_futex_t *)&(t)->tid)
 #define _PTHREAD_EXIT_DONE    0U
 
 /* Convert an absolute timeout for the kernel: 0, EINVAL or ETIMEDOUT */

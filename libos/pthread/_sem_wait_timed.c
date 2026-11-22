@@ -42,8 +42,8 @@ _sem_wait_timed(sem_t *sem, clockid_t clock, const struct timespec *abstime)
     bool pshared = sem->__pshared != 0;
 
     for (;;) {
-        unsigned int value = __atomic_load_n(&sem->__value, __ATOMIC_RELAXED);
-        int          ret;
+        __pthread_futex_t value = __atomic_load_n(&sem->__value, __ATOMIC_RELAXED);
+        int               ret;
 
         while (value > 0)
             if (__atomic_compare_exchange_n(&sem->__value, &value, value - 1, false,

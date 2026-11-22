@@ -39,7 +39,7 @@
 int
 sem_trywait(sem_t *sem)
 {
-    unsigned int value = __atomic_load_n(&sem->__value, __ATOMIC_RELAXED);
+    __pthread_futex_t value = __atomic_load_n(&sem->__value, __ATOMIC_RELAXED);
 
     while (value > 0)
         if (__atomic_compare_exchange_n(&sem->__value, &value, value - 1, false, __ATOMIC_ACQUIRE,

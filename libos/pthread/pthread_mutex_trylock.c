@@ -43,7 +43,7 @@ pthread_mutex_trylock(pthread_mutex_t *mutex)
     struct __pthread *self = NULL;
     int               protocol = mutex->__protocol;
     int               ceiling = mutex->__prioceiling;
-    unsigned int      state = 0;
+    __pthread_futex_t state = 0;
     int               tid = 0;
     int               ret;
 
@@ -72,7 +72,7 @@ pthread_mutex_trylock(pthread_mutex_t *mutex)
         return ret;
     }
     if (!__atomic_compare_exchange_n(&mutex->__state, &state,
-                                     protocol == PTHREAD_PRIO_INHERIT ? (unsigned int)tid : 1,
+                                     protocol == PTHREAD_PRIO_INHERIT ? (__pthread_futex_t)tid : 1,
                                      false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
         if (protocol == PTHREAD_PRIO_PROTECT)
             _pthread_tpp_lower(self);
