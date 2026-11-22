@@ -45,6 +45,7 @@ set(tests
   test-qsort-r-posix
   test-rand
   test-strtod
+  test-strtod-round
   test-memalignment
   test-call-once
   test-stdckdint

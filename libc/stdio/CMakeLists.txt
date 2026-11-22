@@ -223,6 +223,7 @@ picolibc_sources(
 if(__IO_FLOAT_EXACT)
   picolibc_sources(
     atod_ryu.c
+    atof_exact.c
     atof_ryu.c
     dtoa_ryu.c
     ftoa_ryu.c
