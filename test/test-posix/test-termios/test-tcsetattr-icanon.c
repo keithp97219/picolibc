@@ -320,12 +320,15 @@ main(void)
         n = (size_t)((char *)memchr(out, '~', n) - out);
         check(n >= 4 && memcmp(out, "ab", 2) == 0 && memcmp(out + n - 2, "c\n", 2) == 0,
               "ECHOK output");
-        /* Between "ab" and "c\n": the line erased, or KILL and a newline */
+        /*
+         * Between "ab" and "c\n": the line erased, or KILL and a newline,
+         * or, where KILL erases one character at a time, ERASE for each
+         */
         check((n == 2 + 6 + 2 && memcmp(out + 2, "\b \b\b \b", 6) == 0)
-                  || (n >= 2 + 2 + 2 && out[n - 3] == '\n' && memchr(out + 2, kill, n - 4) != NULL),
+                  || (n >= 2 + 2 + 2 && out[n - 3] == '\n' && memchr(out + 2, kill, n - 4) != NULL)
+                  || (TEST_VARIANCE_ECHOK && n == 2 + 2 + 2 && out[2] == erase && out[3] == erase),
               "ECHOK erases the line or echoes a newline");
     }
-    (void)erase;
     (void)eof;
 
     check(close(subsidiary) == 0 && close(manager) == 0, "close");

@@ -1227,13 +1227,20 @@
  *  - TEST_VARIANCE_SHM_LPID: only shmat sets shmid_ds's shm_lpid;
  *    neither shmdt nor fork, which gives the child the parent's
  *    attachments, changes it (FreeBSD).
+ *
+ *  - TEST_VARIANCE_ECHOK: with ECHO and ECHOK, KILL erases the line
+ *    one character at a time, as ERASE does (echoing ERASE for each
+ *    without ECHOE), instead of erasing the line from the display or
+ *    echoing a newline (FreeBSD).
  */
 #if defined(__FreeBSD__) && !defined(TEST_CLAIM_ALL)
 #define TEST_VARIANCE_SHM_SEGSZ_PAGES 1
 #define TEST_VARIANCE_SHM_LPID        1
+#define TEST_VARIANCE_ECHOK           1
 #else
 #define TEST_VARIANCE_SHM_SEGSZ_PAGES 0
 #define TEST_VARIANCE_SHM_LPID        0
+#define TEST_VARIANCE_ECHOK           0
 #endif
 
 #endif /* _TEST_FLAGS_H_ */

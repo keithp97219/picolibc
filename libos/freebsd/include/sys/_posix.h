@@ -143,10 +143,10 @@
 
 /*
  * Option groups. The terminal functions are all there, and read()
- * makes up for canonical input ending a read at a NUL byte (read.c),
- * but the kernel ignores ECHOK, and opening a terminal doesn't make it
- * the controlling one without TIOCSCTTY, so DEVICE_SPECIFIC isn't
- * claimed (doc/os.md)
+ * makes up for canonical input ending a read at a NUL byte (read.c).
+ * The kernel ignores ECHOK, a known variance (doc/os.md), but opening
+ * a terminal doesn't make it the controlling one without TIOCSCTTY,
+ * so DEVICE_SPECIFIC isn't claimed yet
  */
 #define __PICOLIBC_OS_DEVICE_SPECIFIC_R 202405L
 
