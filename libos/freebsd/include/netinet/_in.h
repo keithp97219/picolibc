@@ -72,8 +72,13 @@ struct in6_addr {
 };
 #define s6_addr __in6_union.__s6_addr
 
-/* As on other BSD systems, says that sockaddr_in6 has sin6_len */
+/*
+ * As on other BSD systems, says that sockaddr_in6 has sin6_len; not a
+ * name POSIX gives <netinet/in.h>
+ */
+#if __BSD_VISIBLE
 #define SIN6_LEN
+#endif
 
 struct sockaddr_in6 {
     unsigned char   sin6_len;
