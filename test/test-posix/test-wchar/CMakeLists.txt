@@ -44,6 +44,7 @@ set(tests
   test-wcsnlen
   test-wcstol
   test-wcwidth
+  test-wcrtomb-invalid
   test-wint_t
   )
 

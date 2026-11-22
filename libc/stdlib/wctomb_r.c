@@ -20,7 +20,7 @@ __ascii_wctomb(char *s, wchar_t wchar, mbstate_t *state)
     if (s == NULL)
         return 0;
 
-    if (wchar >= 0x80)
+    if ((uwchar_t)wchar >= 0x80)
         return -1;
 
     *s = (char)wchar;
@@ -63,16 +63,17 @@ __utf8_wctomb(char *s, wchar_t wchar, mbstate_t *state)
         return -1;
     }
 #endif
-    if (wchar <= 0x7f) {
+    /* Unsigned, so that negative wchar_t values aren't characters */
+    if ((uwchar_t)wchar <= 0x7f) {
         *s = wchar;
         return 1;
     }
-    if (wchar >= 0x80 && wchar <= 0x7ff) {
+    if ((uwchar_t)wchar >= 0x80 && (uwchar_t)wchar <= 0x7ff) {
         *s++ = 0xc0 | ((wchar & 0x7c0) >> 6);
         *s = 0x80 | (wchar & 0x3f);
         return 2;
     }
-    if (wchar >= 0x800
+    if ((uwchar_t)wchar >= 0x800
 #if __SIZEOF_WCHAR_T__ > 2
         && (uwchar_t)wchar <= 0xffff
 #endif
@@ -293,7 +294,7 @@ ___iso_wctomb(char *s, wchar_t wchar, enum locale_id id, mbstate_t *state)
         return 0;
 
     /* wchars <= 0x9f translate to all ISO charsets directly. */
-    if (wchar >= 0xa0) {
+    if ((uwchar_t)wchar >= 0xa0) {
         unsigned char mb;
 
         if ((uwchar_t)wchar > __iso_8859_max[id - locale_ISO_8859_2])
@@ -307,7 +308,7 @@ ___iso_wctomb(char *s, wchar_t wchar, enum locale_id id, mbstate_t *state)
         return -1;
     }
 
-    if (wchar >= 0x100) {
+    if ((uwchar_t)wchar >= 0x100) {
         return -1;
     }
 
@@ -322,7 +323,7 @@ __iso_8859_1_wctomb(char *s, wchar_t wchar, mbstate_t *state)
     if (s == NULL)
         return 0;
 
-    if (wchar >= 0x100) {
+    if ((uwchar_t)wchar >= 0x100) {
         return -1;
     }
 
@@ -434,7 +435,7 @@ ___cp_wctomb(char *s, wchar_t wchar, int cp_idx, mbstate_t *state)
     if (s == NULL)
         return 0;
 
-    if (wchar >= 0x80) {
+    if ((uwchar_t)wchar >= 0x80) {
         if (cp_idx >= 0) {
             unsigned char mb;
 
@@ -450,7 +451,7 @@ ___cp_wctomb(char *s, wchar_t wchar, int cp_idx, mbstate_t *state)
         }
     }
 
-    if (wchar >= 0x100) {
+    if ((uwchar_t)wchar >= 0x100) {
         return -1;
     }
 
