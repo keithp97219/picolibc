@@ -74,6 +74,7 @@ typedef __mode_t mode_t;
 #define MAP_FIXED     0x010 /* interpret addr exactly */
 #define MAP_ANONYMOUS 0x020 /* not backed by any file */
 #define MAP_ANON      MAP_ANONYMOUS
+#define MAP_FILE      0 /* file mapping (the default; BSD compatibility) */
 
 /*
  * Error return value from mmap().
