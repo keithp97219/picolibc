@@ -851,7 +851,13 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #error \
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
-#if defined(__PICOLIBC_XSI_USER_GROUPS)
+#if defined(__PICOLIBC_XSI_USER_GROUPS) || defined(__PICOLIBC_POSIX_C_LANG_UCHAR) \
+    || defined(__PICOLIBC_POSIX_C_LANG_WIDE_CHAR_EXT)                             \
+    || defined(__PICOLIBC_POSIX_MULTI_CONCURRENT_LOCALES)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_XSI_MATH) || defined(__PICOLIBC_XSI_WIDE_CHAR)
 #error \
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
@@ -1096,6 +1102,16 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define __PICOLIBC_POSIX_C_LIB_EXT        202405L
 #define __PICOLIBC_POSIX_FILE_LOCKING     202405L
 #define __PICOLIBC_POSIX_REGEXP           202405L
+/*
+ * More groups of library functions alone: the <uchar.h> conversions
+ * (a group new in POSIX.1-2024), the POSIX wide-string functions, the
+ * _l functions and locale objects, the Bessel functions and wcwidth
+ */
+#define __PICOLIBC_POSIX_C_LANG_UCHAR             202405L
+#define __PICOLIBC_POSIX_C_LANG_WIDE_CHAR_EXT     202405L
+#define __PICOLIBC_POSIX_MULTI_CONCURRENT_LOCALES 202405L
+#define __PICOLIBC_XSI_MATH                       202405L
+#define __PICOLIBC_XSI_WIDE_CHAR                  202405L
 
 /*
  * Options picolibc provides, or builds on what the system provides.

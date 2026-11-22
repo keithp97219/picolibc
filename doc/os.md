@@ -492,9 +492,11 @@ and stops with an error if the header defines one of those itself.
    POSIX.1-2024 option group, with the version met; `<unistd.h>`
    defines `__PICOLIBC_POSIX_<GROUP>` from it. Groups picolibc
    implements entirely (`C_LANG_JUMP`, `C_LANG_MATH`, `C_LANG_SUPPORT`,
-   `C_LANG_SUPPORT_R`, `C_LANG_WIDE_CHAR`, `C_LIB_EXT`, `FILE_LOCKING`,
-   `REGEXP`) are always defined, and groups of picolibc code over OS
-   groups follow those (`FILE_SYSTEM_GLOB`, `FILE_SYSTEM_R`,
+   `C_LANG_SUPPORT_R`, `C_LANG_UCHAR`, `C_LANG_WIDE_CHAR`,
+   `C_LANG_WIDE_CHAR_EXT`, `C_LIB_EXT`, `FILE_LOCKING`,
+   `MULTI_CONCURRENT_LOCALES`, `REGEXP`; and `__PICOLIBC_XSI_MATH`
+   and `__PICOLIBC_XSI_WIDE_CHAR`) are always defined, and groups of
+   picolibc code over OS groups follow those (`FILE_SYSTEM_GLOB`, `FILE_SYSTEM_R`,
    `SYSTEM_DATABASE`, `SYSTEM_DATABASE_R` and `USER_GROUPS_R` follow
    `FILE_SYSTEM`; `SIGNAL_JUMP` follows `SIGNALS`;
    `WIDE_CHAR_DEVICE_IO` follows `DEVICE_IO`). The OS's part of each
