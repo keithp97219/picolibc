@@ -236,7 +236,8 @@ int lockf(int __fd, int __cmd, off_t __len) __picolibc_export;
 long pathconf(const char *__path, int __name) __picolibc_export;
 long __fallback_pathconf(const char *__path, int __name) __picolibc_export;
 int  pause(void) __picolibc_export;
-#if __POSIX_VISIBLE >= 199506
+/* <pthread.h>'s; SUSv2 put it here */
+#if __MISC_VISIBLE
 int pthread_atfork(void (*)(void), void (*)(void), void (*)(void)) __picolibc_export;
 #endif
 int pipe(int __fildes[2]) __picolibc_export;
