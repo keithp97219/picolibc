@@ -39,6 +39,8 @@
 ssize_t
 sendmsg(int fd, const struct msghdr *msg, int flags)
 {
+    /* A cancellation point, even with arguments the call rejects */
+    _cancel_leave(_cancel_enter());
     if (msg && !_msg_iov_valid(msg->msg_iov, msg->msg_iovlen))
         return -1;
     void *cancel = _cancel_enter();
