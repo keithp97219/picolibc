@@ -202,6 +202,17 @@ int utimensat(int, const char *, const struct timespec[2], int);
 int futimens(int, const struct timespec[2]);
 #endif
 
+/*
+ * The transitional large file names: struct stat already holds 64-bit
+ * sizes, so stat64 names both the structure and the function
+ */
+#if __LARGEFILE64_VISIBLE
+#define stat64    stat
+#define fstat64   fstat
+#define lstat64   lstat
+#define fstatat64 fstatat
+#endif
+
 _END_STD_C
 
 #endif /* _SYS_STAT_H */

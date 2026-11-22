@@ -55,6 +55,7 @@ inc_headers = [
   'endian.h',
   'envz.h',
   'errno.h',
+  'error.h',
   'fastmath.h',
   'fcntl.h',
   'fenv.h',

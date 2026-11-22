@@ -107,8 +107,12 @@ extern "C" {
  * _LARGEFILE_SOURCE (deprecated by _XOPEN_SOURCE >= 500)
  *	fseeko, ftello
  *
+ * _LARGEFILE64_SOURCE
+ *	off64_t, open64, stat64 and the other transitional large file names
+ *	(not implied by _GNU_SOURCE)
+ *
  * _GNU_SOURCE
- *	All of the above plus GNU extensions
+ *	All of the above except _LARGEFILE64_SOURCE, plus GNU extensions
  *
  * _BSD_SOURCE (deprecated by _DEFAULT_SOURCE)
  * _SVID_SOURCE (deprecated by _DEFAULT_SOURCE)
@@ -282,6 +286,11 @@ extern "C" {
  * __LARGEFILE_VISIBLE
  *	fseeko, ftello; enabled with _LARGEFILE_SOURCE or _XOPEN_SOURCE >= 500.
  *
+ * __LARGEFILE64_VISIBLE
+ *	The transitional large file names (off64_t, open64, stat64 and the
+ *	rest); enabled with _LARGEFILE64_SOURCE. off_t is always 64 bits,
+ *	so they are other names for the plain types and functions.
+ *
  * __BSD_VISIBLE
  *	BSD extensions; enabled by default, or with _BSD_SOURCE.
  *
@@ -353,6 +362,12 @@ extern "C" {
 #define __LARGEFILE_VISIBLE 1
 #else
 #define __LARGEFILE_VISIBLE 0
+#endif
+
+#ifdef _LARGEFILE64_SOURCE
+#define __LARGEFILE64_VISIBLE 1
+#else
+#define __LARGEFILE64_VISIBLE 0
 #endif
 
 #ifdef _DEFAULT_SOURCE
