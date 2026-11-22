@@ -36,6 +36,7 @@
 dir_tests = [
   'test-gai_strerror',
   'test-getaddrinfo',
+  'test-gethostbyname',
   'test-gethostent',
   'test-getnameinfo',
   'test-getnetbyname',
