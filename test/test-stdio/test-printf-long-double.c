@@ -39,10 +39,14 @@
  * double support) against exactly rounded values, and a round trip
  * through strtold.
  *
- * Up to the length of the shortest string which reads back as the
- * same value, picolibc rounds exactly. Past that, it appends zeros to
- * the shortest string. The C library used for the -native build
- * rounds exactly at every precision.
+ * picolibc rounds exactly up to 21 (80-bit) or 36 (binary128) digits,
+ * enough to read back as the same value, and appends zeros past that.
+ * The C library used for the -native build rounds exactly at every
+ * precision.
+ *
+ * The expected digits come from test-printf-long-double.h for a fixed
+ * set of values and from a small big-number conversion for random
+ * values.
  */
 
 #define _DEFAULT_SOURCE
@@ -75,13 +79,13 @@ main(void)
 #ifdef _HAS_IO_LONG_DOUBLE
 #define USE_PRINTF
 #endif
-#define EXACT_PAST_SHORTEST false
+#define EXACT_ALL false
 #else
 #define USE_PRINTF
-#define EXACT_PAST_SHORTEST true
+#define EXACT_ALL true
 #endif
 
-/* Longest shortest string */
+/* Digits generated exactly; enough for any value to round-trip */
 #if __LDBL_MANT_DIG__ == 64
 #define MAX_DIG 21
 #else
@@ -90,26 +94,16 @@ main(void)
 
 struct ld_vector {
     long double value;
-    const char *digits;   /* leading digits of the exact value */
-    int         exp;      /* decimal exponent of digits[0] */
-    bool        sticky;   /* any non-zero digits after 'digits' */
-    bool        denorm;   /* x86 and m68k formats round differently */
-    const char *shortest; /* shortest digits which read back as value */
-    int         sexp;     /* decimal exponent of shortest[0] */
+    const char *digits; /* leading digits of the exact value */
+    int         exp;    /* decimal exponent of digits[0] */
+    bool        sticky; /* any non-zero digits after 'digits' */
 };
 
-#define LDV(value, digits, exp, sticky, denorm, shortest, sexp) \
-    { value, digits, exp, sticky, denorm, shortest, sexp }
+#define LDV(value, digits, exp, sticky) { value, digits, exp, sticky }
 
 #include "test-printf-long-double.h"
 
 #define NVECTORS (sizeof(ld_vectors) / sizeof(ld_vectors[0]))
-
-#ifdef __m68k__
-#define SHORTEST_OK(v) (!(v)->denorm)
-#else
-#define SHORTEST_OK(v) true
-#endif
 
 /*
  * Round the digit string 'digits' (with 'sticky' set if digits beyond
@@ -205,22 +199,32 @@ format_f(char *buf, bool neg, const char *digits, int decpt, int prec)
     *o = '\0';
 }
 
+/*
+ * Round to ndig digits, but no more than MAX_DIG in picolibc, which
+ * pads with zeros past that. Returns the exponent adjustment.
+ */
+static int
+expect_digits(const struct ld_vector *v, int ndig, char *out)
+{
+    int adj;
+
+    if (ndig > MAX_DIG && !EXACT_ALL) {
+        adj = round_digits(v->digits, v->sticky, MAX_DIG, out);
+        memset(out + MAX_DIG + adj, '0', ndig - MAX_DIG);
+        out[ndig + adj] = '\0';
+        return adj;
+    }
+    return round_digits(v->digits, v->sticky, ndig, out);
+}
+
 /* Expected %.*Le output, prec + 1 digits */
 static void
 expect_e(const struct ld_vector *v, bool neg, int prec, char *buf)
 {
-    char out[64];
+    char out[128];
     int  ndig = prec + 1;
-    int  exp;
+    int  exp = v->exp + expect_digits(v, ndig, out);
 
-    if (ndig >= (int)strlen(v->shortest) && !EXACT_PAST_SHORTEST) {
-        int slen = (int)strlen(v->shortest);
-        memcpy(out, v->shortest, slen);
-        memset(out + slen, '0', ndig - slen);
-        exp = v->sexp;
-    } else {
-        exp = v->exp + round_digits(v->digits, v->sticky, ndig, out);
-    }
     format_e(buf, neg, out, ndig, exp);
 }
 
@@ -228,19 +232,16 @@ expect_e(const struct ld_vector *v, bool neg, int prec, char *buf)
 static void
 expect_f(const struct ld_vector *v, bool neg, int prec, char *buf)
 {
-    char out[64];
+    char out[128];
     int  ndig = v->exp + 1 + prec;
     int  decpt;
 
-    if (ndig >= (int)strlen(v->shortest) && !EXACT_PAST_SHORTEST) {
-        strcpy(out, v->shortest);
-        decpt = v->sexp + 1;
-    } else if (ndig < 0) {
+    if (ndig < 0) {
         /* less than a tenth of the last place */
         out[0] = '\0';
         decpt = 0;
     } else {
-        decpt = v->exp + 1 + round_digits(v->digits, v->sticky, ndig, out);
+        decpt = v->exp + 1 + expect_digits(v, ndig, out);
     }
     format_f(buf, neg, out, decpt, prec);
 }
@@ -273,47 +274,56 @@ convert_f(long double x, int prec, char *buf, size_t size)
 #endif
 }
 
+/* Check %Le and %Lf output for v and -v */
+static int
+check_value(const struct ld_vector *v, const char *name)
+{
+    int  prec;
+    int  errors = 0;
+    int  neg;
+    int  len = (int)strlen(v->digits);
+    char expect[128], got[128];
+
+    for (neg = 0; neg < 2; neg++) {
+        long double x = neg ? -v->value : v->value;
+        for (prec = 0; prec < MAX_DIG + 3; prec++) {
+            /* need one more exact digit to round */
+            if (prec + 1 >= len)
+                break;
+            expect_e(v, neg, prec, expect);
+            convert_e(x, prec, got, sizeof(got));
+            if (strcmp(expect, got) != 0) {
+                printf("%s %%.%dLe: expect %s got %s\n", name, prec, expect, got);
+                errors++;
+            }
+        }
+        if (-25 <= v->exp && v->exp <= 25) {
+            for (prec = 0; prec < 40; prec++) {
+                int ndig = v->exp + 1 + prec;
+                if (ndig >= len && (EXACT_ALL || ndig <= MAX_DIG))
+                    break;
+                expect_f(v, neg, prec, expect);
+                convert_f(x, prec, got, sizeof(got));
+                if (strcmp(expect, got) != 0) {
+                    printf("%s %%.%dLf: expect %s got %s\n", name, prec, expect, got);
+                    errors++;
+                }
+            }
+        }
+    }
+    return errors;
+}
+
 static int
 check_vectors(void)
 {
     unsigned i;
-    int      prec;
     int      errors = 0;
-    int      neg;
-    char     expect[128], got[128];
+    char     name[32];
 
     for (i = 0; i < NVECTORS; i++) {
-        const struct ld_vector *v = &ld_vectors[i];
-        bool                    ok = SHORTEST_OK(v);
-        for (neg = 0; neg < 2; neg++) {
-            long double x = neg ? -v->value : v->value;
-            for (prec = 0; prec < MAX_DIG + 3; prec++) {
-                if (!ok && prec + 1 >= (int)strlen(v->shortest))
-                    break;
-                expect_e(v, neg, prec, expect);
-                convert_e(x, prec, got, sizeof(got));
-                if (strcmp(expect, got) != 0) {
-                    printf("vector %u %%.%dLe: expect %s got %s\n", i, prec, expect, got);
-                    errors++;
-                }
-            }
-            if (-25 <= v->exp && v->exp <= 25) {
-                for (prec = 0; prec < 40; prec++) {
-                    int ndig = v->exp + 1 + prec;
-                    if (!ok && ndig >= (int)strlen(v->shortest))
-                        break;
-                    /* need one more exact digit to round */
-                    if (EXACT_PAST_SHORTEST && ndig >= (int)strlen(v->digits))
-                        break;
-                    expect_f(v, neg, prec, expect);
-                    convert_f(x, prec, got, sizeof(got));
-                    if (strcmp(expect, got) != 0) {
-                        printf("vector %u %%.%dLf: expect %s got %s\n", i, prec, expect, got);
-                        errors++;
-                    }
-                }
-            }
-        }
+        snprintf(name, sizeof(name), "vector %u", i);
+        errors += check_value(&ld_vectors[i], name);
     }
     return errors;
 }
@@ -329,37 +339,38 @@ check_strings(void)
         long double value;
         const char *expect;
     } tests[] = {
-        { "%Lf",    1234321234321234.0L,     "1234321234321234.000000"                   },
+        { "%Lf",    1234321234321234.0L,     "1234321234321234.000000"         },
 #if __LDBL_MANT_DIG__ == 64
-        { "%.2Lf",  999.995L,                "999.99"                                    }, /* 999.99499999999999999955... */
+        { "%.2Lf",  999.995L,                "999.99"                          }, /* 999.99499999999999999955... */
 #else
         { "%.2Lf", 999.995L, "1000.00" }, /* 999.99500000000000000000000000000000394... */
 #endif
-        { "%.0Lf",  0.5L,                    "0"                                         },
-        { "%.0Lf",  1.5L,                    "2"                                         },
-        { "%.0Lf",  2.5L,                    "2"                                         },
-        { "%.1Lf",  0.25L,                   "0.2"                                       },
-        { "%.1Lf",  0.35L,                   "0.3"                                       },
-        { "%.3Lf",  0.0004L,                 "0.000"                                     },
-        { "%.3Lf",  0.0006L,                 "0.001"                                     },
-        { "%.3Lf",  9.9996L,                 "10.000"                                    },
-        { "%.3Le",  9.9996L,                 "1.000e+01"                                 },
-        { "%Le",    0.0L,                    "0.000000e+00"                              },
-        { "%Le",    -0.0L,                   "-0.000000e+00"                             },
-        { "%Lf",    (long double)INFINITY,   "inf"                                       },
-        { "%Lf",    -(long double)INFINITY,  "-inf"                                      },
-        { "%Lf",    (long double)NAN,        "nan"                                       },
-        { "%Lg",    100000.0L,               "100000"                                    },
-        { "%Lg",    1000000.0L,              "1e+06"                                     },
-        { "%Lg",    0.0001L,                 "0.0001"                                    },
+        { "%.0Lf",  0.5L,                    "0"                               },
+        { "%.0Lf",  1.5L,                    "2"                               },
+        { "%.0Lf",  2.5L,                    "2"                               },
+        { "%.1Lf",  0.25L,                   "0.2"                             },
+        { "%.1Lf",  0.35L,                   "0.3"                             },
+        { "%.3Lf",  0.0004L,                 "0.000"                           },
+        { "%.3Lf",  0.0006L,                 "0.001"                           },
+        { "%.3Lf",  9.9996L,                 "10.000"                          },
+        { "%.3Le",  9.9996L,                 "1.000e+01"                       },
+        { "%Le",    0.0L,                    "0.000000e+00"                    },
+        { "%Le",    -0.0L,                   "-0.000000e+00"                   },
+        { "%Lf",    (long double)INFINITY,   "inf"                             },
+        { "%Lf",    -(long double)INFINITY,  "-inf"                            },
+        { "%Lf",    (long double)NAN,        "nan"                             },
+        { "%Lg",    100000.0L,               "100000"                          },
+        { "%Lg",    1000000.0L,              "1e+06"                           },
+        { "%Lg",    0.0001L,                 "0.0001"                          },
 #if __LDBL_MANT_DIG__ == 64
-        { "%.18Le", 18446744073709551615.0L, "1.844674407370955162e+19"                  },
-        { "%.19Le", 18446744073709551615.0L, "1.8446744073709551615e+19"                 },
+        { "%.18Le", 18446744073709551615.0L, "1.844674407370955162e+19"        },
+        { "%.19Le", 18446744073709551615.0L, "1.8446744073709551615e+19"       },
 #endif
-#ifdef __PICOLIBC__
-        /* zeros past the shortest string */
-        { "%.35Le", 0.1L,                    "1.00000000000000000000000000000000000e-01" },
-        { "%.30Lf", 0.1L,                    "0.100000000000000000000000000000"          },
+#if __LDBL_MANT_DIG__ == 64 && defined(__PICOLIBC__)
+        /* zeros past 21 digits */
+        { "%.25Le", 0.1L,                    "1.0000000000000000000100000e-01" },
+#elif __LDBL_MANT_DIG__ == 64
+        { "%.25Le", 0.1L, "1.0000000000000000000135525e-01" },
 #endif
     };
     unsigned i;
@@ -409,6 +420,128 @@ rand_ld(void)
     if (hi & 2)
         x = -x;
     return x;
+}
+
+/*
+ * Exact decimal digits of a long double, using base 10^9 limbs. A
+ * value m * 2^e2 is m * 2^e2 for e2 >= 0 and m * 5^-e2 * 10^e2
+ * otherwise. 5^16494 * 2^113 has fewer than 11600 digits.
+ */
+#define BIG_LIMBS 1300
+#define LIMB_BASE 1000000000UL
+
+static uint32_t big[BIG_LIMBS];
+static int      nbig;
+
+static void
+big_mul_add(uint32_t mul, uint32_t add)
+{
+    uint64_t carry = add;
+    int      i;
+
+    for (i = 0; i < nbig; i++) {
+        uint64_t t = (uint64_t)big[i] * mul + carry;
+        big[i] = (uint32_t)(t % LIMB_BASE);
+        carry = t / LIMB_BASE;
+    }
+    while (carry) {
+        big[nbig++] = (uint32_t)(carry % LIMB_BASE);
+        carry /= LIMB_BASE;
+    }
+}
+
+static void
+exact_value(long double x, struct ld_vector *v, char *digits, size_t size)
+{
+    int         e, e2, i, j, n, total;
+    long double m;
+    uint64_t    hi, lo;
+    char        tmp[9];
+
+    frexpl(x, &e);
+    e2 = e - LDBL_MANT_DIG;
+    if (e2 < LDBL_MIN_EXP - LDBL_MANT_DIG)
+        e2 = LDBL_MIN_EXP - LDBL_MANT_DIG;
+    m = ldexpl(x, -e2);
+    hi = (uint64_t)ldexpl(m, -64);
+    lo = (uint64_t)(m - ldexpl((long double)hi, 64));
+
+    nbig = 0;
+    for (i = 7; i >= 0; i--)
+        big_mul_add(1 << 16, (uint32_t)((i >= 4 ? hi >> (16 * (i - 4)) : lo >> (16 * i)) & 0xffff));
+    if (e2 >= 0) {
+        for (i = e2; i > 0; i -= 16)
+            big_mul_add((uint32_t)1 << (i > 16 ? 16 : i), 0);
+    } else {
+        for (i = -e2; i > 0; i -= 13) {
+            uint32_t p = 1;
+            for (j = 0; j < (i > 13 ? 13 : i); j++)
+                p *= 5;
+            big_mul_add(p, 0);
+        }
+    }
+
+    /* Leading digits, and whether any of the rest are non-zero */
+    n = 0;
+    total = 0;
+    v->sticky = false;
+    for (i = nbig - 1; i >= 0; i--) {
+        uint32_t l = big[i];
+        for (j = 8; j >= 0; j--) {
+            tmp[j] = (char)('0' + l % 10);
+            l /= 10;
+        }
+        for (j = 0; j < 9; j++) {
+            if (total == 0 && tmp[j] == '0')
+                continue;
+            total++;
+            if (n < (int)size - 1)
+                digits[n++] = tmp[j];
+            else if (tmp[j] != '0')
+                v->sticky = true;
+        }
+    }
+    digits[n] = '\0';
+    v->value = x;
+    v->digits = digits;
+    v->exp = total - 1 + (e2 < 0 ? e2 : 0);
+}
+
+/* Random values, mostly of moderate size */
+static int
+check_random_exact(void)
+{
+    int              errors = 0;
+    unsigned         i;
+    char             digits[48];
+    char             name[32];
+    struct ld_vector v;
+
+    for (i = 0; i < 400 && errors < 20; i++) {
+        uint64_t    r = rand64();
+        long double x;
+#if __LDBL_MANT_DIG__ == 64
+        x = ldexpl((long double)(rand64() | (1ULL << 63)), -63);
+#else
+        x = ldexpl((long double)(r >> 15 | (1ULL << 48)), -48)
+            + ldexpl((long double)rand64(), -112);
+#endif
+        if (i < 16)
+            x = ldexpl(x,
+                       (int)(r % (LDBL_MAX_EXP - LDBL_MIN_EXP + LDBL_MANT_DIG)) + LDBL_MIN_EXP
+                           - LDBL_MANT_DIG);
+        else if (i < 48)
+            /* subnormal, with few significant bits */
+            x = ldexpl(x, LDBL_MIN_EXP - 2 - (int)(r % LDBL_MANT_DIG));
+        else
+            x = ldexpl(x, (int)(r % 600) - 300);
+        if (x == 0)
+            continue;
+        exact_value(x, &v, digits, sizeof(digits));
+        snprintf(name, sizeof(name), "random %u", i);
+        errors += check_value(&v, name);
+    }
+    return errors;
 }
 
 /*
@@ -502,6 +635,7 @@ main(void)
 #endif
     errors += check_vectors();
     errors += check_strings();
+    errors += check_random_exact();
     errors += check_random();
     printf("%d errors\n", errors);
     return errors != 0;

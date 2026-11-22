@@ -36,10 +36,8 @@
 """Generate test-printf-long-double.h.
 
 For a set of 80-bit and binary128 values, compute with exact integer
-arithmetic the leading decimal digits (enough to round correctly to
-any precision the test checks) and the shortest digit string that
-reads back as the same value (choosing the one closest to the value,
-as Ryu does).
+arithmetic the leading decimal digits, enough to round correctly to
+any precision the test checks.
 
 Usage: ./test-printf-long-double.py \
            | clang-format --assume-filename=test-printf-long-double.h \
@@ -97,45 +95,6 @@ def normalize(m, e, mant_dig):
         e -= 1
     assert e >= min_e
     return m, e
-
-
-def neighbors(m, e, mant_dig):
-    """Return (low, high) bounds of the rounding interval"""
-    min_e = FORMATS[mant_dig] - (mant_dig - 1)
-    # gap below is half the gap above for a power of two above the
-    # smallest normal value
-    if m == 2 ** (mant_dig - 1) and e > min_e:
-        below = Fraction(2) ** (e - 2)
-    else:
-        below = Fraction(2) ** (e - 1)
-    above = Fraction(2) ** (e - 1)
-    v = value_of(m, e)
-    return v - below, v + above
-
-
-def shortest(m, e, mant_dig):
-    """Shortest decimal string reading back as m * 2**e, closest to the value"""
-    v = value_of(m, e)
-    lo, hi = neighbors(m, e, mant_dig)
-    inclusive = m % 2 == 0
-    k = decimal_exp(v) + 1
-    while True:
-        p = Fraction(10) ** k
-        q = v / p
-        fl = q.numerator // q.denominator
-        cands = []
-        for d in (fl, fl + 1):
-            dv = d * p
-            if d > 0 and (lo < dv < hi or (inclusive and (dv == lo or dv == hi))):
-                cands.append(d)
-        if cands:
-            # closest to the value, ties to even
-            cands.sort(key=lambda d: (abs(d * p - v), d % 2))
-            d = cands[0]
-            s = str(d)
-            exp = k + len(s) - 1
-            return s.rstrip("0"), exp
-        k -= 1
 
 
 def nearest(x, mant_dig):
@@ -264,7 +223,6 @@ def make_values(mant_dig):
 
 
 def emit(mant_dig):
-    min_e = FORMATS[mant_dig] - (mant_dig - 1)
     print("#if __LDBL_MANT_DIG__ == %d" % mant_dig)
     print("static const struct ld_vector ld_vectors[] = {")
     seen = set()
@@ -274,14 +232,8 @@ def emit(mant_dig):
         seen.add((m, e))
         v = value_of(m, e)
         digits, dexp, sticky = exact_digits(v)
-        sdig, sexp = shortest(m, e, mant_dig)
-        assert sexp == dexp or (sexp == dexp + 1 and set(sdig) == {"1"})
-        denorm = m < 2 ** (mant_dig - 1) or e == min_e
         print("    /* %s */" % note)
-        print(
-            '    LDV(%s, "%s", %d, %d, %d, "%s", %d),'
-            % (literal(m, e, mant_dig), digits, dexp, int(sticky), denorm, sdig, sexp)
-        )
+        print('    LDV(%s, "%s", %d, %d),' % (literal(m, e, mant_dig), digits, dexp, int(sticky)))
     print("};")
     print("#endif")
 
