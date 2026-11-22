@@ -34,9 +34,14 @@
  */
 
 #include "local-ipc.h"
+#include "local-cancel.h"
 
 int
 msgsnd(int id, const void *msg, size_t size, int flags)
 {
-    return (int)_syscall(FREEBSD_SYS_msgsnd, id, msg, size, flags);
+    void *cancel = _cancel_enter();
+    long  ret = _syscall(FREEBSD_SYS_msgsnd, id, msg, size, flags);
+
+    _cancel_leave(cancel);
+    return (int)ret;
 }

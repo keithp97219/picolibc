@@ -34,6 +34,7 @@
  */
 
 #include "local-mman.h"
+#include "local-cancel.h"
 
 int
 msync(void *addr, size_t len, int flags)
@@ -54,5 +55,9 @@ msync(void *addr, size_t len, int flags)
         kflags |= FREEBSD_MS_SYNC;
     if (flags & MS_INVALIDATE)
         kflags |= FREEBSD_MS_INVALIDATE;
-    return (int)_syscall(FREEBSD_SYS_msync, addr, len, kflags);
+    void *cancel = _cancel_enter();
+    long  ret = _syscall(FREEBSD_SYS_msync, addr, len, kflags);
+
+    _cancel_leave(cancel);
+    return (int)ret;
 }

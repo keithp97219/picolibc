@@ -34,11 +34,15 @@
  */
 
 #include "local-socket.h"
+#include "local-cancel.h"
 
 ssize_t
 sendto(int fd, const void *buf, size_t len, int flags, const struct sockaddr *addr,
        socklen_t addrlen)
 {
-    return (ssize_t)_sock_result(
-        _syscall_raw(FREEBSD_SYS_sendto, fd, buf, len, flags, addr, addrlen));
+    void *cancel = _cancel_enter();
+    long  ret = _syscall_raw(FREEBSD_SYS_sendto, fd, buf, len, flags, addr, addrlen);
+
+    _cancel_leave(cancel);
+    return (ssize_t)_sock_result(ret);
 }

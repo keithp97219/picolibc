@@ -34,6 +34,7 @@
  */
 
 #include "local-ipc.h"
+#include "local-cancel.h"
 #include <freebsd/freebsd-errno.h>
 #include <limits.h>
 
@@ -72,5 +73,9 @@ msgrcv(int id, void *msg, size_t size, long type, int flags)
             return -1;
         }
     }
-    return (ssize_t)_syscall(FREEBSD_SYS_msgrcv, id, msg, size, type, flags);
+    void *cancel = _cancel_enter();
+    long  ret = _syscall(FREEBSD_SYS_msgrcv, id, msg, size, type, flags);
+
+    _cancel_leave(cancel);
+    return (ssize_t)ret;
 }

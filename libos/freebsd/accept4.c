@@ -34,6 +34,7 @@
  */
 
 #include "local-socket.h"
+#include "local-cancel.h"
 #include <freebsd/freebsd-errno.h>
 
 /* FreeBSD says EINVAL for a socket that can't listen; POSIX says EOPNOTSUPP */
@@ -56,12 +57,17 @@ accept4(int fd, struct sockaddr * __restrict addr, socklen_t * __restrict len, i
     struct sockaddr_storage ss;
     socklen_t               klen = sizeof(ss);
     long                    ret;
+    void                   *cancel;
 
     /* SOCK_NONBLOCK, SOCK_CLOEXEC and SOCK_CLOFORK are FreeBSD's */
+    cancel = _cancel_enter();
     if (!addr || !len)
-        return (int)_accept_result(fd, _syscall_raw(FREEBSD_SYS_accept4, fd, addr, len, flags));
-    ret = _accept_result(fd, _syscall_raw(FREEBSD_SYS_accept4, fd, &ss, &klen, flags));
-    if (ret >= 0)
+        ret = _syscall_raw(FREEBSD_SYS_accept4, fd, addr, len, flags);
+    else
+        ret = _syscall_raw(FREEBSD_SYS_accept4, fd, &ss, &klen, flags);
+    _cancel_leave(cancel);
+    ret = _accept_result(fd, ret);
+    if (ret >= 0 && addr && len)
         _sock_addr_out(addr, len, &ss, klen);
     return (int)ret;
 }

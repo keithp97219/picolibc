@@ -34,6 +34,7 @@
  */
 
 #include "local-socket.h"
+#include "local-cancel.h"
 
 ssize_t
 recvfrom(int fd, void * __restrict buf, size_t len, int flags, struct sockaddr * __restrict addr,
@@ -43,17 +44,20 @@ recvfrom(int fd, void * __restrict buf, size_t len, int flags, struct sockaddr *
     socklen_t               klen = sizeof(ss);
     int                     lowat, start;
     long                    ret;
+    void                   *cancel;
 
     start = _sock_recv_start(fd, flags, len, &lowat);
     if (start < 0)
         return -1;
-    if (!addr || !addrlen) {
+    /* Cancelled while waiting, a low-water mark set for MSG_WAITALL stays */
+    cancel = _cancel_enter();
+    if (!addr || !addrlen)
         ret = _syscall_raw(FREEBSD_SYS_recvfrom, fd, buf, len, flags, addr, addrlen);
-    } else {
+    else
         ret = _syscall_raw(FREEBSD_SYS_recvfrom, fd, buf, len, flags, &ss, &klen);
-        if (ret >= 0)
-            _sock_addr_out(addr, addrlen, &ss, klen);
-    }
+    _cancel_leave(cancel);
+    if (ret >= 0 && addr && addrlen)
+        _sock_addr_out(addr, addrlen, &ss, klen);
     if (start)
         _sock_recv_end(fd, lowat);
     return (ssize_t)_sock_result(ret);

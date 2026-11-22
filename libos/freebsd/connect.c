@@ -34,12 +34,16 @@
  */
 
 #include "local-socket.h"
+#include "local-cancel.h"
 #include <stddef.h>
 
 int
 connect(int fd, const struct sockaddr *addr, socklen_t len)
 {
-    long ret = _syscall_raw(FREEBSD_SYS_connect, fd, addr, len);
+    void *cancel = _cancel_enter();
+    long  ret = _syscall_raw(FREEBSD_SYS_connect, fd, addr, len);
+
+    _cancel_leave(cancel);
 
     /*
      * AF_UNSPEC resets a datagram socket's peer. FreeBSD does that, but

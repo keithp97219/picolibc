@@ -34,6 +34,7 @@
  */
 
 #include "local-mqueue.h"
+#include "local-cancel.h"
 
 int
 mq_timedsend(mqd_t mqdes, const char *msg, size_t len, unsigned prio,
@@ -44,6 +45,12 @@ mq_timedsend(mqd_t mqdes, const char *msg, size_t len, unsigned prio,
     /* The kernel checks the timeout only when it would wait, as POSIX says */
     if (_mq_check() < 0)
         return -1;
-    return (int)_syscall(FREEBSD_SYS_kmq_timedsend, mqdes, msg, len, prio,
-                         _mq_timeout(&kts, abs_timeout));
+    void *cancel;
+    long  ret;
+
+    cancel = _cancel_enter();
+    ret = _syscall(FREEBSD_SYS_kmq_timedsend, mqdes, msg, len, prio,
+                   _mq_timeout(&kts, abs_timeout));
+    _cancel_leave(cancel);
+    return (int)ret;
 }

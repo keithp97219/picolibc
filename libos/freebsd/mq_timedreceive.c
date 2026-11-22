@@ -34,6 +34,7 @@
  */
 
 #include "local-mqueue.h"
+#include "local-cancel.h"
 
 ssize_t
 mq_timedreceive(mqd_t mqdes, char * __restrict msg, size_t len, unsigned * __restrict prio,
@@ -43,6 +44,12 @@ mq_timedreceive(mqd_t mqdes, char * __restrict msg, size_t len, unsigned * __res
 
     if (_mq_check() < 0)
         return -1;
-    return (ssize_t)_syscall(FREEBSD_SYS_kmq_timedreceive, mqdes, msg, len, prio,
-                             _mq_timeout(&kts, abs_timeout));
+    void *cancel;
+    long  ret;
+
+    cancel = _cancel_enter();
+    ret = _syscall(FREEBSD_SYS_kmq_timedreceive, mqdes, msg, len, prio,
+                   _mq_timeout(&kts, abs_timeout));
+    _cancel_leave(cancel);
+    return (ssize_t)ret;
 }

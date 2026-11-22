@@ -34,9 +34,14 @@
  */
 
 #include "local-termios.h"
+#include "local-cancel.h"
 
 int
 tcdrain(int fd)
 {
-    return (int)_syscall(FREEBSD_SYS_ioctl, fd, FREEBSD_TIOCDRAIN);
+    void *cancel = _cancel_enter();
+    long  ret = _syscall(FREEBSD_SYS_ioctl, fd, FREEBSD_TIOCDRAIN);
+
+    _cancel_leave(cancel);
+    return (int)ret;
 }

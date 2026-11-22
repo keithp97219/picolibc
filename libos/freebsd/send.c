@@ -34,9 +34,14 @@
  */
 
 #include "local-socket.h"
+#include "local-cancel.h"
 
 ssize_t
 send(int fd, const void *buf, size_t len, int flags)
 {
-    return (ssize_t)_sock_result(_syscall_raw(FREEBSD_SYS_sendto, fd, buf, len, flags, NULL, 0));
+    void *cancel = _cancel_enter();
+    long  ret = _syscall_raw(FREEBSD_SYS_sendto, fd, buf, len, flags, NULL, 0);
+
+    _cancel_leave(cancel);
+    return (ssize_t)_sock_result(ret);
 }

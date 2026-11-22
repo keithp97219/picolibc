@@ -34,11 +34,16 @@
  */
 
 #include "local-socket.h"
+#include "local-cancel.h"
 
 ssize_t
 sendmsg(int fd, const struct msghdr *msg, int flags)
 {
     if (msg && !_msg_iov_valid(msg->msg_iov, msg->msg_iovlen))
         return -1;
-    return (ssize_t)_sock_result(_syscall_raw(FREEBSD_SYS_sendmsg, fd, msg, flags));
+    void *cancel = _cancel_enter();
+    long  ret = _syscall_raw(FREEBSD_SYS_sendmsg, fd, msg, flags);
+
+    _cancel_leave(cancel);
+    return (ssize_t)_sock_result(ret);
 }

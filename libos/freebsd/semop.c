@@ -34,9 +34,14 @@
  */
 
 #include "local-ipc.h"
+#include "local-cancel.h"
 
 int
 semop(int id, struct sembuf *ops, size_t nops)
 {
-    return (int)_syscall(FREEBSD_SYS_semop, id, ops, nops);
+    void *cancel = _cancel_enter();
+    long  ret = _syscall(FREEBSD_SYS_semop, id, ops, nops);
+
+    _cancel_leave(cancel);
+    return (int)ret;
 }

@@ -34,6 +34,7 @@
  */
 
 #include "local-socket.h"
+#include "local-cancel.h"
 #include <string.h>
 
 ssize_t
@@ -44,7 +45,9 @@ recvmsg(int fd, struct msghdr *msg, int flags)
     size_t                  total = 0;
     int                     lowat, start;
     long                    ret;
+    void                   *cancel;
 
+    /* A null msg is EFAULT from the kernel, without waiting */
     if (!msg)
         return (ssize_t)_sock_result(_syscall_raw(FREEBSD_SYS_recvmsg, fd, msg, flags));
     if (!_msg_iov_valid(msg->msg_iov, msg->msg_iovlen))
@@ -60,7 +63,10 @@ recvmsg(int fd, struct msghdr *msg, int flags)
         h.msg_name = &ss;
         h.msg_namelen = sizeof(ss);
     }
+    /* Cancelled while waiting, a low-water mark set for MSG_WAITALL stays */
+    cancel = _cancel_enter();
     ret = _syscall_raw(FREEBSD_SYS_recvmsg, fd, &h, flags);
+    _cancel_leave(cancel);
     if (start)
         _sock_recv_end(fd, lowat);
     if (ret >= 0) {
