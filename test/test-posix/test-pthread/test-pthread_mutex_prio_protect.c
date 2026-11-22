@@ -117,7 +117,16 @@ main(void)
         if (i == 3)
             check(pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST) == 0, "setrobust");
 #endif
-        check(pthread_mutex_init(&mutex[i], &attr) == 0, "mutex_init");
+        ret = pthread_mutex_init(&mutex[i], &attr);
+#if _POSIX_THREAD_ROBUST_PRIO_PROTECT > 0
+        /* Robust mutexes need the kernel's help, which QEMU's user mode lacks */
+        if (i == 3 && ret == ENOTSUP) {
+            printf("no robust mutexes here; using an ordinary one\n");
+            check(pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_STALLED) == 0, "setrobust");
+            ret = pthread_mutex_init(&mutex[i], &attr);
+        }
+#endif
+        check(ret == 0, "mutex_init");
         check(pthread_mutexattr_destroy(&attr) == 0, "mutexattr_destroy");
     }
 
