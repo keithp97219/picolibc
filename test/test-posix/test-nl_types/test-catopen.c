@@ -67,6 +67,10 @@ main(void)
     /* Lookups in a catalog that isn't open return the default */
     check(strcmp(catgets((nl_catd)-1, NL_SETD, 1, dflt), dflt) == 0, "catgets default");
 
+    /* Nor can it be closed */
+    errno = 0;
+    check(catclose((nl_catd)-1) == -1 && errno == EBADF, "catclose of a catalog that isn't open");
+
     printf("success\n");
     return 0;
 }

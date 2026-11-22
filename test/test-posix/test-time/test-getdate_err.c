@@ -39,7 +39,7 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if defined(__PICOLIBC_XSI_C_LANG_SUPPORT) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
 
 #include <fcntl.h>
 #include <stdio.h>

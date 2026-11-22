@@ -37,8 +37,8 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_SIGNALS) \
-    && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if defined(__PICOLIBC_POSIX_SHELL_FUNC) && defined(__PICOLIBC_POSIX_MULTI_PROCESS) \
+    && defined(__PICOLIBC_POSIX_SIGNALS) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
 
 #include <signal.h>
 #include <stdio.h>

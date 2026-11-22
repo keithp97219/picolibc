@@ -39,7 +39,7 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SIGNALS)
+#if defined(__PICOLIBC_POSIX_SIGNAL_JUMP)
 
 #include <fenv.h>
 #include <limits.h>
@@ -318,6 +318,7 @@ check_mask(void)
     set_mask(SIG_UNBLOCK, SIGUSR1);
 }
 
+#if defined(__PICOLIBC_POSIX_SIGNALS)
 /* Jumps out of signal handlers */
 static volatile sig_atomic_t handled;
 static volatile int          use_longjmp;
@@ -432,6 +433,7 @@ check_altstack(void)
     alt_base = NULL;
 #endif
 }
+#endif /* __PICOLIBC_POSIX_SIGNALS */
 
 #if defined(_POSIX_THREADS) && _POSIX_THREADS > 0
 /* sigsetjmp saves the calling thread's mask */
@@ -470,8 +472,12 @@ main(void)
     check_registers(1);
     check_fenv();
     check_mask();
+#if defined(__PICOLIBC_POSIX_SIGNALS)
     check_handler();
     check_altstack();
+#else
+    printf("no signal handlers, jumps out of them not checked\n");
+#endif
 #if defined(_POSIX_THREADS) && _POSIX_THREADS > 0
     check_thread();
 #endif

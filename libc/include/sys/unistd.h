@@ -851,7 +851,23 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #error \
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
-#if defined(__PICOLIBC_XSI_USER_GROUPS)
+#if defined(__PICOLIBC_XSI_USER_GROUPS) || defined(__PICOLIBC_POSIX_C_LANG_UCHAR) \
+    || defined(__PICOLIBC_POSIX_C_LANG_WIDE_CHAR_EXT)                             \
+    || defined(__PICOLIBC_POSIX_MULTI_CONCURRENT_LOCALES)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_XSI_MATH) || defined(__PICOLIBC_XSI_WIDE_CHAR) \
+    || defined(__PICOLIBC_POSIX_I18N)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_DEVICE_IO_EXT) || defined(__PICOLIBC_XSI_C_LANG_SUPPORT) \
+    || defined(__PICOLIBC_XSI_DBM) || defined(__PICOLIBC_POSIX_C_LANG_THREADS)
+#error \
+    "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
+#endif
+#if defined(__PICOLIBC_POSIX_SHELL_FUNC)
 #error \
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
@@ -1096,6 +1112,24 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define __PICOLIBC_POSIX_C_LIB_EXT        202405L
 #define __PICOLIBC_POSIX_FILE_LOCKING     202405L
 #define __PICOLIBC_POSIX_REGEXP           202405L
+/*
+ * More groups of library functions alone: the <uchar.h> conversions
+ * (a group new in POSIX.1-2024), the POSIX wide-string functions,
+ * iconv, nl_langinfo and the message catalogs (picolibc has no catalog
+ * format or translations, so catopen finds no catalog and gettext
+ * returns msgid), the _l functions and locale objects, the Bessel
+ * functions and wcwidth
+ */
+#define __PICOLIBC_POSIX_C_LANG_UCHAR             202405L
+#define __PICOLIBC_POSIX_C_LANG_WIDE_CHAR_EXT     202405L
+#define __PICOLIBC_POSIX_I18N                     202405L
+#define __PICOLIBC_POSIX_MULTI_CONCURRENT_LOCALES 202405L
+#define __PICOLIBC_XSI_MATH                       202405L
+#define __PICOLIBC_XSI_WIDE_CHAR                  202405L
+/*
+ * Not C_LANG_ATOMICS: for objects without lock-free access, compilers
+ * call libatomic's __atomic_load and the like, which picolibc lacks
+ */
 
 /*
  * Options picolibc provides, or builds on what the system provides.
@@ -1135,6 +1169,9 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #if defined(__PICOLIBC_OS_SIGNALS)
 /* Sigsetjmp saves the signal mask */
 #define __PICOLIBC_POSIX_SIGNAL_JUMP __PICOLIBC_OS_SIGNALS
+#elif defined(__PICOLIBC_BAREMETAL)
+/* Without an OS, the mask sigsetjmp saves is libos/fallback's */
+#define __PICOLIBC_POSIX_SIGNAL_JUMP 202405L
 #endif
 #if defined(__PICOLIBC_OS_FILE_SYSTEM)
 /* The user and group databases are files */
@@ -1152,6 +1189,51 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 /* Wide streams are built on the OS's I/O */
 #define __PICOLIBC_POSIX_WIDE_CHAR_DEVICE_IO __PICOLIBC_OS_DEVICE_IO
 #endif
+#if defined(__PICOLIBC_OS_DEVICE_IO)
+/* Dprintf writes to a file descriptor; the memory streams need nothing */
+#define __PICOLIBC_POSIX_DEVICE_IO_EXT __PICOLIBC_OS_DEVICE_IO
+#endif
+#if defined(__PICOLIBC_OS_FILE_SYSTEM)
+/* Getdate reads the templates file DATEMSK names */
+#define __PICOLIBC_XSI_C_LANG_SUPPORT __PICOLIBC_OS_FILE_SYSTEM
+#endif
+#if defined(__PICOLIBC_OS_FILE_SYSTEM)
+/* The databases are files */
+#define __PICOLIBC_XSI_DBM __PICOLIBC_OS_FILE_SYSTEM
+#endif
+#if defined(__PICOLIBC_PTHREADS) && defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+/* <threads.h> is built on picolibc's POSIX threads; the group is new in POSIX.1-2024 */
+#define __PICOLIBC_POSIX_C_LANG_THREADS 202405L
+#endif
+/*
+ * Popen, system and wordexp run the OS's /bin/sh in a child process,
+ * connected by pipes and dup2, with signals held off while system
+ * waits; the edition is the oldest of the groups they use
+ */
+/* clang-format off */
+#if    defined(__PICOLIBC_OS_SHELL) && __PICOLIBC_OS_SHELL > 0 \
+    && defined(__PICOLIBC_OS_FD_MGMT)                          \
+    && defined(__PICOLIBC_OS_FILE_SYSTEM)                      \
+    && defined(__PICOLIBC_OS_MULTI_PROCESS)                    \
+    && defined(__PICOLIBC_OS_PIPE)                             \
+    && defined(__PICOLIBC_OS_SIGNALS)
+#if    __PICOLIBC_OS_FD_MGMT >= 202405L                        \
+    && __PICOLIBC_OS_FILE_SYSTEM >= 202405L                    \
+    && __PICOLIBC_OS_MULTI_PROCESS >= 202405L                  \
+    && __PICOLIBC_OS_PIPE >= 202405L                           \
+    && __PICOLIBC_OS_SIGNALS >= 202405L
+#define __PICOLIBC_POSIX_SHELL_FUNC 202405L
+#elif  __PICOLIBC_OS_FD_MGMT >= 200809L                        \
+    && __PICOLIBC_OS_FILE_SYSTEM >= 200809L                    \
+    && __PICOLIBC_OS_MULTI_PROCESS >= 200809L                  \
+    && __PICOLIBC_OS_PIPE >= 200809L                           \
+    && __PICOLIBC_OS_SIGNALS >= 200809L
+#define __PICOLIBC_POSIX_SHELL_FUNC 200809L
+#else
+#define __PICOLIBC_POSIX_SHELL_FUNC 200112L
+#endif
+#endif
+/* clang-format on */
 
 /*
  * Programming environments, from the type sizes; off_t is always 64

@@ -37,7 +37,7 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__hexagon__) || defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if defined(__hexagon__) || defined(__PICOLIBC_POSIX_SHELL_FUNC)
 
 #include <stdlib.h>
 #include <stdio.h>

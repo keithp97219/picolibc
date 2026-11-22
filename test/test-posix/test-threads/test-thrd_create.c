@@ -40,7 +40,7 @@
 #include "../posix-groups.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if defined(__PICOLIBC_POSIX_C_LANG_THREADS) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
 
 #include <errno.h>
 #include <stdbool.h>

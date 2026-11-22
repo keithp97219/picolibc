@@ -490,15 +490,39 @@ and stops with an error if the header defines one of those itself.
 
  * **Option groups:** `__PICOLIBC_OS_<GROUP>` for the OS's part of each
    POSIX.1-2024 option group, with the version met; `<unistd.h>`
-   defines `__PICOLIBC_POSIX_<GROUP>` from it. Groups picolibc
-   implements entirely (`C_LANG_JUMP`, `C_LANG_MATH`, `C_LANG_SUPPORT`,
-   `C_LANG_SUPPORT_R`, `C_LANG_WIDE_CHAR`, `C_LIB_EXT`, `FILE_LOCKING`,
-   `REGEXP`) are always defined, and groups of picolibc code over OS
-   groups follow those (`FILE_SYSTEM_GLOB`, `FILE_SYSTEM_R`,
-   `SYSTEM_DATABASE`, `SYSTEM_DATABASE_R` and `USER_GROUPS_R` follow
-   `FILE_SYSTEM`; `SIGNAL_JUMP` follows `SIGNALS`;
-   `WIDE_CHAR_DEVICE_IO` follows `DEVICE_IO`). The OS's part of each
-   group is the group's interfaces that picolibc doesn't implement:
+   defines `__PICOLIBC_POSIX_<GROUP>` from it. picolibc adds the
+   groups made of its own code:
+
+    - Groups of library functions alone are always defined, as
+      `202405L`: `C_LANG_JUMP`, `C_LANG_MATH`, `C_LANG_SUPPORT`,
+      `C_LANG_SUPPORT_R`, `C_LANG_UCHAR`, `C_LANG_WIDE_CHAR`,
+      `C_LANG_WIDE_CHAR_EXT`, `C_LIB_EXT`, `FILE_LOCKING`, `I18N`,
+      `MULTI_CONCURRENT_LOCALES` and `REGEXP`, and
+      `__PICOLIBC_XSI_MATH` and `__PICOLIBC_XSI_WIDE_CHAR`. picolibc
+      has no message catalog format or translations, so in `I18N`,
+      `catopen` finds no catalog and the `gettext` family returns
+      `msgid`.
+
+    - Groups of picolibc code over OS groups follow those:
+      `FILE_SYSTEM_GLOB`, `FILE_SYSTEM_R`, `SYSTEM_DATABASE`,
+      `SYSTEM_DATABASE_R`, `USER_GROUPS_R`, `XSI_C_LANG_SUPPORT` (for
+      `getdate`'s templates file) and `XSI_DBM` follow `FILE_SYSTEM`;
+      `DEVICE_IO_EXT` (for `dprintf`) and `WIDE_CHAR_DEVICE_IO` follow
+      `DEVICE_IO`; `SIGNAL_JUMP` follows `SIGNALS`, and is `202405L`
+      without an OS, where libos/fallback keeps the signal mask;
+      `C_LANG_THREADS`, `<threads.h>` over picolibc's own POSIX
+      threads, is `202405L` with `_POSIX_THREADS`; and `SHELL_FUNC`
+      (`popen`, `system`, `wordexp`) takes the oldest of `FD_MGMT`,
+      `FILE_SYSTEM`, `MULTI_PROCESS`, `PIPE` and `SIGNALS` when the OS
+      also has a shell (`__PICOLIBC_OS_SHELL`).
+
+    - `C_LANG_ATOMICS` isn't defined: for atomic objects the target
+      can't access lock-free, such as large structures, compilers call
+      libatomic's `__atomic_load` and the like, which picolibc
+      doesn't provide.
+
+   The OS's part of each group is the group's interfaces that picolibc
+   doesn't implement:
 
    | Group | The OS provides |
    |---|---|
@@ -581,7 +605,9 @@ bare-metal applications get `_POSIX_SUBPROFILE` and `_POSIX_VERSION`
 `uname` to `__baremetal_sysconf` and `__baremetal_uname`, so an OS
 library linked anyway can't contradict those claims. libos/fallback
 defines only those names; with an OS layer, the OS provides `sysconf`
-and `uname`.
+and `uname`. Bare metal also gets `SIGNAL_JUMP`: `sigsetjmp` and
+`siglongjmp` need only the signal mask, which libos/fallback's
+`sigprocmask` keeps.
 
 The realtime profiles of IEEE 1003.13-2003 follow from the claims:
 `<unistd.h>` defines `_POSIX_AEP_REALTIME_MINIMAL` (PSE51),
