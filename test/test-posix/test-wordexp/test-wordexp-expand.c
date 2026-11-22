@@ -34,12 +34,11 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SHELL_FUNC) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)   \
-    && defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_USER_GROUPS) \
-    && defined(__PICOLIBC_POSIX_PIPE) && defined(__PICOLIBC_POSIX_FD_MGMT)
+#if TEST_POSIX_SHELL_FUNC && TEST_POSIX_MULTI_PROCESS && TEST_POSIX_FILE_SYSTEM \
+    && TEST_POSIX_USER_GROUPS && TEST_POSIX_PIPE && TEST_POSIX_FD_MGMT
 
 #include <errno.h>
 #include <fcntl.h>
@@ -51,7 +50,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <wordexp.h>
-#if _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
 #include <pthread.h>
 #endif
 
@@ -499,7 +498,7 @@ showerr(void)
     }
 }
 
-#if _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
 static int thread_ret = -1;
 
 static void *
@@ -560,7 +559,7 @@ main(void)
     pathnames();
     flags();
     showerr();
-#if _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
     cancel();
 #endif
     if (errors) {

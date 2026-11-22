@@ -36,14 +36,14 @@
 #define _POSIX_C_SOURCE 202405L
 /* tsearch, tfind, tdelete and twalk are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <search.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include "../is-qemu.h"
@@ -291,7 +291,7 @@ static const struct {
     { 4, endorder,  0 },
 };
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
 
 #define CHILD_ELEM 100000
 
@@ -487,7 +487,7 @@ main(void)
         check(delete(&root, &elems[i]) != NULL, "sorted tdelete");
     check(root == NULL, "sorted empty");
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
     /* qemu-user doesn't apply RLIMIT_DATA */
     if (is_qemu()) {
         printf("qemu: skipping the RLIMIT_DATA check\n");

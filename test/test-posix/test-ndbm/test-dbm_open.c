@@ -36,11 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* dbm_open is an XSI interface */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_XSI_DBM) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)              \
-    && defined(__PICOLIBC_POSIX_FILE_ATTRIBUTES) && defined(__PICOLIBC_POSIX_FD_MGMT)
+#if TEST_XSI_DBM && TEST_POSIX_FILE_SYSTEM && TEST_POSIX_FILE_ATTRIBUTES && TEST_POSIX_FD_MGMT
 
 #include <dirent.h>
 #include <errno.h>
@@ -400,7 +399,7 @@ main(void)
     }
     check(only_entries("sub", sub, sizeof(sub) / sizeof(sub[0])), "only the databases in sub");
 
-#if defined(__PICOLIBC_POSIX_USER_GROUPS)
+#if TEST_POSIX_USER_GROUPS
     /*
      * The files may take the directory's group: with set-group-ID on
      * the directory, they do on Linux. Needs a second group to see it.

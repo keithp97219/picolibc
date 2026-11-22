@@ -34,14 +34,14 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include <errno.h>
 #include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
 #include <fcntl.h>
 #endif
 
@@ -71,7 +71,7 @@
 #define encoding_error(f) ferror(f)
 #endif
 
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
 static char name[64];
 #else
 static char mem[256];
@@ -82,7 +82,7 @@ static char mem[256];
 static FILE *
 output(void)
 {
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
     FILE *f = tmpfile();
 #else
     FILE *f;
@@ -103,7 +103,7 @@ written(FILE *f, char *bytes, size_t max)
     check(fflush(f) == 0, "fflush");
     len = ftell(f);
     check(len >= 0 && (size_t)len <= max, "ftell");
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
     check(pread(fileno(f), bytes, (size_t)len, 0) == len, "pread");
 #else
     memcpy(bytes, mem, (size_t)len);
@@ -117,7 +117,7 @@ input(const char *bytes, size_t len)
 {
     FILE *f;
 
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
     int fd;
 
     snprintf(name, sizeof(name), "fputwc-%ld", (long)getpid());
@@ -276,7 +276,7 @@ main(void)
         printf("no C.UTF-8 locale, skipping the UTF-8 checks\n");
     }
 
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
     {
         /* A write error sets the error indicator */
         FILE *f = fopen("/dev/full", "w");

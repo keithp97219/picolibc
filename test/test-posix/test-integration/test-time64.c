@@ -40,11 +40,11 @@
  * architectures, and kernel structures must be converted, not copied.
  */
 
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_CLOCK_SELECTION > 0 && _POSIX_TIMERS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) \
-    && defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_CLOCK_SELECTION && TEST_POSIX_TIMERS && TEST_POSIX_MULTI_PROCESS \
+    && TEST_POSIX_SIGNALS
 
 #include <errno.h>
 #include <limits.h>

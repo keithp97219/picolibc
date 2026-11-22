@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_MAPPED_FILES > 0 && _POSIX_SYNCHRONIZED_IO > 0 && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_MAPPED_FILES && TEST_POSIX_SYNCHRONIZED_IO && TEST_POSIX_FILE_SYSTEM
 
 #include <errno.h>
 #include <fcntl.h>

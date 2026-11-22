@@ -36,9 +36,10 @@
 /* sbrk is a legacy interface POSIX no longer has */
 #define _DEFAULT_SOURCE
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_MAPPED_FILES > 0
+#if TEST_POSIX_MAPPED_FILES
 
 #include <stdint.h>
 #include <stdio.h>

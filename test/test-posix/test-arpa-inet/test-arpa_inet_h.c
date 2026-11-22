@@ -51,10 +51,10 @@ static uint16_t (* const p_htons)(uint16_t) = (htons);
 static uint32_t (* const p_ntohl)(uint32_t) = (ntohl);
 static uint16_t (* const p_ntohs)(uint16_t) = (ntohs);
 
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_NETWORKING)
+#if TEST_POSIX_NETWORKING
 
 /* The types and macros from <netinet/in.h> and <sys/socket.h> */
 static in_port_t      port;

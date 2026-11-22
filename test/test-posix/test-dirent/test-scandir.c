@@ -39,7 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #ifndef TEST_FILE_NAME
 #define TEST_FILE_NAME "test-scandir.txt"
@@ -83,7 +83,7 @@ ours(const struct dirent *ent)
     return strncmp(ent->d_name, TEST_FILE_NAME ".", sizeof(TEST_FILE_NAME)) == 0;
 }
 
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_FILE_SYSTEM
 static int selected;
 
 static int
@@ -148,7 +148,7 @@ main(void)
     /* A directory that doesn't exist fails */
     check(scandir(TEST_FILE_NAME ".missing", &list, NULL, NULL) == -1, "missing directory");
 
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_FILE_SYSTEM
     /* With a file system that reports them, the errors */
     errno = 0;
     check(scandir(TEST_FILE_NAME ".missing", &list, NULL, NULL) == -1 && errno == ENOENT, "ENOENT");

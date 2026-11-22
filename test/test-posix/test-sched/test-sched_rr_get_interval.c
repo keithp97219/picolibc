@@ -35,9 +35,10 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_PRIORITY_SCHEDULING > 0
+#if TEST_POSIX_PRIORITY_SCHEDULING
 
 #include <errno.h>
 #include <limits.h>

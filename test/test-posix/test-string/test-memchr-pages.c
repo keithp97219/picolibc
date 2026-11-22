@@ -40,7 +40,7 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include "string-pages.h"
 
 /*

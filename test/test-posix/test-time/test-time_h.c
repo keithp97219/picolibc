@@ -38,6 +38,7 @@
 #define _XOPEN_SOURCE 800
 #include <time.h>
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* The types, macros, structures and prototypes in <time.h> */
 
@@ -123,7 +124,7 @@ static char *(*p_strptime)(const char * restrict, const char * restrict, struct 
 static void (*p_tzset)(void) = tzset;
 
 /* The functions that need system support */
-#if _POSIX_TIMERS > 0
+#if TEST_POSIX_TIMERS
 #define CHECK_OS_PROTOTYPES
 static clock_t (*p_clock)(void) = clock;
 static int     (*p_clock_getcpuclockid)(pid_t, clockid_t *) = clock_getcpuclockid;

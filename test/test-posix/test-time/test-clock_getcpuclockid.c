@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(_POSIX_CPUTIME) && _POSIX_CPUTIME >= 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_CPUTIME && TEST_POSIX_MULTI_PROCESS
 
 #include <errno.h>
 #include <stdio.h>
@@ -83,13 +83,11 @@ main(void)
     pid_t     pid;
     int       status;
 
-#if _POSIX_CPUTIME == 0
-    /* Zero leaves it to the system to say at run time */
+    /* The system may leave it to say at run time */
     if (sysconf(_SC_CPUTIME) <= 0) {
         printf("no CPU-time clock, skipping\n");
         return 77;
     }
-#endif
 
     /* The calling process, by 0 and by its pid */
     check(clock_getcpuclockid(0, &id) == 0, "clock_getcpuclockid(0)");

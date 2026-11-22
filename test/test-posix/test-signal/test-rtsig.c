@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_REALTIME_SIGNALS > 0 && defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_REALTIME_SIGNALS && TEST_POSIX_SIGNALS
 
 #include <errno.h>
 #include <limits.h>

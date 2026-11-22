@@ -38,7 +38,7 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -127,7 +127,7 @@ main(void)
      * EOVERFLOW when the count would pass INT_MAX. It counts INT_MAX
      * bytes, which is too slow under qemu or on bare-metal simulators.
      */
-#ifdef __PICOLIBC_POSIX_DEVICE_IO
+#if TEST_POSIX_DEVICE_IO
     if (is_qemu()) {
         printf("qemu: skipping EOVERFLOW (it writes INT_MAX bytes)\n");
     } else {

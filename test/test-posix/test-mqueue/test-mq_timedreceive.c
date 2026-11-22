@@ -37,9 +37,10 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_MESSAGE_PASSING > 0 && _POSIX_TIMEOUTS > 0
+#if TEST_POSIX_MESSAGE_PASSING && TEST_POSIX_TIMEOUTS
 
 #include <errno.h>
 #include <fcntl.h>

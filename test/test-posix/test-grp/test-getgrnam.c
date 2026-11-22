@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_USER_GROUPS)
+#if TEST_POSIX_USER_GROUPS
 
 #include <errno.h>
 #include <grp.h>
@@ -87,7 +87,7 @@ check_by_name(const char *name, gid_t gid)
     check(strcmp(gr->gr_name, name) == 0 && gr->gr_gid == gid, "getgrnam entry");
 }
 
-#ifdef __PICOLIBC_POSIX_FD_MGMT
+#if TEST_POSIX_FD_MGMT
 /*
  * With every descriptor in use, the database can't be opened: the
  * lookups may fail with EMFILE, and if they do, they report it. Using
@@ -178,7 +178,7 @@ main(void)
     /* And a lookup after one that failed still works */
     check(getgrgid(0) != NULL, "getgrgid(0) again");
 
-#ifdef __PICOLIBC_POSIX_FD_MGMT
+#if TEST_POSIX_FD_MGMT
     check_emfile();
 #endif
 

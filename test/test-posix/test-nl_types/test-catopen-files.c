@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <errno.h>
 #include <nl_types.h>
@@ -42,11 +42,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_FILE_SYSTEM
 #include <fcntl.h>
 #include <sys/stat.h>
 #endif
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
 #include <sys/wait.h>
 #endif
 
@@ -103,7 +103,7 @@ main(void)
           "missing path, NL_CAT_LOCALE");
     check(open_fails("", 0) == ENOENT, "empty name");
 
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_FILE_SYSTEM
     {
         char        dir[] = "tmp-catopen-XXXXXX";
         char        path[64];
@@ -125,7 +125,7 @@ main(void)
         (void)open_fails(path, 0);
 #endif
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
         {
             /* NLSPATH finds the file, which is ignored as invalid */
             pid_t pid;

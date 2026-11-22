@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* The ndbm functions are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_XSI_DBM) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_XSI_DBM && TEST_POSIX_FILE_SYSTEM
 
 #include <fcntl.h>
 #include <ndbm.h>

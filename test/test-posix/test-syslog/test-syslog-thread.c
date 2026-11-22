@@ -41,11 +41,10 @@
  * without reaching the system logger
  */
 #define _DEFAULT_SOURCE
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_XSI_SYSTEM_LOGGING) && defined(__PICOLIBC_POSIX_PIPE)                    \
-    && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(_POSIX_THREADS) && _POSIX_THREADS > 0
+#if TEST_XSI_SYSTEM_LOGGING && TEST_POSIX_PIPE && TEST_POSIX_MULTI_PROCESS && TEST_POSIX_THREADS
 
 #include <errno.h>
 #include <fcntl.h>

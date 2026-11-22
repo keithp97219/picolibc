@@ -37,9 +37,10 @@
 
 #define _DEFAULT_SOURCE
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && _POSIX_THREAD_ATTR_STACKADDR > 0 && _POSIX_THREAD_ATTR_STACKSIZE > 0
+#if TEST_POSIX_THREADS && TEST_POSIX_THREAD_ATTR_STACKADDR && TEST_POSIX_THREAD_ATTR_STACKSIZE
 
 #include <limits.h>
 #include <pthread.h>

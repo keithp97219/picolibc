@@ -35,11 +35,10 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_C_LANG_THREADS) && _POSIX_THREADS > 0 \
-    && defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_C_LANG_THREADS && TEST_POSIX_THREADS && TEST_POSIX_SIGNALS
 
 #include <errno.h>
 #include <limits.h>

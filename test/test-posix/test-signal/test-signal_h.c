@@ -131,10 +131,10 @@ static const int trap_codes[] = { TRAP_BRKPT, TRAP_TRACE, SI_CODES };
 static const int cld_codes[]
     = { CLD_EXITED, CLD_KILLED, CLD_DUMPED, CLD_TRAPPED, CLD_STOPPED, CLD_CONTINUED, SI_CODES };
 
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* The thread types and the functions need system support */
-#if defined(__PICOLIBC_POSIX_SIGNALS) && _POSIX_THREADS > 0
+#if TEST_POSIX_SIGNALS && TEST_POSIX_THREADS
 #define CHECK_PROTOTYPES
 
 /* The thread types, which need thread support */

@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_SIGNALS
 
 #include <errno.h>
 #include <signal.h>
@@ -115,7 +115,7 @@ main(void)
           "query with any how reports the mask");
     check(sigprocmask(SIG_UNBLOCK, NULL, &cur) == 0 && sigismember(&cur, SIGUSR1),
           "SIG_UNBLOCK without a set changes nothing");
-#if _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
     /* pthread_sigmask returns the error number */
     check(pthread_sigmask(42, NULL, &cur) == 0, "pthread_sigmask: how ignored without a set");
     check(pthread_sigmask(42, &set, NULL) == EINVAL, "pthread_sigmask EINVAL");

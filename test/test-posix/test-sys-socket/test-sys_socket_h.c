@@ -40,10 +40,10 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_NETWORKING)
+#if TEST_POSIX_NETWORKING
 
 #include <sys/socket.h>
 

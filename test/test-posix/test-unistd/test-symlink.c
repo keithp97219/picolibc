@@ -34,11 +34,11 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)         \
-    && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS) && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS_FD)
+#if TEST_POSIX_FILE_SYSTEM && TEST_POSIX_FILE_SYSTEM_EXT && TEST_POSIX_SYMBOLIC_LINKS \
+    && TEST_POSIX_SYMBOLIC_LINKS_FD
 
 #include <errno.h>
 #include <fcntl.h>

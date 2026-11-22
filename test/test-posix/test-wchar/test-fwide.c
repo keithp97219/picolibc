@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,7 +56,7 @@
         }                                              \
     } while (0)
 
-#ifndef __PICOLIBC_POSIX_FILE_SYSTEM
+#if !TEST_POSIX_FILE_SYSTEM
 static char buf[256];
 #endif
 
@@ -64,7 +64,7 @@ static char buf[256];
 static FILE *
 new_stream(void)
 {
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
     FILE *f = tmpfile();
 #else
     FILE *f = fmemopen(buf, sizeof(buf), "w+");
@@ -167,7 +167,7 @@ main(void)
     check(fwide(f, 0) == 0, "positioning and indicators don't orient");
     fclose(f);
 
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
     {
         /* freopen removes the orientation */
         char name[64];

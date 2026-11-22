@@ -34,15 +34,14 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /*
  * Without the system support this test needs, it is skipped. The
  * shell runs in a child process, connected by a pipe moved onto its
  * standard input or output.
  */
-#if defined(__PICOLIBC_POSIX_SHELL_FUNC) && defined(__PICOLIBC_POSIX_MULTI_PROCESS) \
-    && defined(__PICOLIBC_POSIX_PIPE) && defined(__PICOLIBC_POSIX_FD_MGMT)
+#if TEST_POSIX_SHELL_FUNC && TEST_POSIX_MULTI_PROCESS && TEST_POSIX_PIPE && TEST_POSIX_FD_MGMT
 
 #include <stdio.h>
 #include <assert.h>

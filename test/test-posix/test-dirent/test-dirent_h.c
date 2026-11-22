@@ -166,8 +166,8 @@ _Static_assert(_Generic(&((struct posix_dent *)0)->d_name[0], char *: 1, default
 #endif
 
 /* The functions need system support */
-#include "../posix-groups.h"
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#include "../test-flags.h"
+#if TEST_POSIX_FILE_SYSTEM
 #define CHECK_PROTOTYPES
 static int  ( *const p_alphasort)(const struct dirent **, const struct dirent **) = alphasort;
 static int  ( *const p_closedir)(DIR *) = closedir;
