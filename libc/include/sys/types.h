@@ -270,8 +270,15 @@ typedef __int64_t sbintime_t;
 
 #undef __need_inttypes
 
+/*
+ * POSIX doesn't let <sys/types.h> define <stdint.h>'s macros or its
+ * least and fast types; <sys/_stdint.h> above has the exact-width
+ * ones. Keep the rest where BSD and Linux code may expect it.
+ */
+#if __MISC_VISIBLE
 #include <stdint.h>
-#define __Long  int32_t
-#define __ULong uint32_t
+#endif
+#define __Long  __int32_t
+#define __ULong __uint32_t
 
 #endif /* _SYS_TYPES_H */
