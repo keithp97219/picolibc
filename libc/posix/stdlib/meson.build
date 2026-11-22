@@ -35,6 +35,7 @@
 # <stdlib.h>
 
 dir_srcs = [
+  'canonicalize_file_name.c',
   'ptsname.c',
   'realpath.c',
   'setkey.c',
