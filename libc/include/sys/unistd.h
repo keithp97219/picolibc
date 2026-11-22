@@ -334,7 +334,8 @@ int ftruncate(int __fd, off_t __length) __picolibc_export;
 int truncate(const char *, off_t __length) __picolibc_export;
 #endif
 
-#if __BSD_VISIBLE || __POSIX_VISIBLE < 200112
+/* Removed in SUSv2 (XSI 500) */
+#if __BSD_VISIBLE || (__XSI_VISIBLE >= 4 && __XSI_VISIBLE < 500)
 int getdtablesize(void) __picolibc_export;
 #endif
 /* ualarm was removed in Issue 7 */
