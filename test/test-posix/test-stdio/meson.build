@@ -43,6 +43,7 @@ dir_tests = [
   'test-fgetc',
   'test-fileno',
   'test-fmemopen',
+  'test-fopencookie-flush',
   'test-fopen',
   'test-fprintf',
   'test-freopen',

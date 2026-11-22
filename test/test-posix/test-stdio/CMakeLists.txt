@@ -45,6 +45,7 @@ set(tests
   test-fileno
   test-flockfile
   test-fmemopen
+  test-fopencookie-flush
   test-fopen
   test-fprintf
   test-freopen
