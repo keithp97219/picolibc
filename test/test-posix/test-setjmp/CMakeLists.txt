@@ -34,6 +34,7 @@
 #
 
 set(tests
+  test-_setjmp
   test-setjmp_h
   test-setjmp_h-iso
   test-sigsetjmp

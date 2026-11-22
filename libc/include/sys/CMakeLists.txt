@@ -60,6 +60,7 @@ picolibc_headers(sys
   _os.h
   param.h
   queue.h
+  random.h
   resource.h
   sched.h
   select.h
@@ -72,6 +73,7 @@ picolibc_headers(sys
   _stdint.h
   string.h
   syslimits.h
+  sysmacros.h
   termios.h
   timeb.h
   time.h
@@ -88,4 +90,5 @@ picolibc_headers(sys
   utsname.h
   wait.h
   _wait.h
+  _winsize.h
   )

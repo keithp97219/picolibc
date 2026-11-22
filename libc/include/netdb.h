@@ -124,6 +124,18 @@ int         getaddrinfo(const char         *__restrict, const char         *__re
                         const struct addrinfo         *__restrict, struct addrinfo         **__restrict)
     __picolibc_export;
 struct hostent *gethostent(void) __picolibc_export;
+#if __MISC_VISIBLE
+/* Removed from POSIX in 2008, but programs still use them */
+#define HOST_NOT_FOUND 1
+#define TRY_AGAIN      2
+#define NO_RECOVERY    3
+#define NO_DATA        4
+#define NO_ADDRESS     NO_DATA
+#define h_addr         h_addr_list[0]
+extern int      h_errno;
+struct hostent *gethostbyaddr(const void *, socklen_t, int) __picolibc_export;
+struct hostent *gethostbyname(const char *) __picolibc_export;
+#endif
 int getnameinfo(const struct sockaddr * __restrict, socklen_t, char * __restrict, socklen_t,
                 char * __restrict, socklen_t, int) __picolibc_export;
 struct netent   *getnetbyaddr(uint32_t, int) __picolibc_export;

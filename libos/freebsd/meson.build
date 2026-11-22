@@ -93,6 +93,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'futimens.c',
     'getcwd.c',
     'getentropy.c',
+    'getrandom.c',
     'getgroups.c',
     'gethostname.c',
     'getitimer.c',
@@ -166,6 +167,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'seteuid.c',
     'setgid.c',
     'setitimer.c',
+    'setmntent.c',
     'setpriority.c',
     'setrlimit.c',
     'setsockopt.c',
@@ -182,6 +184,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'sockatmark.c',
     'socket.c',
     'socketpair.c',
+    'statfs.c',
     'statvfs.c',
     'sysconf.c',
     'tcdrain.c',
@@ -318,6 +321,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'timer_settime.c',
     'umask.c',
     'unlink.c',
+    'utime.c',
     'utimes.c',
     'vfork.c',
     'wait3.c',
@@ -341,7 +345,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
   # The POSIX options and option groups this OS layer provides, and
   # its signal stack sizes
   if really_install
-    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h'],
+    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h', 'include/sys/mount.h'],
                     install_dir: include_dir / 'sys')
     # The socket ABI for picolibc's networking headers
     if network == 'freebsd'

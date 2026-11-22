@@ -41,6 +41,7 @@ dir_tests = [
   'test-strnlen-pages',
   'test-strsignal',
   'test-strtok_r',
+  'test-strverscmp',
 ]
 
 # Test the library's strndup, not the compiler's folding of it, which

@@ -51,6 +51,16 @@ SUCH DAMAGE.
 #define __need_wint_t
 #include <stddef.h>
 
+/*
+ * <stddef.h> needn't honor __need_wint_t (gnulib's replacement
+ * doesn't), so define wint_t here too, using the guard GCC and
+ * clang use for it
+ */
+#ifndef _WINT_T
+#define _WINT_T
+typedef __WINT_TYPE__ wint_t;
+#endif
+
 #include <machine/_types.h>
 
 /* The Arm Compiler doesn't define wint_t as part of stddef.h so

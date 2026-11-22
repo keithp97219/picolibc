@@ -53,6 +53,11 @@ fstatat(int dirfd, const char * restrict path, struct stat * restrict statbuf, i
         errno = EINVAL;
         return -1;
     }
+#ifdef AT_EMPTY_PATH
+    /* A null path with AT_EMPTY_PATH means the descriptor itself */
+    if (!path && (flags & AT_EMPTY_PATH))
+        path = "";
+#endif
     if (_syscall(FREEBSD_SYS_fstatat, _at_fd_to_freebsd(dirfd), path, &kstat, kflags) < 0)
         return -1;
     return _statbuf(statbuf, &kstat);

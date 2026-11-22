@@ -61,6 +61,8 @@ pw_parse(char *line, struct passwd *pw)
     pw->pw_gid = (gid_t)gid;
     pw->pw_dir = field[5];
     pw->pw_shell = field[6];
+    pw->pw_passwd = field[1];
+    pw->pw_gecos = field[4];
     return true;
 }
 
@@ -120,6 +122,8 @@ __pw_find(FILE *file, enum __pw_match match, const char *name, uid_t uid, struct
         pwbuf->pw_gid = ent.pw_gid;
         pwbuf->pw_dir = buf + (ent.pw_dir - line);
         pwbuf->pw_shell = buf + (ent.pw_shell - line);
+        pwbuf->pw_passwd = buf + (ent.pw_passwd - line);
+        pwbuf->pw_gecos = buf + (ent.pw_gecos - line);
         *result = pwbuf;
         ret = 0;
         break;

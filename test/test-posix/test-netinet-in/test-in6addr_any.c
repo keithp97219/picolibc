@@ -68,6 +68,13 @@ main(void)
     check(IN6_IS_ADDR_UNSPECIFIED(&in6addr_any) && !IN6_IS_ADDR_LOOPBACK(&in6addr_any), "any");
     check(IN6_IS_ADDR_LOOPBACK(&in6addr_loopback) && !IN6_IS_ADDR_UNSPECIFIED(&in6addr_loopback),
           "loopback");
+#if defined(__PICOLIBC__) || defined(IN6_ARE_ADDR_EQUAL)
+    /* RFC 3493 IN6_ARE_ADDR_EQUAL (not POSIX; tcl uses it) */
+    check(IN6_ARE_ADDR_EQUAL(&in6addr_any, &any)
+              && IN6_ARE_ADDR_EQUAL(&loopback, &in6addr_loopback),
+          "IN6_ARE_ADDR_EQUAL");
+    check(!IN6_ARE_ADDR_EQUAL(&in6addr_any, &in6addr_loopback), "IN6_ARE_ADDR_EQUAL differs");
+#endif
     printf("success\n");
     return 0;
 }

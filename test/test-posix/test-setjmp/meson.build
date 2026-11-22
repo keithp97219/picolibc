@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 dir_tests = [
+  'test-_setjmp',
   'test-setjmp_h',
   'test-setjmp_h-iso',
 ]

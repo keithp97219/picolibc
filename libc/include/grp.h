@@ -60,9 +60,10 @@ typedef __gid_t gid_t; /* group id */
 #endif
 
 struct group {
-    char  *gr_name; /* group name */
-    gid_t  gr_gid;  /* group id */
-    char **gr_mem;  /* group members */
+    char  *gr_name;   /* group name */
+    gid_t  gr_gid;    /* group id */
+    char **gr_mem;    /* group members */
+    char  *gr_passwd; /* group password (not POSIX; every Unix has it) */
 };
 
 struct group *getgrgid(gid_t);

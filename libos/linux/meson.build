@@ -62,12 +62,16 @@ if fs.is_dir(machine_dir)
     'connect.c',
     'dup2.c',
     'dup3.c',
+    'fchmod.c',
     'fchmodat.c',
     'fchown.c',
     'fcntl.c',
+    'fdatasync.c',
     'fexecve.c',
     '_fork_raw.c',
+    '_opath_name.c',
     'fpathconf.c',
+    'fsync.c',
     'fstatat.c',
     'fstat.c',
     'ftruncate.c',
@@ -75,6 +79,8 @@ if fs.is_dir(machine_dir)
     'getauxval.c',
     'getcwd.c',
     'getentropy.c',
+    'getlogin_r.c',
+    'getrandom.c',
     'getgroups.c',
     'gethostname.c',
     'getitimer.c',
@@ -172,11 +178,14 @@ if fs.is_dir(machine_dir)
     'socket.c',
     'socketpair.c',
     '_statbuf.c',
+    'statfs.c',
     'statvfs.c',
     '_statvfsbuf.c',
+    'fstatfs.c',
     'fstatvfs.c',
     '_syscall_errno.c',
     'sysconf.c',
+    'sysinfo.c',
     'tcdrain.c',
     'tcflow.c',
     'tcflush.c',
@@ -241,12 +250,9 @@ if fs.is_dir(machine_dir)
     'execve.c',
     'faccessat.c',
     'fchdir.c',
-    'fchmod.c',
     'fchownat.c',
-    'fdatasync.c',
     'fdopendir.c',
     'fork.c',
-    'fsync.c',
     'getegid.c',
     'geteuid.c',
     'getgid.c',
@@ -319,6 +325,7 @@ if fs.is_dir(machine_dir)
     'timer_settime.c',
     'umask.c',
     'unlink.c',
+    'utime.c',
     'utimes.c',
     'vfork.c',
     'wait3.c',
@@ -340,9 +347,10 @@ if fs.is_dir(machine_dir)
   linux_inc = include_directories(machine_dir, 'include')
 
   # The POSIX options and option groups this OS layer provides, and
-  # its signal stack sizes
+  # its signal stack sizes; and Linux's own sysinfo and statfs
   if really_install
-    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h'],
+    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h', 'include/sys/sysinfo.h',
+                     'include/sys/statfs.h', 'include/sys/vfs.h'],
                     install_dir: include_dir / 'sys')
     # The socket ABI for picolibc's networking headers
     if network == 'linux'

@@ -37,6 +37,7 @@
 
 set(tests
   test-fstatvfs
+  test-statfs
   test-sys_statvfs_h
   )
 

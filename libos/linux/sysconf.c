@@ -75,6 +75,43 @@ _sysconf_rlimit(int resource)
 }
 
 /* Count the CPUs in a list such as "0-3,8,10-11" */
+/*
+ * A "Name:   value kB" line of /proc/meminfo, in pages, or -1. The
+ * lines wanted are the first few, so a small read finds them
+ */
+static long
+_sysconf_meminfo(const char *key)
+{
+    char        buf[512];
+    long        fd, len, kb;
+    const char *p, *k;
+
+    fd = _syscall_raw(LINUX_SYS_openat, (long)(int)LINUX_AT_FDCWD, "/proc/meminfo",
+                      LINUX_O_CLOEXEC);
+    if (fd < 0)
+        return -1;
+    len = _syscall_raw(LINUX_SYS_read, fd, buf, sizeof(buf) - 1);
+    (void)_syscall_raw(LINUX_SYS_close, fd);
+    if (len <= 0)
+        return -1;
+    buf[len] = '\0';
+    for (p = buf; *p; p++) {
+        if (p != buf && p[-1] != '\n')
+            continue;
+        for (k = key; *k && *p == *k; k++, p++)
+            ;
+        if (*k || *p != ':')
+            continue;
+        p++;
+        while (*p == ' ')
+            p++;
+        for (kb = 0; *p >= '0' && *p <= '9'; p++)
+            kb = kb * 10 + (*p - '0');
+        return kb / (sysconf(_SC_PAGESIZE) / 1024);
+    }
+    return -1;
+}
+
 static long
 _sysconf_cpu_list(const char *name)
 {
@@ -195,6 +232,10 @@ sysconf(int name)
     case _SC_MQ_PRIO_MAX:
         /* The kernel's MQ_PRIO_MAX */
         return 32768;
+    case _SC_PHYS_PAGES:
+        return _sysconf_meminfo("MemTotal");
+    case _SC_AVPHYS_PAGES:
+        return _sysconf_meminfo("MemFree");
     case _SC_PAGESIZE:
         /* Pages need not be 4096 bytes; the kernel says how big they are */
         value = (long)getauxval(LINUX_AT_PAGESZ);

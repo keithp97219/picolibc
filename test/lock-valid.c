@@ -60,6 +60,16 @@ struct __lock __lock___libc_recursive_mutex;
 static struct __lock locks[MAX_LOCKS];
 static uint8_t       in_use[MAX_LOCKS];
 
+/* A dynamic lock must be open (not yet closed) to be used */
+static void
+check_open(_LOCK_T lock)
+{
+    int lock_id = lock - locks;
+
+    if (0 <= lock_id && lock_id < MAX_LOCKS)
+        assert(in_use[lock_id]);
+}
+
 /* Create a new dynamic non-recursive lock */
 void
 __retarget_lock_init(_LOCK_T *lock)
@@ -87,6 +97,7 @@ __retarget_lock_init_recursive(_LOCK_T *lock)
 void
 __retarget_lock_close(_LOCK_T lock)
 {
+    check_open(lock);
     assert(lock->val == 0);
     int lock_id = lock - locks;
     assert(0 <= lock_id && lock_id < MAX_LOCKS);
@@ -104,6 +115,7 @@ __retarget_lock_close_recursive(_LOCK_T lock)
 void __no_thread_safety_analysis
 __retarget_lock_acquire(_LOCK_T lock)
 {
+    check_open(lock);
     assert(lock->val == 0);
     lock->val = 1;
 }
@@ -112,6 +124,7 @@ __retarget_lock_acquire(_LOCK_T lock)
 void __no_thread_safety_analysis
 __retarget_lock_acquire_recursive(_LOCK_T lock)
 {
+    check_open(lock);
     assert(lock->val == 0);
     lock->val = 1;
 }
@@ -120,6 +133,7 @@ __retarget_lock_acquire_recursive(_LOCK_T lock)
 void __no_thread_safety_analysis
 __retarget_lock_release(_LOCK_T lock)
 {
+    check_open(lock);
     assert(lock->val == 1);
     lock->val = 0;
 }
@@ -128,6 +142,7 @@ __retarget_lock_release(_LOCK_T lock)
 void __no_thread_safety_analysis
 __retarget_lock_release_recursive(_LOCK_T lock)
 {
+    check_open(lock);
     assert(lock->val == 1);
     lock->val = 0;
 }

@@ -59,11 +59,13 @@ typedef __uid_t uid_t; /* user id */
 #endif
 
 struct passwd {
-    char *pw_name;  /* user name */
-    uid_t pw_uid;   /* user uid */
-    gid_t pw_gid;   /* user gid */
-    char *pw_dir;   /* home directory */
-    char *pw_shell; /* default shell */
+    char *pw_name;   /* user name */
+    uid_t pw_uid;    /* user uid */
+    gid_t pw_gid;    /* user gid */
+    char *pw_dir;    /* home directory */
+    char *pw_shell;  /* default shell */
+    char *pw_passwd; /* encrypted password (not POSIX; every Unix has it) */
+    char *pw_gecos;  /* real name and such (not POSIX; every Unix has it) */
 };
 
 struct passwd *getpwuid(uid_t __uid);

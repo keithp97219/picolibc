@@ -38,7 +38,10 @@
 #define POSIX_SPAWN_ALL                                                          \
     (POSIX_SPAWN_RESETIDS | POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSCHEDPARAM    \
      | POSIX_SPAWN_SETSCHEDULER | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK \
-     | POSIX_SPAWN_SETSID)
+     | POSIX_SPAWN_SETSID | __POSIX_SPAWN_USEVFORK)
+
+/* <spawn.h>'s POSIX_SPAWN_USEVFORK (glibc's), accepted and ignored */
+#define __POSIX_SPAWN_USEVFORK 0x40
 
 int
 posix_spawnattr_setflags(posix_spawnattr_t *attr, short flags)

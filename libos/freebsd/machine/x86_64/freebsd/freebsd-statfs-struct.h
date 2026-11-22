@@ -37,7 +37,8 @@
 #define _FREEBSD_STATFS_STRUCT_H_
 
 struct __freebsd_statfs {
-    __uint8_t  __adjust_0[8];
+    __uint8_t  __adjust_0[4];
+    __uint32_t f_type;
     __uint64_t f_flags;
     __uint64_t f_bsize;
     __uint64_t f_iosize;
@@ -48,9 +49,12 @@ struct __freebsd_statfs {
     __int64_t  f_ffree;
     __uint8_t  __adjust_72[112];
     __uint32_t f_namemax;
-    __uint8_t  __adjust_188[4];
+    __uint32_t f_owner;
     __int32_t  f_fsid[2];
-    __uint8_t  __adjust_200[2144];
+    __uint8_t  __adjust_200[80];
+    char       f_fstypename[16];
+    char       f_mntfromname[1024];
+    char       f_mntonname[1024];
 };
 
 _Static_assert(sizeof(struct __freebsd_statfs) == 2344, "struct statfs size");
@@ -68,5 +72,14 @@ _Static_assert(__builtin_offsetof(struct __freebsd_statfs, f_ffree) == 64, "stru
 _Static_assert(__builtin_offsetof(struct __freebsd_statfs, f_namemax) == 184,
                "struct statfs.f_namemax");
 _Static_assert(__builtin_offsetof(struct __freebsd_statfs, f_fsid) == 192, "struct statfs.f_fsid");
+_Static_assert(__builtin_offsetof(struct __freebsd_statfs, f_type) == 4, "struct statfs.f_type");
+_Static_assert(__builtin_offsetof(struct __freebsd_statfs, f_owner) == 188,
+               "struct statfs.f_owner");
+_Static_assert(__builtin_offsetof(struct __freebsd_statfs, f_fstypename) == 280,
+               "struct statfs.f_fstypename");
+_Static_assert(__builtin_offsetof(struct __freebsd_statfs, f_mntfromname) == 296,
+               "struct statfs.f_mntfromname");
+_Static_assert(__builtin_offsetof(struct __freebsd_statfs, f_mntonname) == 1320,
+               "struct statfs.f_mntonname");
 
 #endif /* _FREEBSD_STATFS_STRUCT_H_ */

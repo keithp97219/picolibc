@@ -35,17 +35,29 @@
 
 #include "local-statx.h"
 
+/* AT_EMPTY_PATH: stat dirfd itself, as fstat does */
+#ifdef AT_EMPTY_PATH
+#define FSTATAT_FLAGS (AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)
+#else
+#define FSTATAT_FLAGS AT_SYMLINK_NOFOLLOW
+#endif
+
 int
 fstatat(int dirfd, const char * __restrict path, struct stat * __restrict statbuf, int flags)
 {
     struct __kernel_statx statxbuf;
-    int                   kflags = _at_flags_to_linux(flags, AT_SYMLINK_NOFOLLOW);
+    int                   kflags = _at_flags_to_linux(flags, FSTATAT_FLAGS);
     int                   ret;
 
     if (kflags < 0) {
         errno = EINVAL;
         return -1;
     }
+#ifdef AT_EMPTY_PATH
+    /* Kernels before 6.11 want "" rather than NULL with AT_EMPTY_PATH */
+    if (!path && (flags & AT_EMPTY_PATH))
+        path = "";
+#endif
     ret = _syscall(LINUX_SYS_statx, _at_fd_to_linux(dirfd), path,
                    LINUX_AT_STATX_SYNC_AS_STAT | kflags, LINUX_STATX_BASIC_STATS, &statxbuf);
     if (ret < 0)

@@ -39,6 +39,7 @@
 #include <locale.h>
 #include <sys/_locale.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <wchar.h>
 #include <errno.h>
 #include <string.h>
@@ -149,6 +150,22 @@ typedef mbtowc_f *mbtowc_p;
 extern const char * const __locale_names[];
 extern locale_t           __global_locale;
 
+/*
+ * locale_t is an opaque pointer type to applications; inside, a
+ * locale is its enum locale_id. (locale_t)0 is locale_INVALID.
+ */
+static inline enum locale_id
+__locale_id(locale_t locale)
+{
+    return (enum locale_id)(uintptr_t)locale;
+}
+
+static inline locale_t
+__locale_from_id(enum locale_id id)
+{
+    return (locale_t)(uintptr_t)id;
+}
+
 #ifdef __HAVE_POSIX_LOCALE_API
 extern __THREAD_LOCAL locale_t _locale;
 #endif
@@ -162,13 +179,13 @@ extern const mbtowc_p __mbtowc[locale_END - locale_BASE];
 #define __get_mbtowc(id) __mbtowc[(id) - locale_BASE]
 
 #ifdef __HAVE_POSIX_LOCALE_API
-#define __WCTOMB_L(l) (__get_wctomb(l))
-#define __MBTOWC_L(l) (__get_mbtowc(l))
+#define __WCTOMB_L(l) (__get_wctomb(__locale_id(l)))
+#define __MBTOWC_L(l) (__get_mbtowc(__locale_id(l)))
 #define __WCTOMB      (__WCTOMB_L(__get_current_locale()))
 #define __MBTOWC      (__MBTOWC_L(__get_current_locale()))
 #else
-#define __WCTOMB (__get_wctomb(__global_locale))
-#define __MBTOWC (__get_mbtowc(__global_locale))
+#define __WCTOMB (__get_wctomb(__locale_id(__global_locale)))
+#define __MBTOWC (__get_mbtowc(__locale_id(__global_locale)))
 #endif
 
 #else
@@ -191,9 +208,15 @@ __get_current_locale(void)
 }
 
 static inline const char *
-__locale_name(locale_t id)
+__locale_id_name(enum locale_id id)
 {
     return __locale_names[id - locale_BASE];
+}
+
+static inline const char *
+__locale_name(locale_t locale)
+{
+    return __locale_id_name(__locale_id(locale));
 }
 
 enum locale_id __find_charset(const char *name);
@@ -275,7 +298,7 @@ __locale_is_C(locale_t locale)
 #ifdef __MB_CAPABLE
     if (!locale)
         locale = __get_current_locale();
-    return locale == locale_C;
+    return __locale_id(locale) == locale_C;
 #else
     (void)locale;
     return true;
@@ -285,7 +308,7 @@ __locale_is_C(locale_t locale)
 static inline size_t
 __locale_mb_cur_max_l(locale_t locale)
 {
-    switch (locale) {
+    switch (__locale_id(locale)) {
 #ifdef __MB_CAPABLE
     case locale_UTF_8:
         return 6;

@@ -45,6 +45,10 @@ typedef struct __posix_spawn_file_actions *posix_spawn_file_actions_t;
 #define POSIX_SPAWN_SETSIGDEF     0x10
 #define POSIX_SPAWN_SETSIGMASK    0x20
 #define POSIX_SPAWN_SETSID        0x80
+#if __GNU_VISIBLE
+/* glibc's hint to use vfork; picolibc picks fork or vfork itself */
+#define POSIX_SPAWN_USEVFORK 0x40
+#endif
 
 _BEGIN_STD_C
 /*

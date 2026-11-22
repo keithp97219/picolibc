@@ -134,6 +134,7 @@ srcs_os_common = [
   'timer_settime.c',
   'umask.c',
   'unlink.c',
+  'utime.c',
   'utimes.c',
   'vfork.c',
   'wait3.c',

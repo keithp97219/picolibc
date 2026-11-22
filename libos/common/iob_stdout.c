@@ -35,14 +35,32 @@
 
 #define _DEFAULT_SOURCE
 #include <stdio-posix.h>
+#include <errno.h>
+#include <unistd.h>
 
 static char                write_buf[BUFSIZ];
 
-static struct __file_bufio __stdout = FDEV_SETUP_POSIX(1, write_buf, BUFSIZ, __SWR, __BLBF);
+static struct __file_bufio __stdout = FDEV_SETUP_POSIX(1, write_buf, BUFSIZ, __SWR, __BLBF | __BSYNC);
 
 FILE * const               __posix_stdout = &__stdout.xfile.cfile.file;
 
 __weak_reference(__posix_stdout, stdout);
+
+/*
+ * C: standard output is fully buffered unless it may refer to an
+ * interactive device. Decide before main runs, as nothing has been
+ * written yet; a later setvbuf still wins.
+ */
+__attribute__((constructor(101))) static void
+posix_stdout_init(void)
+{
+    int save_errno = errno;
+
+    if (!isatty(1))
+        __stdout.bflags &= ~__BLBF;
+    /* errno is zero at program startup */
+    errno = save_errno;
+}
 
 /*
  * Add a destructor function to get stdout flushed on

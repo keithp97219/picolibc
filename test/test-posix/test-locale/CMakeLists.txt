@@ -35,6 +35,7 @@
 
 set(tests
   test-locale_h
+  test-locale_t
   test-localeconv
   test-newlocale
   test-setlocale

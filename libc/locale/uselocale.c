@@ -51,7 +51,7 @@ uselocale(locale_t locale)
     if (locale == LC_GLOBAL_LOCALE) {
         _locale = 0;
     } else if (locale != (locale_t)0) {
-        if (locale < locale_BASE || locale >= locale_END) {
+        if (__locale_id(locale) < locale_BASE || __locale_id(locale) >= locale_END) {
             errno = EINVAL;
             return (locale_t)0;
         }

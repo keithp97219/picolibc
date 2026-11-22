@@ -38,7 +38,7 @@
 
 static char                read_buf[BUFSIZ];
 
-static struct __file_bufio __stdin = FDEV_SETUP_POSIX(0, read_buf, BUFSIZ, __SRD, 0);
+static struct __file_bufio __stdin = FDEV_SETUP_POSIX(0, read_buf, BUFSIZ, __SRD, __BSYNC);
 
 FILE * const               __posix_stdin = &__stdin.xfile.cfile.file;
 

@@ -99,10 +99,11 @@ _start:
 	call	__libc_init_array
 #endif
 
+        pushl   environ                         /* envp, the third argument Unix programs expect */
         pushl   %esi
         pushl   %edi
 	call	main
-        addl    $8, %esp
+        addl    $12, %esp
 
         pushl   %eax
 	call	exit
