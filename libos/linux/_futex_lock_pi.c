@@ -34,7 +34,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "local-pthread.h"
+#include "local-pthread-mutex.h"
 
 /*
  * FUTEX_LOCK_PI measures its timeout on CLOCK_REALTIME. Newer kernels

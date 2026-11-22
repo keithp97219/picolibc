@@ -40,6 +40,8 @@
 int
 pthread_mutex_destroy(pthread_mutex_t *mutex)
 {
+    if (_pthread_mutex_os(mutex))
+        return _pthread_os_mutex_destroy(mutex);
     if (__atomic_load_n(&mutex->__state, __ATOMIC_RELAXED) != 0)
         return EBUSY;
     return 0;

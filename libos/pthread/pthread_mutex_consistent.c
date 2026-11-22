@@ -38,10 +38,7 @@
 int
 pthread_mutex_consistent(pthread_mutex_t *mutex)
 {
-    if (!mutex->__robust || mutex->__robust_state != _PTHREAD_ROBUST_INCONSISTENT
-        || _pthread_mutex_owner(mutex) != _pthread_self()->tid)
+    if (!mutex->__robust || _pthread_mutex_owner(mutex) != _pthread_self()->tid)
         return EINVAL;
-    mutex->__robust_state = _PTHREAD_ROBUST_CONSISTENT;
-    __atomic_fetch_and(&mutex->__state, ~_PTHREAD_FUTEX_OWNER_DIED, __ATOMIC_RELAXED);
-    return 0;
+    return _pthread_os_mutex_consistent(mutex);
 }

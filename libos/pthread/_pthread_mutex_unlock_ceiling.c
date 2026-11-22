@@ -53,24 +53,17 @@ _pthread_mutex_unlock_ceiling(pthread_mutex_t *mutex, int ceiling)
             mutex->__count--;
             return 0;
         }
-        if (protocol != PTHREAD_PRIO_INHERIT && !mutex->__robust)
+        if (!_pthread_mutex_os(mutex))
             __atomic_store_n(&mutex->__owner, 0, __ATOMIC_RELAXED);
     }
 
     /* Off the held list while still owning it; robust ones once off the robust list */
     if (protocol == PTHREAD_PRIO_PROTECT && !mutex->__robust)
         _pthread_tpp_unlink(self, mutex, ceiling);
-    if (mutex->__robust) {
-        _pthread_robust_unlock(mutex, self);
+    if (_pthread_mutex_os(mutex)) {
+        _pthread_os_mutex_unlock(mutex, self);
         if (protocol == PTHREAD_PRIO_PROTECT)
             _pthread_tpp_unlink(self, mutex, ceiling);
-    } else if (protocol == PTHREAD_PRIO_INHERIT) {
-        __pthread_futex_t state = (__pthread_futex_t)self->tid;
-
-        /* With waiters the kernel hands the lock to the highest priority one */
-        if (!__atomic_compare_exchange_n(&mutex->__state, &state, 0, false, __ATOMIC_RELEASE,
-                                         __ATOMIC_RELAXED))
-            _futex_unlock_pi(&mutex->__state, pshared);
     } else if (__atomic_exchange_n(&mutex->__state, 0, __ATOMIC_RELEASE) == 2) {
         _futex_wake(&mutex->__state, 1, pshared);
     }

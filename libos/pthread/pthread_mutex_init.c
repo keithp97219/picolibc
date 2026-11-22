@@ -41,16 +41,11 @@
 int
 pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t * __restrict attr)
 {
-    if (attr && attr->__protocol == PTHREAD_PRIO_INHERIT && !_pthread_pi_available())
-        return ENOTSUP;
 #ifndef _PTHREAD_HAVE_SCHED
     /* Priority protection changes the owner's scheduling priority */
     if (attr && attr->__protocol == PTHREAD_PRIO_PROTECT)
         return ENOTSUP;
 #endif
-    /* A robust mutex the system can't support would only hang */
-    if (attr && attr->__robust == PTHREAD_MUTEX_ROBUST && !_pthread_robust_available())
-        return ENOTSUP;
     mutex->__state = 0;
     mutex->__type = attr ? attr->__type : PTHREAD_MUTEX_DEFAULT;
     mutex->__pshared = attr ? attr->__pshared : PTHREAD_PROCESS_PRIVATE;
@@ -59,8 +54,14 @@ pthread_mutex_init(pthread_mutex_t * __restrict mutex, const pthread_mutexattr_t
     mutex->__owner = 0;
     mutex->__count = 0;
     mutex->__robust = attr ? attr->__robust : PTHREAD_MUTEX_STALLED;
-    mutex->__robust_state = _PTHREAD_ROBUST_CONSISTENT;
+    mutex->__robust_state = 0;
     mutex->__list_next = NULL;
     mutex->__list_prev = NULL;
+    /*
+     * The OS refuses priority inheritance or robust mutexes it can't
+     * support; they would only hang
+     */
+    if (_pthread_mutex_os(mutex))
+        return _pthread_os_mutex_init(mutex);
     return 0;
 }

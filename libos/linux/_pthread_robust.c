@@ -33,7 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-pthread.h"
+#include "local-pthread-mutex.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -86,7 +86,7 @@ _pthread_robust_available(void)
 
 /* After fork, the child's only thread holds no robust mutexes */
 void
-_pthread_robust_reset(struct __pthread *self)
+_pthread_os_mutex_fork_child(struct __pthread *self)
 {
     if (!self->os.robust_registered)
         return;
@@ -259,7 +259,7 @@ _pthread_robust_unlock(pthread_mutex_t *mutex, struct __pthread *self)
 }
 
 int
-_pthread_robust_ceiling(struct __pthread *self)
+_pthread_os_mutex_ceiling(struct __pthread *self)
 {
     int              max = _PTHREAD_TPP_NONE;
     pthread_mutex_t *m;

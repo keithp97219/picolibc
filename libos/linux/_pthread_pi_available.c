@@ -33,7 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-pthread.h"
+#include "local-pthread-mutex.h"
 
 /* Whether the kernel has priority inheritance futexes */
 bool

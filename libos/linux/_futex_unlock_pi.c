@@ -34,7 +34,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "local-pthread.h"
+#include "local-pthread-mutex.h"
 
 void
 _futex_unlock_pi(__pthread_futex_t *addr, bool pshared)
