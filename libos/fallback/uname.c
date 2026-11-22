@@ -35,8 +35,7 @@
 
 /*
  * picolibc's uname without an OS: applications without <sys/_posix.h>
- * reach it as __baremetal_uname. It's also the weak uname an OS
- * overrides.
+ * reach it as __baremetal_uname. An OS layer provides uname itself.
  */
 #include <picolibc.h>
 #include <string.h>
@@ -98,13 +97,3 @@ __baremetal_uname(struct utsname *name)
     strcpy(name->machine, MACHINE);
     return 0;
 }
-
-#ifdef __weak_reference
-__weak_reference(__baremetal_uname, uname);
-#else
-int
-uname(struct utsname *name)
-{
-    return __baremetal_uname(name);
-}
-#endif

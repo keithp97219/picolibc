@@ -449,9 +449,7 @@ the OS: their names and meanings stay stable.
 picolibc's ABI doesn't depend on `<sys/_posix.h>`. No type, structure
 layout or library code changes with what it defines, so a picolibc
 built without the OS's header, or with a different version of it, is
-the same library. Only applications see its claims. The one exception
-is a weak fallback, such as `sysconf` in `libos/fallback`, which the
-operating system replaces with its own. The other headers below do
+the same library. Only applications see its claims. The other headers below do
 carry the OS's ABI, so picolibc's own code that uses them is built
 only with the OS layer that provides them.
 
@@ -579,8 +577,9 @@ it claims the single process group, which libc.a provides alone, so
 bare-metal applications get `_POSIX_SUBPROFILE` and `_POSIX_VERSION`
 `202405L`. `<unistd.h>` and `<sys/utsname.h>` send `sysconf` and
 `uname` to `__baremetal_sysconf` and `__baremetal_uname`, so an OS
-library linked anyway can't contradict those claims; the same
-functions are the weak `sysconf` and `uname` an OS replaces.
+library linked anyway can't contradict those claims. libos/fallback
+defines only those names; with an OS layer, the OS provides `sysconf`
+and `uname`.
 
 The realtime profiles of IEEE 1003.13-2003 follow from the claims:
 `<unistd.h>` defines `_POSIX_AEP_REALTIME_MINIMAL` (PSE51),
