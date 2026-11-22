@@ -68,6 +68,9 @@
 #include <errno.h>
 #include <stdio.h>
 
+/* Without the system support this test needs, it is skipped: ioctl is the OS layer's */
+#if TEST_POSIX_FD_MGMT
+
 int
 main(void)
 {
@@ -82,3 +85,17 @@ main(void)
     printf("success\n");
     return 0;
 }
+
+#else
+
+int
+main(void)
+{
+    struct winsize ws = { .ws_row = 24, .ws_col = 80 };
+
+    (void)ws;
+    printf("no system support, skipping\n");
+    return 77;
+}
+
+#endif
