@@ -218,10 +218,12 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
       '_pthread_getsched.c',
       '_pthread_os_create.c',
       '_pthread_os_exit.c',
+      '_pthread_os_mutex.c',
       '_pthread_os_set_tid.c',
       '_pthread_os_sigcancel.c',
       '_pthread_setsched.c',
       '_pthread_tkill.c',
+      '_pthread_umutex_shared.c',
       '_sigprocmask.c',
       '_timer_thread.c',
     ]

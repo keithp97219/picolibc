@@ -781,7 +781,14 @@ and its own futex code for every other mutex. For these mutexes the OS
 may use `__state`, `__owner`, `__robust_state`, `__list_next` and
 `__list_prev` as it likes; `pthread_mutex_t` is the same on every OS.
 Linux keeps the owner in `__state` for the kernel's PI and robust
-futexes, with its robust list through `__list_next`.
+futexes, with its robust list through `__list_next`. FreeBSD's kernel
+works only on its own `struct umutex`, so `pthread_mutex_init`
+allocates one beside the mutex, as FreeBSD's libthr does: from the
+heap, with its address in `__list_next`, for a process-private mutex,
+or for a process-shared one the kernel's off-page
+(`_umtx_op(UMTX_OP_SHM)`) for the mutex's address, which each process
+maps once and caches; `__state` then names the initialization so a
+stale cached page is noticed.
 
 With the required set, the OS can claim `THREADS`, `THREAD_SAFE_FUNCTIONS`
 (given picolibc's locking), `BARRIERS`, `SPIN_LOCKS`,

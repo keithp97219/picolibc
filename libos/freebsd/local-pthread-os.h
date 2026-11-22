@@ -52,14 +52,16 @@
 #include <string.h>
 
 /*
- * What FreeBSD provides of local-pthread.h's optional capabilities.
- * Its priority inheritance and robust mutexes are _umtx_op mutex
- * operations on the kernel's struct umutex, which picolibc's
- * pthread_mutex_t doesn't match, so those are left out.
+ * What FreeBSD provides of local-pthread.h's optional capabilities:
+ * all of them. Its priority inheritance and robust mutexes are
+ * _umtx_op mutex operations on the kernel's struct umutex, which each
+ * such mutex has beside it (_pthread_os_mutex.c).
  */
 #define _PTHREAD_HAVE_MAP       1
 #define _PTHREAD_HAVE_SIGNALS   1
 #define _PTHREAD_HAVE_SCHED     1
+#define _PTHREAD_HAVE_PI        1
+#define _PTHREAD_HAVE_ROBUST    1
 #define _PTHREAD_HAVE_PSHARED   1
 #define _PTHREAD_HAVE_FORK      1
 #define _PTHREAD_HAVE_SEM_NAMED 1
@@ -80,9 +82,18 @@ typedef struct __freebsd_sigset _pthread_sigset_t;
 /* What each thread descriptor holds for FreeBSD */
 struct __pthread_os {
     /* thr_new stores the thread id here, as a long, for both threads */
-    long ktid;
+    long        ktid;
     /* thr_exit stores 1 here and wakes its waiters once the thread is gone */
-    long exit_state;
+    long        exit_state;
+    /*
+     * The robust mutexes held, which the kernel marks should the
+     * thread die holding them: the address of the first one's struct
+     * umutex, which links to the next; and the one being locked or
+     * unlocked, which may be on the list or not
+     */
+    __uintptr_t robust_list;
+    __uintptr_t robust_inact;
+    bool        robust_registered;
 };
 
 /* Waiting on the low half of exit_state works as amd64 is little-endian */
