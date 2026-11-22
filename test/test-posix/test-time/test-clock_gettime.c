@@ -38,16 +38,26 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_TIMERS && TEST_POSIX_CPUTIME && TEST_POSIX_THREAD_CPUTIME
+#if TEST_POSIX_TIMERS
+
+/* The CPU-time clocks, each checked when the system has it */
+#define TEST_CPU        TEST_POSIX_CPUTIME
+#define TEST_THREAD_CPU TEST_POSIX_THREAD_CPUTIME
+#define TEST_ANY_CPU    (TEST_CPU || TEST_THREAD_CPU)
+#define TEST_THREADS    (TEST_THREAD_CPU && TEST_POSIX_THREADS)
 
 #include <errno.h>
+#if TEST_THREADS
 #include <pthread.h>
+#endif
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if TEST_CPU && TEST_POSIX_MULTI_PROCESS
 #include <sys/wait.h>
+#endif
 #include <time.h>
 
 /*
@@ -74,18 +84,23 @@ ns(clockid_t id)
     return ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
+#if TEST_ANY_CPU
 static volatile unsigned sink;
+
+/* The CPU-time clock spin measures with */
+static clockid_t         spin_clock;
 
 /* Use about this much CPU time */
 static void
 spin(long long nsec)
 {
-    long long start = ns(CLOCK_PROCESS_CPUTIME_ID);
+    long long start = ns(spin_clock);
 
-    while (ns(CLOCK_PROCESS_CPUTIME_ID) - start < nsec)
+    while (ns(spin_clock) - start < nsec)
         for (int i = 0; i < 10000; i++)
             sink += i;
 }
+#endif
 
 static volatile sig_atomic_t caught;
 
@@ -96,6 +111,7 @@ handler(int sig)
     caught = 1;
 }
 
+#if TEST_THREADS
 static volatile int thread_go;
 
 static void *
@@ -106,6 +122,7 @@ waiter(void *arg)
         sched_yield();
     return NULL;
 }
+#endif
 
 /*
  * A seccomp filter, as containers install, may refuse clock_settime
@@ -133,26 +150,28 @@ seccomp_filtered(void)
 int
 main(void)
 {
-    bool             filtered = seccomp_filtered();
+    /*
+     * EPERM may come before EINVAL: when both apply, either may be
+     * reported, and FreeBSD checks the privilege first
+     */
+    bool             eperm_ok = seccomp_filtered() || geteuid() != 0;
     struct timespec  ts, res, rem;
     struct sigaction act;
-    long long        a, b, c0, c1, p0, p1;
-    clock_t          k0, k1;
-    pid_t            pid;
-    int              status;
-    clockid_t        tid_clock;
-    pthread_t        thread;
+    long long        a, b;
+    clockid_t        clocks[4];
+    unsigned         nclocks = 0;
 
-    /* The system may leave it to say at run time */
-    if (sysconf(_SC_CPUTIME) <= 0) {
-        printf("no CPU-time clock, skipping\n");
-        return 77;
-    }
-    /* The system may leave it to say at run time */
-    if (sysconf(_SC_THREAD_CPUTIME) <= 0) {
-        printf("no thread CPU-time clock, skipping\n");
-        return 77;
-    }
+    /* The system may leave the CPU-time clocks to say at run time */
+#if TEST_CPU
+    bool cputime = sysconf(_SC_CPUTIME) > 0;
+    if (!cputime)
+        printf("no CPU-time clock\n");
+#endif
+#if TEST_THREAD_CPU
+    bool thread_cputime = sysconf(_SC_THREAD_CPUTIME) > 0;
+    if (!thread_cputime)
+        printf("no thread CPU-time clock\n");
+#endif
 
     /* CLOCK_REALTIME is seconds since the Epoch, like time() */
     check(clock_gettime(CLOCK_REALTIME, &ts) == 0, "CLOCK_REALTIME");
@@ -168,9 +187,17 @@ main(void)
     }
 
     /* clock_getres for every required clock; a null res is allowed */
-    clockid_t clocks[]
-        = { CLOCK_REALTIME, CLOCK_MONOTONIC, CLOCK_PROCESS_CPUTIME_ID, CLOCK_THREAD_CPUTIME_ID };
-    for (unsigned i = 0; i < sizeof(clocks) / sizeof(clocks[0]); i++) {
+    clocks[nclocks++] = CLOCK_REALTIME;
+    clocks[nclocks++] = CLOCK_MONOTONIC;
+#if TEST_CPU
+    if (cputime)
+        clocks[nclocks++] = CLOCK_PROCESS_CPUTIME_ID;
+#endif
+#if TEST_THREAD_CPU
+    if (thread_cputime)
+        clocks[nclocks++] = CLOCK_THREAD_CPUTIME_ID;
+#endif
+    for (unsigned i = 0; i < nclocks; i++) {
         check(clock_getres(clocks[i], &res) == 0, "clock_getres");
         check(res.tv_sec >= 0 && res.tv_nsec >= 0 && res.tv_nsec < 1000000000L
                   && (res.tv_sec > 0 || res.tv_nsec > 0),
@@ -185,25 +212,25 @@ main(void)
     check(clock_gettime((clockid_t)12345, &ts) == -1 && errno == EINVAL, "clock_gettime EINVAL");
     errno = 0;
     check(clock_settime((clockid_t)12345, &ts) == -1
-              && (errno == EINVAL || (filtered && errno == EPERM)),
+              && (errno == EINVAL || (eperm_ok && errno == EPERM)),
           "clock_settime EINVAL");
 
     /* clock_settime: never CLOCK_MONOTONIC, and tv_nsec must be in range */
     check(clock_gettime(CLOCK_MONOTONIC, &ts) == 0, "clock_gettime");
     errno = 0;
     check(clock_settime(CLOCK_MONOTONIC, &ts) == -1
-              && (errno == EINVAL || (filtered && errno == EPERM)),
+              && (errno == EINVAL || (eperm_ok && errno == EPERM)),
           "clock_settime CLOCK_MONOTONIC");
     check(clock_gettime(CLOCK_REALTIME, &ts) == 0, "clock_gettime");
     ts.tv_nsec = 1000000000L;
     errno = 0;
     check(clock_settime(CLOCK_REALTIME, &ts) == -1
-              && (errno == EINVAL || (filtered && errno == EPERM)),
+              && (errno == EINVAL || (eperm_ok && errno == EPERM)),
           "tv_nsec too big");
     ts.tv_nsec = -1;
     errno = 0;
     check(clock_settime(CLOCK_REALTIME, &ts) == -1
-              && (errno == EINVAL || (filtered && errno == EPERM)),
+              && (errno == EINVAL || (eperm_ok && errno == EPERM)),
           "tv_nsec negative");
     if (geteuid() != 0) {
         /* EPERM may be reported without the privilege */
@@ -219,65 +246,124 @@ main(void)
           "timespec_get value");
     check(timespec_get(&ts, 0) == 0, "timespec_get with an invalid base");
 
+#if TEST_ANY_CPU
     /* The CPU-time clocks advance with CPU use and not while sleeping */
-    p0 = ns(CLOCK_PROCESS_CPUTIME_ID);
-    c0 = ns(CLOCK_THREAD_CPUTIME_ID);
-    k0 = clock();
-    spin(200000000);
-    p1 = ns(CLOCK_PROCESS_CPUTIME_ID);
-    c1 = ns(CLOCK_THREAD_CPUTIME_ID);
-    k1 = clock();
-    check(p1 - p0 >= 200000000 && c1 - c0 >= 100000000, "CPU-time clocks advance");
-    check(k0 != (clock_t)-1 && k1 != (clock_t)-1, "clock");
-    /* clock() / CLOCKS_PER_SEC is the process's CPU time in seconds */
-    {
-        double cpu = (double)(p1 - p0) / 1e9;
-        double clk = (double)(k1 - k0) / CLOCKS_PER_SEC;
-        if (clk < cpu * 0.5 - 0.02 || clk > cpu * 2 + 0.02) {
-            printf("clock() measured %g s, CPU-time clock %g s\n", clk, cpu);
+    spin_clock = CLOCK_REALTIME;
+#if TEST_THREAD_CPU
+    if (thread_cputime)
+        spin_clock = CLOCK_THREAD_CPUTIME_ID;
+#endif
+#if TEST_CPU
+    if (cputime)
+        spin_clock = CLOCK_PROCESS_CPUTIME_ID;
+#endif
+    if (spin_clock != CLOCK_REALTIME) {
+#if TEST_CPU
+        long long p0 = 0, p1 = 0;
+        clock_t   k0, k1;
+#endif
+#if TEST_THREAD_CPU
+        long long c0 = 0, c1 = 0;
+#endif
+
+#if TEST_CPU
+        if (cputime)
+            p0 = ns(CLOCK_PROCESS_CPUTIME_ID);
+        k0 = clock();
+#endif
+#if TEST_THREAD_CPU
+        if (thread_cputime)
+            c0 = ns(CLOCK_THREAD_CPUTIME_ID);
+#endif
+        spin(200000000);
+#if TEST_THREAD_CPU
+        if (thread_cputime) {
+            c1 = ns(CLOCK_THREAD_CPUTIME_ID);
+            check(c1 - c0 >= 100000000, "thread CPU-time clock advances");
+        }
+#endif
+#if TEST_CPU
+        k1 = clock();
+        if (cputime) {
+            p1 = ns(CLOCK_PROCESS_CPUTIME_ID);
+            check(p1 - p0 >= 200000000, "CPU-time clock advances");
+            check(k0 != (clock_t)-1 && k1 != (clock_t)-1, "clock");
+            /* clock() / CLOCKS_PER_SEC is the process's CPU time in seconds */
+            double cpu = (double)(p1 - p0) / 1e9;
+            double clk = (double)(k1 - k0) / CLOCKS_PER_SEC;
+            if (clk < cpu * 0.5 - 0.02 || clk > cpu * 2 + 0.02) {
+                printf("clock() measured %g s, CPU-time clock %g s\n", clk, cpu);
+                exit(1);
+            }
+        }
+#endif
+    }
+#endif
+
+#if TEST_THREAD_CPU
+    if (thread_cputime) {
+        a = ns(CLOCK_THREAD_CPUTIME_ID);
+        ts.tv_sec = 0;
+        ts.tv_nsec = 200000000;
+        check(nanosleep(&ts, NULL) == 0, "nanosleep");
+        check(ns(CLOCK_THREAD_CPUTIME_ID) - a < 100000000, "thread CPU time doesn't count sleep");
+    }
+#endif
+
+#if TEST_CPU && TEST_POSIX_MULTI_PROCESS
+    /* clock() doesn't count waited-for children */
+    if (cputime) {
+        clock_t   k0, k1;
+        long long p0, p1;
+        pid_t     pid;
+        int       status;
+
+        k0 = clock();
+        p0 = ns(CLOCK_PROCESS_CPUTIME_ID);
+        pid = fork();
+        check(pid >= 0, "fork");
+        if (pid == 0) {
+            spin(300000000);
+            _exit(0);
+        }
+        check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "waitpid");
+        k1 = clock();
+        p1 = ns(CLOCK_PROCESS_CPUTIME_ID);
+        if ((double)(k1 - k0) / CLOCKS_PER_SEC > (double)(p1 - p0) / 1e9 + 0.15) {
+            printf("clock() counted %g s across a child using 0.3 s\n",
+                   (double)(k1 - k0) / CLOCKS_PER_SEC);
             exit(1);
         }
     }
-    a = ns(CLOCK_THREAD_CPUTIME_ID);
-    ts.tv_sec = 0;
-    ts.tv_nsec = 200000000;
-    check(nanosleep(&ts, NULL) == 0, "nanosleep");
-    check(ns(CLOCK_THREAD_CPUTIME_ID) - a < 100000000, "thread CPU time doesn't count sleep");
+#endif
 
-    /* clock() doesn't count waited-for children */
-    k0 = clock();
-    p0 = ns(CLOCK_PROCESS_CPUTIME_ID);
-    pid = fork();
-    check(pid >= 0, "fork");
-    if (pid == 0) {
-        spin(300000000);
-        _exit(0);
-    }
-    check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "waitpid");
-    k1 = clock();
-    p1 = ns(CLOCK_PROCESS_CPUTIME_ID);
-    if ((double)(k1 - k0) / CLOCKS_PER_SEC > (double)(p1 - p0) / 1e9 + 0.15) {
-        printf("clock() counted %g s across a child using 0.3 s\n",
-               (double)(k1 - k0) / CLOCKS_PER_SEC);
-        exit(1);
-    }
-
+#if TEST_THREADS
     /* Another thread's CPU-time clock, from pthread_getcpuclockid */
-    check(pthread_create(&thread, NULL, waiter, NULL) == 0, "pthread_create");
-    check(pthread_getcpuclockid(thread, &tid_clock) == 0, "pthread_getcpuclockid");
-    a = ns(tid_clock);
-    check(a >= 0, "other thread's CPU time");
-    __atomic_store_n(&thread_go, 1, __ATOMIC_RELEASE);
-    check(pthread_join(thread, NULL) == 0, "pthread_join");
-    check(pthread_getcpuclockid(pthread_self(), &tid_clock) == 0, "pthread_getcpuclockid self");
-    a = ns(tid_clock);
-    b = ns(CLOCK_THREAD_CPUTIME_ID);
-    check(b >= a, "own thread clock matches CLOCK_THREAD_CPUTIME_ID");
+    if (thread_cputime) {
+        clockid_t tid_clock;
+        pthread_t thread;
+
+        check(pthread_create(&thread, NULL, waiter, NULL) == 0, "pthread_create");
+        check(pthread_getcpuclockid(thread, &tid_clock) == 0, "pthread_getcpuclockid");
+        a = ns(tid_clock);
+        check(a >= 0, "other thread's CPU time");
+        __atomic_store_n(&thread_go, 1, __ATOMIC_RELEASE);
+        check(pthread_join(thread, NULL) == 0, "pthread_join");
+        check(pthread_getcpuclockid(pthread_self(), &tid_clock) == 0, "pthread_getcpuclockid self");
+        a = ns(tid_clock);
+        b = ns(CLOCK_THREAD_CPUTIME_ID);
+        check(b >= a, "own thread clock matches CLOCK_THREAD_CPUTIME_ID");
+    }
+#endif
+#if TEST_THREAD_CPU
     /* clock_nanosleep fails on the calling thread's CPU-time clock */
-    ts.tv_sec = 0;
-    ts.tv_nsec = 1000;
-    check(clock_nanosleep(CLOCK_THREAD_CPUTIME_ID, 0, &ts, NULL) == EINVAL,
-          "clock_nanosleep on the thread CPU-time clock");
+    if (thread_cputime) {
+        ts.tv_sec = 0;
+        ts.tv_nsec = 1000;
+        check(clock_nanosleep(CLOCK_THREAD_CPUTIME_ID, 0, &ts, NULL) == EINVAL,
+              "clock_nanosleep on the thread CPU-time clock");
+    }
+#endif
 
     /* nanosleep: at least the time asked for, measured on CLOCK_REALTIME */
     a = ns(CLOCK_REALTIME);

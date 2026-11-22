@@ -236,6 +236,21 @@ main(void)
     check(GOT(subsidiary, "aE\n"), "disabled ERASE");
     put(manager, "a\0b\n", 4);
     check(got(subsidiary, "a\0b\n", 4), "a NUL byte isn't a disabled EOL");
+
+    /* NUL bytes are data wherever they fall in a line, and a line ends only at its delimiter */
+    put(manager, "\0\0c\0\nd\0\n", 8);
+    check(got(subsidiary, "\0\0c\0\n", 5), "NUL bytes in a line");
+    check(got(subsidiary, "d\0\n", 3), "the next line after NUL bytes");
+    put(manager, "e\0F", 3);
+    check(got(subsidiary, "e\0", 2), "NUL before EOF");
+    put(manager, "f\0g\n", 4);
+    check(read(subsidiary, buf, 2) == 2 && memcmp(buf, "f\0", 2) == 0,
+          "NUL at the end of a short read");
+    check(GOT(subsidiary, "g\n"), "the rest of the line after a short read");
+    put(manager, "h\0i\n", 4);
+    wait_input(subsidiary);
+    check(read_now(subsidiary, buf, sizeof(buf)) == 4 && memcmp(buf, "h\0i\n", 4) == 0,
+          "NUL with O_NONBLOCK");
     t = canon;
 
     /* Without ICANON there are no lines, and ERASE and KILL are data */

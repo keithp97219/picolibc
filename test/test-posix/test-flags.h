@@ -1191,4 +1191,20 @@
 #define TEST_XOPEN_UNIX 0
 #endif
 
+/*
+ * Known variances of the system under test from POSIX, which the
+ * tests accept, documented in doc/os.md. Each is 1 where the system
+ * has it, and 0 elsewhere and with TEST_CLAIM_ALL.
+ *
+ *  - TEST_VARIANCE_SHM_SEGSZ_PAGES: shmid_ds's shm_segsz is the size
+ *    of a System V shared memory segment rounded up to whole pages,
+ *    not the size asked for, and shmget compares a size asked for an
+ *    existing segment with that (FreeBSD).
+ */
+#if defined(__FreeBSD__) && !defined(TEST_CLAIM_ALL)
+#define TEST_VARIANCE_SHM_SEGSZ_PAGES 1
+#else
+#define TEST_VARIANCE_SHM_SEGSZ_PAGES 0
+#endif
+
 #endif /* _TEST_FLAGS_H_ */

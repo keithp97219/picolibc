@@ -47,6 +47,8 @@ recvmsg(int fd, struct msghdr *msg, int flags)
     long                    ret;
     void                   *cancel;
 
+    /* A cancellation point, even with arguments the call rejects */
+    _cancel_leave(_cancel_enter());
     /* A null msg is EFAULT from the kernel, without waiting */
     if (!msg)
         return (ssize_t)_sock_result(_syscall_raw(FREEBSD_SYS_recvmsg, fd, msg, flags));

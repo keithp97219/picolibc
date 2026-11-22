@@ -91,8 +91,8 @@
 
 /*
  * FreeBSD has the process CPU-time clocks (clock_getcpuclockid), but
- * ktimer_create rejects them, so __PICOLIBC_OS_CPUTIME stays undefined
- * until timers on them are emulated.
+ * ktimer_create rejects them, a known variance (doc/os.md), so
+ * __PICOLIBC_OS_CPUTIME stays undefined.
  *
  * FreeBSD delivers 62 real-time signals; picolibc numbers 31, so
  * __PICOLIBC_OS_RTSIG_MAX stays undefined
@@ -140,17 +140,19 @@
 #define __PICOLIBC_OS_SHARED_MEMORY_OBJECTS 202405L
 
 /*
- * Option groups. The terminal functions are all there, but FreeBSD's
- * canonical input ends a line at a NUL byte, so DEVICE_SPECIFIC isn't
- * claimed
+ * Option groups. The terminal functions are all there, and read()
+ * makes up for canonical input ending a read at a NUL byte (read.c),
+ * but the kernel ignores ECHOK, and opening a terminal doesn't make it
+ * the controlling one without TIOCSCTTY, so DEVICE_SPECIFIC isn't
+ * claimed (doc/os.md)
  */
 #define __PICOLIBC_OS_DEVICE_SPECIFIC_R 202405L
 
 /*
- * XSI option groups. The System V IPC functions are there, but
- * FreeBSD rounds shared memory segments to pages in shm_segsz and
- * doesn't check permissions when shmget finds a segment, so XSI_IPC
- * isn't claimed
+ * XSI option groups. The System V IPC functions are there, and
+ * shmget checks the permissions of a segment it finds (shmget.c), but
+ * shmdt doesn't set shm_lpid, so XSI_IPC isn't claimed. shm_segsz
+ * counts whole pages, a known variance (doc/os.md)
  */
 #define __PICOLIBC_OS_XSI_DEVICE_SPECIFIC    202405L
 #define __PICOLIBC_OS_XSI_GENERAL_TERMINAL_R 202405L

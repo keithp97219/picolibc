@@ -132,6 +132,18 @@ address_space(void)
 
 #define SIZE 8192
 
+/* The shm_segsz of a segment made with size bytes */
+static size_t
+segsz(size_t size)
+{
+    if (TEST_VARIANCE_SHM_SEGSZ_PAGES) {
+        size_t page = (size_t)sysconf(_SC_PAGESIZE);
+
+        return (size + page - 1) / page * page;
+    }
+    return size;
+}
+
 int
 main(void)
 {
@@ -168,7 +180,7 @@ main(void)
     check(p != SHM_FAILED, "shmat");
     strcpy(p, "parent");
     check(shmctl(id, IPC_STAT, &ds) == 0, "IPC_STAT");
-    check(ds.shm_segsz == SIZE && ds.shm_nattch == 1 && ds.shm_cpid == getpid(), "segment");
+    check(ds.shm_segsz == segsz(SIZE) && ds.shm_nattch == 1 && ds.shm_cpid == getpid(), "segment");
     check(ds.shm_lpid == getpid(), "shm_lpid");
     /* The kernel's clock in seconds may trail time() by a tick */
     check(ds.shm_atime >= before - 1 && ds.shm_atime <= time(NULL), "shm_atime");

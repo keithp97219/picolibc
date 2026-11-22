@@ -38,7 +38,7 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_TIMERS && TEST_POSIX_CPUTIME
+#if TEST_POSIX_TIMERS
 
 #include <errno.h>
 #include <limits.h>
@@ -107,12 +107,6 @@ main(void)
     sigset_t          block;
     long long         start;
     int               overrun;
-
-    /* The system may leave it to say at run time */
-    if (sysconf(_SC_CPUTIME) <= 0) {
-        printf("no CPU-time clock, skipping\n");
-        return 77;
-    }
 
     /* The signals are taken with sigtimedwait */
     sigemptyset(&block);
@@ -244,18 +238,22 @@ main(void)
 #endif
     check(timer_delete(t1) == 0, "timer_delete default");
 
-    /* A timer on the process CPU-time clock */
-    ev.sigev_value.sival_int = 7;
-    check(timer_create(CLOCK_PROCESS_CPUTIME_ID, &ev, &t1) == 0, "CPU-time timer");
-    memset(&its, 0, sizeof(its));
-    its.it_value.tv_nsec = 50000000;
-    check(timer_settime(t1, 0, &its, NULL) == 0, "arm CPU-time timer");
-    start = mono_ns();
-    while (!pending(SIGUSR1) && mono_ns() - start < 10000000000LL)
-        ;
-    check(wait_for(SIGUSR1, &info) == SIGUSR1 && info.si_value.sival_int == 7,
-          "CPU-time timer fires");
-    check(timer_delete(t1) == 0, "timer_delete CPU-time");
+#if TEST_POSIX_CPUTIME
+    /* A timer on the process CPU-time clock, which the system may leave to run time */
+    if (sysconf(_SC_CPUTIME) > 0) {
+        ev.sigev_value.sival_int = 7;
+        check(timer_create(CLOCK_PROCESS_CPUTIME_ID, &ev, &t1) == 0, "CPU-time timer");
+        memset(&its, 0, sizeof(its));
+        its.it_value.tv_nsec = 50000000;
+        check(timer_settime(t1, 0, &its, NULL) == 0, "arm CPU-time timer");
+        start = mono_ns();
+        while (!pending(SIGUSR1) && mono_ns() - start < 10000000000LL)
+            ;
+        check(wait_for(SIGUSR1, &info) == SIGUSR1 && info.si_value.sival_int == 7,
+              "CPU-time timer fires");
+        check(timer_delete(t1) == 0, "timer_delete CPU-time");
+    }
+#endif
 
     /* EINVAL for an unknown clock */
     errno = 0;
