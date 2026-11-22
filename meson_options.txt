@@ -214,6 +214,8 @@ option('mb-jis-charsets', type: 'combo', choices: ['true', 'false', 'auto'], val
        description: 'enable additional JIS multibyte encodings')
 option('mb-windows-charsets', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
        description: 'enable additional Windows encodings')
+option('mb-gb18030-charset', type: 'boolean', value: false,
+       description: 'enable the GB18030 encoding (about 35kB of tables)')
 
 #
 # Startup/shutdown options
@@ -287,6 +289,13 @@ option('stack-protector-guard', type: 'combo', choices: ['global', 'tls', 'auto'
        description: 'Set stack protection canary type')
 option('tmpdir', type: 'string', value: '',
        description: 'Directory prefix for tmpnam()/tmpfile() names (P_tmpdir). Must be empty or end with a path separator. Empty means names are created in the current directory.')
+
+#
+# Time options
+#
+
+option('tzif', type: 'boolean', value: false,
+       description: 'Load time zones from TZif files (/etc/localtime, $TZDIR or /usr/share/zoneinfo) when TZ is not a POSIX rule string; needs open/read/close (default: false)')
 
 #
 # Math options

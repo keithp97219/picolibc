@@ -35,6 +35,7 @@
 
 set(tests
   test-ctype
+  test-gb18030
   )
   
 set(tests_fail

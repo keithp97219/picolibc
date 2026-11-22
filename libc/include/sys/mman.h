@@ -162,6 +162,15 @@ int   madvise(void *addr, size_t len, int advice);
 void *mremap(void *old_address, size_t old_size, size_t new_size, int flags, ...);
 #endif
 
+/* The transitional large file names: off_t is 64 bits already */
+#if __LARGEFILE64_VISIBLE
+#ifndef _OFF64_T_DECLARED
+typedef __off_t off64_t;
+#define _OFF64_T_DECLARED
+#endif
+#define mmap64 mmap
+#endif
+
 _END_STD_C
 
 #endif /* _SYS_MMAN_H_ */

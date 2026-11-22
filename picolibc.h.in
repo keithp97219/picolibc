@@ -98,6 +98,9 @@
 
 #define __MALLOC_SMALL_BUCKET @__MALLOC_SMALL_BUCKET@
 
+/* Load time zones from TZif files */
+#cmakedefine __TZIF
+
 #cmakedefine __MB_CAPABLE
 
 #cmakedefine __MB_EXTENDED_CHARSETS_ALL
@@ -109,6 +112,8 @@
 #cmakedefine __MB_EXTENDED_CHARSETS_WINDOWS
 
 #cmakedefine __MB_EXTENDED_CHARSETS_JIS
+
+#cmakedefine __MB_EXTENDED_CHARSETS_GB18030
 
 #cmakedefine __NANO_FORMATTED_IO
 

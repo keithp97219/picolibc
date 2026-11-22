@@ -118,6 +118,10 @@ if(NOT DEFINED __MALLOC_SMALL_BUCKET)
   set(__MALLOC_SMALL_BUCKET 0 CACHE STRING "use fixed bucket sizes for allocations no larger than this")
 endif()
 
+if(NOT DEFINED __TZIF)
+  option(__TZIF "Load time zones from TZif files" OFF)
+endif()
+
 if(NOT DEFINED __PICOLIBC_EXPORT)
   option(__PICOLIBC_EXPORT "Annotate public picolibc APIs with default (exported) visibility" OFF)
 endif()
@@ -223,6 +227,10 @@ endif()
 
 if(NOT DEFINED __MB_EXTENDED_CHARSETS_JIS)
   option(__MB_EXTENDED_CHARSETS_JIS "Enable JIS multibyte encodings" OFF)
+endif()
+
+if(NOT DEFINED __MB_EXTENDED_CHARSETS_GB18030)
+  option(__MB_EXTENDED_CHARSETS_GB18030 "Enable GB18030 multibyte encoding" OFF)
 endif()
 
 set(__NANO_FORMATTED_IO OFF)

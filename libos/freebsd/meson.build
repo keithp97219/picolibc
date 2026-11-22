@@ -351,10 +351,11 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
 
   freebsd_inc = include_directories('machine' / freebsd_machines[host_cpu_family], 'include')
 
-  # The POSIX options and option groups this OS layer provides, and
-  # its signal stack sizes
+  # The POSIX options and option groups this OS layer provides, its
+  # signal stack sizes and its minimum mbstate_t size
   if really_install
-    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h', 'include/sys/mount.h'],
+    install_headers(['include/sys/_posix.h', 'include/sys/_signal.h', 'include/sys/_mbstate.h',
+                     'include/sys/mount.h'],
                     install_dir: include_dir / 'sys')
     # The socket ABI for picolibc's networking headers
     if network == 'freebsd'

@@ -41,6 +41,7 @@ picolibc_sources(
   atomic_thread_fence.c
   dso_handle.c
   getauxval.c
+  error.c
   ffs.c
   fini.c
   init.c
@@ -103,5 +104,6 @@ picolibc_sources(
   libatomic_store_8.c
   libatomic_test_and_set.c
   lock.c
+  program_invocation_name.c
   unctrl.c
   )

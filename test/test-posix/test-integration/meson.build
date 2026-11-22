@@ -34,6 +34,7 @@
 #
 
 dir_tests = [
+  'test-largefile64',
   'test-namespace',
   'test-sbrk-blocked',
   'test-syscall-name',

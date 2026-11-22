@@ -106,6 +106,17 @@ int setpriority(int, id_t, int);
 #endif
 int setrlimit(int, const struct rlimit *);
 
+/*
+ * The transitional large file names: rlim_t is 64 bits already, so
+ * rlimit64 names the plain structure
+ */
+#if __LARGEFILE64_VISIBLE
+typedef __rlim_t rlim64_t;
+#define rlimit64    rlimit
+#define getrlimit64 getrlimit
+#define setrlimit64 setrlimit
+#endif
+
 _END_STD_C
 
 #endif /* !_SYS_RESOURCE_H_ */
