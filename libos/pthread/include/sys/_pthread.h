@@ -77,7 +77,7 @@ typedef __PTHREAD_FUTEX_T __pthread_futex_t;
 
 struct __pthread;
 
-typedef struct __pthread *pthread_t;
+typedef struct __pthread *__pthread_t;
 
 typedef struct {
     void             *__stackaddr;
@@ -88,7 +88,7 @@ typedef struct {
     int               __schedpolicy;
     int               __schedpriority;
     int               __scope;
-} pthread_attr_t;
+} __pthread_attr_t;
 
 typedef struct {
     /*
@@ -111,7 +111,7 @@ typedef struct {
      */
     void        *__list_next;
     void        *__list_prev; /* the list link pointing at this mutex */
-} pthread_mutex_t;
+} __pthread_mutex_t;
 
 typedef struct {
     int __type;
@@ -119,18 +119,18 @@ typedef struct {
     int __protocol;
     int __prioceiling;
     int __robust;
-} pthread_mutexattr_t;
+} __pthread_mutexattr_t;
 
 typedef struct {
     __pthread_futex_t __seq;
     __clockid_t       __clock;
     int               __pshared;
-} pthread_cond_t;
+} __pthread_cond_t;
 
 typedef struct {
     __clockid_t __clock;
     int         __pshared;
-} pthread_condattr_t;
+} __pthread_condattr_t;
 
 typedef struct {
     unsigned int      __state; /* number of readers, or UINT_MAX when write locked */
@@ -138,11 +138,11 @@ typedef struct {
     unsigned int      __waiters;
     int               __writer; /* thread id of the writer */
     int               __pshared;
-} pthread_rwlock_t;
+} __pthread_rwlock_t;
 
 typedef struct {
     int __pshared;
-} pthread_rwlockattr_t;
+} __pthread_rwlockattr_t;
 
 typedef struct {
     unsigned int      __count;
@@ -150,42 +150,42 @@ typedef struct {
     __pthread_futex_t __seq;  /* advanced as each group of threads leaves */
     __pthread_futex_t __lock; /* held while a thread arrives */
     int               __pshared;
-} pthread_barrier_t;
+} __pthread_barrier_t;
 
 typedef struct {
     int __pshared;
-} pthread_barrierattr_t;
+} __pthread_barrierattr_t;
 
-typedef volatile int      pthread_spinlock_t;
+typedef volatile int      __pthread_spinlock_t;
 
-typedef __pthread_futex_t pthread_once_t;
+typedef __pthread_futex_t __pthread_once_t;
 
-typedef unsigned int      pthread_key_t;
+typedef unsigned int      __pthread_key_t;
 
 typedef struct {
     __pthread_futex_t __value;
     unsigned int      __waiters;
     int               __pshared;
-} sem_t;
+} __sem_t;
 
 /*
  * Static initializers. They use <pthread.h>'s constants and
  * CLOCK_REALTIME, which are defined wherever they're expanded.
  */
-#define PTHREAD_MUTEX_INITIALIZER \
-    { 0,                          \
-      PTHREAD_MUTEX_DEFAULT,      \
-      PTHREAD_PROCESS_PRIVATE,    \
-      PTHREAD_PRIO_NONE,          \
-      0,                          \
-      0,                          \
-      0,                          \
-      PTHREAD_MUTEX_STALLED,      \
-      0,                          \
-      0,                          \
+#define __PTHREAD_MUTEX_INITIALIZER \
+    { 0,                            \
+      PTHREAD_MUTEX_DEFAULT,        \
+      PTHREAD_PROCESS_PRIVATE,      \
+      PTHREAD_PRIO_NONE,            \
+      0,                            \
+      0,                            \
+      0,                            \
+      PTHREAD_MUTEX_STALLED,        \
+      0,                            \
+      0,                            \
       0 }
-#define PTHREAD_COND_INITIALIZER   { 0, CLOCK_REALTIME, PTHREAD_PROCESS_PRIVATE }
-#define PTHREAD_ONCE_INIT          0
-#define PTHREAD_RWLOCK_INITIALIZER { 0, 0, 0, 0, PTHREAD_PROCESS_PRIVATE }
+#define __PTHREAD_COND_INITIALIZER   { 0, CLOCK_REALTIME, PTHREAD_PROCESS_PRIVATE }
+#define __PTHREAD_ONCE_INIT          0
+#define __PTHREAD_RWLOCK_INITIALIZER { 0, 0, 0, 0, PTHREAD_PROCESS_PRIVATE }
 
 #endif /* _SYS__PTHREAD_H_ */

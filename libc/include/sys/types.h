@@ -262,7 +262,7 @@ typedef __int64_t sbintime_t;
  */
 #if defined(__has_include)
 #if __has_include(<sys/_pthread.h>)
-#include <sys/_pthread.h>
+#include <sys/_pthreadtypes.h>
 #endif
 #endif
 

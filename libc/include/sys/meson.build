@@ -58,6 +58,7 @@ inc_sys_headers_all = [
   'msg.h',
   '_open_flags.h',
   '_os.h',
+  '_pthreadtypes.h',
   'param.h',
   'queue.h',
   'random.h',

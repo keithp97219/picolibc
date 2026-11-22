@@ -88,6 +88,12 @@ _BEGIN_STD_C
 #define PTHREAD_CANCEL_ASYNCHRONOUS 1
 #define PTHREAD_CANCELED            ((void *)-1)
 
+/* The OS's static initializers */
+#define PTHREAD_MUTEX_INITIALIZER  __PTHREAD_MUTEX_INITIALIZER
+#define PTHREAD_COND_INITIALIZER   __PTHREAD_COND_INITIALIZER
+#define PTHREAD_RWLOCK_INITIALIZER __PTHREAD_RWLOCK_INITIALIZER
+#define PTHREAD_ONCE_INIT          __PTHREAD_ONCE_INIT
+
 /* A pthread_t value which is never the thread ID of a thread */
 #define PTHREAD_NULL ((pthread_t)0)
 

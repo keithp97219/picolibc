@@ -680,17 +680,22 @@ only macros visible there (Zephyr's, for instance, tests its Kconfig
 
 `<pthread.h>`, `<semaphore.h>` and `<threads.h>` require this header and
 stop with an error without it; `<sys/types.h>`, `<signal.h>` and
-`<limits.h>` use it when it exists. It defines:
+`<limits.h>` use it when it exists. It defines only reserved names, as
+headers that include it mustn't publish the POSIX ones in compilations
+that don't ask for them (`<threads.h>` in ISO C, say):
 
- * **Types:** `pthread_t`, `pthread_attr_t`, `pthread_mutex_t`,
-   `pthread_mutexattr_t`, `pthread_cond_t`, `pthread_condattr_t`,
-   `pthread_rwlock_t`, `pthread_rwlockattr_t`, `pthread_barrier_t`,
-   `pthread_barrierattr_t`, `pthread_spinlock_t`, `pthread_once_t`,
-   `pthread_key_t` and `sem_t`.
+ * **Types:** `__pthread_t`, `__pthread_attr_t`, `__pthread_mutex_t`,
+   `__pthread_mutexattr_t`, `__pthread_cond_t`, `__pthread_condattr_t`,
+   `__pthread_rwlock_t`, `__pthread_rwlockattr_t`, `__pthread_barrier_t`,
+   `__pthread_barrierattr_t`, `__pthread_spinlock_t`, `__pthread_once_t`,
+   `__pthread_key_t` and `__sem_t`. picolibc's `<sys/_pthreadtypes.h>`,
+   which `<sys/types.h>` and `<signal.h>` include, and `<semaphore.h>`
+   name them `pthread_t`, ..., `sem_t`.
 
- * **Static initializers:** `PTHREAD_MUTEX_INITIALIZER`,
-   `PTHREAD_COND_INITIALIZER`, `PTHREAD_RWLOCK_INITIALIZER` and
-   `PTHREAD_ONCE_INIT`. They may use `<pthread.h>`'s constants and
+ * **Static initializers:** `__PTHREAD_MUTEX_INITIALIZER`,
+   `__PTHREAD_COND_INITIALIZER`, `__PTHREAD_RWLOCK_INITIALIZER` and
+   `__PTHREAD_ONCE_INIT`, which `<pthread.h>` publishes without the
+   leading underscores. They may use `<pthread.h>`'s constants and
    `CLOCK_REALTIME`, which are defined wherever they're expanded.
 
  * **Limits**, which `<limits.h>` and `<threads.h>` publish:

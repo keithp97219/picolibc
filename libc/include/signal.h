@@ -217,7 +217,7 @@ typedef struct __ucontext {
 /* pthread_t and pthread_attr_t, when there are threads */
 #if defined(__has_include)
 #if __has_include(<sys/_pthread.h>)
-#include <sys/_pthread.h>
+#include <sys/_pthreadtypes.h>
 #define __SIGEV_ATTR_TYPE pthread_attr_t
 #endif
 #endif
@@ -408,7 +408,7 @@ int __fallback_sigprocmask(int, const sigset_t *, sigset_t *) __picolibc_export;
 #endif
 #if __POSIX_VISIBLE >= 199506L && defined(__has_include)
 #if __has_include(<sys/_pthread.h>)
-#include <sys/_pthread.h>
+#include <sys/_pthreadtypes.h>
 int pthread_kill(pthread_t, int) __picolibc_export;
 int pthread_sigmask(int, const sigset_t * __restrict, sigset_t * __restrict) __picolibc_export;
 #endif

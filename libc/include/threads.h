@@ -54,18 +54,18 @@ _BEGIN_STD_C
 
 #define TSS_DTOR_ITERATIONS __PTHREAD_DESTRUCTOR_ITERATIONS
 
-typedef pthread_t       thrd_t;
-typedef int             (*thrd_start_t)(void *);
-typedef pthread_mutex_t mtx_t;
-typedef pthread_cond_t  cnd_t;
-typedef pthread_key_t   tss_t;
-typedef void            (*tss_dtor_t)(void *);
+typedef __pthread_t       thrd_t;
+typedef int               (*thrd_start_t)(void *);
+typedef __pthread_mutex_t mtx_t;
+typedef __pthread_cond_t  cnd_t;
+typedef __pthread_key_t   tss_t;
+typedef void              (*tss_dtor_t)(void *);
 
 #ifndef __once_flag_defined
 #define __once_flag_defined
 /* The OS's pthread_once_t, which call_once shares */
-typedef pthread_once_t once_flag;
-#define ONCE_FLAG_INIT PTHREAD_ONCE_INIT
+typedef __pthread_once_t once_flag;
+#define ONCE_FLAG_INIT __PTHREAD_ONCE_INIT
 #endif
 
 enum {
