@@ -34,6 +34,8 @@
  */
 
 #define __STDC_WANT_LIB_EXT1__ 1
+/* fmemopen */
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
