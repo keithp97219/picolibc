@@ -48,8 +48,10 @@
 
 _BEGIN_STD_C
 
-int     accept(int, struct sockaddr     *__restrict, socklen_t     *__restrict) __picolibc_export;
-int     accept4(int, struct sockaddr     *__restrict, socklen_t     *__restrict, int) __picolibc_export;
+int accept(int, struct sockaddr * __restrict, socklen_t * __restrict) __picolibc_export;
+#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
+int accept4(int, struct sockaddr * __restrict, socklen_t * __restrict, int) __picolibc_export;
+#endif
 int     bind(int, const struct sockaddr *, socklen_t) __picolibc_export;
 int     connect(int, const struct sockaddr *, socklen_t) __picolibc_export;
 int     getpeername(int, struct sockaddr     *__restrict, socklen_t     *__restrict) __picolibc_export;
