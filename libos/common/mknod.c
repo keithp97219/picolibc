@@ -33,11 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
+#define _DEFAULT_SOURCE
+#include <fcntl.h>
 #include <sys/stat.h>
 
 int
-mkfifo(const char *path, mode_t mode)
+mknod(const char *path, mode_t mode, dev_t dev)
 {
-    return mkfifoat(AT_FDCWD, path, mode);
+    return mknodat(AT_FDCWD, path, mode, dev);
 }

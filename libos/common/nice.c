@@ -33,11 +33,41 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
+#define _XOPEN_SOURCE 800
+#include <errno.h>
+#include <limits.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
+/* Returns the new nice value; -1 is also a valid nice value, so check errno */
 int
-lchown(const char *path, uid_t owner, gid_t group)
+nice(int incr)
 {
-    return fchownat(AT_FDCWD, path, owner, group, AT_SYMLINK_NOFOLLOW);
+    int prio;
+
+    errno = 0;
+    prio = getpriority(PRIO_PROCESS, 0);
+    if (prio == -1 && errno)
+        return -1;
+    /*
+     * The kernel's nice values may run past picolibc's -NZERO to
+     * NZERO - 1 (FreeBSD's reach 20); limit incr so the sum can't
+     * overflow
+     */
+    if (incr > 2 * NZERO)
+        incr = 2 * NZERO;
+    if (incr < -2 * NZERO)
+        incr = -2 * NZERO;
+    prio += incr;
+    if (prio > NZERO - 1)
+        prio = NZERO - 1;
+    if (prio < -NZERO)
+        prio = -NZERO;
+    /* setpriority sets the value in every thread */
+    if (setpriority(PRIO_PROCESS, 0, prio) < 0) {
+        if (errno == EACCES)
+            errno = EPERM;
+        return -1;
+    }
+    return prio;
 }

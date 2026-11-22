@@ -33,10 +33,15 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
+#define _DEFAULT_SOURCE
+#include <sys/socket.h>
 
 int
-mkfifo(const char *path, mode_t mode)
+accept(int fd, struct sockaddr * __restrict addr, socklen_t * __restrict len)
 {
-    return _syscall(FREEBSD_SYS_mkfifoat, FREEBSD_AT_FDCWD, path, mode);
+    /*
+     * accept4 gives the new socket no O_NONBLOCK, as POSIX describes;
+     * FreeBSD's accept copies the listener's
+     */
+    return accept4(fd, addr, len, 0);
 }

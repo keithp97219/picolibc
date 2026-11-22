@@ -33,16 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
-#include "local-cancel.h"
-#include <sys/socket.h>
+#define _DEFAULT_SOURCE
+#include <fcntl.h>
+#include <sys/stat.h>
 
 int
-accept(int fd, struct sockaddr * __restrict addr, socklen_t * __restrict len)
+mkfifoat(int dirfd, const char *path, mode_t mode)
 {
-    void *cancel = _cancel_enter();
-    long  ret = _syscall(LINUX_SYS_accept4, fd, addr, len, 0);
-
-    _cancel_leave(cancel);
-    return (int)ret;
+    return mknodat(dirfd, path, (mode & ~S_IFMT) | S_IFIFO, 0);
 }

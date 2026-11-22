@@ -33,11 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
+#define _DEFAULT_SOURCE
+#include <stddef.h>
+#include <sys/socket.h>
 
-int
-lchown(const char *path, uid_t owner, gid_t group)
+ssize_t
+recv(int fd, void *buf, size_t len, int flags)
 {
-    return _syscall(FREEBSD_SYS_fchownat, FREEBSD_AT_FDCWD, path, owner, group,
-                    FREEBSD_AT_SYMLINK_NOFOLLOW);
+    return recvfrom(fd, buf, len, flags, NULL, NULL);
 }

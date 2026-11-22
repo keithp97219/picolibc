@@ -33,10 +33,22 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
+#define _DEFAULT_SOURCE
+#include <errno.h>
+#include <time.h>
 
+/*
+ * nanosleep is a relative CLOCK_REALTIME clock_nanosleep; Linux's
+ * nanosleep system call is y2038-limited on 32-bit architectures.
+ */
 int
-chown(const char *path, uid_t owner, gid_t group)
+nanosleep(const struct timespec *request, struct timespec *remain)
 {
-    return _syscall(FREEBSD_SYS_fchownat, FREEBSD_AT_FDCWD, path, owner, group, 0);
+    int ret = clock_nanosleep(CLOCK_REALTIME, 0, request, remain);
+
+    if (ret) {
+        errno = ret;
+        return -1;
+    }
+    return 0;
 }

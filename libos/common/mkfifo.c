@@ -33,14 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-socket.h"
+#define _DEFAULT_SOURCE
+#include <fcntl.h>
+#include <sys/stat.h>
 
 int
-accept(int fd, struct sockaddr * __restrict addr, socklen_t * __restrict len)
+mkfifo(const char *path, mode_t mode)
 {
-    /*
-     * FreeBSD's accept gives the new socket the listener's O_NONBLOCK;
-     * accept4 doesn't, which is what POSIX describes
-     */
-    return accept4(fd, addr, len, 0);
+    return mkfifoat(AT_FDCWD, path, mode);
 }

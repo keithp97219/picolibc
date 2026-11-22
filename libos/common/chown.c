@@ -33,10 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-socket.h"
+#define _DEFAULT_SOURCE
+#include <fcntl.h>
+#include <unistd.h>
 
-ssize_t
-recv(int fd, void *buf, size_t len, int flags)
+int
+chown(const char *path, uid_t owner, gid_t group)
 {
-    return recvfrom(fd, buf, len, flags, NULL, NULL);
+    return fchownat(AT_FDCWD, path, owner, group, 0);
 }

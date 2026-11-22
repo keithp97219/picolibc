@@ -33,35 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
-#include <sys/resource.h>
+#define _DEFAULT_SOURCE
+#include <fcntl.h>
 #include <unistd.h>
 
-/* Returns the new nice value; -1 is also a valid nice value, so check errno */
-int
-nice(int incr)
+ssize_t
+readlink(const char *path, char *buf, size_t bufsize)
 {
-    int prio;
-
-    errno = 0;
-    prio = getpriority(PRIO_PROCESS, 0);
-    if (prio == -1 && errno)
-        return -1;
-    /* Linux nice values run from -20 to 19; limit incr so the sum can't overflow */
-    if (incr > 39)
-        incr = 39;
-    if (incr < -39)
-        incr = -39;
-    prio += incr;
-    if (prio > 19)
-        prio = 19;
-    if (prio < -20)
-        prio = -20;
-    /* setpriority sets the value in every thread */
-    if (setpriority(PRIO_PROCESS, 0, prio) < 0) {
-        if (errno == EACCES)
-            errno = EPERM;
-        return -1;
-    }
-    return prio;
+    return readlinkat(AT_FDCWD, path, buf, bufsize);
 }

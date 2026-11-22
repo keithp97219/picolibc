@@ -33,7 +33,11 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-freebsd.h"
+#define _DEFAULT_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <stddef.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 
 int
@@ -43,6 +47,10 @@ utimes(const char *path, const struct timeval tv[2])
 
     if (!tv)
         return utimensat(AT_FDCWD, path, NULL, 0);
+    /*
+     * Check the microseconds here: multiplied by 1000 in a 32-bit
+     * long, a value out of range can wrap into a valid one.
+     */
     if (tv[0].tv_usec < 0 || tv[0].tv_usec >= 1000000 || tv[1].tv_usec < 0
         || tv[1].tv_usec >= 1000000) {
         errno = EINVAL;

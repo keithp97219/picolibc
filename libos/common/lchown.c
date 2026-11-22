@@ -33,30 +33,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-linux.h"
-#include <errno.h>
-#include <sys/stat.h>
-#include <sys/time.h>
+#define _DEFAULT_SOURCE
+#include <fcntl.h>
+#include <unistd.h>
 
 int
-utimes(const char *path, const struct timeval tv[2])
+lchown(const char *path, uid_t owner, gid_t group)
 {
-    struct timespec ts[2];
-
-    if (!tv)
-        return utimensat(AT_FDCWD, path, NULL, 0);
-    /*
-     * Check the microseconds here: multiplied by 1000 in a 32-bit
-     * long, a value out of range can wrap into a valid one.
-     */
-    if (tv[0].tv_usec < 0 || tv[0].tv_usec >= 1000000 || tv[1].tv_usec < 0
-        || tv[1].tv_usec >= 1000000) {
-        errno = EINVAL;
-        return -1;
-    }
-    ts[0].tv_sec = tv[0].tv_sec;
-    ts[0].tv_nsec = tv[0].tv_usec * 1000;
-    ts[1].tv_sec = tv[1].tv_sec;
-    ts[1].tv_nsec = tv[1].tv_usec * 1000;
-    return utimensat(AT_FDCWD, path, ts, 0);
+    return fchownat(AT_FDCWD, path, owner, group, AT_SYMLINK_NOFOLLOW);
 }
