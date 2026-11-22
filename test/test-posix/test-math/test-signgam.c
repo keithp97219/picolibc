@@ -40,6 +40,7 @@
 
 #include <errno.h>
 #include <fenv.h>
+#include "../test-fp-env.h"
 #include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,7 +74,7 @@
 
 #define ERROR_EXCEPTS (FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW | FE_UNDERFLOW)
 
-static int    got_errno, got_except;
+static int    got_errno, got_except, got_raises;
 static double got;
 
 /* Call expr with errno and the exception flags cleared, and note what it left */
@@ -83,6 +84,7 @@ static double got;
         feclearexcept(FE_ALL_EXCEPT);             \
         got = (double)(expr);                     \
         got_except = fetestexcept(FE_ALL_EXCEPT); \
+        got_raises = TEST_RAISES(expr);           \
         got_errno = errno;                        \
     } while (0)
 
@@ -99,7 +101,8 @@ may_error(const char *what, int err, int except)
         printf("%s: errno %d, expected 0 or %d\n", what, got_errno, err);
         ok = 0;
     }
-    if ((math_errhandling & MATH_ERREXCEPT) && (got_except & ERROR_EXCEPTS & ~except) != 0) {
+    if ((math_errhandling & MATH_ERREXCEPT) && got_raises
+        && (got_except & ERROR_EXCEPTS & ~except) != 0) {
         printf("%s: exceptions 0x%x, expected only 0x%x\n", what, got_except, except);
         ok = 0;
     }
@@ -123,7 +126,8 @@ must_error(const char *what, int err, int except)
         printf("%s: errno %d, expected %d\n", what, got_errno, err);
         ok = 0;
     }
-    if ((math_errhandling & MATH_ERREXCEPT) && (got_except & ERROR_EXCEPTS) != except) {
+    if ((math_errhandling & MATH_ERREXCEPT) && got_raises
+        && (got_except & ERROR_EXCEPTS) != except) {
         printf("%s: exceptions 0x%x, expected 0x%x\n", what, got_except, except);
         ok = 0;
     }
@@ -198,9 +202,9 @@ main(void)
     check(got == 0 && !signbit(got) && no_error("lgammaf(1)"), "lgammaf(1)");
     CALL(lgammaf(2.0f + vzerof));
     check(got == 0 && !signbit(got) && no_error("lgammaf(2)"), "lgammaf(2)");
-    CALL((double)lgammal(1.0L + vzerol));
+    CALL(lgammal(1.0L + vzerol));
     check(got == 0 && !signbit(got) && no_error("lgammal(1)"), "lgammal(1)");
-    CALL((double)lgammal(2.0L + vzerol));
+    CALL(lgammal(2.0L + vzerol));
     check(got == 0 && !signbit(got) && no_error("lgammal(2)"), "lgammal(2)");
 
     /* +-Inf give +Inf, NaN gives NaN */
@@ -228,7 +232,7 @@ main(void)
             check(got == (double)HUGE_VALF && must_error(what, ERANGE, FE_DIVBYZERO),
                   "lgammaf pole");
             snprintf(what, sizeof(what), "lgammal(%g)", poles[i]);
-            CALL((double)lgammal(xl));
+            CALL(lgammal(xl));
             check(got == HUGE_VAL && must_error(what, ERANGE, FE_DIVBYZERO), "lgammal pole");
         }
     }
@@ -239,7 +243,7 @@ main(void)
     CALL(lgammaf(FLT_MAX + vzerof));
     check(got == (double)HUGE_VALF && must_error("lgammaf(FLT_MAX)", ERANGE, FE_OVERFLOW),
           "lgammaf(FLT_MAX)");
-    CALL((double)lgammal(LDBL_MAX + vzerol));
+    CALL(lgammal(LDBL_MAX + vzerol));
     check(got == HUGE_VAL && must_error("lgammal(LDBL_MAX)", ERANGE, FE_OVERFLOW),
           "lgammal(LDBL_MAX)");
 

@@ -35,6 +35,7 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <fenv.h>
+#include "../test-fp-env.h"
 
 #include <float.h>
 #include <math.h>
@@ -74,7 +75,7 @@
  */
 #define RAISED() (fetestexcept(FE_ALL_EXCEPT) & ~FE_INEXACT)
 
-static volatile float       onef = 1.0f;
+static volatile float       onef = 1.0f, threef = 3.0f, zerof = 0.0f;
 static volatile double      one = 1.0, three = 3.0, zero = 0.0, two = 2.0;
 static volatile long double onel = 1.0L;
 
@@ -113,8 +114,23 @@ check_mode(unsigned m)
     } while (0)
 
     CHECK_ADD(float, onef, FLT_EPSILON, "float");
-    CHECK_ADD(double, one, DBL_EPSILON, "double");
-    CHECK_ADD(long double, onel, LDBL_EPSILON, "long double");
+    if (TEST_DOUBLE_ROUNDS)
+        CHECK_ADD(double, one, DBL_EPSILON, "double");
+    if (TEST_LONG_DOUBLE_ROUNDS)
+        CHECK_ADD(long double, onel, LDBL_EPSILON, "long double");
+    check(rintf((float)half) == (float)rint_pos[m] && lrintf((float)-half) == (long)rint_neg[m],
+          "rintf, lrintf");
+    if (TEST_LONG_DOUBLE_ROUNDS)
+        check(rintl((long double)half) == (long double)rint_pos[m]
+                  && llrintl((long double)-half) == (long long)rint_neg[m],
+              "rintl, llrintl");
+
+    /* round and lround don't */
+    check(round(half) == 3.0 && lround(-half) == -3, "round");
+
+    /* The rest is double, which may be done in software ignoring the mode */
+    if (!TEST_DOUBLE_ROUNDS)
+        return;
 
     /* sqrt is correctly rounded: sqrt(2) upward and downward differ */
     {
@@ -139,14 +155,6 @@ check_mode(unsigned m)
     check(lrint(half) == (long)rint_pos[m] && lrint(-half) == (long)rint_neg[m], "lrint");
     check(llrint(half) == (long long)rint_pos[m] && llrint(-half) == (long long)rint_neg[m],
           "llrint");
-    check(rintf((float)half) == (float)rint_pos[m] && lrintf((float)-half) == (long)rint_neg[m],
-          "rintf, lrintf");
-    check(rintl((long double)half) == (long double)rint_pos[m]
-              && llrintl((long double)-half) == (long long)rint_neg[m],
-          "rintl, llrintl");
-
-    /* round and lround don't */
-    check(round(half) == 3.0 && lround(-half) == -3, "round");
 }
 
 int
@@ -176,27 +184,32 @@ main(void)
           "feraiseexcept all five");
     feclearexcept(FE_ALL_EXCEPT);
 
-    /* The arithmetic raises the flags */
-    {
-        volatile double v;
+    /* The arithmetic raises the flags, for each type that raises them */
+#define CHECK_RAISE(T, o, z, th, MAX, MIN, what)                                         \
+    do {                                                                                 \
+        volatile T v;                                                                    \
+        v = o / z;                                                                       \
+        check(fetestexcept(ALL_FIVE) == FE_DIVBYZERO, what " 1/0");                      \
+        feclearexcept(FE_ALL_EXCEPT);                                                    \
+        v = z / z;                                                                       \
+        check(fetestexcept(ALL_FIVE) == FE_INVALID, what " 0/0");                        \
+        feclearexcept(FE_ALL_EXCEPT);                                                    \
+        v = o / th;                                                                      \
+        check(fetestexcept(ALL_FIVE) == FE_INEXACT, what " 1/3");                        \
+        feclearexcept(FE_ALL_EXCEPT);                                                    \
+        v = MAX * th;                                                                    \
+        check(fetestexcept(ALL_FIVE) == (FE_OVERFLOW | FE_INEXACT), what " overflow");   \
+        feclearexcept(FE_ALL_EXCEPT);                                                    \
+        v = MIN / th;                                                                    \
+        check(fetestexcept(ALL_FIVE) == (FE_UNDERFLOW | FE_INEXACT), what " underflow"); \
+        feclearexcept(FE_ALL_EXCEPT);                                                    \
+        (void)v;                                                                         \
+    } while (0)
 
-        v = one / zero;
-        check(fetestexcept(ALL_FIVE) == FE_DIVBYZERO, "1/0");
-        feclearexcept(FE_ALL_EXCEPT);
-        v = zero / zero;
-        check(fetestexcept(ALL_FIVE) == FE_INVALID, "0/0");
-        feclearexcept(FE_ALL_EXCEPT);
-        v = one / three;
-        check(fetestexcept(ALL_FIVE) == FE_INEXACT, "1/3");
-        feclearexcept(FE_ALL_EXCEPT);
-        v = DBL_MAX * three;
-        check(fetestexcept(ALL_FIVE) == (FE_OVERFLOW | FE_INEXACT), "overflow");
-        feclearexcept(FE_ALL_EXCEPT);
-        v = DBL_MIN / three;
-        check(fetestexcept(ALL_FIVE) == (FE_UNDERFLOW | FE_INEXACT), "underflow");
-        feclearexcept(FE_ALL_EXCEPT);
-        (void)v;
-    }
+    if (TEST_FLOAT_RAISES)
+        CHECK_RAISE(float, onef, zerof, threef, FLT_MAX, FLT_MIN, "float");
+    if (TEST_DOUBLE_RAISES)
+        CHECK_RAISE(double, one, zero, three, DBL_MAX, DBL_MIN, "double");
 
     /* fegetexceptflag and fesetexceptflag */
     feraiseexcept(FE_OVERFLOW | FE_INEXACT);
@@ -256,9 +269,9 @@ main(void)
     check(fegetround() == FE_TOWARDZERO, "feholdexcept keeps the mode");
     {
         /* In non-stop mode an exception doesn't trap */
-        volatile double v = one / zero;
+        volatile float v = onef / zerof;
 
-        check(v == HUGE_VAL && fetestexcept(FE_DIVBYZERO), "non-stop 1/0");
+        check(v == HUGE_VALF && fetestexcept(FE_DIVBYZERO), "non-stop 1/0");
     }
     fesetround(FE_UPWARD);
 

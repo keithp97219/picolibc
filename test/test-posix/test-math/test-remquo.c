@@ -38,6 +38,7 @@
 
 #include <errno.h>
 #include <fenv.h>
+#include "../test-fp-env.h"
 #include <float.h>
 #include <limits.h>
 #include <stdio.h>
@@ -87,7 +88,7 @@
 
 #define ERROR_EXCEPTS (FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW | FE_UNDERFLOW)
 
-static int got_errno, got_except;
+static int got_errno, got_except, got_raises;
 
 #define CALLT(expr)                               \
     do {                                          \
@@ -95,6 +96,7 @@ static int got_errno, got_except;
         feclearexcept(FE_ALL_EXCEPT);             \
         gotT = (expr);                            \
         got_except = fetestexcept(FE_ALL_EXCEPT); \
+        got_raises = TEST_RAISES((T)0);           \
         got_errno = errno;                        \
     } while (0)
 
@@ -104,6 +106,7 @@ static int got_errno, got_except;
         feclearexcept(FE_ALL_EXCEPT);             \
         var = (expr);                             \
         got_except = fetestexcept(FE_ALL_EXCEPT); \
+        got_raises = TEST_RAISES((T)0);           \
         got_errno = errno;                        \
     } while (0)
 
@@ -117,7 +120,8 @@ may_error(const char *what, int err, int except)
         printf("%s: errno %d, expected 0 or %d\n", what, got_errno, err);
         ok = 0;
     }
-    if ((math_errhandling & MATH_ERREXCEPT) && (got_except & ERROR_EXCEPTS & ~except) != 0) {
+    if ((math_errhandling & MATH_ERREXCEPT) && got_raises
+        && (got_except & ERROR_EXCEPTS & ~except) != 0) {
         printf("%s: exceptions 0x%x, expected only 0x%x\n", what, got_except, except);
         ok = 0;
     }
@@ -141,7 +145,8 @@ must_error(const char *what, int err, int except)
         printf("%s: errno %d, expected %d\n", what, got_errno, err);
         ok = 0;
     }
-    if ((math_errhandling & MATH_ERREXCEPT) && (got_except & ERROR_EXCEPTS) != except) {
+    if ((math_errhandling & MATH_ERREXCEPT) && got_raises
+        && (got_except & ERROR_EXCEPTS) != except) {
         printf("%s: exceptions 0x%x, expected 0x%x\n", what, got_except, except);
         ok = 0;
     }
@@ -220,9 +225,10 @@ main(void)
     for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
         if (fesetround(modes[i]) != 0)
             continue;
-        test_type(modes[i]);
-        test_typef(modes[i]);
-        test_typel(modes[i]);
+        /* A type that ignores the mode rounds to nearest */
+        test_type(TEST_DOUBLE_ROUNDS ? modes[i] : FE_TONEAREST);
+        test_typef(TEST_FLOAT_ROUNDS ? modes[i] : FE_TONEAREST);
+        test_typel(TEST_LONG_DOUBLE_ROUNDS ? modes[i] : FE_TONEAREST);
     }
     fesetround(FE_TONEAREST);
     printf("success\n");

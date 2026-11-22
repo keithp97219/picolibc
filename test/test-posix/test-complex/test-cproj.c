@@ -37,6 +37,7 @@
 #include <complex.h>
 
 #include <fenv.h>
+#include "../test-fp-env.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -219,12 +220,12 @@ main(void)
     feclearexcept(FE_ALL_EXCEPT);
     r = clog(CMPLX(-vzero, vzero));
     check(creal(r) == -HUGE_VAL && cimag(r) == pi, "clog(-0 + 0i)");
-    if (math_errhandling & MATH_ERREXCEPT)
+    if ((math_errhandling & MATH_ERREXCEPT) && TEST_DOUBLE_RAISES)
         check(fetestexcept(FE_DIVBYZERO), "clog(-0 + 0i) raises divide-by-zero");
     feclearexcept(FE_ALL_EXCEPT);
     r = clog(CMPLX(vzero, -vzero));
     check(creal(r) == -HUGE_VAL && same(cimag(r), -0.0), "clog(+0 - 0i)");
-    if (math_errhandling & MATH_ERREXCEPT)
+    if ((math_errhandling & MATH_ERREXCEPT) && TEST_DOUBLE_RAISES)
         check(fetestexcept(FE_DIVBYZERO), "clog(+0 - 0i) raises divide-by-zero");
     r = clog(CMPLX(-vone, -vzero));
     check(same(creal(r), 0.0) && cimag(r) == -pi, "clog(-1 - 0i)");

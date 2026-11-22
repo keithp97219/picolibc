@@ -235,6 +235,15 @@ newlib-obsolete-math provides the default value for the
 newlib-obsolete-math-float and newlib-obsolete-math-double parameters;
 those control the compilation of the individual functions.
 
+On Arm cores with a single-precision FPU, double and long double
+arithmetic is done by libgcc's soft-float code, which neither raises
+exceptions nor follows the rounding mode; that's GCC's long-standing
+choice for Arm. float arithmetic uses the FPU, so math_errhandling
+still includes MATH_ERREXCEPT, but only float functions raise
+exceptions or round in the current mode. `<fenv.h>` says so for each
+type by defining `__DOUBLE_NOEXCEPT`, `__DOUBLE_NOROUND`,
+`__LONG_DOUBLE_NOEXCEPT` and `__LONG_DOUBLE_NOROUND`.
+
 ## Building for embedded RISC-V and ARM systems
 
 Meson sticks all of the cross-compilation build configuration bits in
