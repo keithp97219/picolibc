@@ -1126,6 +1126,10 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define __PICOLIBC_POSIX_MULTI_CONCURRENT_LOCALES 202405L
 #define __PICOLIBC_XSI_MATH                       202405L
 #define __PICOLIBC_XSI_WIDE_CHAR                  202405L
+/*
+ * Not C_LANG_ATOMICS: for objects without lock-free access, compilers
+ * call libatomic's __atomic_load and the like, which picolibc lacks
+ */
 
 /*
  * Options picolibc provides, or builds on what the system provides.
