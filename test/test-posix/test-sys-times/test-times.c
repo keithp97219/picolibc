@@ -36,6 +36,7 @@
 #define _POSIX_C_SOURCE 202405L
 #include <sys/times.h>
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* struct tms and its clock_t members */
 static struct tms tms_ __attribute__((unused));
@@ -45,7 +46,7 @@ _Static_assert(_Generic(tms_.tms_cutime, clock_t: 1, default: 0), "tms_cutime");
 _Static_assert(_Generic(tms_.tms_cstime, clock_t: 1, default: 0), "tms_cstime");
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_TIMERS > 0
+#if TEST_POSIX_TIMERS
 
 #include <stdio.h>
 #include <stdlib.h>

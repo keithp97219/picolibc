@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* getitimer and setitimer are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SIGNALS) && defined(__PICOLIBC_XSI_SIGNALS)
+#if TEST_POSIX_SIGNALS && TEST_XSI_SIGNALS
 
 #include <errno.h>
 #include <signal.h>
