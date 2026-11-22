@@ -36,6 +36,8 @@
 #define _POSIX_C_SOURCE 202405L
 /* posix_openpt, grantpt, unlockpt and ptsname are XSI interfaces */
 #define _XOPEN_SOURCE 800
+/* setitimer, which POSIX.1-2024 removed */
+#define _DEFAULT_SOURCE
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */

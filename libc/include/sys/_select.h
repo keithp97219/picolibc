@@ -71,8 +71,8 @@ typedef struct fd_set {
 #define FD_SET(n, p)   ((p)->__fds_bits[(n) / __NFDBITS] |= __fdset_mask(n))
 #define FD_ZERO(p)                                  \
     do {                                            \
-        fd_set  *__p = (p);                         \
-        __size_t __i;                               \
+        fd_set           *__p = (p);                \
+        __picolibc_size_t __i;                      \
         for (__i = 0; __i < __FD_ARRAY_SIZE; __i++) \
             __p->__fds_bits[__i] = 0;               \
     } while (0)

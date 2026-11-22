@@ -130,7 +130,7 @@ typedef __blksize_t blksize_t;
 #endif
 
 #ifndef _RECLEN_T_DECLARED
-typedef __size_t reclen_t;
+typedef __picolibc_size_t reclen_t;
 #define _RECLEN_T_DECLARED
 #endif
 
@@ -170,6 +170,9 @@ typedef char         *addr_t;
 typedef unsigned long vm_offset_t;
 typedef unsigned long vm_size_t;
 #endif /* __i386__ && (GO32 || __MSDOS__) */
+
+#define __need_size_t
+#include <stddef.h>
 
 #ifndef _SSIZE_T_DECLARED
 typedef __ssize_t ssize_t;
@@ -274,7 +277,7 @@ typedef __int64_t sbintime_t;
  */
 #if defined(__has_include)
 #if __has_include(<sys/_pthread.h>)
-#include <sys/_pthread.h>
+#include <sys/_pthreadtypes.h>
 #endif
 #endif
 
@@ -282,8 +285,15 @@ typedef __int64_t sbintime_t;
 
 #undef __need_inttypes
 
+/*
+ * POSIX doesn't let <sys/types.h> define <stdint.h>'s macros or its
+ * least and fast types; <sys/_stdint.h> above has the exact-width
+ * ones. Keep the rest where BSD and Linux code may expect it.
+ */
+#if __MISC_VISIBLE
 #include <stdint.h>
-#define __Long  int32_t
-#define __ULong uint32_t
+#endif
+#define __Long  __int32_t
+#define __ULong __uint32_t
 
 #endif /* _SYS_TYPES_H */

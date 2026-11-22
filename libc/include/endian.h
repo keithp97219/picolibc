@@ -38,8 +38,9 @@
 
 /*
  * POSIX.1-2024 <endian.h>. The conversions are in <machine/endian.h>,
- * which other headers include as well, so the names only <endian.h>
- * must define are defined here.
+ * which other headers include as well; it defines them when it sees
+ * _ENDIAN_H_ (or for BSD code), and the names only <endian.h> must
+ * define are defined here.
  */
 #include <machine/endian.h>
 

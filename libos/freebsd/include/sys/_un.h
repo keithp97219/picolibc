@@ -38,7 +38,17 @@
 #ifndef _SYS__UN_H_
 #define _SYS__UN_H_
 
-#include <sys/_socket.h>
+/*
+ * Only sa_family_t from <sys/_socket.h>: <sys/un.h> may not define the
+ * rest of <sys/socket.h>
+ */
+#include <sys/cdefs.h>
+#include <sys/_types.h>
+
+#ifndef _SA_FAMILY_T_DECLARED
+#define _SA_FAMILY_T_DECLARED
+typedef __uint8_t sa_family_t;
+#endif
 
 struct sockaddr_un {
     unsigned char sun_len;

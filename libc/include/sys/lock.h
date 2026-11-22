@@ -65,7 +65,7 @@ _END_STD_C
  */
 _BEGIN_STD_C
 unsigned long __retarget_atomic_irq_save(void);
-void          __retarget_atomic_irq_restore(unsigned long state);
+void          __retarget_atomic_irq_restore(unsigned long __state);
 _END_STD_C
 
 #define __LIBC_LOCK()   __lock_acquire_recursive(&__lock___libc_recursive_mutex)

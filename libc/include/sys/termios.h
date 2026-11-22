@@ -73,7 +73,9 @@ struct termios {
     speed_t  c_ospeed;
 };
 
+#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
 #include <sys/_winsize.h>
+#endif
 
 #define BRKINT    0x0001
 #define ICRNL     0x0002
@@ -208,10 +210,13 @@ int     tcflow(int, int);
 int     tcflush(int, int);
 int     tcgetattr(int, struct termios *);
 __pid_t tcgetsid(int);
-int     tcgetwinsize(int, struct winsize *);
 int     tcsendbreak(int, int);
 int     tcsetattr(int, int, const struct termios *);
-int     tcsetwinsize(int, const struct winsize *);
+
+#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
+int tcgetwinsize(int, struct winsize *);
+int tcsetwinsize(int, const struct winsize *);
+#endif
 
 #if __BSD_VISIBLE
 int cfsetspeed(struct termios *, speed_t);

@@ -34,6 +34,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #define _POSIX_C_SOURCE 202405L
+/* gettimeofday, which POSIX.1-2024 removed */
+#define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

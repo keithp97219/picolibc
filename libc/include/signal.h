@@ -34,11 +34,8 @@ SUCH DAMAGE.
 #define _SIGNAL_H_
 
 #include <sys/cdefs.h>
-#define __need_size_t
-#include <stddef.h>
 #include <sys/_types.h>
 #include <sys/_sigset.h>
-#include <sys/_timespec.h>
 
 _BEGIN_STD_C
 
@@ -51,6 +48,10 @@ typedef void (*_sig_func_ptr)(int);
 #define SIG_ERR ((_sig_func_ptr) - 1) /* Error return */
 
 #if __POSIX_VISIBLE
+
+#define __need_size_t
+#include <stddef.h>
+#include <sys/_timespec.h>
 
 #ifndef _PID_T_DECLARED
 typedef __pid_t pid_t; /* process id */
@@ -170,7 +171,7 @@ struct sigaction {
 /*
  * Structure used in sigaltstack call.
  */
-typedef struct sigaltstack {
+typedef struct __sigaltstack {
     void  *ss_sp;    /* Stack base or pointer.  */
     int    ss_flags; /* Flags.  */
     size_t ss_size;  /* Stack size.  */
@@ -217,7 +218,7 @@ typedef struct __ucontext {
 /* pthread_t and pthread_attr_t, when there are threads */
 #if defined(__has_include)
 #if __has_include(<sys/_pthread.h>)
-#include <sys/_pthread.h>
+#include <sys/_pthreadtypes.h>
 #define __SIGEV_ATTR_TYPE pthread_attr_t
 #endif
 #endif
@@ -316,10 +317,10 @@ typedef _sig_func_ptr sighandler_t; /* glibc naming */
 #endif
 
 #if __POSIX_VISIBLE
-int kill(__pid_t pid, int sig) __picolibc_export;
+int kill(__pid_t __pid, int __sig) __picolibc_export;
 #endif
 #if __XSI_VISIBLE >= 500 || __GNU_VISIBLE || __BSD_VISIBLE
-int killpg(__pid_t pid, int sig) __picolibc_export;
+int killpg(__pid_t __pid, int __sig) __picolibc_export;
 #endif
 #if __POSIX_VISIBLE >= 200809L
 void psiginfo(const siginfo_t *, const char *) __picolibc_export;
@@ -341,9 +342,9 @@ int __fallback_sigaction(int, const struct sigaction * __restrict, struct sigact
 int sigaddset(sigset_t *, const int) __picolibc_export;
 
 static __inline int
-__sigaddset(sigset_t *what, int sig)
+__sigaddset(sigset_t *__what, int __sig)
 {
-    *what |= (sigset_t)1 << sig;
+    *__what |= (sigset_t)1 << __sig;
     return 0;
 }
 
@@ -358,9 +359,9 @@ int sigaltstack(const stack_t * __restrict, stack_t * __restrict) __picolibc_exp
 int sigdelset(sigset_t *, const int) __nonnull((1)) __picolibc_export;
 
 static __inline int
-__sigdelset(sigset_t *what, int sig)
+__sigdelset(sigset_t *__what, int __sig)
 {
-    *what &= ~((sigset_t)1 << sig);
+    *__what &= ~((sigset_t)1 << __sig);
     return 0;
 }
 
@@ -369,9 +370,9 @@ __sigdelset(sigset_t *what, int sig)
 int sigemptyset(sigset_t *) __nonnull((1)) __picolibc_export;
 
 static __inline int
-__sigemptyset(sigset_t *what)
+__sigemptyset(sigset_t *__what)
 {
-    *what = 0;
+    *__what = 0;
     return 0;
 }
 
@@ -380,9 +381,9 @@ __sigemptyset(sigset_t *what)
 int sigfillset(sigset_t *) __nonnull((1)) __picolibc_export;
 
 static __inline int
-__sigfillset(sigset_t *what)
+__sigfillset(sigset_t *__what)
 {
-    *what = ~(sigset_t)0;
+    *__what = ~(sigset_t)0;
     return 0;
 }
 
@@ -391,9 +392,9 @@ __sigfillset(sigset_t *what)
 int sigismember(const sigset_t *, int) __nonnull((1)) __picolibc_export;
 
 static __inline int
-__sigismember(const sigset_t *what, int sig)
+__sigismember(const sigset_t *__what, int __sig)
 {
-    return (*(what) >> sig) & 1;
+    return (*(__what) >> __sig) & 1;
 }
 
 #define sigismember(what, sig) __sigismember(what, sig)
@@ -408,7 +409,7 @@ int __fallback_sigprocmask(int, const sigset_t *, sigset_t *) __picolibc_export;
 #endif
 #if __POSIX_VISIBLE >= 199506L && defined(__has_include)
 #if __has_include(<sys/_pthread.h>)
-#include <sys/_pthread.h>
+#include <sys/_pthreadtypes.h>
 int pthread_kill(pthread_t, int) __picolibc_export;
 int pthread_sigmask(int, const sigset_t * __restrict, sigset_t * __restrict) __picolibc_export;
 #endif

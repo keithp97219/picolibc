@@ -47,28 +47,19 @@ SUCH DAMAGE.
 #ifndef _SYS__TYPES_H
 #define _SYS__TYPES_H
 
-#define __need_size_t
-#define __need_wint_t
-#include <stddef.h>
-
 /*
- * <stddef.h> needn't honor __need_wint_t (gnulib's replacement
- * doesn't), so define wint_t here too, using the guard GCC and
- * clang use for it
+ * Only reserved names here: <sys/_types.h> is included by most headers,
+ * and size_t and wint_t belong to those the standards name. Headers
+ * that define them get them from <stddef.h> (or define wint_t as
+ * <wchar.h> does).
  */
-#ifndef _WINT_T
-#define _WINT_T
-typedef __WINT_TYPE__ wint_t;
+#ifdef __WINT_TYPE__
+typedef __WINT_TYPE__ __wint_t;
+#else
+typedef unsigned int __wint_t;
 #endif
 
 #include <machine/_types.h>
-
-/* The Arm Compiler doesn't define wint_t as part of stddef.h so
- * define it here.
- */
-#if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6100100)
-typedef __WINT_TYPE__ wint_t;
-#endif
 
 #ifndef __machine_blkcnt_t_defined
 typedef __int64_t __blkcnt_t;
@@ -131,17 +122,18 @@ typedef __off_t __fpos_t;
 typedef __uint64_t __rlim_t;
 #endif
 
-/* Defined by GCC provided <stddef.h> */
-#undef __size_t
-
+/*
+ * Not __size_t: GCC's <stddef.h> defines that as an empty macro when
+ * it defines size_t
+ */
 #ifndef __machine_size_t_defined
 #ifdef __SIZE_TYPE__
-typedef __SIZE_TYPE__ __size_t;
+typedef __SIZE_TYPE__ __picolibc_size_t;
 #else
 #if defined(__INT_MAX__) && __INT_MAX__ == 2147483647
-typedef unsigned int __size_t;
+typedef unsigned int __picolibc_size_t;
 #else
-typedef unsigned long __size_t;
+typedef unsigned long __picolibc_size_t;
 #endif
 #endif
 #endif
@@ -161,8 +153,8 @@ typedef __SIZE_TYPE__ __ssize_t;
 /* Guarded because this header is also parsed as C++ and as pre-C11 C, where
    _Static_assert is not accepted. */
 #if defined(__SIZE_MAX__) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-_Static_assert((__size_t)__SSIZE_MAX__ == (__SIZE_MAX__ >> 1),
-               "__SSIZE_MAX__ must be the top half of the __size_t range");
+_Static_assert((__picolibc_size_t)__SSIZE_MAX__ == (__SIZE_MAX__ >> 1),
+               "__SSIZE_MAX__ must be the top half of the size_t range");
 #endif
 #else
 #if defined(__INT_MAX__) && __INT_MAX__ == 2147483647
@@ -191,7 +183,7 @@ typedef long __ssize_t;
 typedef struct {
     int __count;
     union {
-        wint_t        __wch;
+        __wint_t      __wch;
         unsigned char __wchb[4];
         __uint32_t    __ucs;
         __uint16_t    __ucs2;
@@ -249,9 +241,9 @@ typedef __uint32_t __useconds_t;  /* microseconds (unsigned) */
 #endif
 #endif
 
-typedef __size_t   __rsize_t;
-typedef int        __errno_t;
-typedef __uint16_t __wctype_t;
+typedef __picolibc_size_t __rsize_t;
+typedef int               __errno_t;
+typedef __uint16_t        __wctype_t;
 
 #define __NAME_MAX 255
 

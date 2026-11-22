@@ -39,7 +39,10 @@
 #include <sys/cdefs.h>
 #include <sys/_types.h>
 #include <sys/_sigset.h>
+/* For ppoll, new in POSIX.1-2024 */
+#if __POSIX_VISIBLE >= 202405 || __GNU_VISIBLE
 #include <sys/_timespec.h>
+#endif
 
 #if !defined(_SIGSET_T_DECLARED)
 #define _SIGSET_T_DECLARED
@@ -54,7 +57,7 @@ struct pollfd {
     short revents;
 };
 
-typedef __size_t nfds_t;
+typedef __picolibc_size_t nfds_t;
 
 #define POLLIN   0x0001
 #define POLLPRI  0x0002

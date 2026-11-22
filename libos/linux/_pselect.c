@@ -70,7 +70,7 @@ _pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
     __kernel_sigset_t          kmask;
     struct {
         const __kernel_sigset_t *ss;
-        __size_t                 ss_len;
+        __picolibc_size_t        ss_len;
     } kmask_arg = { NULL, __KERNEL_NSIG_BYTES };
     struct __kernel_fd_set  kread, kwrite, kexcept;
     struct __kernel_fd_set *pkread, *pkwrite, *pkexcept;

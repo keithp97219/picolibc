@@ -37,7 +37,6 @@
 #define _DLFCN_H
 
 #include <sys/cdefs.h>
-#include <stddef.h>
 
 /*
  * Flags for the 'mode' argument of dlopen().
@@ -69,7 +68,11 @@ typedef struct {
     void       *dli_fbase; /* Load base address of the shared object */
     const char *dli_sname; /* Name of the nearest symbol at or before addr */
     void       *dli_saddr; /* Exact address of that symbol */
-} Dl_info;
+} Dl_info_t;
+
+#if __MISC_VISIBLE
+typedef Dl_info_t Dl_info; /* The name glibc and the BSDs use */
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -86,7 +89,7 @@ extern "C" {
  * Returns an opaque handle on success, or NULL on failure.
  * Call dlerror() to retrieve the error message after a NULL return.
  */
-void *dlopen(const char *path, int mode);
+void *dlopen(const char *__path, int __mode);
 
 /*
  * dlsym() - Look up a symbol in a loaded library.
@@ -96,7 +99,7 @@ void *dlopen(const char *path, int mode);
  *
  * Returns the symbol's address, or NULL if not found.
  */
-void *dlsym(void *handle, const char *symbol);
+void *dlsym(void * __restrict __handle, const char * __restrict __symbol);
 
 /*
  * dlclose() - Unload a shared library.
@@ -106,7 +109,7 @@ void *dlsym(void *handle, const char *symbol);
  *
  * Returns 0 on success, non-zero on error.
  */
-int   dlclose(void *handle);
+int   dlclose(void *__handle);
 
 /*
  * dlerror() - Return the last dynamic linking error message.
@@ -128,7 +131,9 @@ char *dlerror(void);
  *
  * Returns non-zero on success, 0 if no matching symbol was found.
  */
-int   dladdr(const void *addr, Dl_info *info);
+#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
+int dladdr(const void * __restrict __addr, Dl_info_t * __restrict __info);
+#endif
 
 #ifdef __cplusplus
 }

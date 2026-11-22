@@ -58,6 +58,7 @@ inc_sys_headers_all = [
   'msg.h',
   '_open_flags.h',
   '_os.h',
+  '_pthreadtypes.h',
   'param.h',
   'queue.h',
   'random.h',
@@ -128,6 +129,12 @@ if enable_cdefs_tests
       test('check-wundef-sys-' + header,
            check_wundef,
            args: [meson.current_source_dir() / header] + cc.cmd_array() + c_args + inc_args,
+           suite: 'headers')
+    endif
+    if 'sys/' + header in namespace_headers
+      test('check-namespace-sys-' + header,
+           check_namespace,
+           args: check_namespace_args + ['sys/' + header] + cc.cmd_array() + c_args + inc_args,
            suite: 'headers')
     endif
   endforeach

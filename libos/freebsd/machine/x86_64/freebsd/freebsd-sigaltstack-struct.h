@@ -37,10 +37,10 @@
 #define _FREEBSD_SIGALTSTACK_STRUCT_H_
 
 struct __freebsd_sigaltstack {
-    void     *ss_sp;
-    __size_t  ss_size;
-    int       ss_flags;
-    __uint8_t __adjust_20[4];
+    void             *ss_sp;
+    __picolibc_size_t ss_size;
+    int               ss_flags;
+    __uint8_t         __adjust_20[4];
 };
 
 _Static_assert(sizeof(struct __freebsd_sigaltstack) == 24, "stack_t size");

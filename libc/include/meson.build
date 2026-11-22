@@ -168,5 +168,11 @@ if enable_cdefs_tests
            args: [meson.current_source_dir() / header] + cc.cmd_array() + c_args + inc_args,
            suite: 'headers')
     endif
+    if header in namespace_headers
+      test('check-namespace-' + header,
+           check_namespace,
+           args: check_namespace_args + [header] + cc.cmd_array() + c_args + inc_args,
+           suite: 'headers')
+    endif
   endforeach
 endif

@@ -34,8 +34,9 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-/* getitimer and setitimer are XSI interfaces */
+/* getitimer and setitimer, XSI interfaces POSIX.1-2024 removed */
 #define _XOPEN_SOURCE 800
+#define _DEFAULT_SOURCE
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */

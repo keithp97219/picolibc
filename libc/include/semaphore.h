@@ -50,6 +50,11 @@
 
 _BEGIN_STD_C
 
+#ifndef _SEM_T_DECLARED
+typedef __sem_t sem_t;
+#define _SEM_T_DECLARED
+#endif
+
 #define SEM_FAILED ((sem_t *)0)
 
 int    sem_init(sem_t *, int, unsigned) __picolibc_export;

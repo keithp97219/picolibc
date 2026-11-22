@@ -59,5 +59,11 @@ if enable_cdefs_tests
            args: [meson.current_source_dir() / header] + cc.cmd_array() + c_args + inc_args,
            suite: 'headers')
     endif
+    if 'netinet/' + header in namespace_headers
+      test('check-namespace-netinet-' + header,
+           check_namespace,
+           args: check_namespace_args + ['netinet/' + header] + cc.cmd_array() + c_args + inc_args,
+           suite: 'headers')
+    endif
   endforeach
 endif

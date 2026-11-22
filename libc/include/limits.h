@@ -18,7 +18,7 @@
 #define MB_LEN_MAX __MB_LEN_MAX
 
 /* Maximum number of positional arguments, if __IO_POS_ARGS.  */
-#ifndef NL_ARGMAX
+#if __POSIX_VISIBLE && !defined(NL_ARGMAX)
 #define NL_ARGMAX 32
 #endif
 

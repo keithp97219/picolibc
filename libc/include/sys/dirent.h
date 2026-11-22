@@ -47,9 +47,12 @@ typedef __ino_t ino_t; /* inode number */
 #endif
 
 #ifndef _RECLEN_T_DECLARED
-typedef __size_t reclen_t;
+typedef __picolibc_size_t reclen_t;
 #define _RECLEN_T_DECLARED
 #endif
+
+#define __need_size_t
+#include <stddef.h>
 
 #ifndef _SSIZE_T_DECLARED
 typedef __ssize_t ssize_t;
@@ -71,12 +74,12 @@ struct posix_dent {
 
 /* The members use reserved names, as applications may define macros with any others */
 typedef struct {
-    int           __dd_fd;
-    size_t        __dd_offset;
-    size_t        __dd_count;
-    struct dirent __dd_dirent;
-    __int64_t    *__dd_tell; /* telldir positions that don't fit in long */
-    size_t        __dd_ntell;
+    int               __dd_fd;
+    __picolibc_size_t __dd_offset;
+    __picolibc_size_t __dd_count;
+    struct dirent     __dd_dirent;
+    __int64_t        *__dd_tell; /* telldir positions that don't fit in long */
+    __picolibc_size_t __dd_ntell;
     union {
         char       __dd_buf[512];
         __uint64_t __dd_align;

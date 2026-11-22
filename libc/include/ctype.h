@@ -83,10 +83,13 @@ int isblank(int __c) __picolibc_export;
 #if __MISC_VISIBLE || __XSI_VISIBLE
 int isascii(int __c) __picolibc_export;
 int toascii(int __c) __picolibc_export;
+/* POSIX.1-2024 removed _tolower and _toupper */
+#if __MISC_VISIBLE || __XSI_VISIBLE < 800
 #define _tolower(__c) ((__c) + ('a' - 'A'))
 #define _toupper(__c) ((__c) - ('a' - 'A'))
-#define isascii(__c)  ((unsigned)(__c) <= 0177)
-#define toascii(__c)  ((__c) & 0177)
+#endif
+#define isascii(__c) ((unsigned)(__c) <= 0177)
+#define toascii(__c) ((__c) & 0177)
 #endif
 
 #if __POSIX_VISIBLE >= 200809
@@ -304,7 +307,12 @@ toupper_l(int __c, locale_t __l)
 extern __picolibc_export const char  _ctype_b[];
 extern __picolibc_export const short _ctype_wide[];
 
-#define _ctype_       (_ctype_b + _CTYPE_OFFSET)
+#define __CTYPE_TABLE (_ctype_b + _CTYPE_OFFSET)
+
+/* The old name, which libstdc++ uses */
+#if __MISC_VISIBLE || defined(__cplusplus)
+#define _ctype_ __CTYPE_TABLE
+#endif
 
 #define __CTYPE_UPPER 0x001 /* upper */
 #define __CTYPE_LOWER 0x002 /* lower */
@@ -332,7 +340,7 @@ extern __picolibc_export const short _ctype_wide[];
 const char *__locale_ctype_ptr(void) __picolibc_export;
 #define __CTYPE_PTR __locale_ctype_ptr()
 #else
-#define __CTYPE_PTR _ctype_
+#define __CTYPE_PTR __CTYPE_TABLE
 #endif
 
 #ifndef __cplusplus
@@ -368,7 +376,7 @@ isblank(int __c)
 const char *__locale_ctype_ptr_l(locale_t) __picolibc_export;
 #define __CTYPE_PTR_L(__l) __locale_ctype_ptr_l(__l)
 #else
-#define __CTYPE_PTR_L(__l) ((void)(__l), _ctype_)
+#define __CTYPE_PTR_L(__l) ((void)(__l), __CTYPE_TABLE)
 #endif
 
 #define __ctype_lookup_l(__c, __l) ((__CTYPE_PTR_L(__l) + 1)[(int)(__c)])
