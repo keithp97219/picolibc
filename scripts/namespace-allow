@@ -1,0 +1,14 @@
+# Names scripts/check-namespace accepts although the standards don't
+# give them to the header: '<header|*> <mode|*> <regex>'. Each is a
+# deliberate choice; say why.
+
+# picolibc's stdio hooks: an application defines stdin, stdout and
+# stderr with these, often in a strict ISO C compilation
+stdio.h * FDEV_SETUP_STREAM|FDEV_SETUP_CLOSE|FDEV_SETUP_EXT|fdevopen|fdev_close
+
+# picolibc's float printf variant needs this for float arguments
+stdio.h * printf_float
+
+# struct __file's members, which the hooks initialize and OS layers
+# and applications implementing their own streams use by name
+stdio.h * unget|flags|put|get|flush|lock|file|close|cfile|seek

@@ -1,0 +1,435 @@
+#!/usr/bin/env python3
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Copyright © 2026 Keith Packard
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above
+#    copyright notice, this list of conditions and the following
+#    disclaimer in the documentation and/or other materials provided
+#    with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+"""Check that a standard header defines only names the standards allow.
+
+usage: check-namespace [--names FILE] [--allow FILE] [--verbose]
+                       <header> <compiler> [args...]
+
+<header> is the name used in '#include <header>', e.g. sys/types.h.
+The header is preprocessed in each strict compilation that applies to
+it (ISO C11 and C23 with no feature test macros, POSIX.1-2008 and
+POSIX.1-2024 with and without XSI) and every macro it defines and
+every identifier in what it declares, structure members and
+parameter names included, is compared against
+
+ - the names the standards list for that header (--names, made by
+   gen-namespace-names from the POSIX header and function pages and
+   C23's Annex B), including those of the headers the standards let
+   it make visible;
+
+ - the prefixes and suffixes POSIX.1-2024 XBD 2.2.2 (and the ISO C
+   future library directions) reserve for that header, and the _t
+   suffix and posix_ prefixes in any POSIX header;
+
+ - identifiers reserved to the implementation (__x, _X), and _x in
+   anything but a macro name;
+
+ - the allow-list (--allow), for names deliberately kept.
+
+Any other name is reported and the check fails. Headers the standards
+don't describe pass.
+"""
+
+import re
+import subprocess
+import sys
+
+C_HEADERS = {
+    "assert.h", "complex.h", "ctype.h", "errno.h", "fenv.h", "float.h",
+    "inttypes.h", "iso646.h", "limits.h", "locale.h", "math.h",
+    "setjmp.h", "signal.h", "stdalign.h", "stdarg.h", "stdatomic.h",
+    "stdbit.h", "stdbool.h", "stdckdint.h", "stddef.h", "stdint.h", "stdio.h", "stdlib.h",
+    "stdnoreturn.h", "string.h", "tgmath.h", "threads.h", "time.h",
+    "uchar.h", "wchar.h", "wctype.h",
+}
+
+# Each mode: (name, compiler flags, ISO C version, POSIX revision or
+# None for plain ISO C, whether XSI is enabled)
+MODES = [
+    ("c11", ["-std=c11"], "c11", None, False),
+    ("c23", ["-std=c2x"], "c23", None, False),
+    ("posix2008", ["-std=c11", "-D_POSIX_C_SOURCE=200809L"], "c11", "2017", False),
+    ("posix2024", ["-std=c17", "-D_POSIX_C_SOURCE=202405L"], "c11", "2024", False),
+    ("xsi700", ["-std=c11", "-D_XOPEN_SOURCE=700"], "c11", "2017", True),
+    ("xsi800", ["-std=c17", "-D_XOPEN_SOURCE=800"], "c11", "2024", True),
+]
+
+C_KEYWORDS = set("""
+auto break case char const continue default do double else enum extern
+float for goto if inline int long register restrict return short signed
+sizeof static struct switch typedef union unsigned void volatile while
+_Alignas _Alignof _Atomic _Bool _Complex _Generic _Imaginary _Noreturn
+_Static_assert _Thread_local asm typeof alignas alignof bool false true
+nullptr static_assert thread_local constexpr typeof_unqual _BitInt
+_Decimal32 _Decimal64 _Decimal128
+""".split())
+
+# POSIX.1-2024 XBD 2.2.2: reserved prefixes, suffixes and complete
+# names per header. Entries are regular expressions matched against
+# the whole name. 'c' marks rows that the ISO C standard reserves too;
+# the others apply only in POSIX modes. 'x' marks XSI-only rows.
+RESERVED = {
+    "aio.h": [("", r"(aio_|lio_|AIO_|LIO_).*")],
+    "arpa/inet.h": [("", r"inet_.*")],
+    "complex.h": [("c", r"c(erf|erfc|exp2|expm1|log10|log1p|log2|lgamma|tgamma)[fl]?")],
+    "ctype.h": [("c", r"(to|is)[a-z].*")],
+    "dlfcn.h": [("", r"(RTLD_|dli_).*")],
+    "dirent.h": [("", r"(d_|DT_).*")],
+    "endian.h": [("", r".*_ENDIAN")],
+    "errno.h": [("c", r"E[0-9A-Z].*")],
+    "fcntl.h": [("", r"(l_|F_|O_).*")],
+    "fenv.h": [("c", r"FE_[A-Z].*")],
+    "fmtmsg.h": [("x", r"MM_.*")],
+    "fnmatch.h": [("", r"FNM_.*")],
+    "ftw.h": [("x", r"FTW.*")],
+    "glob.h": [("", r"(gl_|GLOB_).*")],
+    "grp.h": [("", r"gr_.*")],
+    "inttypes.h": [("c", r"(PRI|SCN)[Xa-z].*")],
+    "libintl.h": [("", r"TEXTDOMAINMAX")],
+    "limits.h": [("", r".*(_MAX|_MIN)")],
+    "locale.h": [("c", r"LC_[A-Z].*")],
+    "math.h": [("x", r"M_.*"), ("c", r"FP_[A-Z].*")],
+    "mqueue.h": [("", r"(mq_|MQ_).*")],
+    "ndbm.h": [("x", r"(dbm_|DBM_).*")],
+    "netdb.h": [("", r"(ai_|h_|n_|p_|s_).*")],
+    "net/if.h": [("", r"(if_|IF_).*")],
+    "netinet/in.h": [("", r"(in_|ip_|s_|sin_|INADDR_|IPPROTO_|in6_|in6addr_|s6_|sin6_|IPV6_"
+                      r"|IMPLINK_|IN_|IP_|IPPORT_|SOCK_|IN6_).*")],
+    "netinet/tcp.h": [("", r"TCP_.*")],
+    "nl_types.h": [("", r"NL_.*")],
+    "poll.h": [("", r"(pd_|ph_|ps_|POLL).*")],
+    "pthread.h": [("", r"(pthread_|PTHREAD_).*")],
+    "pwd.h": [("", r"pw_.*")],
+    "regex.h": [("", r"(re_|rm_|REG_).*")],
+    "sched.h": [("", r"(sched_|SCHED_).*")],
+    "semaphore.h": [("", r"(sem_|SEM_).*")],
+    "signal.h": [("", r"(sa_|si_|sigev_|sival_|uc_|BUS_|CLD_|FPE_|ILL_|SA_|SEGV_|SI_|SIGEV_).*"),
+                 ("x", r"(ss_|sv_|SS_|TRAP_|SV_).*"),
+                 ("c", r"(SIG_|SIG[A-Z]).*")],
+    "stdatomic.h": [("c", r"(atomic_[a-z]|memory_[a-z]|ATOMIC_[A-Z]).*")],
+    "stdbit.h": [("c", r"stdc_.*")],
+    "stdint.h": [("c", r"U?INT[0-9A-Za-z_]*_(MIN|MAX|C)"),
+                 ("c", r"u?int[0-9a-z_]*_t")],
+    "stdio.h": [("", r"SEEK_.*")],
+    "stdlib.h": [("c", r"str[a-z].*")],
+    "string.h": [("c", r"(str[a-z]|mem[a-z]|wcs[a-z]).*")],
+    "sys/ipc.h": [("x", r"(ipc_|IPC_).*|key|pad|seq")],
+    "sys/mman.h": [("", r"(shm_|MAP_|MCL_|MS_|PROT_).*")],
+    "sys/msg.h": [("x", r"(msg|MSG_[A-Z]).*")],
+    "sys/resource.h": [("x", r"(rlim_|ru_|PRIO_|RLIMIT_|RUSAGE_|RLIM_).*")],
+    "sys/select.h": [("", r"(fd_|fds_|FD_).*")],
+    "sys/sem.h": [("x", r"(sem|SEM_).*")],
+    "sys/shm.h": [("x", r"(shm|SHM[A-Z]|SHM_[A-Z]).*")],
+    "sys/socket.h": [("", r"(cmsg_|if_|ifc_|ifra_|ifru_|infu_|l_|msg_|sa_|ss_"
+                      r"|AF_|MSG_|PF_|SCM_|SHUT_|SO|CMSG_).*")],
+    "sys/stat.h": [("", r"(st_|S_).*")],
+    "sys/statvfs.h": [("", r"(f_|ST_).*")],
+    "sys/time.h": [("x", r"tv_.*")],
+    "sys/times.h": [("", r"tms_.*")],
+    "sys/uio.h": [("x", r"(iov_|IOV_).*|UIO_MAXIOV")],
+    "sys/un.h": [("", r"sun_.*")],
+    "sys/utsname.h": [("", r"uts_.*")],
+    "sys/wait.h": [("", r"(P_|W[A-Z]).*")],
+    "syslog.h": [("x", r"LOG_.*")],
+    "termios.h": [("", r"(c_|B[0-9]|TC|ws_|I|O|V).*"),
+                  ("x", r"CBAUD|EXTB|VDSUSP|DEFECHO|FLUSHO|VLNEXT|ECHOCTL|LOBLK|VREPRINT"
+                        r"|ECHOKE|PENDIN|VSTATUS|ECHOPRT|SWTCH|VWERASE|EXTA|VDISCARD")],
+    "threads.h": [("c", r"(cnd_[a-z]|mtx_[a-z]|thrd_[a-z]|tss_[a-z]).*")],
+    "time.h": [("", r"(clock_|it_|timer_|tm_|tv_|CLOCK_|TIMER_).*"),
+               ("c", r"TIME_[A-Z].*")],
+    "unistd.h": [("", r"SEEK_.*")],
+    "utmpx.h": [("x", r"ut_.*|.*(_LVL|_PROCESS|_TIME)")],
+    "wchar.h": [("c", r"wcs[a-z].*")],
+    "wctype.h": [("c", r"(is|to)[a-z].*")],
+    "wordexp.h": [("", r"(we_|WRDE_).*")],
+}
+
+# Reserved in any POSIX header
+POSIX_ANY = re.compile(r"(_POSIX_|posix_|POSIX_).*|.*_t")
+IMPL = re.compile(r"__.*|_[A-Z].*")
+UNDERSCORE = re.compile(r"_[a-z0-9].*")
+IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+GENERIC = re.compile(r"(?:(?<=INT)|(?<=int)|(?<=AST)|(?<=ast)|(?<=PRI[a-zA-Z])|(?<=SCN[a-zA-Z]))N(?=_|$)")
+
+
+def load_names(path):
+    """Read the per-header name list: '[header]' starts a header,
+    '@include REV h...' lists headers whose symbols this one may make
+    visible, and 'name C P2017 P2024' gives a name with 'c' in C when
+    ISO C defines it and, for each POSIX revision, '-' when absent, '.'
+    when in the base, or the margin codes that shade it (codes joined
+    by '+', alternative shadings by '|')."""
+    headers = {}
+    cur = None
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("["):
+                cur = headers.setdefault(line[1:-1], {"names": {}, "inc": {}})
+                continue
+            w = line.split()
+            if w[0] == "@include":
+                cur["inc"][w[1]] = w[2:]
+            elif w[0] == "@header":
+                cur.setdefault("hdr", {})[w[1]] = w[2]
+            else:
+                cur["names"][w[0]] = {"c11": w[1], "c23": w[2], "2017": w[3], "2024": w[4]}
+    return headers
+
+
+def load_allow(path):
+    """Allow-list lines: '<header|*> <mode|*> <regex> [# comment]'"""
+    allow = []
+    if not path:
+        return allow
+    with open(path) as f:
+        for line in f:
+            line = line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            h, m, r = line.split(None, 2)
+            allow.append((h, m, re.compile(r)))
+    return allow
+
+
+# Margin codes that don't restrict visibility in a POSIX compilation
+NEUTRAL = {"OB", "OH", "CX"}
+
+
+def code_ok(codes, rev, xsi):
+    if codes == "-":
+        return False
+    for alt in codes.split("|"):
+        if alt == ".":
+            return True
+        cs = set(alt.split("+"))
+        if xsi or not (cs - NEUTRAL) <= {"XSI"} or "XSI" not in cs:
+            return True
+    return False
+
+
+def xsi_only(ent, rev):
+    """Is the whole header XSI?"""
+    return ent.get("hdr", {}).get(rev) == "XSI"
+
+
+def allowed_names(names, header, cstd, rev, xsi, seen=None):
+    if seen is None:
+        seen = set()
+    if header in seen or header not in names:
+        return set(), []
+    seen.add(header)
+    ent = names[header]
+    # The ISO C names, which may be newer than the POSIX revision
+    out = set(n for n, c in ent["names"].items() if c[cstd] == "c")
+    pats = []
+    # ISO C's generic names, like INTN_MAX and PRIdLEASTN, stand for
+    # each width
+    for n in list(out):
+        g = GENERIC.sub("[0-9]+", n)
+        if g != n:
+            pats.append(re.compile(g))
+    if rev is not None:
+        out |= set(n for n, c in ent["names"].items() if code_ok(c[rev], rev, xsi))
+    for kind, pat in RESERVED.get(header, []):
+        if rev is None and kind != "c":
+            continue
+        if kind == "x" and not xsi:
+            continue
+        pats.append(re.compile(pat))
+    for inc in ent["inc"].get(rev or "c", []):
+        o, p = allowed_names(names, inc, cstd, rev, xsi, seen)
+        out |= o
+        pats += p
+    return out, pats
+
+
+def run(cmd, src):
+    r = subprocess.run(cmd, input=src, capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.stderr.write(" ".join(cmd) + "\n" + r.stderr)
+        sys.exit(1)
+    return r.stdout
+
+
+def macros(out):
+    ret = set()
+    for line in out.splitlines():
+        m = re.match(r"#define ([A-Za-z_][A-Za-z0-9_]*)", line)
+        if m:
+            ret.add(m.group(1))
+    return ret
+
+
+def strip_balanced(text, kw):
+    """Remove 'kw ( ... )' with balanced parentheses."""
+    out = []
+    i = 0
+    pat = re.compile(r"\b(" + kw + r")\s*\(")
+    while True:
+        m = pat.search(text, i)
+        if not m:
+            out.append(text[i:])
+            break
+        out.append(text[i:m.start()])
+        depth = 0
+        j = m.end() - 1
+        while j < len(text):
+            if text[j] == "(":
+                depth += 1
+            elif text[j] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        i = j + 1
+    return "".join(out)
+
+
+def identifiers(out):
+    """Return {name: kind} for identifiers in preprocessed output,
+    where kind is 'param' for prototype parameter names and 'decl'
+    otherwise."""
+    text = "\n".join(l for l in out.splitlines() if not l.startswith("#"))
+    text = re.sub(r'"(\\.|[^"\\])*"', " ", text)
+    text = re.sub(r"'(\\.|[^'\\])*'", " ", text)
+    text = strip_balanced(text, r"__attribute__|__attribute|__asm__|__asm|asm|__declspec"
+                          r"|_Static_assert|static_assert|__typeof__|__extension__")
+    toks = re.findall(r"[0-9][A-Za-z0-9_.]*|[A-Za-z_][A-Za-z0-9_]*|\S", text)
+    ret = {}
+    depth = 0
+    for i, t in enumerate(toks):
+        if t in "([":
+            depth += 1
+            continue
+        if t in ")]":
+            depth -= 1
+            continue
+        if not IDENT.fullmatch(t) or t in C_KEYWORDS:
+            continue
+        kind = "decl"
+        if depth > 0:
+            prev = toks[i - 1] if i else ""
+            nxt = toks[i + 1] if i + 1 < len(toks) else ""
+            if nxt in (",", ")", "[") and (prev == "*" or IDENT.fullmatch(prev)):
+                kind = "param"
+        if ret.get(t) != "decl":
+            ret[t] = kind
+    return ret
+
+
+def main():
+    args = sys.argv[1:]
+    names_file = None
+    allow_file = None
+    verbose = False
+    while args and args[0].startswith("--"):
+        a = args.pop(0)
+        if a == "--names":
+            names_file = args.pop(0)
+        elif a == "--allow":
+            allow_file = args.pop(0)
+        elif a == "--verbose":
+            verbose = True
+        else:
+            sys.exit("unknown option " + a)
+    header = args.pop(0)
+    cc = [a for a in args if a != "-D_LIBC" and not a.startswith("-D_GNU_SOURCE")
+          and not a.startswith("-D_DEFAULT_SOURCE")]
+    names = load_names(names_file) if names_file else {}
+    allow = load_allow(allow_file)
+
+    if header not in names and header not in C_HEADERS:
+        # Not a standard header, nothing to check
+        return 0
+
+    status = 0
+    for mode, flags, cstd, rev, xsi in MODES:
+        if rev is None:
+            if header not in C_HEADERS or \
+               not any(c[cstd] == "c" for c in names.get(header, {"names": {}})["names"].values()):
+                # not an ISO C header, or not one in this version
+                continue
+        if rev is not None and header in names:
+            ent = names[header]
+            if not any(c[rev] != "-" for c in ent["names"].values()):
+                # header not in this POSIX revision
+                continue
+            if not xsi and xsi_only(ent, rev):
+                # XSI header in a non-XSI compilation
+                continue
+        src = "#include <%s>\n" % header
+        base = macros(run(cc + flags + ["-dM", "-E", "-x", "c", "-"], ""))
+        defs = macros(run(cc + flags + ["-dM", "-E", "-x", "c", "-"], src)) - base
+        idents = identifiers(run(cc + flags + ["-E", "-P", "-x", "c", "-"], src))
+        ok_names, pats = allowed_names(names, header, cstd, rev, xsi)
+
+        def is_ok(n, is_macro):
+            if n in ok_names or IMPL.fullmatch(n):
+                return True
+            if not is_macro and UNDERSCORE.fullmatch(n):
+                return True
+            if rev is not None and POSIX_ANY.fullmatch(n):
+                return True
+            for p in pats:
+                if p.fullmatch(n):
+                    return True
+            for h, m, r in allow:
+                if (h == "*" or h == header) and (m == "*" or m == mode) and r.fullmatch(n):
+                    return True
+            return False
+
+        bad = []
+        for n in sorted(defs):
+            if not is_ok(n, True):
+                bad.append((n, "macro"))
+        for n, kind in sorted(idents.items()):
+            if n in defs:
+                continue
+            if not is_ok(n, False):
+                bad.append((n, kind))
+        if bad:
+            status = 1
+            print("%s (%s): %s" % (header, mode, " ".join("%s[%s]" % b for b in bad)))
+        elif verbose:
+            print("%s (%s): ok" % (header, mode))
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())

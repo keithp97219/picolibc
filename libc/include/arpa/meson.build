@@ -58,5 +58,11 @@ if enable_cdefs_tests
            args: [meson.current_source_dir() / header] + cc.cmd_array() + c_args + inc_args,
            suite: 'headers')
     endif
+    if 'arpa/' + header in namespace_headers
+      test('check-namespace-arpa-' + header,
+           check_namespace,
+           args: check_namespace_args + ['arpa/' + header] + cc.cmd_array() + c_args + inc_args,
+           suite: 'headers')
+    endif
   endforeach
 endif

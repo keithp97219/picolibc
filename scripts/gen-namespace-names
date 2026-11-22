@@ -1,0 +1,436 @@
+#!/usr/bin/env python3
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Copyright © 2026 Keith Packard
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above
+#    copyright notice, this list of conditions and the following
+#    disclaimer in the documentation and/or other materials provided
+#    with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+"""Generate scripts/namespace-names, the names each standard header
+may define, for scripts/check-namespace.
+
+usage: gen-namespace-names [--fetch] <posix-dir> <c23-text> > namespace-names
+
+<posix-dir> holds the POSIX.1-2017 and POSIX.1-2024 header and function
+pages from The Open Group, as <posix-dir>/{2017,2024}/{basedefs,functions}/*.html;
+--fetch downloads them there first. <c23-text> is the text of the C23
+working draft N3220 (https://open-std.org/JTC1/SC22/WG14/www/docs/n3220.pdf),
+from 'pdftotext -layout', whose Annex B lists each header's contents.
+
+The extraction is heuristic: it errs on the side of allowing names that
+merely appear in a page's normative text.
+"""
+
+import html
+import os
+import re
+import sys
+import urllib.request
+from html.parser import HTMLParser
+
+URLS = {
+    "2017": "https://pubs.opengroup.org/onlinepubs/9699919799/",
+    "2024": "https://pubs.opengroup.org/onlinepubs/9799919799/",
+}
+
+IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+CODE_TAGS = {"b", "i", "tt", "code", "pre", "dt"}
+KEYWORDS = set("""
+auto break case char const continue default do double else enum extern
+float for goto if inline int long register restrict return short signed
+sizeof static struct switch typedef union unsigned void volatile while
+""".split())
+
+# Names ISO C defines that Annex B doesn't list: structure members and
+# C11 macros C23 made keywords
+C_EXTRA = {
+    "time.h": "tm_sec tm_min tm_hour tm_mday tm_mon tm_year tm_wday tm_yday tm_isdst "
+              "tv_sec tv_nsec timespec tm",
+    "stdlib.h": "quot rem div_t ldiv_t lldiv_t",
+    "inttypes.h": "quot rem imaxdiv_t",
+    "locale.h": "lconv decimal_point thousands_sep grouping mon_decimal_point "
+                "mon_thousands_sep mon_grouping positive_sign negative_sign "
+                "currency_symbol frac_digits p_cs_precedes n_cs_precedes "
+                "p_sep_by_space n_sep_by_space p_sign_posn n_sign_posn "
+                "int_curr_symbol int_frac_digits int_p_cs_precedes int_n_cs_precedes "
+                "int_p_sep_by_space int_n_sep_by_space int_p_sign_posn int_n_sign_posn",
+    "stdalign.h": "alignas alignof",
+    "stdnoreturn.h": "noreturn",
+    "assert.h": "static_assert",
+    "stdbool.h": "bool true false",
+    "threads.h": "thread_local ONCE_FLAG_INIT once_flag call_once",
+}
+
+# C23 names Annex B doesn't list
+C23_EXTRA = {
+    "stdbit.h": "size_t uintN_t intN_t uint_leastN_t int_leastN_t",
+    "stdint.h": "INTN_WIDTH UINTN_WIDTH INTMAX_WIDTH PTRDIFF_WIDTH",
+}
+
+# ISO C headers that include others
+C_INCLUDES = {
+    "inttypes.h": "stdint.h",
+    "tgmath.h": "math.h complex.h",
+    "threads.h": "time.h",
+}
+
+
+def fetch(top):
+    for rev, url in URLS.items():
+        for kind, index, pat in (("basedefs", "idx/head.html", r"basedefs/([a-z0-9_]+\.h\.html)"),
+                                 ("functions", "idx/functions.html",
+                                  r"functions/([A-Za-z0-9_]+\.html)")):
+            d = os.path.join(top, rev, kind)
+            os.makedirs(d, exist_ok=True)
+            idx = urllib.request.urlopen(url + index).read().decode("latin-1")
+            for page in sorted(set(re.findall(pat, idx))):
+                dest = os.path.join(d, page)
+                if not os.path.exists(dest):
+                    with open(dest, "wb") as f:
+                        f.write(urllib.request.urlopen(url + kind + "/" + page).read())
+
+
+class HeaderPage(HTMLParser):
+    """Collect the identifiers in the normative part of a header page
+    with the option margin codes shading each one."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.active = False
+        self.done = False
+        self.stack = []
+        self.opt = []
+        self.pending = []
+        self.in_sup = False
+        self.in_dt = False
+        self.names = {}
+        self.dt_names = []
+        self.dd_names = None
+        self.dd_end = False
+        self.dd_fresh = False
+        self.text = []
+
+    def add(self, name, codes):
+        self.names.setdefault(name, set()).add(codes)
+
+    def cur(self):
+        return tuple(sorted(set(c for o in self.opt for c in o)))
+
+    def flush_dt(self):
+        for n in self.dt_names:
+            self.add(n, self.cur())
+        self.dt_names = []
+
+    def resolve_dd(self, whole):
+        # A <dt> term is shaded when its whole <dd> is
+        if self.dd_names:
+            names, codes, base = self.dd_names
+            for n in names:
+                self.add(n, codes if whole else base)
+        self.dd_names = None
+        self.dd_end = False
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if self.dd_end and tag != "img":
+            self.resolve_dd(False)
+        if tag == "sup":
+            self.in_sup = True
+        if tag == "img":
+            alt = a.get("alt", "")
+            if alt == "[Option Start]":
+                codes = self.pending
+                self.pending = []
+                if self.dd_fresh and self.dt_names and codes == ["CX"]:
+                    # CX in a <dd> refines a value, not the name
+                    self.flush_dt()
+                elif self.dd_fresh and self.dt_names:
+                    self.dd_names = (self.dt_names,
+                                     tuple(sorted(set(list(self.cur()) + codes))), self.cur())
+                    self.dt_names = []
+                self.opt.append(codes)
+            elif alt == "[Option End]":
+                if self.opt:
+                    self.opt.pop()
+                if self.dd_names:
+                    self.dd_end = True
+        if tag in CODE_TAGS:
+            self.stack.append(tag)
+        if tag == "dt":
+            self.flush_dt()
+            self.in_dt = True
+        if tag == "dd":
+            self.dd_fresh = True
+
+    def handle_endtag(self, tag):
+        if self.dd_names and tag == "dd":
+            self.resolve_dd(self.dd_end)
+        elif self.dd_end:
+            self.resolve_dd(False)
+        if tag == "sup":
+            self.in_sup = False
+        if tag in CODE_TAGS and tag in self.stack:
+            del self.stack[len(self.stack) - 1 - self.stack[::-1].index(tag)]
+        if tag == "dt":
+            self.in_dt = False
+        if tag == "dl":
+            self.flush_dt()
+
+    def handle_data(self, data):
+        if self.in_sup:
+            self.pending += re.findall(r"[A-Z][A-Z0-9]+", data)
+            return
+        if data.strip() == "DESCRIPTION" and not self.done:
+            self.active = True
+            return
+        if "following sections are informative" in data or data.strip() == "APPLICATION USAGE":
+            if self.active:
+                self.flush_dt()
+                self.active = False
+                self.done = True
+            return
+        if not self.active:
+            return
+        if self.dd_end and data.strip():
+            self.resolve_dd(False)
+        self.text.append(data)
+        if self.dd_fresh and data.strip() and data.strip() not in ("[", "]"):
+            self.dd_fresh = False
+            self.flush_dt()
+        for m in IDENT.finditer(data):
+            n = m.group(0)
+            if data[m.end():m.end() + 2] == ".h":
+                continue
+            braced = data[max(0, m.start() - 1):m.start()] == "{"
+            loose = "_" in n or (len(n) > 1 and n.isupper())
+            if not (self.stack or braced or loose):
+                continue
+            if self.in_dt and "dt" in self.stack:
+                self.dt_names.append(n)
+            else:
+                self.add(n, self.cur())
+
+
+def header_page(path):
+    t = open(path, encoding="latin-1").read()
+    p = HeaderPage()
+    p.feed(t)
+    p.flush_dt()
+    text = re.sub(r"\s+", " ", "".join(p.text))
+    incs = set()
+    for m in re.finditer(r"(?:may (?:also )?make visible (?:all )?symbols (?:defined in|from)"
+                         r"|shall make (?:all )?symbols (?:defined in|from)"
+                         r"|header shall include)(.*?)\.(?:\s+[A-Z]|\s*$)", text):
+        incs.update(re.findall(r"<([a-z0-9_/]+\.h)>", m.group(1)))
+    i = t.find("SYNOPSIS")
+    hdr = "+".join(re.findall(r"open_code\('([A-Z0-9]+)'\)", t[i:t.find("DESCRIPTION", i)]))
+    codes = {}
+    for n, cs in p.names.items():
+        codes[n] = "." if () in cs else "|".join(sorted(set("+".join(c) for c in cs)))
+    return codes, incs, hdr
+
+
+def function_page(path):
+    """The names each function page's synopsis declares, by header"""
+    t = open(path, encoding="latin-1").read()
+    i = t.find("SYNOPSIS")
+    j = t.find("DESCRIPTION", i)
+    if i < 0 or j < 0:
+        return []
+    s = t[i + len("SYNOPSIS"):j]
+    s = re.sub(r"<sup>\[(.*?)\]</sup>\s*<img[^>]*Option Start[^>]*>",
+               lambda m: " \x01" + "+".join(sorted(set(re.findall(
+                   r"[A-Z][A-Z0-9]+", re.sub(r"<[^>]+>", "", m.group(1)))))) + "\x01 ",
+               s, flags=re.S)
+    s = re.sub(r"<img[^>]*Option End[^>]*>", " \x02 ", s)
+    s = html.unescape(re.sub(r"<[^>]+>", " ", s))
+    out = []
+    hdr = None
+    stack = []
+    for part in re.split(r"(\x01[A-Z0-9+]*\x01|\x02|#include\s*<[^>]+>|;)", s):
+        if not part:
+            continue
+        if part.startswith("\x01"):
+            stack.append(part.strip("\x01"))
+            continue
+        if part == "\x02":
+            if stack:
+                stack.pop()
+            continue
+        m = re.match(r"#include\s*<([^>]+)>", part)
+        if m:
+            hdr = m.group(1).strip()
+            continue
+        if part == ";" or hdr is None:
+            continue
+        decl = re.sub(r"/\*.*?\*/", " ", part, flags=re.S)
+        name = None
+        for m in re.finditer(r"([A-Za-z_][A-Za-z0-9_]*)\s*\(", decl):
+            if m.group(1) not in KEYWORDS:
+                name = m.group(1)
+                break
+        if name is None:
+            ids = IDENT.findall(decl)
+            if ids:
+                name = ids[-1]
+        if name:
+            codes = "+".join(sorted(set(c for x in stack for c in x.split("+") if c))) or "."
+            out.append((hdr, name, codes))
+    return out
+
+
+def annex_b(path):
+    """Each header's names from C23's Annex B"""
+    t = open(path).read()
+    i = [m.start() for m in re.finditer(r"\nB\.1\s+Diagnostics <assert.h>", t)][-1]
+    t = t[i:t.find("Annex C", i)]
+    skip = re.compile(r"©|Library summary|N3220|^\s*§")
+    lines = []
+    acc = ""
+    for line in t.splitlines():
+        if acc:
+            if skip.search(line) or not line.strip():
+                continue
+            acc += " " + line.strip()
+            if acc.count("(") <= acc.count(")"):
+                lines.append(acc)
+                acc = ""
+            continue
+        if line.count("(") > line.count(")"):
+            acc = line
+            continue
+        lines.append(line)
+    out = {}
+    hdr = None
+    for line in lines:
+        s = line.strip()
+        m = re.match(r"B\.\d+\s+.*<([a-z0-9_/]+\.h)>", s)
+        if m:
+            hdr = m.group(1)
+            continue
+        if hdr is None or not s or skip.search(line) or s.startswith(("Only if", "#pragma")) \
+           or "user code" in s or s.startswith("__STDC_WANT"):
+            continue
+        if "(" in s:
+            for m in re.finditer(r"([A-Za-z_][A-Za-z0-9_]*)\s*\(", s):
+                if m.group(1) not in KEYWORDS:
+                    out.setdefault(hdr, set()).add(m.group(1))
+                    break
+            continue
+        for n in IDENT.findall(s):
+            if n not in KEYWORDS and not re.fullmatch(r"[A-Z][a-z]+", n):
+                out.setdefault(hdr, set()).add(n)
+    return out
+
+
+def hdrname(fn):
+    b = fn[:-len(".html")]
+    if b.startswith(("sys_", "arpa_", "net_", "netinet_")):
+        b = b.replace("_", "/", 1)
+    return b
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] == "--fetch":
+        args.pop(0)
+        fetch(args[0])
+    top, c23 = args
+
+    out = {}
+
+    def ent(h):
+        return out.setdefault(h, {"names": {}, "inc": {}, "hdr": {}})
+
+    for rev in ("2017", "2024"):
+        d = os.path.join(top, rev, "basedefs")
+        for fn in sorted(os.listdir(d)):
+            codes, incs, hc = header_page(os.path.join(d, fn))
+            e = ent(hdrname(fn))
+            for n, c in codes.items():
+                e["names"].setdefault(n, {})[rev] = c
+            e["inc"][rev] = incs
+            if hc:
+                e["hdr"][rev] = hc
+        d = os.path.join(top, rev, "functions")
+        for fn in sorted(os.listdir(d)):
+            for h, n, c in function_page(os.path.join(d, fn)):
+                e = ent(h)["names"].setdefault(n, {})
+                old = e.get(rev)
+                if old is None or c == ".":
+                    e[rev] = c
+                elif old != ".":
+                    e[rev] = "|".join(sorted(set(old.split("|")) | {c}))
+
+    # C11: the Annex B names POSIX.1-2024 (aligned with C17) shows
+    # outside CX shading. C23: all of Annex B.
+    for h, ns in annex_b(c23).items():
+        for n in ns:
+            e = ent(h)["names"].setdefault(n, {})
+            e["c23"] = "c"
+            p = e.get("2024", "-")
+            if p != "-" and any(a == "." or "CX" not in a.split("+") for a in p.split("|")):
+                e["c11"] = "c"
+    for h, ns in C_EXTRA.items():
+        for n in ns.split():
+            e = ent(h)["names"].setdefault(n, {})
+            e["c11"] = e["c23"] = "c"
+    for h, ns in C23_EXTRA.items():
+        for n in ns.split():
+            ent(h)["names"].setdefault(n, {})["c23"] = "c"
+    for h, incs in C_INCLUDES.items():
+        for rev in ("c", "2017", "2024"):
+            ent(h)["inc"].setdefault(rev, set()).update(incs.split())
+
+    print("# Generated by scripts/gen-namespace-names from the POSIX.1-2017 and")
+    print("# POSIX.1-2024 header and function pages and C23 (N3220) Annex B.")
+    print("# [header], then '@header REV CODES' for a header shaded as a whole,")
+    print("# '@include REV header...' for the headers whose symbols it may make")
+    print("# visible, and 'name C11 C23 P2017 P2024': 'c' where ISO C defines the")
+    print("# name, and for POSIX '-' when absent, '.' in the base, or the option")
+    print("# codes shading it ('+' joins codes, '|' separates alternatives).")
+    for h in sorted(out):
+        e = out[h]
+        print("[%s]" % h)
+        for rev, hc in sorted(e["hdr"].items()):
+            print("@header %s %s" % (rev, hc))
+        for rev in ("c", "2017", "2024"):
+            if e["inc"].get(rev):
+                print("@include %s %s" % (rev, " ".join(sorted(e["inc"][rev]))))
+        for n in sorted(e["names"]):
+            if n in KEYWORDS or re.fullmatch(r"[A-Z][a-z]+", n):
+                continue
+            c = e["names"][n]
+            print("%s %s %s %s %s" % (n, c.get("c11", "-"), c.get("c23", "-"),
+                                      c.get("2017", "-"), c.get("2024", "-")))
+
+
+if __name__ == "__main__":
+    main()

@@ -618,6 +618,16 @@ endif
 if enable_cdefs_tests
   validate_cdefs = find_program ('scripts/validate-cdefs', required : true)
   check_wundef = find_program ('scripts/check-wundef', required : true)
+  check_namespace = find_program ('scripts/check-namespace', required : true)
+  check_namespace_args = ['--names', meson.current_source_dir() / 'scripts/namespace-names',
+                          '--allow', meson.current_source_dir() / 'scripts/namespace-allow']
+  # The headers ISO C and POSIX describe, which check-namespace checks
+  namespace_headers = []
+  foreach _line : fs.read('scripts/namespace-names').split('\n')
+    if _line.startswith('[')
+      namespace_headers += _line.substring(1, -1)
+    endif
+  endforeach
 endif
 
 # Shared stdio options
