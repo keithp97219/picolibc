@@ -318,6 +318,7 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'timer_settime.c',
     'umask.c',
     'unlink.c',
+    'utime.c',
     'utimes.c',
     'vfork.c',
     'wait3.c',

@@ -104,6 +104,7 @@ posix_test_dirs = [
   'test-time',
   'test-uchar',
   'test-unistd',
+  'test-utime',
   'test-utmpx',
   'test-wchar',
   'test-wctype',
