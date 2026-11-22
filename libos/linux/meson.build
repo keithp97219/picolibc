@@ -105,6 +105,7 @@ if fs.is_dir(machine_dir)
     'mlockall_munlockall.c',
     'mmap.c',
     'mprotect.c',
+    'mremap.c',
     'mq_close.c',
     'mq_getattr.c',
     'mq_notify.c',

@@ -130,6 +130,15 @@ typedef __mode_t mode_t;
 #define MCL_CURRENT 1 /* lock all currently mapped pages */
 #define MCL_FUTURE  2 /* lock all pages mapped in the future */
 #if __GNU_VISIBLE
+/*
+ * Flags for mremap() (Linux).
+ */
+#define MREMAP_MAYMOVE   1 /* the mapping may move */
+#define MREMAP_FIXED     2 /* move it to the fifth argument's address */
+#define MREMAP_DONTUNMAP 4 /* leave the old mapping in place (with MAYMOVE) */
+#endif
+
+#if __GNU_VISIBLE
 #define MCL_ONFAULT   4    /* lock pages when they are faulted in */
 #define MLOCK_ONFAULT 0x01 /* lock pages when they are faulted in (mlock2) */
 #endif
@@ -149,7 +158,8 @@ int   posix_madvise(void *addr, size_t len, int advice);
 int   shm_open(const char *name, int oflag, mode_t mode);
 int   shm_unlink(const char *name);
 #if __GNU_VISIBLE
-int madvise(void *addr, size_t len, int advice);
+int   madvise(void *addr, size_t len, int advice);
+void *mremap(void *old_address, size_t old_size, size_t new_size, int flags, ...);
 #endif
 
 _END_STD_C
