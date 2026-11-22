@@ -36,13 +36,12 @@
 #define _POSIX_C_SOURCE 202405L
 /* lockf and F_LOCK are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && _POSIX_SEMAPHORES > 0 && defined(__PICOLIBC_POSIX_PIPE)      \
-    && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_NETWORKING) \
-    && defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC) && defined(__PICOLIBC_XSI_IPC)        \
-    && _POSIX_MAPPED_FILES > 0
+#if TEST_POSIX_THREADS && TEST_POSIX_SEMAPHORES && TEST_POSIX_PIPE && TEST_POSIX_MULTI_PROCESS \
+    && TEST_POSIX_NETWORKING && TEST_POSIX_DEVICE_SPECIFIC && TEST_XSI_IPC                     \
+    && TEST_POSIX_MAPPED_FILES
 
 #include <errno.h>
 #include <fcntl.h>
@@ -64,10 +63,10 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <time.h>
-#if _POSIX_MESSAGE_PASSING > 0
+#if TEST_POSIX_MESSAGE_PASSING
 #include <mqueue.h>
 #endif
-#if _POSIX_ASYNCHRONOUS_IO > 0
+#if TEST_POSIX_ASYNCHRONOUS_IO
 #include <aio.h>
 #endif
 #ifndef __STDC_NO_THREADS__
@@ -165,7 +164,7 @@ do_lockf(void)
     (void)lockf(-1, F_LOCK, 0);
 }
 
-#if _POSIX_MESSAGE_PASSING > 0
+#if TEST_POSIX_MESSAGE_PASSING
 static void
 do_mq_receive(void)
 {
@@ -613,7 +612,7 @@ static const struct call calls[] = {
     CP(fdatasync),
     CP(fsync),
     CP(lockf),
-#if _POSIX_MESSAGE_PASSING > 0
+#if TEST_POSIX_MESSAGE_PASSING
     CP(mq_receive),
     CP(mq_send),
     CP(mq_timedreceive),
@@ -821,7 +820,7 @@ run_once(void *arg)
  * usable. glibc 2.43 returns at once from aio_suspend with only NULL
  * entries, which this uses to wait, so it's only checked for picolibc
  */
-#if defined(__PICOLIBC__) && _POSIX_ASYNCHRONOUS_IO > 0
+#if defined(__PICOLIBC__) && TEST_POSIX_ASYNCHRONOUS_IO
 static struct aiocb aio_cb;
 
 static void *
@@ -926,7 +925,7 @@ main(void)
     check(once_first == 1 && once_second == 1, "init routine ran again");
     check(pthread_once(&once_control, once_runs) == 0 && once_second == 1, "pthread_once");
 
-#if defined(__PICOLIBC__) && _POSIX_ASYNCHRONOUS_IO > 0
+#if defined(__PICOLIBC__) && TEST_POSIX_ASYNCHRONOUS_IO
     {
         const struct aiocb *list[1] = { &aio_cb };
         struct timespec     timeout = { .tv_sec = 5, .tv_nsec = 0 };

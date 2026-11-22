@@ -34,11 +34,11 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SIGNALS) && _POSIX_MAPPED_FILES > 0 && _POSIX_MEMORY_PROTECTION > 0 \
-    && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_SIGNALS && TEST_POSIX_MAPPED_FILES && TEST_POSIX_MEMORY_PROTECTION \
+    && TEST_POSIX_FILE_SYSTEM
 
 #include <errno.h>
 #include <setjmp.h>

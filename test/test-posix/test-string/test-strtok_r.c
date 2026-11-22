@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,7 +103,7 @@ both(const char *input, const char *sep, const char * const *want)
     split(input, sep, want, 1);
 }
 
-#if _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
 #include <pthread.h>
 
 #define N_THREADS 4
@@ -204,7 +204,7 @@ main(void)
             fail("strtok_r 2 after another string");
     }
 
-#if _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
     {
         pthread_t threads[N_THREADS];
         long      i;

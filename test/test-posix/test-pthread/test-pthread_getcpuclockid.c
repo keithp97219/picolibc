@@ -35,9 +35,10 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME >= 0
+#if TEST_POSIX_THREADS && TEST_POSIX_THREAD_CPUTIME
 
 #include <pthread.h>
 #include <stdio.h>
@@ -92,13 +93,11 @@ main(void)
     long long before;
     pthread_t thread;
 
-#if _POSIX_THREAD_CPUTIME == 0
-    /* Zero leaves it to the system to say at run time */
+    /* The system may leave it to say at run time */
     if (sysconf(_SC_THREAD_CPUTIME) <= 0) {
         printf("no thread CPU-time clock, skipping\n");
         return 77;
     }
-#endif
 
     /* Another thread's clock, while it spins */
     check(pthread_create(&thread, NULL, worker, NULL) == 0, "pthread_create");

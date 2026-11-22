@@ -60,9 +60,10 @@ _Static_assert(is_long(mq_flags) && is_long(mq_maxmsg) && is_long(mq_msgsize)
                "struct mq_attr members");
 
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_MESSAGE_PASSING > 0
+#if TEST_POSIX_MESSAGE_PASSING
 
 /* Each function has the specified prototype */
 static int     (    *const p_mq_close)(mqd_t) = mq_close;

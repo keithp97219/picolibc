@@ -35,10 +35,10 @@
 
 /* wait3 is an extension */
 #define _DEFAULT_SOURCE
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_PIPE)
+#if TEST_POSIX_MULTI_PROCESS && TEST_POSIX_PIPE
 
 #include <errno.h>
 #include <stdio.h>

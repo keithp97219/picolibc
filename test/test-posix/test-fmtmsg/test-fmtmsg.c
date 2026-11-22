@@ -36,7 +36,7 @@
 #define _POSIX_C_SOURCE 202405L
 /* fmtmsg is an XSI interface */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <fmtmsg.h>
 
@@ -93,7 +93,7 @@ distinct(long classification, int severity, int result)
 }
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_PIPE) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_PIPE && TEST_POSIX_MULTI_PROCESS
 
 #include <errno.h>
 #include <fcntl.h>

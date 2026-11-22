@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_NETWORKING)
+#if TEST_POSIX_NETWORKING
 
 #include <netinet/in.h>
 #include <stdio.h>

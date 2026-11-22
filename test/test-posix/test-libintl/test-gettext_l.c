@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -44,10 +44,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_FILE_SYSTEM
 #include <sys/stat.h>
 #endif
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
 #include <sys/wait.h>
 #endif
 
@@ -165,7 +165,7 @@ main(void)
     dir = bindtextdomain("picolibc-unbound-domain", NULL);
     check(dir != NULL && *dir != '\0', "default directory");
 
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_FILE_SYSTEM && TEST_POSIX_MULTI_PROCESS
     {
         /*
          * In the POSIX locale no messages object is used, even with

@@ -35,10 +35,10 @@
 
 /* cfsetspeed is a BSD extension */
 #define _DEFAULT_SOURCE
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_DEVICE_SPECIFIC)
+#if TEST_POSIX_DEVICE_SPECIFIC
 
 #include <stdio.h>
 #include <stdlib.h>

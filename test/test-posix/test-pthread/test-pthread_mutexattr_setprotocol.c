@@ -39,10 +39,11 @@
 #define _GNU_SOURCE
 #endif
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && _POSIX_THREAD_PRIO_INHERIT > 0 && _POSIX_THREAD_PRIO_PROTECT > 0 \
-    && _POSIX_TIMEOUTS > 0
+#if TEST_POSIX_THREADS && TEST_POSIX_THREAD_PRIO_INHERIT && TEST_POSIX_THREAD_PRIO_PROTECT \
+    && TEST_POSIX_TIMEOUTS
 
 #include <errno.h>
 #include <pthread.h>

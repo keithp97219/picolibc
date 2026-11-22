@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
@@ -92,7 +92,7 @@ static int  ret;
         ret = 1;             \
     } while (0)
 
-#ifdef __PICOLIBC_POSIX_PIPE
+#if TEST_POSIX_PIPE
 /* What psignal(sig, prefix) writes to standard error */
 static void
 psignal_output(int sig, const char *prefix, char *out, size_t size)
@@ -174,7 +174,7 @@ main(void)
     }
 #endif
 
-#ifdef __PICOLIBC_POSIX_PIPE
+#if TEST_POSIX_PIPE
     /* psignal uses the same messages */
     for (i = 0; i < N_SIGNALS; i++) {
         char out[MSG_MAX + 16];

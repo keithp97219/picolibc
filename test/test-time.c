@@ -43,6 +43,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <limits.h>
+#include "test-posix/test-flags.h"
 
 /* asctime and ctime are deprecated in C23; this test still checks they exist */
 #ifdef __GNUCLIKE_PRAGMA_DIAGNOSTIC
@@ -103,14 +104,14 @@ struct itimerspec itimerspec_value = {
     },
 };
 
-#ifdef _POSIX_MONOTONIC_CLOCK
+#if TEST_POSIX_MONOTONIC_CLOCK
 clockid_t monotonic_value = CLOCK_MONOTONIC;
 #endif
-#ifdef _POSIX_CPUTIME
+#if TEST_POSIX_CPUTIME
 clockid_t process_cputime_id_value = CLOCK_PROCESS_CPUTIME_ID;
 #endif
 clockid_t realtime_value = CLOCK_REALTIME;
-#ifdef _POSIX_THREAD_CPUTIME
+#if TEST_POSIX_THREAD_CPUTIME
 clockid_t thread_cputime_id_value = CLOCK_THREAD_CPUTIME_ID;
 #endif
 
@@ -600,7 +601,7 @@ main(void)
     (void)clock_ret;
 
 #ifndef __SEMIHOST
-#ifdef _POSIX_CPUTIME
+#if TEST_POSIX_CPUTIME
     int clock_getcpuclockid_ret = clock_getcpuclockid(pid_value, &clockid_value);
     (void)clock_getcpuclockid_ret;
 #endif

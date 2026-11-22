@@ -36,11 +36,11 @@
 #define _POSIX_C_SOURCE 202405L
 /* sigaltstack and nice are XSI */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
-    && defined(__PICOLIBC_POSIX_SIGNALS) && defined(__PICOLIBC_POSIX_SYMBOLIC_LINKS)
+#if TEST_POSIX_MULTI_PROCESS && TEST_POSIX_FILE_SYSTEM && TEST_POSIX_SIGNALS \
+    && TEST_POSIX_SYMBOLIC_LINKS
 
 #include <dirent.h>
 #include <errno.h>

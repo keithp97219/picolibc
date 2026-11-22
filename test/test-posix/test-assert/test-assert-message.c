@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -114,7 +114,7 @@ enabled_again(int value)
 static_assert(sizeof(int) >= 2, "static_assert at file scope");
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_PIPE) && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_PIPE && TEST_POSIX_MULTI_PROCESS
 
 #include <signal.h>
 #include <sys/wait.h>

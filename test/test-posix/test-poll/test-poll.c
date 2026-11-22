@@ -34,11 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_DEVICE_IO) && defined(__PICOLIBC_POSIX_MULTI_PROCESS) \
-    && defined(__PICOLIBC_POSIX_PIPE)
+#if TEST_POSIX_DEVICE_IO && TEST_POSIX_MULTI_PROCESS && TEST_POSIX_PIPE
 
 #include <errno.h>
 #include <fcntl.h>
@@ -54,7 +53,7 @@
 #include <unistd.h>
 
 /* The socket checks need networking too */
-#if defined(__PICOLIBC_POSIX_NETWORKING)
+#if TEST_POSIX_NETWORKING
 #define HAVE_SOCKETS 1
 #include <sys/socket.h>
 #else
