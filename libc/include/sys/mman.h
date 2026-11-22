@@ -38,8 +38,13 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <sys/cdefs.h>
 #include <sys/_types.h>
-/* For O_RDONLY, O_RDWR, O_CREAT, O_EXCL and O_TRUNC */
+/*
+ * For O_RDONLY, O_RDWR, O_CREAT, O_EXCL and O_TRUNC, which POSIX.1-2024
+ * lets this header define
+ */
+#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
 #include <fcntl.h>
+#endif
 
 _BEGIN_STD_C
 
