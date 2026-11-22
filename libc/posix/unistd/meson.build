@@ -52,4 +52,5 @@ dir_srcs = [
   'lockf.c',
   'posix_close.c',
   'sleep.c',
+  'ttyname.c',
 ]

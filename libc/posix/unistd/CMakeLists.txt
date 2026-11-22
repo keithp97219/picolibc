@@ -50,4 +50,5 @@ picolibc_sources(
   lockf.c
   posix_close.c
   sleep.c
+  ttyname.c
   )

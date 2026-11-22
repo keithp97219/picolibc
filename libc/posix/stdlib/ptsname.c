@@ -33,10 +33,19 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <termios.h>
+#define _GNU_SOURCE
+#include <errno.h>
+#include <stdlib.h>
 
-speed_t
-cfgetospeed(const struct termios *termios)
+char *
+ptsname(int fd)
 {
-    return termios->c_ospeed;
+    static char name[sizeof("/dev/pts/4294967295")];
+    int         ret = ptsname_r(fd, name, sizeof(name));
+
+    if (ret) {
+        errno = ret;
+        return NULL;
+    }
+    return name;
 }

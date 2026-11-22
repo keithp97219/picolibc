@@ -165,6 +165,10 @@ Picolibc and which source files reference them.
 
    + libc/signal/raise.c
 
+ * int ptsname_r(int fd, char *buf, size_t buflen)
+
+   + libc/posix/stdlib/ptsname.c
+
  * ssize_t read(int fd, void *buf, size_t count)
 
    + libc/search/hash.c
@@ -196,6 +200,10 @@ Picolibc and which source files reference them.
  * clock_t times(struct tms *buf)
 
    + libc/time/clock.c
+
+ * int ttyname_r(int fd, char *buf, size_t buflen)
+
+   + libc/posix/unistd/ttyname.c
 
  * int unlink(char *path)
 
@@ -391,6 +399,16 @@ int     pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
                 const struct timespec *timeout, const sigset_t *sigmask);
 ```
 
+### ttyname, ptsname
+
+`ttyname` and `ptsname` call the reentrant versions into static
+buffers:
+
+```c
+int     ptsname_r(int fd, char *buf, size_t buflen);
+int     ttyname_r(int fd, char *buf, size_t buflen);
+```
+
 ### readdir_r
 
 `readdir_r` copies the entry returned by `readdir`, which the OS
@@ -467,7 +485,7 @@ and stops with an error if the header defines one of those itself.
    |---|---|
 | `CLOFORK` | O_CLOFORK, FD_CLOFORK and SOCK_CLOFORK in open, fcntl, dup3, pipe2, accept4 and socket |
 | `DEVICE_IO` | `close`, `poll`, `ppoll`, `pread`, `pselect`, `pwrite`, `read`, `write` |
-| `DEVICE_SPECIFIC` | `cfgetispeed`, `cfgetospeed`, `cfsetispeed`, `cfsetospeed`, `isatty`, `tcdrain`, `tcflow`, `tcflush`, `tcgetattr`, `tcgetwinsize`, `tcsendbreak`, `tcsetattr`, `tcsetwinsize`, `ttyname` |
+| `DEVICE_SPECIFIC` | `isatty`, `tcdrain`, `tcflow`, `tcflush`, `tcgetattr`, `tcgetwinsize`, `tcsendbreak`, `tcsetattr`, `tcsetwinsize`, `ttyname_r` |
 | `DEVICE_SPECIFIC_R` | `ttyname_r` |
 | `DYNAMIC_LINKING` | `dladdr`, `dlclose`, `dlerror`, `dlopen`, `dlsym` |
 | `FD_MGMT` | `dup`, `dup2`, `dup3`, `fcntl`, `ftruncate`, `lseek` |
