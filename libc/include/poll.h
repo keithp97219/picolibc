@@ -39,7 +39,10 @@
 #include <sys/cdefs.h>
 #include <sys/_types.h>
 #include <sys/_sigset.h>
+/* For ppoll, new in POSIX.1-2024 */
+#if __POSIX_VISIBLE >= 202405 || __GNU_VISIBLE
 #include <sys/_timespec.h>
+#endif
 
 #if !defined(_SIGSET_T_DECLARED)
 #define _SIGSET_T_DECLARED
