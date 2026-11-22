@@ -77,7 +77,10 @@ function(picolibc_test test)
 
   target_link_libraries(${target} LINK_PUBLIC ${PICOLIBC_TEST_LINK_LIBRARIES})
 
-  target_compile_options(${target} PRIVATE -fno-builtin ${PICOLIBC_COMPILE_OPTIONS} -D_TEST_LONG_DOUBLE)
+  # Tests are applications: picolibc's options without its internal view
+  set(test_options ${PICOLIBC_COMPILE_OPTIONS})
+  list(REMOVE_ITEM test_options "-D_LIBC")
+  target_compile_options(${target} PRIVATE -fno-builtin ${test_options} -D_TEST_LIBC -D_TEST_LONG_DOUBLE)
 
   target_link_options(${target} PRIVATE ${TARGET_COMPILE_OPTIONS})
 
