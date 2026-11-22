@@ -857,8 +857,8 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #error \
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
-#if defined(__PICOLIBC_XSI_MATH) || defined(__PICOLIBC_XSI_WIDE_CHAR) \
-    || defined(__PICOLIBC_POSIX_I18N)
+#if defined(__PICOLIBC_XSI_MATH) || defined(__PICOLIBC_XSI_WIDE_CHAR)             \
+    || defined(__PICOLIBC_POSIX_I18N) || defined(__PICOLIBC_POSIX_C_LANG_ATOMICS)
 #error \
     "<unistd.h> defines the POSIX options, groups and edition; the OS describes itself with __PICOLIBC_OS_ macros"
 #endif
@@ -1101,9 +1101,14 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define __PICOLIBC_XSI_USER_GROUPS __PICOLIBC_OS_XSI_USER_GROUPS
 #endif
 
-/* Options and option groups picolibc provides itself */
+/*
+ * Options and option groups picolibc provides itself. C_LANG_ATOMICS
+ * includes the libatomic functions compilers call for atomic objects
+ * without lock-free access (libc/misc/libatomic.c)
+ */
 #define _POSIX_REGEXP                     1
 #define _POSIX2_C_BIND                    202405L
+#define __PICOLIBC_POSIX_C_LANG_ATOMICS   202405L
 #define __PICOLIBC_POSIX_C_LANG_JUMP      202405L
 #define __PICOLIBC_POSIX_C_LANG_MATH      202405L
 #define __PICOLIBC_POSIX_C_LANG_SUPPORT   202405L
@@ -1126,10 +1131,6 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define __PICOLIBC_POSIX_MULTI_CONCURRENT_LOCALES 202405L
 #define __PICOLIBC_XSI_MATH                       202405L
 #define __PICOLIBC_XSI_WIDE_CHAR                  202405L
-/*
- * Not C_LANG_ATOMICS: for objects without lock-free access, compilers
- * call libatomic's __atomic_load and the like, which picolibc lacks
- */
 
 /*
  * Options picolibc provides, or builds on what the system provides.
