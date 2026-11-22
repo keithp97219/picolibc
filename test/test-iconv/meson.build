@@ -150,6 +150,13 @@ if enable_native_tests
                      '-DHAVE_JIS_CHARSETS'
                     ]
   endif
+  if mb_gb18030_charset
+    locale = 'C.GB18030'
+    locales += [custom_target(locale, output: locale,
+                              command: [localedef, '--no-warnings=ascii',
+                                        '-f', 'GB18030', '-i', 'C', '.' / '@OUTPUT@'])]
+    ctype_c_args += ['-DHAVE_GB18030_CHARSET']
+  endif
 
   foreach t1 : tests_iconv
     t1_src = t1 + '.c'

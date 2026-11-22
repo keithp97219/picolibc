@@ -225,6 +225,10 @@ if(NOT DEFINED __MB_EXTENDED_CHARSETS_JIS)
   option(__MB_EXTENDED_CHARSETS_JIS "Enable JIS multibyte encodings" OFF)
 endif()
 
+if(NOT DEFINED __MB_EXTENDED_CHARSETS_GB18030)
+  option(__MB_EXTENDED_CHARSETS_GB18030 "Enable GB18030 multibyte encoding" OFF)
+endif()
+
 set(__NANO_FORMATTED_IO OFF)
 
 set(_GLOBAL_ATEXIT OFF)
