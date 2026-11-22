@@ -200,13 +200,13 @@ extern __picolibc_export char *suboptarg; /* getsubopt(3) external variable */
 int getsubopt(char ** __restrict, char * const * __restrict, char ** __restrict) __picolibc_export;
 #endif
 #if __XSI_VISIBLE >= 500
-int   grantpt(int fd) __picolibc_export;
+int   grantpt(int __fd) __picolibc_export;
 int   posix_openpt(int flags) __picolibc_export;
-char *ptsname(int fd) __picolibc_export;
-int   unlockpt(int fd) __picolibc_export;
+char *ptsname(int __fd) __picolibc_export;
+int   unlockpt(int __fd) __picolibc_export;
 #endif
 #if __XSI_VISIBLE >= 800 || __GNU_VISIBLE
-int ptsname_r(int fd, char *buf, size_t buflen) __picolibc_export;
+int ptsname_r(int __fd, char *__buf, size_t __buflen) __picolibc_export;
 #endif
 #if __SVID_VISIBLE || __XSI_VISIBLE >= 4 || __BSD_VISIBLE
 char *initstate(unsigned, char *, size_t) __picolibc_export;
@@ -324,7 +324,7 @@ reallocf(void *, size_t)
 __warn_unused_result __alloc_size(2) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 202405
-char *realpath(const char * __restrict path, char * __restrict resolved_path) __picolibc_export;
+char *realpath(const char * __restrict __path, char * __restrict __resolved_path) __picolibc_export;
 #endif
 #if __BSD_VISIBLE
 int rpmatch(const char *response) __picolibc_export;
@@ -351,18 +351,18 @@ void _srand48_r(struct _rand48 *, long) __picolibc_export;
 void srandom(unsigned) __picolibc_export;
 #endif
 double strtod(const char * __restrict __n, char ** __restrict __end_PTR) __picolibc_export;
-int    strfromd(char    *__restrict str, size_t n, const char    *__restrict format, double fp)
+int    strfromd(char    *__restrict __str, size_t __n, const char    *__restrict __format, double __fp)
     __picolibc_export;
 #if __ISO_C_VISIBLE >= 1999
 float strtof(const char * __restrict __n, char ** __restrict __end_PTR) __picolibc_export;
 #ifdef __HAVE_LONG_DOUBLE
 long double strtold(const char * __restrict __n, char ** __restrict __end_PTR) __picolibc_export;
 #endif
-int strfromf(char * __restrict str, size_t n, const char * __restrict format, float fp)
+int strfromf(char * __restrict __str, size_t __n, const char * __restrict __format, float __fp)
     __picolibc_export;
 #ifdef __HAVE_LONG_DOUBLE
-int strfroml(char * __restrict str, size_t n, const char * __restrict format, long double fp)
-    __picolibc_export;
+int strfroml(char * __restrict __str, size_t __n, const char * __restrict __format,
+             long double __fp) __picolibc_export;
 #endif
 #endif
 #if __MISC_VISIBLE
