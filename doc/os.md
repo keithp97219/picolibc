@@ -679,6 +679,7 @@ fail as POSIX allows:
 | Capability | Provides | Lets the OS claim |
 |---|---|---|
 | `_PTHREAD_HAVE_SIGNALS` | per-thread masks and directed signals | `pthread_kill`, `pthread_sigmask`, asynchronous cancellation (otherwise deferred only) |
+| `_PTHREAD_HAVE_CANCEL_WAKE` | without signals, `_pthread_os_cancel_wake` interrupting a thread's wait | cancellation of a thread already blocked at a cancellation point |
 | `_PTHREAD_HAVE_SCHED` | thread scheduling and the real-time priority range | `THREAD_PRIORITY_SCHEDULING`, `THREAD_PRIO_PROTECT` |
 | `_PTHREAD_HAVE_PI` | priority-inheriting lock words | `THREAD_PRIO_INHERIT` |
 | `_PTHREAD_HAVE_ROBUST` | robust mutexes, the kernel marking a dead owner's | `THREAD_ROBUST_PRIO_INHERIT`, `THREAD_ROBUST_PRIO_PROTECT` |

@@ -36,20 +36,17 @@
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
 
-#ifdef _PTHREAD_HAVE_SIGNALS
+#if defined(_PTHREAD_HAVE_SIGNALS) || defined(_PTHREAD_HAVE_CANCEL_WAKE)
 
-/* Act on a cancellation request when it arrives at the right time */
-static void
-cancel_handler(int sig)
+/*
+ * Act on a cancellation request which interrupted the calling thread,
+ * if it arrived at the right time
+ */
+void
+_pthread_cancel_interrupted(void)
 {
     struct __pthread *self = _pthread_current;
 
-    (void)sig;
-#ifdef _PTHREAD_SETXID
-    /* The same signal asks each thread to repeat a credential change */
-    if (self && __atomic_exchange_n(&self->setxid_pending, 0, __ATOMIC_ACQ_REL))
-        _pthread_setxid_act();
-#endif
     if (!self || self->cancel_state != PTHREAD_CANCEL_ENABLE
         || !__atomic_load_n(&self->cancel_pending, __ATOMIC_SEQ_CST))
         return;
@@ -57,6 +54,24 @@ cancel_handler(int sig)
         && !__atomic_load_n(&self->cancel_point, __ATOMIC_SEQ_CST))
         return;
     _pthread_cancel_act(self);
+}
+
+#endif
+
+#ifdef _PTHREAD_HAVE_SIGNALS
+
+static void
+cancel_handler(int sig)
+{
+#ifdef _PTHREAD_SETXID
+    struct __pthread *self = _pthread_current;
+
+    /* The same signal asks each thread to repeat a credential change */
+    if (self && __atomic_exchange_n(&self->setxid_pending, 0, __ATOMIC_ACQ_REL))
+        _pthread_setxid_act();
+#endif
+    (void)sig;
+    _pthread_cancel_interrupted();
 }
 
 static pthread_once_t cancel_once = PTHREAD_ONCE_INIT;
@@ -90,17 +105,21 @@ pthread_cancel(pthread_t thread)
             _pthread_cancel_act(self);
         return 0;
     }
-#ifdef _PTHREAD_HAVE_SIGNALS
+#if defined(_PTHREAD_HAVE_SIGNALS) || defined(_PTHREAD_HAVE_CANCEL_WAKE)
     /*
      * A thread with cancellation disabled acts on the request at its
      * first cancellation point after enabling it. Signalling it now
-     * would only interrupt system calls which don't restart.
+     * would only interrupt calls which don't restart.
      */
     if (__atomic_load_n(&thread->cancel_state, __ATOMIC_SEQ_CST) != PTHREAD_CANCEL_ENABLE)
         return 0;
     /* Interrupt the thread in case it is blocked; an exited thread needs nothing */
     if (__atomic_load_n(&thread->tid, __ATOMIC_ACQUIRE))
+#ifdef _PTHREAD_HAVE_SIGNALS
         (void)_pthread_tkill(thread, _PTHREAD_SIGCANCEL);
+#else
+        _pthread_os_cancel_wake(thread);
+#endif
 #endif
     return 0;
 }

@@ -109,6 +109,12 @@
  *                            pthread_cancel. Without it, those report
  *                            ENOTSUP, and cancellation is deferred and
  *                            acted on at the next cancellation point.
+ *   _PTHREAD_HAVE_CANCEL_WAKE Without _PTHREAD_HAVE_SIGNALS,
+ *                            _pthread_os_cancel_wake interrupts a
+ *                            thread blocked at a cancellation point, so
+ *                            pthread_cancel reaches it. Without either,
+ *                            a thread already blocked when cancelled
+ *                            acts only once its wait ends by itself.
  *   _PTHREAD_HAVE_SCHED      _pthread_setsched, _pthread_getsched,
  *                            _pthread_policy_valid, and
  *                            _PTHREAD_PRIO_MIN/_PTHREAD_PRIO_MAX, the
@@ -730,6 +736,24 @@ int  _pthread_tkill(struct __pthread *thread, int ksig);
 
 /* Install the handler for _PTHREAD_SIGCANCEL */
 void _pthread_os_sigcancel(void (*handler)(int));
+#elif defined(_PTHREAD_HAVE_CANCEL_WAKE)
+/*
+ * Make thread's current interruptible wait, or its next one if it
+ * isn't waiting yet, return early. Its wait then calls
+ * _pthread_cancel_interrupted before returning EINTR, or 0 for a
+ * _futex_wait. The thread may already have exited.
+ */
+void _pthread_os_cancel_wake(struct __pthread *thread);
+#endif
+
+#if defined(_PTHREAD_HAVE_SIGNALS) || defined(_PTHREAD_HAVE_CANCEL_WAKE)
+/*
+ * Act on a pending cancellation request in the calling thread if it
+ * is at a cancellation point (or cancels asynchronously); otherwise
+ * return. The cancellation signal handler calls it; so do the waits
+ * an OS with _PTHREAD_HAVE_CANCEL_WAKE interrupts.
+ */
+void _pthread_cancel_interrupted(void);
 
 /* sigprocmask for the calling thread, returning 0 or an errno value, leaving errno alone */
 int  _sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
