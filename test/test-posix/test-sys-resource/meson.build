@@ -37,6 +37,7 @@ dir_tests = [
   'test-getpriority',
   'test-getrlimit',
   'test-getrusage',
+  'test-getrusage-fields',
   'test-setpriority',
   'test-setrlimit',
   'test-setrlimit-enforce',

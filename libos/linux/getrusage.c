@@ -34,26 +34,17 @@
  */
 
 #include "local-linux.h"
-#include "local-time.h"
+#include "local-wait.h"
+#include "../common/local-rusage.h"
 #include <sys/resource.h>
 
 int
 getrusage(int who, struct rusage *usage)
 {
-    /*
-     * The kernel's struct rusage: two timevals in the kernel's layout,
-     * which differs from picolibc's on 32-bit architectures, then
-     * fourteen longs picolibc doesn't report.
-     */
-    struct {
-        struct __kernel_timeval ru_utime;
-        struct __kernel_timeval ru_stime;
-        long                    ru_other[14];
-    } kusage;
+    struct __kernel_wait_rusage kusage;
 
     if (_syscall(LINUX_SYS_getrusage, who, &kusage) < 0)
         return -1;
-    SIMPLE_MAP_TIMEVAL(&usage->ru_utime, &kusage.ru_utime);
-    SIMPLE_MAP_TIMEVAL(&usage->ru_stime, &kusage.ru_stime);
+    _RUSAGE_FROM_OS(usage, &kusage);
     return 0;
 }
