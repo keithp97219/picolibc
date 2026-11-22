@@ -35,6 +35,7 @@
 
 set(tests
   test-posix_spawn
+  test-posix_spawn-usevfork
   test-posix_spawn_file_actions_addchdir
   test-posix_spawn_file_actions_addclose
   test-posix_spawn_file_actions_adddup2
