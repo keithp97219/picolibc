@@ -175,6 +175,27 @@ constant time instead.
 | malloc-error-abort          | false   | Calls abort when the allocation subsystem detects errors                             |
 | malloc-small-bucket         | 0       | Allocations no larger than this are placed in power-of-two buckets for constant-time malloc/free |
 
+### Time options
+
+By default, picolibc takes the time zone only from a POSIX rule
+string in the TZ environment variable (for example
+`EST5EDT,M3.2.0,M11.1.0`), and uses UTC when TZ is unset or doesn't
+parse. With `tzif`, it also reads time zone files in the TZif format
+(RFC 8536 and RFC 9636, versions 1 to 4) that zic produces: TZ of the
+form `:name`, or a TZ that isn't a POSIX rule string, names a file
+under `$TZDIR` (default `/usr/share/zoneinfo`), an absolute
+`:/path` names a file directly, and an unset TZ reads
+`/etc/localtime`. When the file can't be read or is malformed, the
+time zone is what it would be without the option. Reading the files
+needs `open`, `read` and `close`, and holding a zone needs `malloc`, so
+this is meant for builds on an operating system; on bare metal it is
+compiled in, and when `open` fails, as it does without a file system,
+nothing changes.
+
+| Option                      | Default | Description                                                                          |
+| ------                      | ------- | -----------                                                                          |
+| tzif                        | false   | Load time zones from TZif files when TZ is unset, `:name` or not a POSIX rule string |
+
 ### Locking options
 
 These options select whether to disable locking support within the

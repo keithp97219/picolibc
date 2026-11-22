@@ -88,13 +88,24 @@ Note that there is no white-space padding between fields. Also note that
 if <[TZ]> is null, the default is Universal Time which has no daylight saving
 time. If <[TZ]> is empty, the default EST5EDT is used.
 
+When picolibc is built with the <<tzif>> option, <<tzset>> also reads
+time zone files in the TZif format (RFC 8536 and RFC 9636). A <[TZ]>
+of the form :<[name]>, or one that is not a rule string as above, names
+the file <[name]> under the directory in the <[TZDIR]> environment
+variable, by default /usr/share/zoneinfo; names holding a ".."
+component are refused, and a name starting with '/' is used as is.
+When <[TZ]> is null, the file /etc/localtime is read. When the file
+cannot be read or is malformed, the time zone is what <[TZ]> gives
+without TZif files.
+
 RETURNS
 There is no return value.
 
 PORTABILITY
 <<tzset>> is part of the POSIX standard.
 
-Supporting OS subroutine required: None
+Supporting OS subroutines required: None; with the <<tzif>> option,
+<<open>>, <<read>> and <<close>>.
 */
 
 #include "local.h"
@@ -112,8 +123,10 @@ Supporting OS subroutine required: None
  * DST part, the second name and rule copy the first. When tzenv is
  * NULL or not a valid rule string, sets them to GMT and returns false.
  */
+#ifndef __TZIF
 static bool __tzparse(const char *tzenv, char new_tzname[2][TZNAME_MAX + 2],
                       tzrule_t new_tzrule[2]);
+#endif
 
 bool
 __tzparse(const char *tzenv, char new_tzname[2][TZNAME_MAX + 2], tzrule_t new_tzrule[2])
@@ -313,11 +326,21 @@ done:
 }
 
 /*
- * Make names and rules the current time zone.
+ * Make names and rules the current time zone. With __TZIF, zone is
+ * the TZif zone they came from, or NULL, and replaces the current one.
  */
+#ifdef __TZIF
+void
+__tzset_install(char new_tzname[2][TZNAME_MAX + 2], tzrule_t new_tzrule[2], struct __tzif *zone)
+#else
 static void
 __tzset_install(char new_tzname[2][TZNAME_MAX + 2], tzrule_t new_tzrule[2])
+#endif
 {
+#ifdef __TZIF
+    struct __tzif *old;
+#endif
+
     __LIBC_LOCK();
     {
         /* Copy in the new values */
@@ -330,8 +353,18 @@ __tzset_install(char new_tzname[2][TZNAME_MAX + 2], tzrule_t new_tzrule[2])
         __tzcalc_limits(__tzinfo.year);
         timezone = new_tzrule[0].offset;
         daylight = new_tzrule[0].offset != new_tzrule[1].offset;
+#ifdef __TZIF
+        old = __tzif_zone;
+        __tzif_zone = zone;
+        if (zone)
+            __tzif_set_names(zone);
+#endif
     }
     __LIBC_UNLOCK();
+#ifdef __TZIF
+    if (old != zone)
+        free(old);
+#endif
 }
 
 void
@@ -343,6 +376,24 @@ tzset(void)
 
     tzenv = getenv("TZ");
 
+#ifdef __TZIF
+    /*
+     * An unset TZ, ":name" and anything that isn't a rule string name
+     * TZif files. When that fails, the time zone is what it would be
+     * without them.
+     */
+    if (tzenv == NULL || *tzenv == ':') {
+        if (__tzif_load(tzenv))
+            return;
+        __tzparse(tzenv, new_tzname, new_tzrule);
+    } else if (!__tzparse(tzenv, new_tzname, new_tzrule) && __tzif_load(tzenv))
+        return;
+#else
     __tzparse(tzenv, new_tzname, new_tzrule);
+#endif
+#ifdef __TZIF
+    __tzset_install(new_tzname, new_tzrule, NULL);
+#else
     __tzset_install(new_tzname, new_tzrule);
+#endif
 }

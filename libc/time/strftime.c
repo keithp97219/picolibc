@@ -1091,10 +1091,16 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p, 
                     }
 
                     __LIBC_LOCK();
-                    /* The sign of this is exactly opposite the envvar TZ.  We
-                       could directly use the global _timezone for tm_isdst==0,
-                       but have to use __tzrule for daylight savings.  */
-                    offset = -__tzinfo.rule[tim_p->tm_isdst > 0].offset;
+#ifdef __TZIF
+                    /* localtime and mktime set the offset, which may not be a rule's */
+                    if (tim_p->tm_zone)
+                        offset = tim_p->tm_gmtoff;
+                    else
+#endif
+                        /* The sign of this is exactly opposite the envvar TZ.  We
+                           could directly use the global _timezone for tm_isdst==0,
+                           but have to use __tzrule for daylight savings.  */
+                        offset = -__tzinfo.rule[tim_p->tm_isdst > 0].offset;
                     __LIBC_UNLOCK();
                 }
                 len = t_snprintf(&s[count], maxsize - count, CQ("%lld"),
@@ -1292,10 +1298,16 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p, 
                 }
 
                 __LIBC_LOCK();
-                /* The sign of this is exactly opposite the envvar TZ.  We
-                   could directly use the global _timezone for tm_isdst==0,
-                   but have to use __tzrule for daylight savings.  */
-                offset = -__tzinfo.rule[tim_p->tm_isdst > 0].offset;
+#ifdef __TZIF
+                /* localtime and mktime set the offset, which may not be a rule's */
+                if (tim_p->tm_zone)
+                    offset = tim_p->tm_gmtoff;
+                else
+#endif
+                    /* The sign of this is exactly opposite the envvar TZ.  We
+                       could directly use the global _timezone for tm_isdst==0,
+                       but have to use __tzrule for daylight savings.  */
+                    offset = -__tzinfo.rule[tim_p->tm_isdst > 0].offset;
                 __LIBC_UNLOCK();
 
                 len = t_snprintf(&s[count], maxsize - count, CQ("%+03ld%.2ld"),
@@ -1314,7 +1326,13 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p, 
                 }
 
                 __LIBC_LOCK();
-                tznam = tzname[tim_p->tm_isdst > 0];
+#ifdef __TZIF
+                /* localtime and mktime set the name, which may not be tzname's */
+                if (tim_p->tm_zone)
+                    tznam = tim_p->tm_zone;
+                else
+#endif
+                    tznam = tzname[tim_p->tm_isdst > 0];
                 /* Note that in case of wcsftime this loop only works for
                    timezone abbreviations using the portable codeset (aka ASCII).
                    This seems to be the case, but if that ever changes, this
