@@ -52,7 +52,16 @@ __bswap64(__uint64_t _x)
 }
 #endif /* !__GNUC__ */
 
-/* endian(3) - similar to linux <endian.h> */
+#endif /* __MACHINE_ENDIAN_H__ */
+
+/*
+ * endian(3) - similar to linux <endian.h>. These are <endian.h>'s and
+ * the BSDs', not names other headers including this one may define, so
+ * they're defined only for BSD code and when <endian.h>, which defines
+ * _ENDIAN_H_ first, includes this.
+ */
+#if (__BSD_VISIBLE || defined(_ENDIAN_H_)) && !defined(__MACHINE_ENDIAN_CONVERSIONS)
+#define __MACHINE_ENDIAN_CONVERSIONS
 #if _BYTE_ORDER == _LITTLE_ENDIAN
 #define htobe16(_x) __bswap16(_x)
 #define htole16(_x) ((__uint16_t)(_x))
@@ -81,4 +90,4 @@ __bswap64(__uint64_t _x)
 #define le64toh(_x) __bswap64(_x)
 #endif
 
-#endif /* __MACHINE_ENDIAN_H__ */
+#endif /* __MACHINE_ENDIAN_CONVERSIONS */

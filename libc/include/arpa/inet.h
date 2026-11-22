@@ -2,8 +2,8 @@
 #ifndef __ARPA_INET_H__
 #define __ARPA_INET_H__
 
-#include <endian.h>
 #include <sys/cdefs.h>
+#include <machine/endian.h>
 
 /* The address functions need the OS's network types */
 #if defined(__has_include)
