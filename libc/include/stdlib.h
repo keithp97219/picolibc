@@ -326,6 +326,9 @@ __warn_unused_result __alloc_size(2) __picolibc_export;
 #if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 202405
 char *realpath(const char * __restrict __path, char * __restrict __resolved_path) __picolibc_export;
 #endif
+#if __GNU_VISIBLE
+char *canonicalize_file_name(const char *__path) __malloc_like __picolibc_export;
+#endif
 #if __BSD_VISIBLE
 int rpmatch(const char *response) __picolibc_export;
 #endif

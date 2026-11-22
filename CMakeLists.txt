@@ -118,6 +118,10 @@ if(NOT DEFINED __MALLOC_SMALL_BUCKET)
   set(__MALLOC_SMALL_BUCKET 0 CACHE STRING "use fixed bucket sizes for allocations no larger than this")
 endif()
 
+if(NOT DEFINED __TZIF)
+  option(__TZIF "Load time zones from TZif files" OFF)
+endif()
+
 if(NOT DEFINED __PICOLIBC_EXPORT)
   option(__PICOLIBC_EXPORT "Annotate public picolibc APIs with default (exported) visibility" OFF)
 endif()

@@ -44,6 +44,7 @@ dir_srcs = [
   'execv.c',
   'execvp.c',
   'execvpe.c',
+  'getdtablesize.c',
   'gethostid.c',
   'getlogin.c',
   'getlogin_r.c',
@@ -53,4 +54,5 @@ dir_srcs = [
   'posix_close.c',
   'sleep.c',
   'ttyname.c',
+  'usleep.c',
 ]

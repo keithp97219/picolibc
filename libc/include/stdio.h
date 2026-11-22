@@ -542,6 +542,26 @@ FILE   *popen(const char *__command, const char *__type) __picolibc_export;
 int     pclose(FILE *__stream) __picolibc_export;
 #endif
 
+#if __GNU_VISIBLE
+int fcloseall(void) __picolibc_export;
+#endif
+
+/* The transitional large file names: off_t and fpos_t are 64 bits already */
+#if __LARGEFILE64_VISIBLE
+#ifndef _OFF64_T_DECLARED
+typedef __off_t off64_t;
+#define _OFF64_T_DECLARED
+#endif
+typedef __fpos_t fpos64_t;
+#define fopen64   fopen
+#define freopen64 freopen
+#define fseeko64  fseeko
+#define ftello64  ftello
+#define fgetpos64 fgetpos
+#define fsetpos64 fsetpos
+#define tmpfile64 tmpfile
+#endif
+
 #if __BSD_VISIBLE
 FILE *funopen(const void *__cookie, ssize_t (*__readfn)(void *__cookie, void *__buf, size_t __n),
               ssize_t (*__writefn)(void *__cookie, const void *__buf, size_t __n),

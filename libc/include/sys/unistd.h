@@ -335,7 +335,27 @@ int ftruncate(int __fd, off_t __length) __picolibc_export;
 int truncate(const char *, off_t __length) __picolibc_export;
 #endif
 
-#if __BSD_VISIBLE || __POSIX_VISIBLE < 200112
+/*
+ * The transitional large file names: off_t is 64 bits already. The
+ * _LFS64 macros say they're there (zlib checks _LFS64_LARGEFILE)
+ */
+#if __LARGEFILE64_VISIBLE
+#define _LFS64_LARGEFILE 1
+#define _LFS64_STDIO     1
+#ifndef _OFF64_T_DECLARED
+typedef __off_t off64_t;
+#define _OFF64_T_DECLARED
+#endif
+#define lseek64     lseek
+#define pread64     pread
+#define pwrite64    pwrite
+#define ftruncate64 ftruncate
+#define truncate64  truncate
+#define lockf64     lockf
+#endif
+
+/* Removed in SUSv2 (XSI 500) */
+#if __BSD_VISIBLE || (__XSI_VISIBLE >= 4 && __XSI_VISIBLE < 500)
 int getdtablesize(void) __picolibc_export;
 #endif
 /* ualarm was removed in Issue 7 */

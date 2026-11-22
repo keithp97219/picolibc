@@ -73,6 +73,12 @@ struct statfs {
 int statfs(const char *__path, struct statfs *__buf) __picolibc_export;
 int fstatfs(int __fd, struct statfs *__buf) __picolibc_export;
 
+/* The transitional large file names: struct statfs holds 64-bit counts */
+#if __LARGEFILE64_VISIBLE
+#define statfs64  statfs
+#define fstatfs64 fstatfs
+#endif
+
 _END_STD_C
 
 #endif /* _SYS_STATFS_H_ */
