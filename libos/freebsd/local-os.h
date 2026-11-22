@@ -74,6 +74,7 @@
 #define OS_SYS_mkdirat            FREEBSD_SYS_mkdirat
 #define OS_SYS_mlock              FREEBSD_SYS_mlock
 #define OS_SYS_msgget             FREEBSD_SYS_msgget
+#define OS_SYS_msgctl             FREEBSD_SYS_msgctl
 #define OS_SYS_munlock            FREEBSD_SYS_munlock
 #define OS_SYS_openat             FREEBSD_SYS_openat
 #define OS_SYS_pipe2              FREEBSD_SYS_pipe2
@@ -90,6 +91,7 @@
 #define OS_SYS_setreuid           FREEBSD_SYS_setreuid
 #define OS_SYS_setsid             FREEBSD_SYS_setsid
 #define OS_SYS_shmat              FREEBSD_SYS_shmat
+#define OS_SYS_shmctl             FREEBSD_SYS_shmctl
 #define OS_SYS_shmdt              FREEBSD_SYS_shmdt
 #define OS_SYS_shmget             FREEBSD_SYS_shmget
 #define OS_SYS_symlinkat          FREEBSD_SYS_symlinkat
@@ -97,22 +99,25 @@
 #define OS_SYS_timer_delete       FREEBSD_SYS_ktimer_delete
 #define OS_SYS_timer_getoverrun   FREEBSD_SYS_ktimer_getoverrun
 #define OS_SYS_timer_gettime      FREEBSD_SYS_ktimer_gettime
+#define OS_SYS_timer_settime      FREEBSD_SYS_ktimer_settime
 #define OS_SYS_umask              FREEBSD_SYS_umask
 #define OS_SYS_unlinkat           FREEBSD_SYS_unlinkat
 #define OS_SYS_wait4              FREEBSD_SYS_wait4
 #define OS_SYS_write              FREEBSD_SYS_write
 
 /* Constants */
-#define OS_AT_FDCWD     FREEBSD_AT_FDCWD
-#define OS_AT_REMOVEDIR FREEBSD_AT_REMOVEDIR
-#define OS_EINTR        FREEBSD_EINTR
-#define OS_F_GETFL      FREEBSD_F_GETFL
-#define OS_O_CLOEXEC    FREEBSD_O_CLOEXEC
-#define OS_O_DIRECTORY  FREEBSD_O_DIRECTORY
-#define OS_O_NOREAD     (FREEBSD_O_EXEC | FREEBSD_O_PATH)
-#define OS_TCGETATTR    FREEBSD_TIOCGETA
-#define OS_TIOCGPGRP    FREEBSD_TIOCGPGRP
-#define OS_TIOCGSID     FREEBSD_TIOCGSID
+#define OS_AT_FDCWD      FREEBSD_AT_FDCWD
+#define OS_AT_REMOVEDIR  FREEBSD_AT_REMOVEDIR
+#define OS_EINTR         FREEBSD_EINTR
+#define OS_F_GETFL       FREEBSD_F_GETFL
+#define OS_IPC_64        FREEBSD_IPC_64
+#define OS_O_CLOEXEC     FREEBSD_O_CLOEXEC
+#define OS_O_DIRECTORY   FREEBSD_O_DIRECTORY
+#define OS_O_NOREAD      (FREEBSD_O_EXEC | FREEBSD_O_PATH)
+#define OS_TCGETATTR     FREEBSD_TIOCGETA
+#define OS_TIMER_ABSTIME FREEBSD_TIMER_ABSTIME
+#define OS_TIOCGPGRP     FREEBSD_TIOCGPGRP
+#define OS_TIOCGSID      FREEBSD_TIOCGSID
 
 /* The value _syscall_raw returns for a kernel errno, and where those are */
 #define _OS_ERR(e)  _FREEBSD_ERR(e)
@@ -123,13 +128,18 @@
 
 /* Kernel structures */
 #define __os_dirent     __freebsd_dirent
+#define __os_msqid_ds   __freebsd_msqid_ds
+#define __os_shmid_ds   __freebsd_shmid_ds
 #define __os_rusage     __freebsd_rusage
 #define __os_itimerspec __freebsd_itimerspec
+#define __os_timespec   __freebsd_timespec
 #define __os_termios    __freebsd_termios
 
 /* Translations */
 #define _at_fd_to_os          _at_fd_to_freebsd
 #define _at_flags_to_os       _at_flags_to_freebsd
+#define _ipc_perm_from_os     _ipc_perm_from_freebsd
+#define _ipc_perm_to_os       _ipc_perm_to_freebsd
 #define _key_to_os            _key_to_freebsd
 #define _wait_options_to_os   _wait_options_to_freebsd
 #define _wait_status_from_os  _wait_status_from_freebsd

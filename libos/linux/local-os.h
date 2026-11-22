@@ -109,6 +109,7 @@
 #define OS_SYS_mkdirat LINUX_SYS_mkdirat
 #define OS_SYS_mlock   LINUX_SYS_mlock
 #define OS_SYS_msgget  LINUX_SYS_msgget
+#define OS_SYS_msgctl  LINUX_SYS_msgctl
 #define OS_SYS_munlock LINUX_SYS_munlock
 #define OS_SYS_openat  LINUX_SYS_openat
 #define OS_SYS_pipe2   LINUX_SYS_pipe2
@@ -149,6 +150,7 @@
 #endif
 #define OS_SYS_setsid           LINUX_SYS_setsid
 #define OS_SYS_shmat            LINUX_SYS_shmat
+#define OS_SYS_shmctl           LINUX_SYS_shmctl
 #define OS_SYS_shmdt            LINUX_SYS_shmdt
 #define OS_SYS_shmget           LINUX_SYS_shmget
 #define OS_SYS_symlinkat        LINUX_SYS_symlinkat
@@ -156,23 +158,26 @@
 #define OS_SYS_timer_delete     LINUX_SYS_timer_delete
 #define OS_SYS_timer_getoverrun LINUX_SYS_timer_getoverrun
 #define OS_SYS_timer_gettime    LINUX_SYS_timer_gettime_time_t
+#define OS_SYS_timer_settime    LINUX_SYS_timer_settime_time_t
 #define OS_SYS_umask            LINUX_SYS_umask
 #define OS_SYS_unlinkat         LINUX_SYS_unlinkat
 #define OS_SYS_wait4            LINUX_SYS_wait4
 #define OS_SYS_write            LINUX_SYS_write
 
 /* Constants */
-#define OS_AT_FDCWD     LINUX_AT_FDCWD
-#define OS_AT_REMOVEDIR LINUX_AT_REMOVEDIR
-#define OS_EINTR        LINUX_EINTR
-#define OS_F_GETFL      LINUX_F_GETFL
-#define OS_O_CLOEXEC    LINUX_O_CLOEXEC
-#define OS_O_DIRECTORY  LINUX_O_DIRECTORY
-#define OS_O_NOREAD     LINUX_O_PATH
-#define OS_TCGETATTR    LINUX_TCGETS2
-#define OS_TIOCGPGRP    LINUX_TIOCGPGRP
-#define OS_TIOCGSID     LINUX_TIOCGSID
-#define OS_TIOCLINUX    LINUX_TIOCLINUX
+#define OS_AT_FDCWD      LINUX_AT_FDCWD
+#define OS_AT_REMOVEDIR  LINUX_AT_REMOVEDIR
+#define OS_EINTR         LINUX_EINTR
+#define OS_F_GETFL       LINUX_F_GETFL
+#define OS_IPC_64        LINUX_IPC_64
+#define OS_O_CLOEXEC     LINUX_O_CLOEXEC
+#define OS_O_DIRECTORY   LINUX_O_DIRECTORY
+#define OS_O_NOREAD      LINUX_O_PATH
+#define OS_TCGETATTR     LINUX_TCGETS2
+#define OS_TIMER_ABSTIME LINUX_TIMER_ABSTIME
+#define OS_TIOCGPGRP     LINUX_TIOCGPGRP
+#define OS_TIOCGSID      LINUX_TIOCGSID
+#define OS_TIOCLINUX     LINUX_TIOCLINUX
 
 /* The value _syscall_raw returns for a kernel errno, and where those are */
 #define _OS_ERR(e)  (-(long)(e))
@@ -180,13 +185,18 @@
 
 /* Kernel structures */
 #define __os_dirent     __kernel_dirent64
+#define __os_msqid_ds   __kernel_msqid64_ds
+#define __os_shmid_ds   __kernel_shmid64_ds
 #define __os_rusage     __kernel_wait_rusage
 #define __os_itimerspec __kernel_itimerspec_time_t
+#define __os_timespec   __kernel_timespec_time_t
 #define __os_termios    __kernel_termios2
 
 /* Translations */
 #define _at_fd_to_os          _at_fd_to_linux
 #define _at_flags_to_os       _at_flags_to_linux
+#define _ipc_perm_from_os     _ipc_perm_from_linux
+#define _ipc_perm_to_os       _ipc_perm_to_linux
 #define _key_to_os(key)       (key)
 #define _wait_options_to_os   _wait_options_to_linux
 #define _wait_status_from_os  _wait_status_from_linux

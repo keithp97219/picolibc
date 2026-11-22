@@ -33,6 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "local-os.h"
 #include "local-ipc.h"
 #include <string.h>
 #include <sys/shm.h>
@@ -40,7 +41,7 @@
 int
 shmctl(int id, int cmd, struct shmid_ds *buf)
 {
-    struct __kernel_shmid64_ds k;
+    struct __os_shmid_ds k;
 
     switch (cmd) {
     case IPC_STAT:
@@ -50,9 +51,9 @@ shmctl(int id, int cmd, struct shmid_ds *buf)
          * the mode; start from zeros so the rest reads as zero
          */
         memset(&k, 0, sizeof(k));
-        if (_syscall(LINUX_SYS_shmctl, id, cmd | LINUX_IPC_64, &k) < 0)
+        if (_syscall(OS_SYS_shmctl, id, cmd | OS_IPC_64, &k) < 0)
             return -1;
-        _ipc_perm_from_linux(&buf->shm_perm, &k.shm_perm);
+        _ipc_perm_from_os(&buf->shm_perm, &k.shm_perm);
         buf->shm_segsz = k.shm_segsz;
         buf->shm_lpid = k.shm_lpid;
         buf->shm_cpid = k.shm_cpid;
@@ -63,10 +64,10 @@ shmctl(int id, int cmd, struct shmid_ds *buf)
         return 0;
     case IPC_SET:
         memset(&k, 0, sizeof(k));
-        _ipc_perm_to_linux(&k.shm_perm, &buf->shm_perm);
-        return (int)_syscall(LINUX_SYS_shmctl, id, cmd | LINUX_IPC_64, &k);
+        _ipc_perm_to_os(&k.shm_perm, &buf->shm_perm);
+        return (int)_syscall(OS_SYS_shmctl, id, cmd | OS_IPC_64, &k);
     case IPC_RMID:
-        return (int)_syscall(LINUX_SYS_shmctl, id, cmd, NULL);
+        return (int)_syscall(OS_SYS_shmctl, id, cmd, NULL);
     default:
         errno = EINVAL;
         return -1;

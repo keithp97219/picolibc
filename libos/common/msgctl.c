@@ -33,49 +33,44 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "local-timer.h"
-
-static int
-timespec_to_linux(struct __kernel_timespec_time_t *kts, const struct timespec *ts)
-{
-    if (ts->tv_nsec < 0 || ts->tv_nsec >= 1000000000L) {
-        errno = EINVAL;
-        return -1;
-    }
-    /* Clamp to the end of 32-bit time on kernels without 64-bit time */
-    if (sizeof(kts->tv_sec) == 4 && ts->tv_sec > INT32_MAX)
-        kts->tv_sec = INT32_MAX;
-    else
-        kts->tv_sec = ts->tv_sec;
-    kts->tv_nsec = ts->tv_nsec;
-    return 0;
-}
+#include "local-os.h"
+#include "local-ipc.h"
+#include <string.h>
+#include <sys/msg.h>
 
 int
-timer_settime(timer_t timerid, int flags, const struct itimerspec * __restrict value,
-              struct itimerspec * __restrict ovalue)
+msgctl(int id, int cmd, struct msqid_ds *buf)
 {
-    struct __kernel_itimerspec_time_t kvalue, kovalue;
-    int                               kflags = 0;
+    struct __os_msqid_ds k;
 
-    if (flags & ~TIMER_ABSTIME) {
+    switch (cmd) {
+    case IPC_STAT:
+        /*
+         * The kernel writes the whole structure, but QEMU's user-mode
+         * emulation may fill in only the low half of each time and of
+         * the mode; start from zeros so the rest reads as zero
+         */
+        memset(&k, 0, sizeof(k));
+        if (_syscall(OS_SYS_msgctl, id, cmd | OS_IPC_64, &k) < 0)
+            return -1;
+        _ipc_perm_from_os(&buf->msg_perm, &k.msg_perm);
+        buf->msg_qnum = k.msg_qnum;
+        buf->msg_qbytes = k.msg_qbytes;
+        buf->msg_lspid = k.msg_lspid;
+        buf->msg_lrpid = k.msg_lrpid;
+        buf->msg_stime = _ipc_time(&k, msg_stime);
+        buf->msg_rtime = _ipc_time(&k, msg_rtime);
+        buf->msg_ctime = _ipc_time(&k, msg_ctime);
+        return 0;
+    case IPC_SET:
+        memset(&k, 0, sizeof(k));
+        _ipc_perm_to_os(&k.msg_perm, &buf->msg_perm);
+        k.msg_qbytes = buf->msg_qbytes;
+        return (int)_syscall(OS_SYS_msgctl, id, cmd | OS_IPC_64, &k);
+    case IPC_RMID:
+        return (int)_syscall(OS_SYS_msgctl, id, cmd, NULL);
+    default:
         errno = EINVAL;
         return -1;
     }
-    if (flags & TIMER_ABSTIME)
-        kflags = LINUX_TIMER_ABSTIME;
-    if (timespec_to_linux(&kvalue.it_interval, &value->it_interval) < 0
-        || timespec_to_linux(&kvalue.it_value, &value->it_value) < 0)
-        return -1;
-    if (_syscall(LINUX_SYS_timer_settime_time_t, _timer_id(timerid), kflags, &kvalue,
-                 ovalue ? &kovalue : NULL)
-        < 0)
-        return -1;
-    if (ovalue) {
-        ovalue->it_interval.tv_sec = kovalue.it_interval.tv_sec;
-        ovalue->it_interval.tv_nsec = kovalue.it_interval.tv_nsec;
-        ovalue->it_value.tv_sec = kovalue.it_value.tv_sec;
-        ovalue->it_value.tv_nsec = kovalue.it_value.tv_nsec;
-    }
-    return 0;
 }

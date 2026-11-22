@@ -92,6 +92,12 @@ _ipc_perm_from_freebsd(struct ipc_perm *perm, const struct __freebsd_ipc_perm *k
     perm->mode = k->mode;
 }
 
+/* The IPC_STAT, IPC_SET and IPC_RMID commands take no flags */
+#define FREEBSD_IPC_64 0
+
+/* The kernel's times are time_t */
+#define _ipc_time(k, name) ((time_t)(k)->name)
+
 /* IPC_SET only changes the owner and the permission bits */
 static inline void
 _ipc_perm_to_freebsd(struct __freebsd_ipc_perm *k, const struct ipc_perm *perm)
