@@ -230,7 +230,6 @@ if fs.is_dir(machine_dir) and host_cpu_family in freebsd_machines
     'sched_setscheduler.c',
     'sched_yield.c',
     'seekdir.c',
-    'select.c',
     'semctl.c',
     'semget.c',
     'semop.c',

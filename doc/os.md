@@ -157,6 +157,10 @@ Picolibc and which source files reference them.
    + libc/stdio/freopen.c
    + libc/stdio/mktemp.c
 
+ * int pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, const struct timespec *timeout, const sigset_t *sigmask)
+
+   + libc/posix/sys-select/select.c
+
  * int pthread_kill(pthread_t thread, int sig)
 
    + libc/signal/raise.c
@@ -378,6 +382,15 @@ uid_t getuid(void);
 char   *getcwd(char *buf, size_t size);
 ```
 
+### select
+
+`select` is `pselect` with no signal mask:
+
+```c
+int     pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+                const struct timespec *timeout, const sigset_t *sigmask);
+```
+
 ### readdir_r
 
 `readdir_r` copies the entry returned by `readdir`, which the OS
@@ -453,7 +466,7 @@ and stops with an error if the header defines one of those itself.
    | Group | The OS provides |
    |---|---|
 | `CLOFORK` | O_CLOFORK, FD_CLOFORK and SOCK_CLOFORK in open, fcntl, dup3, pipe2, accept4 and socket |
-| `DEVICE_IO` | `close`, `poll`, `ppoll`, `pread`, `pselect`, `pwrite`, `read`, `select`, `write` |
+| `DEVICE_IO` | `close`, `poll`, `ppoll`, `pread`, `pselect`, `pwrite`, `read`, `write` |
 | `DEVICE_SPECIFIC` | `cfgetispeed`, `cfgetospeed`, `cfsetispeed`, `cfsetospeed`, `isatty`, `tcdrain`, `tcflow`, `tcflush`, `tcgetattr`, `tcgetwinsize`, `tcsendbreak`, `tcsetattr`, `tcsetwinsize`, `ttyname` |
 | `DEVICE_SPECIFIC_R` | `ttyname_r` |
 | `DYNAMIC_LINKING` | `dladdr`, `dlclose`, `dlerror`, `dlopen`, `dlsym` |

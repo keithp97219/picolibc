@@ -32,3 +32,25 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+#define _DEFAULT_SOURCE
+#include <errno.h>
+#include <stddef.h>
+#include <sys/select.h>
+
+int
+select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout)
+{
+    struct timespec ts, *pts = NULL;
+
+    if (timeout) {
+        if (timeout->tv_usec < 0 || timeout->tv_usec >= 1000000) {
+            errno = EINVAL;
+            return -1;
+        }
+        ts.tv_sec = timeout->tv_sec;
+        ts.tv_nsec = timeout->tv_usec * 1000;
+        pts = &ts;
+    }
+    return pselect(nfds, readfds, writefds, exceptfds, pts, NULL);
+}

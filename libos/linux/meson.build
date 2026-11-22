@@ -212,7 +212,6 @@ if fs.is_dir(machine_dir)
     'sched_setparam.c',
     'sched_setscheduler.c',
     'seekdir.c',
-    'select.c',
     'sched_yield.c',
     'semctl.c',
     'semget.c',
