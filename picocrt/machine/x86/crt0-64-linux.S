@@ -97,6 +97,7 @@ _start:
 
         movq    %r12, %rdi
         movq    %r13, %rsi
+        movq    environ, %rdx                   /* envp, the third argument Unix programs expect */
 	call	main
 
 	mov	%rax, %rdi

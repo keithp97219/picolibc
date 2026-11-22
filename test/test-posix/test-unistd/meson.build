@@ -75,6 +75,7 @@ dir_tests = [
   'test-linkat',
   'test-lockf',
   'test-lseek',
+  'test-main-envp',
   'test-nice',
   'test-optind',
   'test-pathconf',

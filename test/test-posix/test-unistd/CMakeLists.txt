@@ -76,6 +76,7 @@ set(tests
   test-linkat
   test-lockf
   test-lseek
+  test-main-envp
   test-nice
   test-nice-thread
   test-optind
