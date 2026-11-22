@@ -42,6 +42,8 @@ endif
 
 subdir('pthread')
 
+subdir('common')
+
 if get_option('os-linux')
   subdir('linux')
 endif

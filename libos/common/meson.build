@@ -1,0 +1,87 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Copyright © 2026 Keith Packard
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above
+#    copyright notice, this list of conditions and the following
+#    disclaimer in the documentation and/or other materials provided
+#    with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+
+# Code shared by the OS layers. Each one lists the files it uses in its
+# own meson.build and builds them into its library, with its own
+# directory first on the include path, so "local-os.h" (which this
+# directory doesn't have) maps the neutral OS_SYS_*, OS_* and __os_*
+# names to that kernel's. Some files build an older interface on a
+# newer one (stat on fstatat, say), for an OS layer to use when it has
+# no better way.
+
+srcs_os_common = [
+  '_syscall.c',
+  'access.c',
+  'chdir.c',
+  'chmod.c',
+  'close.c',
+  'closedir.c',
+  'dup.c',
+  'faccessat.c',
+  'fchdir.c',
+  'fchmod.c',
+  'fchownat.c',
+  'fdatasync.c',
+  'fdopendir.c',
+  'fsync.c',
+  'iob_stderr.c',
+  'iob_stdin.c',
+  'iob_stdout.c',
+  'link.c',
+  'linkat.c',
+  'lstat.c',
+  'mkdir.c',
+  'mkdirat.c',
+  'opendir.c',
+  'pipe.c',
+  'read.c',
+  'remove.c',
+  'rename.c',
+  'renameat.c',
+  'rewinddir.c',
+  'rmdir.c',
+  'stat.c',
+  'symlink.c',
+  'symlinkat.c',
+  'sync.c',
+  'umask.c',
+  'unlink.c',
+  'write.c',
+]
+
+src_os_common = {}
+foreach file : srcs_os_common
+  src_os_common += { file : files(file) }
+endforeach
