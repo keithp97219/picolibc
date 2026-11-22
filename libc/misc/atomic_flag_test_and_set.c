@@ -41,8 +41,12 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 
-/* Without inline atomics, the compiler would call libatomic */
-#ifdef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1
+#ifdef __GNUCLIKE_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wunknown-warning-option"
+/* Without inline atomics, the compiler calls libc/misc/libatomic.c */
+#pragma GCC diagnostic ignored "-Watomic-alignment"
+#endif
 
 bool(atomic_flag_test_and_set)(volatile atomic_flag *object);
 
@@ -50,5 +54,3 @@ bool(atomic_flag_test_and_set)(volatile atomic_flag *object)
 {
     return atomic_flag_test_and_set(object);
 }
-
-#endif /* __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1 */

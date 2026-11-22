@@ -33,6 +33,7 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 srcs_fenv = [
+  'atomic_feraiseexcept.c',
   'fenv.c',
   'fegetmode.c',
   'fesetmode.c',

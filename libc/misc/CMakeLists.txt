@@ -45,6 +45,7 @@ picolibc_sources(
   fini.c
   init.c
   inittls.c
+  libatomic.c
   lock.c
   unctrl.c
   )
