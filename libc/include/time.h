@@ -90,11 +90,12 @@ struct tm {
 #endif
 };
 
-#if __POSIX_VISIBLE
-
-#ifndef CLK_TCK
+/* POSIX.1-1988's name for CLOCKS_PER_SEC, long gone from POSIX */
+#if __MISC_VISIBLE && !defined(CLK_TCK)
 #define CLK_TCK CLOCKS_PER_SEC
 #endif
+
+#if __POSIX_VISIBLE
 
 /* Flag indicating time is "absolute" with respect to the clock
    associated with a time.  Value 4 is historic. */
@@ -128,6 +129,8 @@ typedef __pid_t pid_t; /* process id */
 #endif
 
 #endif
+
+#if __POSIX_VISIBLE
 
 #include <machine/_clockid.h>
 
@@ -181,6 +184,8 @@ typedef __pid_t pid_t; /* process id */
 
 #endif /* !__machine_clockid_values_defined */
 
+#endif /* __POSIX_VISIBLE */
+
 /* defines for the opengroup specifications Derived from Issue 1 of the SVID.  */
 #if __SVID_VISIBLE || __XSI_VISIBLE
 extern __picolibc_export long timezone;
@@ -201,9 +206,10 @@ extern __picolibc_export char *tzname[2];
 
 char *asctime(const struct tm *_tblock) __deprecated_c23 __picolibc_export;
 
-#if __POSIX_VISIBLE
 #define __ASCTIME_SIZE 26
 
+/* POSIX.1-2024 removed asctime_r and ctime_r */
+#if __POSIX_VISIBLE && (__POSIX_VISIBLE < 202405 || __MISC_VISIBLE)
 char *asctime_r(const struct tm * __restrict, char[__restrict_arr __min_size(__ASCTIME_SIZE)])
     __picolibc_export;
 #endif
@@ -211,23 +217,23 @@ char *asctime_r(const struct tm * __restrict, char[__restrict_arr __min_size(__A
 clock_t clock(void) __picolibc_export;
 
 #if __POSIX_VISIBLE >= 200112
-int clock_getcpuclockid(pid_t pid, clockid_t *clock_id) __picolibc_export;
+int clock_getcpuclockid(pid_t __pid, clockid_t *__clock_id) __picolibc_export;
 #endif
 
 #if __POSIX_VISIBLE
-int clock_getres(clockid_t clock_id, struct timespec *res) __picolibc_export;
+int clock_getres(clockid_t __clock_id, struct timespec *__res) __picolibc_export;
 
-int clock_gettime(clockid_t clock_id, struct timespec *tp) __picolibc_export;
+int clock_gettime(clockid_t __clock_id, struct timespec *__tp) __picolibc_export;
 
-int clock_nanosleep(clockid_t clock_id, int flags, const struct timespec *rqtp,
-                    struct timespec *rmtp) __picolibc_export;
+int clock_nanosleep(clockid_t __clock_id, int __flags, const struct timespec *__rqtp,
+                    struct timespec *__rmtp) __picolibc_export;
 
-int clock_settime(clockid_t clock_id, const struct timespec *tp) __picolibc_export;
+int clock_settime(clockid_t __clock_id, const struct timespec *__tp) __picolibc_export;
 #endif
 
 char *ctime(const time_t *_time) __deprecated_c23 __picolibc_export;
 
-#if __POSIX_VISIBLE
+#if __POSIX_VISIBLE && (__POSIX_VISIBLE < 202405 || __MISC_VISIBLE)
 char *ctime_r(const time_t *, char[__restrict_arr __min_size(__ASCTIME_SIZE)]) __picolibc_export;
 #endif
 
@@ -259,7 +265,9 @@ struct tm *localtime_r(const time_t * __restrict, struct tm * __restrict) __pico
 
 time_t mktime(struct tm *_timeptr) __picolibc_export;
 
-int    nanosleep(const struct timespec *rqtp, struct timespec *rmtp) __picolibc_export;
+#if __POSIX_VISIBLE
+int nanosleep(const struct timespec *__rqtp, struct timespec *__rmtp) __picolibc_export;
+#endif
 
 size_t strftime(char * __restrict _s, size_t _maxsize, const char * __restrict _fmt,
                 const struct tm * __restrict _t) __picolibc_export;
@@ -292,20 +300,22 @@ time_t timegm(struct tm *_timeptr) __picolibc_export;
 
 #if __POSIX_VISIBLE
 struct sigevent;
-int timer_create(clockid_t clock_id, struct sigevent * __restrict evp, timer_t * __restrict timerid)
-    __picolibc_export;
+int timer_create(clockid_t __clock_id, struct sigevent * __restrict __evp,
+                 timer_t * __restrict __timerid) __picolibc_export;
 
-int timer_delete(timer_t timerid) __picolibc_export;
+int timer_delete(timer_t __timerid) __picolibc_export;
 
-int timer_getoverrun(timer_t timerid) __picolibc_export;
+int timer_getoverrun(timer_t __timerid) __picolibc_export;
 
-int timer_gettime(timer_t timerid, struct itimerspec *value) __picolibc_export;
+int timer_gettime(timer_t __timerid, struct itimerspec *__value) __picolibc_export;
 
-int timer_settime(timer_t timerid, int flags, const struct itimerspec * __restrict value,
-                  struct itimerspec * __restrict ovalue) __picolibc_export;
+int timer_settime(timer_t __timerid, int __flags, const struct itimerspec * __restrict __value,
+                  struct itimerspec * __restrict __ovalue) __picolibc_export;
 #endif
 
+#if __POSIX_VISIBLE
 void tzset(void) __picolibc_export;
+#endif
 
 #if defined(__STDC_WANT_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__ == 1
 #ifndef __STDC_LIB_EXT1__
