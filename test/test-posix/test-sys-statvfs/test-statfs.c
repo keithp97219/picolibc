@@ -40,8 +40,9 @@
 #include <stdio.h>
 
 /*
- * Linux's statfs and fstatfs (<sys/vfs.h>, not POSIX): they agree with
- * statvfs, and give the file system type statvfs doesn't
+ * statfs and fstatfs (Linux's <sys/vfs.h>, FreeBSD's <sys/mount.h>;
+ * not POSIX): they agree with statvfs, and give the file system type
+ * statvfs doesn't
  */
 
 #if defined(__linux__) && TEST_POSIX_MULTI_PROCESS && __has_include(<sys/vfs.h>)
@@ -72,6 +73,48 @@ main(void)
         return 1;
     }
     close(fd);
+    printf("success\n");
+    return 0;
+}
+
+#elif defined(__FreeBSD__) && TEST_POSIX_MULTI_PROCESS && __has_include(<sys/mount.h>)
+#include <fcntl.h>
+#include <string.h>
+#include <sys/mount.h>
+#include <sys/statvfs.h>
+
+/* FreeBSD's statfs, fstatfs and getmntinfo (<sys/mount.h>) */
+int
+main(void)
+{
+    struct statfs  fs, ffs, *mnt;
+    struct statvfs vfs;
+    int            fd, n, i, root = 0;
+
+    if (statfs(".", &fs) != 0 || statvfs(".", &vfs) != 0) {
+        printf("statfs or statvfs failed\n");
+        return 1;
+    }
+    if (fs.f_fstypename[0] == '\0' || fs.f_mntonname[0] != '/' || fs.f_blocks != vfs.f_blocks
+        || fs.f_namemax != vfs.f_namemax) {
+        printf("statfs: type '%s' on '%s' blocks %llu, statvfs blocks %llu\n", fs.f_fstypename,
+               fs.f_mntonname, (unsigned long long)fs.f_blocks, (unsigned long long)vfs.f_blocks);
+        return 1;
+    }
+    fd = open(".", O_RDONLY);
+    if (fd < 0 || fstatfs(fd, &ffs) != 0 || strcmp(ffs.f_mntonname, fs.f_mntonname) != 0) {
+        printf("fstatfs\n");
+        return 1;
+    }
+    close(fd);
+    n = getmntinfo(&mnt, MNT_NOWAIT);
+    for (i = 0; i < n; i++)
+        if (strcmp(mnt[i].f_mntonname, "/") == 0)
+            root = 1;
+    if (n <= 0 || !root) {
+        printf("getmntinfo: %d entries, root %s\n", n, root ? "found" : "missing");
+        return 1;
+    }
     printf("success\n");
     return 0;
 }
