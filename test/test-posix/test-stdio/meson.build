@@ -56,6 +56,7 @@ dir_tests = [
   'test-stdio_h',
   'test-stdio_h-names',
   'test-stdio_h-xsi',
+  'test-stdin-offset',
   'test-stdio_ext',
   'test-stdout-buffering',
   'test-tmpnam',

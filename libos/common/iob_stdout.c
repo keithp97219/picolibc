@@ -40,7 +40,7 @@
 
 static char                write_buf[BUFSIZ];
 
-static struct __file_bufio __stdout = FDEV_SETUP_POSIX(1, write_buf, BUFSIZ, __SWR, __BLBF);
+static struct __file_bufio __stdout = FDEV_SETUP_POSIX(1, write_buf, BUFSIZ, __SWR, __BLBF | __BSYNC);
 
 FILE * const               __posix_stdout = &__stdout.xfile.cfile.file;
 
