@@ -74,6 +74,13 @@ _getdents(int fd, void *buf, size_t nbyte)
     return _syscall(FREEBSD_SYS_getdirentries, fd, buf, nbyte, NULL);
 }
 
+/* As _getdents, returning a _syscall_raw error */
+static inline long
+_getdents_raw(int fd, void *buf, size_t nbyte)
+{
+    return _syscall_raw(FREEBSD_SYS_getdirentries, (long)fd, buf, nbyte, NULL);
+}
+
 static inline __uint64_t
 _dirent_ino(const struct __freebsd_dirent *k)
 {

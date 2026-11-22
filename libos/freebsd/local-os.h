@@ -71,6 +71,7 @@
 #define OS_SYS_getuid             FREEBSD_SYS_getuid
 #define OS_SYS_ioctl              FREEBSD_SYS_ioctl
 #define OS_SYS_linkat             FREEBSD_SYS_linkat
+#define OS_SYS_lseek              FREEBSD_SYS_lseek
 #define OS_SYS_mkdirat            FREEBSD_SYS_mkdirat
 #define OS_SYS_mlock              FREEBSD_SYS_mlock
 #define OS_SYS_msgget             FREEBSD_SYS_msgget
@@ -108,7 +109,11 @@
 /* Constants */
 #define OS_AT_FDCWD      FREEBSD_AT_FDCWD
 #define OS_AT_REMOVEDIR  FREEBSD_AT_REMOVEDIR
+#define OS_DT_DIR        FREEBSD_DT_DIR
+#define OS_DT_UNKNOWN    FREEBSD_DT_UNKNOWN
 #define OS_EINTR         FREEBSD_EINTR
+#define OS_ENOENT        FREEBSD_ENOENT
+#define OS_ERANGE        FREEBSD_ERANGE
 #define OS_F_GETFL       FREEBSD_F_GETFL
 #define OS_IPC_64        FREEBSD_IPC_64
 #define OS_O_CLOEXEC     FREEBSD_O_CLOEXEC
