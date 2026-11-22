@@ -55,4 +55,6 @@ extern _sig_func_ptr _sig_func[_SIG_FUNC_COUNT];
 extern sigset_t      _sig_mask;
 extern sigset_t      _sig_pending;
 
+int                  __fallback_raise(int sig);
+
 #endif /* _LOCAL_SIGNAL_H_ */

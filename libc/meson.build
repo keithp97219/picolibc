@@ -47,6 +47,13 @@ endif
 
 libnames = libdirs
 
+# Built into libc, the fallback OS functions replace the generic
+# versions of the same names. As a separate library their definitions
+# are weak and libc's own take precedence.
+if not has_os_library
+  srcs_libos += srcs_os_fallback
+endif
+
 inc_sys_headers_machine = []
 inc_machine_headers_machine = []
 srcs_machine = []
