@@ -175,17 +175,17 @@ extern __THREAD_LOCAL locale_t _locale;
 extern const wctomb_p __wctomb[locale_END - locale_BASE];
 extern const mbtowc_p __mbtowc[locale_END - locale_BASE];
 
-#define __get_wctomb(l) __wctomb[__locale_id(l) - locale_BASE]
-#define __get_mbtowc(l) __mbtowc[__locale_id(l) - locale_BASE]
+#define __get_wctomb(id) __wctomb[(id) - locale_BASE]
+#define __get_mbtowc(id) __mbtowc[(id) - locale_BASE]
 
 #ifdef __HAVE_POSIX_LOCALE_API
-#define __WCTOMB_L(l) (__get_wctomb(l))
-#define __MBTOWC_L(l) (__get_mbtowc(l))
+#define __WCTOMB_L(l) (__get_wctomb(__locale_id(l)))
+#define __MBTOWC_L(l) (__get_mbtowc(__locale_id(l)))
 #define __WCTOMB      (__WCTOMB_L(__get_current_locale()))
 #define __MBTOWC      (__MBTOWC_L(__get_current_locale()))
 #else
-#define __WCTOMB (__get_wctomb(__global_locale))
-#define __MBTOWC (__get_mbtowc(__global_locale))
+#define __WCTOMB (__get_wctomb(__locale_id(__global_locale)))
+#define __MBTOWC (__get_mbtowc(__locale_id(__global_locale)))
 #endif
 
 #else
@@ -208,9 +208,15 @@ __get_current_locale(void)
 }
 
 static inline const char *
-__locale_name(locale_t id)
+__locale_id_name(enum locale_id id)
 {
-    return __locale_names[__locale_id(id) - locale_BASE];
+    return __locale_names[id - locale_BASE];
+}
+
+static inline const char *
+__locale_name(locale_t locale)
+{
+    return __locale_id_name(__locale_id(locale));
 }
 
 enum locale_id __find_charset(const char *name);

@@ -167,7 +167,7 @@ __find_charset(const char *charset)
 
 #ifdef __MB_CAPABLE
     for (id = locale_UTF_8; id < locale_END; id++) {
-        if (__match_charset(charset, __locale_name(id) + 2))
+        if (__match_charset(charset, __locale_id_name(id) + 2))
             break;
     }
     if (id == locale_END)
@@ -202,7 +202,7 @@ __find_locale(const char *name)
 
     /* POSIX is an alias for C */
     if (!strcmp(name, "POSIX"))
-        name = __locale_name(__locale_from_id(locale_C));
+        name = __locale_id_name(locale_C);
 
     lang_end = __find_locale_sep(name);
 
