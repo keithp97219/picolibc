@@ -52,11 +52,11 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *      (only when TESTS_ENABLE_POSIX_IO is defined)
  */
 
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_ADVISORY_INFO > 0 && _POSIX_MAPPED_FILES > 0 && _POSIX_MEMORY_PROTECTION > 0 \
-    && defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
+#if TEST_POSIX_ADVISORY_INFO && TEST_POSIX_MAPPED_FILES && TEST_POSIX_MEMORY_PROTECTION \
+    && TEST_POSIX_SINGLE_PROCESS
 
 #include <errno.h>
 #include <fcntl.h>

@@ -36,11 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* sigaltstack and SS_DISABLE are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && _POSIX_SEMAPHORES > 0 && defined(__PICOLIBC_POSIX_PIPE) \
-    && defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_THREADS && TEST_POSIX_SEMAPHORES && TEST_POSIX_PIPE && TEST_POSIX_MULTI_PROCESS
 
 #include <errno.h>
 #include <fenv.h>
@@ -206,7 +205,7 @@ get_except(void *arg)
     return (void *)(intptr_t)fetestexcept((int)(intptr_t)arg);
 }
 
-#if _POSIX_THREAD_CPUTIME >= 0
+#if TEST_POSIX_THREAD_CPUTIME
 static long long
 ns(clockid_t id)
 {
@@ -340,7 +339,7 @@ main(void)
 #endif
 
     /* A new thread's CPU-time clock starts at zero */
-#if _POSIX_THREAD_CPUTIME >= 0
+#if TEST_POSIX_THREAD_CPUTIME
     {
         /* Use some CPU time in the creating thread first */
         while (ns(CLOCK_THREAD_CPUTIME_ID) < 200000000LL)

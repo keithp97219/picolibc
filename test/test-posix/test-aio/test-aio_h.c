@@ -76,11 +76,11 @@ _Static_assert(SIGEV_NONE != SIGEV_SIGNAL && SIGEV_NONE != SIGEV_THREAD
                "SIGEV_ values");
 #endif
 
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include <unistd.h>
 
 /* pthread_attr_t, from <aio.h> and in struct sigevent, exists with threads */
-#if _POSIX_THREADS > 0
+#if TEST_POSIX_THREADS
 _Static_assert(sizeof(pthread_attr_t) > 0, "<aio.h> pthread_attr_t");
 _Static_assert(sigevent_is(sigev_notify_attributes, pthread_attr_t *), "sigev_notify_attributes");
 #endif
@@ -99,12 +99,12 @@ _Static_assert(sigevent_is(sigev_notify_attributes, pthread_attr_t *), "sigev_no
     } while (0)
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_ASYNCHRONOUS_IO > 0
+#if TEST_POSIX_ASYNCHRONOUS_IO
 
 /* Each function has the specified prototype */
 static int (* const p_aio_cancel)(int, struct aiocb *) = aio_cancel;
 static int (* const p_aio_error)(const struct aiocb *) = aio_error;
-#if _POSIX_FSYNC > 0 || _POSIX_SYNCHRONIZED_IO > 0
+#if TEST_POSIX_FSYNC || TEST_POSIX_SYNCHRONIZED_IO
 static int (* const p_aio_fsync)(int, struct aiocb *) = aio_fsync;
 #endif
 static int     (    *const p_aio_read)(struct aiocb *) = aio_read;
@@ -175,7 +175,7 @@ main(void)
 {
     (void)p_aio_cancel;
     (void)p_aio_error;
-#if _POSIX_FSYNC > 0 || _POSIX_SYNCHRONIZED_IO > 0
+#if TEST_POSIX_FSYNC || TEST_POSIX_SYNCHRONIZED_IO
     (void)p_aio_fsync;
 #endif
     (void)p_aio_read;

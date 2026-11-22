@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__hexagon__) || defined(__PICOLIBC_POSIX_SHELL_FUNC)
+#if defined(__hexagon__) || TEST_POSIX_SHELL_FUNC
 
 #include <stdlib.h>
 #include <stdio.h>

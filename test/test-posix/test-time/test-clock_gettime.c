@@ -35,10 +35,10 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_TIMERS > 0 && defined(_POSIX_CPUTIME) && _POSIX_CPUTIME >= 0 \
-    && defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME >= 0
+#if TEST_POSIX_TIMERS && TEST_POSIX_CPUTIME && TEST_POSIX_THREAD_CPUTIME
 
 #include <errno.h>
 #include <pthread.h>
@@ -143,20 +143,16 @@ main(void)
     clockid_t        tid_clock;
     pthread_t        thread;
 
-#if _POSIX_CPUTIME == 0
-    /* Zero leaves it to the system to say at run time */
+    /* The system may leave it to say at run time */
     if (sysconf(_SC_CPUTIME) <= 0) {
         printf("no CPU-time clock, skipping\n");
         return 77;
     }
-#endif
-#if _POSIX_THREAD_CPUTIME == 0
-    /* Zero leaves it to the system to say at run time */
+    /* The system may leave it to say at run time */
     if (sysconf(_SC_THREAD_CPUTIME) <= 0) {
         printf("no thread CPU-time clock, skipping\n");
         return 77;
     }
-#endif
 
     /* CLOCK_REALTIME is seconds since the Epoch, like time() */
     check(clock_gettime(CLOCK_REALTIME, &ts) == 0, "CLOCK_REALTIME");

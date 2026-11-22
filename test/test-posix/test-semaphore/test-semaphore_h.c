@@ -50,7 +50,8 @@
 #define _GNU_SOURCE
 #endif
 #include <unistd.h>
-#if _POSIX_SEMAPHORES > 0
+#include "../test-flags.h"
+#if TEST_POSIX_SEMAPHORES
 #include <semaphore.h>
 #endif
 
@@ -60,7 +61,7 @@
 #undef lock
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_SEMAPHORES > 0
+#if TEST_POSIX_SEMAPHORES
 
 /* The <semaphore.h> header: types, constants and prototypes */
 

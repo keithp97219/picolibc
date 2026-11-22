@@ -1193,13 +1193,18 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 /* Dprintf writes to a file descriptor; the memory streams need nothing */
 #define __PICOLIBC_POSIX_DEVICE_IO_EXT __PICOLIBC_OS_DEVICE_IO
 #endif
+/*
+ * Groups of picolibc code over OS groups whose own members meet
+ * POSIX.1-2024 whatever edition those OS groups claim: the edition of
+ * an OS group counts only when these use what that edition added
+ */
 #if defined(__PICOLIBC_OS_FILE_SYSTEM)
-/* Getdate reads the templates file DATEMSK names */
-#define __PICOLIBC_XSI_C_LANG_SUPPORT __PICOLIBC_OS_FILE_SYSTEM
+/* Getdate reads the templates file DATEMSK names with stdio */
+#define __PICOLIBC_XSI_C_LANG_SUPPORT 202405L
 #endif
 #if defined(__PICOLIBC_OS_FILE_SYSTEM)
-/* The databases are files */
-#define __PICOLIBC_XSI_DBM __PICOLIBC_OS_FILE_SYSTEM
+/* The databases are files, used with open, read, write and lseek */
+#define __PICOLIBC_XSI_DBM 202405L
 #endif
 #if defined(__PICOLIBC_PTHREADS) && defined(_POSIX_THREADS) && _POSIX_THREADS > 0
 /* <threads.h> is built on picolibc's POSIX threads; the group is new in POSIX.1-2024 */
@@ -1208,7 +1213,8 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 /*
  * Popen, system and wordexp run the OS's /bin/sh in a child process,
  * connected by pipes and dup2, with signals held off while system
- * waits; the edition is the oldest of the groups they use
+ * waits. Popen and wordexp create their pipes with pipe2, new in
+ * POSIX.1-2024; everything else they use is older.
  */
 /* clang-format off */
 #if    defined(__PICOLIBC_OS_SHELL) && __PICOLIBC_OS_SHELL > 0 \
@@ -1216,22 +1222,9 @@ int     unlinkat(int, const char *, int) __picolibc_export;
     && defined(__PICOLIBC_OS_FILE_SYSTEM)                      \
     && defined(__PICOLIBC_OS_MULTI_PROCESS)                    \
     && defined(__PICOLIBC_OS_PIPE)                             \
-    && defined(__PICOLIBC_OS_SIGNALS)
-#if    __PICOLIBC_OS_FD_MGMT >= 202405L                        \
-    && __PICOLIBC_OS_FILE_SYSTEM >= 202405L                    \
-    && __PICOLIBC_OS_MULTI_PROCESS >= 202405L                  \
     && __PICOLIBC_OS_PIPE >= 202405L                           \
-    && __PICOLIBC_OS_SIGNALS >= 202405L
+    && defined(__PICOLIBC_OS_SIGNALS)
 #define __PICOLIBC_POSIX_SHELL_FUNC 202405L
-#elif  __PICOLIBC_OS_FD_MGMT >= 200809L                        \
-    && __PICOLIBC_OS_FILE_SYSTEM >= 200809L                    \
-    && __PICOLIBC_OS_MULTI_PROCESS >= 200809L                  \
-    && __PICOLIBC_OS_PIPE >= 200809L                           \
-    && __PICOLIBC_OS_SIGNALS >= 200809L
-#define __PICOLIBC_POSIX_SHELL_FUNC 200809L
-#else
-#define __PICOLIBC_POSIX_SHELL_FUNC 200112L
-#endif
 #endif
 /* clang-format on */
 

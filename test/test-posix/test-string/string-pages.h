@@ -39,7 +39,7 @@
  * writing past either end of the page faults, and the report naming
  * the call that faulted.
  *
- * Include it after the feature-test macros and "../posix-groups.h".
+ * Include it after the feature-test macros and "../test-flags.h".
  */
 
 #ifndef _STRING_PAGES_H_
@@ -51,14 +51,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if _POSIX_MAPPED_FILES > 0 && _POSIX_MEMORY_PROTECTION > 0
+#if TEST_POSIX_MAPPED_FILES && TEST_POSIX_MEMORY_PROTECTION
 #include <sys/mman.h>
 #define HAVE_GUARD_PAGES 1
 #else
 #define HAVE_GUARD_PAGES 0
 #endif
 
-#ifdef __PICOLIBC_POSIX_SIGNALS
+#if TEST_POSIX_SIGNALS
 #include <signal.h>
 #endif
 
@@ -84,7 +84,7 @@ static int            failures;
 
 #define now(...) snprintf(current, sizeof(current), __VA_ARGS__)
 
-#ifdef __PICOLIBC_POSIX_SIGNALS
+#if TEST_POSIX_SIGNALS
 static void
 on_fault(int sig)
 {
@@ -140,7 +140,7 @@ setup_arenas(void)
     printf("no guard pages; only the contents are checked\n");
 #endif
 
-#ifdef __PICOLIBC_POSIX_SIGNALS
+#if TEST_POSIX_SIGNALS
     {
         struct sigaction sa;
 

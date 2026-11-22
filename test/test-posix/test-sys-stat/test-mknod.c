@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* mknod is an XSI interface */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM) && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT)
+#if TEST_POSIX_FILE_SYSTEM && TEST_POSIX_FILE_SYSTEM_EXT
 
 #include <dirent.h>
 #include <errno.h>

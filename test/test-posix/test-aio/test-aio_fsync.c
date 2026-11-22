@@ -34,12 +34,11 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_ASYNCHRONOUS_IO > 0 && _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_FILE_SYSTEM) \
-    && defined(__PICOLIBC_POSIX_FILE_SYSTEM_EXT) && defined(__PICOLIBC_POSIX_PIPE)            \
-    && defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_ASYNCHRONOUS_IO && TEST_POSIX_THREADS && TEST_POSIX_FILE_SYSTEM \
+    && TEST_POSIX_FILE_SYSTEM_EXT && TEST_POSIX_PIPE && TEST_POSIX_SIGNALS
 
 #include <aio.h>
 #include <errno.h>

@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -43,7 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
 #include <sys/wait.h>
 #endif
 
@@ -96,7 +96,7 @@ name_is(int category, locale_t l, const char *name)
 }
 #endif
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
 
 static const char * const env_names[] = { "LC_ALL",      "LC_COLLATE", "LC_CTYPE", "LC_MESSAGES",
                                           "LC_MONETARY", "LC_NUMERIC", "LC_TIME",  "LANG" };
@@ -171,7 +171,7 @@ check_environment(void)
     check_env("", NULL, BOGUS, LC_ALL_MASK, 0, "empty LC_ALL ignored");
 }
 
-#endif /* __PICOLIBC_POSIX_MULTI_PROCESS */
+#endif /* TEST_POSIX_MULTI_PROCESS */
 
 int
 main(void)
@@ -278,7 +278,7 @@ main(void)
     }
 #endif
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
     check_environment();
 #ifdef __PICOLIBC__
     l = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);

@@ -37,9 +37,10 @@
 /* pthread_getconcurrency and pthread_setconcurrency are XSI interfaces */
 #define _XOPEN_SOURCE 800
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && _POSIX_THREAD_PRIORITY_SCHEDULING > 0
+#if TEST_POSIX_THREADS && TEST_POSIX_THREAD_PRIORITY_SCHEDULING
 
 #include <errno.h>
 #include <pthread.h>

@@ -38,10 +38,10 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SINGLE_PROCESS)
+#if TEST_POSIX_SINGLE_PROCESS
 
 #include <stdio.h>
 #include <stdlib.h>

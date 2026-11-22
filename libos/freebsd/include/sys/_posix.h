@@ -50,6 +50,7 @@
 #define __PICOLIBC_OS_JOB_CONTROL                  1
 #define __PICOLIBC_OS_NO_TRUNC                     1
 #define __PICOLIBC_OS_SAVED_IDS                    1
+#define __PICOLIBC_OS_SHELL                        1
 
 /* Options */
 #define __PICOLIBC_OS_ADVISORY_INFO                202405L

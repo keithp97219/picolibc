@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && defined(__PICOLIBC_POSIX_MULTI_PROCESS) && _POSIX_MAPPED_FILES > 0
+#if TEST_POSIX_THREADS && TEST_POSIX_MULTI_PROCESS && TEST_POSIX_MAPPED_FILES
 
 #include <errno.h>
 #include <pthread.h>
@@ -154,7 +154,7 @@ init_robust_type(pthread_mutex_t *mutex, int pshared, int type)
     if (pshared)
         check(pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED) == 0, "pshared");
     check(pthread_mutexattr_settype(&attr, type) == 0, "settype");
-#if _POSIX_THREAD_PRIO_INHERIT > 0
+#if TEST_POSIX_THREAD_PRIO_INHERIT
     if (protocol != PTHREAD_PRIO_NONE)
         check(pthread_mutexattr_setprotocol(&attr, protocol) == 0, "setprotocol");
 #endif
@@ -295,7 +295,7 @@ main(void)
 {
     protocol = PTHREAD_PRIO_NONE;
     run();
-#if _POSIX_THREAD_PRIO_INHERIT > 0
+#if TEST_POSIX_THREAD_PRIO_INHERIT
     /* Priority inheritance mutexes are robust in a different way */
     protocol = PTHREAD_PRIO_INHERIT;
     run();

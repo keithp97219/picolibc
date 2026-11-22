@@ -37,6 +37,7 @@
 /* crypt, encrypt and setkey are XSI interfaces */
 #define _XOPEN_SOURCE 800
 #include <unistd.h>
+#include "../test-flags.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -70,7 +71,7 @@ main(void)
     hash = crypt("password", "ab");
     if (hash == NULL) {
         check(errno != 0, "crypt sets errno");
-#if defined(_XOPEN_CRYPT) && _XOPEN_CRYPT > 0
+#if TEST_XOPEN_CRYPT
         check(errno != ENOSYS, "crypt is supported");
 #endif
     } else {
@@ -99,7 +100,7 @@ main(void)
         check(errno == ENOSYS, "encrypt without setkey support");
         check(memcmp(block, orig, 64) == 0 || errno != 0, "block");
     }
-#if defined(_XOPEN_CRYPT) && _XOPEN_CRYPT > 0
+#if TEST_XOPEN_CRYPT
     check(errno != ENOSYS, "the encryption group is supported");
 #endif
     printf("success\n");

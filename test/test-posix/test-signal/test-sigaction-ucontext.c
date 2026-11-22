@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* sigaltstack and SA_ONSTACK are XSI interfaces */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_SIGNALS
 
 #include <signal.h>
 #include <stdio.h>

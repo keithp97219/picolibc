@@ -73,9 +73,10 @@ _Static_assert(SCHED_SPORADIC != SCHED_FIFO && SCHED_SPORADIC != SCHED_RR
 
 #include <stdio.h>
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_PRIORITY_SCHEDULING > 0
+#if TEST_POSIX_PRIORITY_SCHEDULING
 
 static int (* const p_sched_get_priority_max)(int) = sched_get_priority_max;
 static int (* const p_sched_get_priority_min)(int) = sched_get_priority_min;

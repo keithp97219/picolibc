@@ -36,7 +36,7 @@
 #define _POSIX_C_SOURCE 202405L
 /* IOV_MAX, ATEXIT_MAX's partner NZERO and NL_LANGMAX are XSI */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -178,7 +178,7 @@ _Static_assert(WORD_BIT == sizeof(int) * CHAR_BIT, "WORD_BIT");
         }                                                                                 \
     } while (0)
 
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
 /* The limit named by the first word of a /proc/self/limits line, or -2 */
 static long
 proc_limit(const char *name)
@@ -232,7 +232,7 @@ cpu_list(const char *path)
     return count > 0 ? count : -1;
 }
 
-#ifdef __PICOLIBC_POSIX_SYMBOLIC_LINKS
+#if TEST_POSIX_SYMBOLIC_LINKS
 #include <fcntl.h>
 
 /*
@@ -468,7 +468,7 @@ main(void)
 
         check(onln >= 1 && conf >= onln, "1 <= _SC_NPROCESSORS_ONLN <= _SC_NPROCESSORS_CONF");
         /* Only where the system provides files, so sysconf can read /sys */
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
         if (sys_onln > 0)
             check(onln == sys_onln, "_SC_NPROCESSORS_ONLN counts the online CPUs");
 #else
@@ -485,7 +485,7 @@ main(void)
 #endif
 
     /* Kernel limits that /proc/self/limits shows on Linux, where there are files */
-#ifdef __PICOLIBC_POSIX_FILE_SYSTEM
+#if TEST_POSIX_FILE_SYSTEM
     v = proc_limit("Max open files");
     if (v != -2)
         check(sysconf(_SC_OPEN_MAX) == v, "_SC_OPEN_MAX is RLIMIT_NOFILE");
@@ -498,7 +498,7 @@ main(void)
 #endif
 
     /* The supplementary groups fit _SC_NGROUPS_MAX */
-#ifdef __PICOLIBC_POSIX_USER_GROUPS
+#if TEST_POSIX_USER_GROUPS
     v = sysconf(_SC_NGROUPS_MAX);
     check(v == -1 || getgroups(0, NULL) <= v, "getgroups within _SC_NGROUPS_MAX");
 #endif
@@ -537,7 +537,7 @@ main(void)
     }
 
     /* writev takes _SC_IOV_MAX vectors, and no more */
-#if defined(__PICOLIBC_POSIX_PIPE) && defined(__PICOLIBC_POSIX_DEVICE_IO)
+#if TEST_POSIX_PIPE && TEST_POSIX_DEVICE_IO
     v = sysconf(_SC_IOV_MAX);
     if (v > 0 && v <= 4096) {
         static struct iovec iov[4097];
@@ -559,7 +559,7 @@ main(void)
 #endif
 
     /* SYMLOOP_MAX links are followed, one more is a loop */
-#ifdef __PICOLIBC_POSIX_SYMBOLIC_LINKS
+#if TEST_POSIX_SYMBOLIC_LINKS
     v = sysconf(_SC_SYMLOOP_MAX);
     if (v > 0 && v < 1000) {
         char dir[] = "test-sysconf-limits-XXXXXX";

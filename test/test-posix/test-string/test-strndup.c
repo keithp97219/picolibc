@@ -36,7 +36,7 @@
 #define _POSIX_C_SOURCE 202405L
 /* setrlimit and RLIMIT_AS are XSI */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,7 +65,7 @@ static int ret;
 #define SANITIZER_ALLOCATOR 0
 #endif
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_XSI_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS && TEST_XSI_MULTI_PROCESS
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include "../is-qemu.h"
@@ -146,7 +146,7 @@ main(void)
         fail("strndup past a null");
     free(p);
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS) && defined(__PICOLIBC_XSI_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS && TEST_XSI_MULTI_PROCESS
     if (SANITIZER_ALLOCATOR) {
         printf("the sanitizer's allocator ignores RLIMIT_AS; ENOMEM not checked\n");
     } else if (is_qemu()) {

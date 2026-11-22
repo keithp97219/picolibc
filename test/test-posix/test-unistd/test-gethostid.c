@@ -36,10 +36,10 @@
 #define _POSIX_C_SOURCE 202405L
 /* gethostid is an XSI interface */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_XSI_SINGLE_PROCESS)
+#if TEST_XSI_SINGLE_PROCESS
 
 #include <fcntl.h>
 #include <limits.h>
@@ -92,7 +92,7 @@ main(void)
         check((int32_t)id == file_id, "the identifier in /etc/hostid");
 
     /* The same host, the same identifier */
-#ifdef __PICOLIBC_POSIX_MULTI_PROCESS
+#if TEST_POSIX_MULTI_PROCESS
     pid = fork();
     check(pid >= 0, "fork");
     if (pid == 0)

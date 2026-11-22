@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -73,7 +73,7 @@ step(int argc, char **argv, const char *optstring, int want, int want_optind, co
     }
 }
 
-#if defined(__PICOLIBC_POSIX_FD_MGMT) && defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_FD_MGMT && TEST_POSIX_FILE_SYSTEM
 #include <fcntl.h>
 #include <sys/stat.h>
 

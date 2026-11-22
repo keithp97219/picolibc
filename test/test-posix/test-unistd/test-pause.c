@@ -34,10 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_SIGNALS)
+#if TEST_POSIX_SIGNALS
 
 #include <errno.h>
 #include <signal.h>
@@ -46,7 +46,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
 #include <sys/wait.h>
 #endif
 
@@ -85,7 +85,7 @@ main(void)
     check(pause() == -1 && errno == EINTR, "pause");
     check(caught == SIGALRM, "pause woken by SIGALRM");
 
-#if defined(__PICOLIBC_POSIX_MULTI_PROCESS)
+#if TEST_POSIX_MULTI_PROCESS
     {
         pid_t pid;
         int   status;

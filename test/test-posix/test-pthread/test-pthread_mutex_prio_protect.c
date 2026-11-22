@@ -35,9 +35,10 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_THREADS > 0 && _POSIX_THREAD_PRIO_PROTECT > 0 && _POSIX_THREAD_PRIORITY_SCHEDULING > 0
+#if TEST_POSIX_THREADS && TEST_POSIX_THREAD_PRIO_PROTECT && TEST_POSIX_THREAD_PRIORITY_SCHEDULING
 
 #include <errno.h>
 #include <pthread.h>
@@ -112,13 +113,13 @@ main(void)
         check(pthread_mutexattr_init(&attr) == 0, "mutexattr_init");
         check(pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_PROTECT) == 0, "setprotocol");
         check(pthread_mutexattr_setprioceiling(&attr, ceiling[i]) == 0, "setprioceiling");
-#if _POSIX_THREAD_ROBUST_PRIO_PROTECT > 0
+#if TEST_POSIX_THREAD_ROBUST_PRIO_PROTECT
         /* A robust one too, which is on the robust list instead */
         if (i == 3)
             check(pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST) == 0, "setrobust");
 #endif
         ret = pthread_mutex_init(&mutex[i], &attr);
-#if _POSIX_THREAD_ROBUST_PRIO_PROTECT > 0
+#if TEST_POSIX_THREAD_ROBUST_PRIO_PROTECT
         /* Robust mutexes need the kernel's help, which QEMU's user mode lacks */
         if (i == 3 && ret == ENOTSUP) {
             printf("no robust mutexes here; using an ordinary one\n");

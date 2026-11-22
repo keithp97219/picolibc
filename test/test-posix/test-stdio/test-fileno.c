@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -58,7 +58,7 @@ main(void)
     size_t size = 0;
     FILE  *f;
 
-#if defined(__PICOLIBC_POSIX_FILE_SYSTEM)
+#if TEST_POSIX_FILE_SYSTEM
     check(fileno(stdin) == 0 && fileno(stdout) == 1 && fileno(stderr) == 2, "standard streams");
 #endif
 

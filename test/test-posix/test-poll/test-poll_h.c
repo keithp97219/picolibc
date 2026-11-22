@@ -40,10 +40,10 @@
 #ifdef TEST_GLIBC
 #define _GNU_SOURCE
 #endif
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if defined(__PICOLIBC_POSIX_DEVICE_IO) && defined(__PICOLIBC_POSIX_PIPE)
+#if TEST_POSIX_DEVICE_IO && TEST_POSIX_PIPE
 
 #include <poll.h>
 /* glibc's <poll.h> doesn't define sigset_t */

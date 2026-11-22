@@ -35,9 +35,10 @@
 
 #define _POSIX_C_SOURCE 202405L
 #include <unistd.h>
+#include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if _POSIX_MAPPED_FILES > 0 && _POSIX_MEMORY_PROTECTION > 0
+#if TEST_POSIX_MAPPED_FILES && TEST_POSIX_MEMORY_PROTECTION
 
 #include <sys/mman.h>
 

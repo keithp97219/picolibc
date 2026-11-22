@@ -36,7 +36,7 @@
 #define _POSIX_C_SOURCE 202405L
 /* random, srandom, initstate and setstate are XSI */
 #define _XOPEN_SOURCE 800
-#include "../posix-groups.h"
+#include "../test-flags.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,7 +83,7 @@ same_size(unsigned seed, size_t s1, size_t s2, const char *message)
     check(memcmp(v1, v2, sizeof(v1)) == 0, message);
 }
 
-#ifdef __PICOLIBC_POSIX_MULTI_PROCESS
+#if TEST_POSIX_MULTI_PROCESS
 /* In a fresh child, rand's default sequence is that of srand(1) */
 static void
 rand_default(void)
@@ -120,7 +120,7 @@ main(void)
     int   r[N];
     int   i;
 
-#ifdef __PICOLIBC_POSIX_MULTI_PROCESS
+#if TEST_POSIX_MULTI_PROCESS
     /* Before anything here calls rand */
     rand_default();
 #endif
