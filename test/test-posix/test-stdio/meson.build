@@ -36,6 +36,7 @@
 dir_tests = [
   'test-ctermid',
   'test-dprintf',
+  'test-fclose-std',
   'test-fdopen',
   'test-fflush',
   'test-fgetc',
@@ -49,12 +50,16 @@ dir_tests = [
   'test-getline',
   'test-pclose',
   'test-perror',
+  'test-printf-a-prec',
   'test-popen',
   'test-rename',
   'test-renameat',
   'test-stdio_h',
   'test-stdio_h-names',
   'test-stdio_h-xsi',
+  'test-stdin-offset',
+  'test-stdio_ext',
+  'test-stdout-buffering',
   'test-tmpnam',
 ]
 

@@ -55,8 +55,10 @@
 
             if (!(flags & FL_PREC))
                 prec = -1;
-            prec = __lfloat_x_engine(fval, &u.dtoa, prec, case_convert);
-            ndigs = prec + 1;
+            /* As for double: a precision beyond the digits pads with zeros */
+            ndigs = 1 + __lfloat_x_engine(fval, &u.dtoa, prec, case_convert);
+            if (prec <= ndigs)
+                prec = ndigs - 1;
             ndigs_exp = 1;
         } else
 #endif /* _NEED_IO_C99_FORMATS */

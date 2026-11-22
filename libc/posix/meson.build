@@ -48,6 +48,7 @@ posix_dirs = [
   'glob',
   'grp',
   'libgen',
+  'mntent',
   'monetary',
   'mqueue',
   'net-if',

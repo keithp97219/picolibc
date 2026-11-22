@@ -63,6 +63,7 @@ set(tests
   test-gethostid
   test-gethostname
   test-getlogin
+  test-getlogin-loginuid
   test-getlogin_r
   test-getpgid
   test-getresgid
@@ -75,6 +76,7 @@ set(tests
   test-linkat
   test-lockf
   test-lseek
+  test-main-envp
   test-nice
   test-nice-thread
   test-optind
@@ -109,6 +111,7 @@ set(tests
   test-sysconf
   test-sysconf-arg_max
   test-sysconf-limits
+  test-sysconf-phys_pages
   test-tcsetpgrp
   test-truncate
   test-ttyname_r

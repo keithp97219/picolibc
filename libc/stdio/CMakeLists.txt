@@ -141,6 +141,7 @@ picolibc_sources(
   sprintfd.c
   sprintff.c
   sscanf.c
+  stdio_ext.c
   strfromd.c
   strfromf.c
   strfroml.c

@@ -224,6 +224,23 @@ main(void)
         check(strncmp(buf, "abcjefgh", 8) == 0, "MAP_SHARED test: file contents after munmap");
     }
 
+#if defined(__PICOLIBC__) || defined(MAP_FILE)
+    /*
+     * MAP_FILE: the BSD spelling of a file mapping, zero on every
+     * system that has it; programs (gnulib's tests) still pass it
+     */
+    {
+        int fd = open(TEST_FILE_NAME, O_RDONLY);
+
+        check(fd >= 0, "MAP_FILE test: open");
+        addr = mmap(NULL, 8, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0);
+        check_mmap(addr, "MAP_FILE test: mmap");
+        check(strncmp(addr, "abcjefgh", 8) == 0, "MAP_FILE test: contents");
+        check(munmap(addr, 8) == 0, "MAP_FILE test: munmap");
+        close(fd);
+    }
+#endif
+
     /* ------------------------------------------------------------------
      * Test 6: msync on a MAP_SHARED mapping
      * Verify that msync(MS_SYNC) succeeds and the data is visible after

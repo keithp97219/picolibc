@@ -44,9 +44,14 @@ set(tests
   test-wcsnlen
   test-wcstol
   test-wcwidth
+  test-wcrtomb-invalid
+  test-wint_t
   )
 
 foreach(test IN LISTS tests)
   picolibc_test(${test})
   set_tests_properties(${test} PROPERTIES LABELS test-wchar)
 endforeach()
+
+# test-wint_t gets a <stddef.h> that ignores __need_wint_t
+target_include_directories(test-posix_test-wchar_test-wint_t BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stddef-wrapper)

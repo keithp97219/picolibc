@@ -43,4 +43,7 @@
 
 int _statvfsbuf(struct statvfs *buf, const struct __freebsd_statfs *kbuf);
 
+struct statfs;
+void _statfsbuf(struct statfs *buf, const struct __freebsd_statfs *kbuf);
+
 #endif /* _LOCAL_STATFS_H_ */

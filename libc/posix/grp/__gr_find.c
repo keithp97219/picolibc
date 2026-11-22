@@ -61,6 +61,7 @@ gr_parse(char *line, struct group *gr, char **members)
     if (field[0][0] == '\0' || !__getent_id(field[2], (gid_t) ~(gid_t)0, &gid))
         return false;
     gr->gr_name = field[0];
+    gr->gr_passwd = field[1];
     gr->gr_gid = (gid_t)gid;
     return true;
 }
@@ -76,7 +77,7 @@ __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct
     off_t        start;
     struct group ent;
     char        *members, *m, **mem, *grown;
-    size_t       nmem, array, need, name_off, members_off;
+    size_t       nmem, array, need, name_off, passwd_off, members_off;
     int          ret;
 
     *result = NULL;
@@ -110,6 +111,7 @@ __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct
         }
 
         name_off = (size_t)(ent.gr_name - line);
+        passwd_off = (size_t)(ent.gr_passwd - line);
         members_off = members ? (size_t)(members - line) : 0;
 
         if (!buf) {
@@ -146,6 +148,7 @@ __gr_find(FILE *file, enum __gr_match match, const char *name, gid_t gid, struct
             memcpy(buf, line, (size_t)len + 1);
         }
         grbuf->gr_name = buf + name_off;
+        grbuf->gr_passwd = buf + passwd_off;
         grbuf->gr_gid = ent.gr_gid;
         mem = (char **)(void *)(buf + array);
         grbuf->gr_mem = mem;

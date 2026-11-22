@@ -73,10 +73,7 @@ struct termios {
     speed_t  c_ospeed;
 };
 
-struct winsize {
-    unsigned short ws_row;
-    unsigned short ws_col;
-};
+#include <sys/_winsize.h>
 
 #define BRKINT    0x0001
 #define ICRNL     0x0002

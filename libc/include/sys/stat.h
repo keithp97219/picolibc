@@ -102,10 +102,8 @@ struct stat {
 };
 
 #if __BSD_VISIBLE
-#define _major_dev_shift ((sizeof(dev_t) >> 1) << 3)
-#define major(d)         ((d) >> _major_dev_shift)
-#define minor(d)         ((d) & (((dev_t)1 << _major_dev_shift) - 1))
-#define __make_dev(a, i) ((dev_t)(a) << _major_dev_shift | (i))
+/* major, minor and makedev */
+#include <sys/sysmacros.h>
 #endif
 
 #define st_atime st_atim.tv_sec

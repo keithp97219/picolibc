@@ -151,6 +151,18 @@ main(void)
     step(ARGC(dash_arg), dash_arg, "a:bx", '?', 4, NULL, "-c of -xbc is unknown");
     check(optopt == 'c', "optopt for -c");
 
+    /* An '=' after a short option is part of its option-argument */
+    char *equals[] = { "prog", "-a=x", "-b", "=y", NULL };
+    optind = 1;
+    step(ARGC(equals), equals, "a:b:", 'a', 2, "=x", "-a=x keeps the '='");
+    step(ARGC(equals), equals, "a:b:", 'b', 4, "=y", "-b =y keeps the '='");
+#if defined(__PICOLIBC__) || defined(TEST_GLIBC)
+    /* So for an optional argument ("::", an extension) */
+    char *equals_opt[] = { "prog", "-a==*==", NULL };
+    optind = 1;
+    step(ARGC(equals_opt), equals_opt, "a::", 'a', 2, "==*==", "-a==*== keeps both '='");
+#endif
+
     /* The first operand ends the options; getopt doesn't permute */
     char *operand[] = { "prog", "-a", "op", "-b", NULL };
     optind = 1;

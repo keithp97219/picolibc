@@ -41,6 +41,7 @@ set(tests
   test-strnlen-pages
   test-strsignal
   test-strtok_r
+  test-strverscmp
   )
 
 foreach(test IN LISTS tests)

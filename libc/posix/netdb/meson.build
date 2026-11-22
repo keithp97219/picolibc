@@ -50,6 +50,8 @@ if network != 'none'
     'freeaddrinfo.c',
     'gai_strerror.c',
     'getaddrinfo.c',
+    'gethostbyaddr.c',
+    'gethostbyname.c',
     'gethostent.c',
     'getnameinfo.c',
     'getnetbyaddr.c',

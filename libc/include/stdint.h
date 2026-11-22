@@ -286,8 +286,11 @@ _BEGIN_STD_C
 #endif
 #ifdef __WINT_MIN__
 #define WINT_MIN (__WINT_MIN__)
-#else
+#elif defined(__WINT_UNSIGNED__) || !defined(__WINT_MAX__)
 #define WINT_MIN (0U)
+#else
+/* clang gives no __WINT_MIN__; a signed wint_t (FreeBSD) runs from -MAX-1 */
+#define WINT_MIN (-(__WINT_MAX__) - 1)
 #endif
 
 /** Macros for minimum-width integer constant expressions */

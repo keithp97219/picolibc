@@ -352,6 +352,11 @@ __flockfile_close(FILE *f) __stdio_release_file(f) __no_thread_safety_analysis
     if (f->lock && f->lock != __LOCK_NONE) {
         ret = fflush(f);
         __lock_close(f->lock);
+        /*
+         * Static streams (stdin, stdout, stderr) outlive fclose and
+         * are still flushed at exit; don't leave a freed lock behind
+         */
+        f->lock = NULL;
     }
 #endif
     return ret;

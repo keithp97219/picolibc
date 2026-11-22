@@ -36,4 +36,5 @@
 dir_tests = [
   'test-fnmatch',
   'test-fnmatch-casefold',
+  'test-fnmatch-mb',
 ]

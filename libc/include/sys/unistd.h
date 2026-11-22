@@ -572,6 +572,8 @@ int     unlinkat(int, const char *, int) __picolibc_export;
 #define _SC_V8_ILP32_OFFBIG              143
 #define _SC_V8_LP64_OFF64                144
 #define _SC_V8_LPBIG_OFFBIG              145
+#define _SC_PHYS_PAGES                   146 /* not POSIX; glibc and the BSDs */
+#define _SC_AVPHYS_PAGES                 147 /* not POSIX; glibc */
 
 /*
  *  pathconf values per IEEE Std 1003.1, 2008 Edition

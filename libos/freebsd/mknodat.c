@@ -34,10 +34,12 @@
  */
 
 #include "local-freebsd.h"
+#include "local-dev.h"
 
 /* The S_IF* file types are the traditional values in both */
 int
 mknodat(int dirfd, const char *path, mode_t mode, dev_t dev)
 {
-    return _syscall(FREEBSD_SYS_mknodat, _at_fd_to_freebsd(dirfd), path, mode, (__uint64_t)dev);
+    return _syscall(FREEBSD_SYS_mknodat, _at_fd_to_freebsd(dirfd), path, mode,
+                    _dev_to_freebsd(dev));
 }

@@ -163,6 +163,8 @@ CONSTANTS = [
     ("dirent", ["sys/dirent.h"], r"DT_[A-Z]+", False),
     ("sched", ["sys/sched.h"], r"SCHED_(FIFO|OTHER|RR)", False),
     ("mount", ["sys/mount.h"], r"MNT_(RDONLY|NOSUID|WAIT|NOWAIT)", True),
+    ("mount-flags", ["sys/mount.h"],
+     r"MNT_(SYNCHRONOUS|NOEXEC|ASYNC|LOCAL|QUOTA|ROOTFS|IGNORE|NOATIME|AUTOMOUNTED)|MFSNAMELEN|MNAMELEN", True),
     ("rtprio", ["sys/rtprio.h"], r"RTP_[A-Z_]+", False),
     ("socket", ["sys/socket.h"], r"(SOCK_(STREAM|DGRAM|RAW|RDM|SEQPACKET|MAXADDRLEN)|SOL_SOCKET|SO_[A-Z_]+|AF_[A-Z0-9_]+|PF_[A-Z0-9_]+|SHUT_[A-Z]+|SCM_[A-Z_]+|SOMAXCONN)", False),
     ("socket-flags", ["sys/socket.h"], r"(SOCK_(CLOEXEC|CLOFORK|NONBLOCK)|MSG_[A-Z_]+)", True),
@@ -222,6 +224,8 @@ STRUCTS = [
         ("f_blocks", "__uint64_t"), ("f_bfree", "__uint64_t"), ("f_bavail", "__int64_t"),
         ("f_files", "__uint64_t"), ("f_ffree", "__int64_t"), ("f_namemax", "__uint32_t"),
         ("f_fsid", "__int32_t[2]"),
+        ("f_type", "__uint32_t"), ("f_owner", "__uint32_t"), ("f_fstypename", "char[16]"),
+        ("f_mntfromname", "char[1024]"), ("f_mntonname", "char[1024]"),
     ]),
     ("rlimit", "struct rlimit", [("rlim_cur", "__int64_t"), ("rlim_max", "__int64_t")]),
     ("rusage", "struct rusage", [

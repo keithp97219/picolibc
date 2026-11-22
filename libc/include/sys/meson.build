@@ -60,6 +60,7 @@ inc_sys_headers_all = [
   '_os.h',
   'param.h',
   'queue.h',
+  'random.h',
   'resource.h',
   'sched.h',
   'select.h',
@@ -72,6 +73,7 @@ inc_sys_headers_all = [
   '_stdint.h',
   'string.h',
   'syslimits.h',
+  'sysmacros.h',
   'termios.h',
   'timeb.h',
   'time.h',
@@ -87,7 +89,8 @@ inc_sys_headers_all = [
   'utime.h',
   'utsname.h',
   'wait.h',
-  '_wait.h'
+  '_wait.h',
+  '_winsize.h'
 ]
 
 if network != 'none'
