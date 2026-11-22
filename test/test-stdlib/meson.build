@@ -50,6 +50,7 @@ tests = [
   'test-rand',
   'test-stdckdint',
   'test-strtod',
+  'test-strtod-round',
   ]
 
 tests_cpp = [
