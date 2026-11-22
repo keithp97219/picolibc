@@ -37,6 +37,8 @@ tests = [
   'test-argv',
   'test-assert',
   'test-atomic',
+  'test-atomic-irq',
+  'test-atomic-irq-hook',
   'test-environ',
   'test-except',
   'test-getdate',
@@ -158,6 +160,9 @@ if cc.has_argument('-std=c23') and cc.has_function_attribute('deprecated')
 endif
 
 test_skip_native = [
+  # picolibc's own interrupt hooks, in <sys/lock.h>
+  'test-atomic-irq',
+  'test-atomic-irq-hook',
   'test-stack-smash',
   'test-thread-safety',
   'test-tls',
