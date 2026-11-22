@@ -33,8 +33,37 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * This is just a link to the real endian.h which is located in machine.
- * To be compatible with linux that has endian.h in include/endian.h
+#ifndef _ENDIAN_H_
+#define _ENDIAN_H_
+
+/*
+ * POSIX.1-2024 <endian.h>. The conversions are in <machine/endian.h>,
+ * which other headers include as well, so the names only <endian.h>
+ * must define are defined here.
  */
 #include <machine/endian.h>
+
+#ifndef LITTLE_ENDIAN
+#define LITTLE_ENDIAN _LITTLE_ENDIAN
+#endif
+#ifndef BIG_ENDIAN
+#define BIG_ENDIAN _BIG_ENDIAN
+#endif
+#ifndef BYTE_ORDER
+#define BYTE_ORDER _BYTE_ORDER
+#endif
+
+#ifndef _UINT16_T_DECLARED
+typedef __uint16_t uint16_t;
+#define _UINT16_T_DECLARED
+#endif
+#ifndef _UINT32_T_DECLARED
+typedef __uint32_t uint32_t;
+#define _UINT32_T_DECLARED
+#endif
+#ifndef _UINT64_T_DECLARED
+typedef __uint64_t uint64_t;
+#define _UINT64_T_DECLARED
+#endif
+
+#endif /* _ENDIAN_H_ */
