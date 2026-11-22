@@ -44,7 +44,7 @@
  * statvfs, and give the file system type statvfs doesn't
  */
 
-#if defined(__linux__) && __has_include(<sys/vfs.h>) && TEST_POSIX_FILE_SYSTEM
+#if defined(__linux__) && TEST_POSIX_MULTI_PROCESS && __has_include(<sys/vfs.h>)
 #include <fcntl.h>
 #include <sys/statvfs.h>
 #include <sys/vfs.h>

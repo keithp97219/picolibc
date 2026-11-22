@@ -44,7 +44,7 @@
  * from it): plausible uptime, memory and process count
  */
 
-#if defined(__linux__) && __has_include(<sys/sysinfo.h>)
+#if defined(__linux__) && TEST_POSIX_MULTI_PROCESS && __has_include(<sys/sysinfo.h>)
 #include <sys/sysinfo.h>
 
 int
