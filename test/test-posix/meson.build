@@ -46,6 +46,7 @@ tests = [
   'test-pwd',
   'test-rename',
   'test-setrlimit',
+  'test-sig2str',
   'test-signal',
   'test-stat',
   'test-statvfs',
@@ -182,7 +183,8 @@ foreach params : targets
 endforeach
 
 # picolibc's sbrk falls back to mmap; other C libraries' doesn't
-test_skip_native = ['test-sbrk-blocked']
+# glibc has no sig2str or str2sig
+test_skip_native = ['test-sbrk-blocked', 'test-sig2str']
 
 if enable_native_tests
 
