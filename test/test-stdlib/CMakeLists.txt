@@ -49,6 +49,7 @@ set(tests
   test-call-once
   test-stdckdint
   test-setenv
+  test-rand-sequence
   )
 
 set(tests_fail

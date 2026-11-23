@@ -48,6 +48,7 @@ tests = [
   'test-qsort-r',
   'test-qsort-r-posix',
   'test-rand',
+  'test-rand-sequence',
   'test-setenv',
   'test-stdckdint',
   'test-strtod',
