@@ -185,6 +185,15 @@ __retarget_lock_acquire_recursive(_LOCK_T lock)
     assert(ret == 0);
 }
 
+/* Try to acquire recursive lock, returning 0 on success */
+int __retarget_lock_try_acquire_recursive(_LOCK_T lock);
+
+int
+__retarget_lock_try_acquire_recursive(_LOCK_T lock)
+{
+    return pthread_mutex_trylock(&lock->mut) != 0;
+}
+
 /* Release non-recursive lock */
 void __retarget_lock_release(_LOCK_T lock);
 
