@@ -64,6 +64,7 @@ tests = [
   'test-ungetc-start-fflush',
   'test-fputwc',
   'test-fwide',
+  'test-printf-a-prec',
 ]
 
 tests_failure = []

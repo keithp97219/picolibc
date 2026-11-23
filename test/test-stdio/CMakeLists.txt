@@ -64,6 +64,7 @@ set(tests
   test-vsnprintf-s
   test-fputwc
   test-fwide
+  test-printf-a-prec
   )
 
 foreach(test IN LISTS tests)
