@@ -115,6 +115,7 @@ foreach(test IN LISTS tests_fail)
 endforeach()
 
 add_subdirectory(test-ctype)
+add_subdirectory(test-iconv)
 add_subdirectory(test-math)
 add_subdirectory(test-monetary)
 add_subdirectory(test-posix)
