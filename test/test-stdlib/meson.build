@@ -38,6 +38,7 @@ tests = [
   'test-bsearch',
   'test-call-once',
   'test-double-free',
+  'test-ecvt-digits',
   'test-efcvt',
   'test-malloc',
   'test-malloc-stress',
@@ -189,6 +190,9 @@ test_skip_native = [
   'test-memalignment',
   'test-qsort-r',
   'test-qsort-r-posix',
+  # glibc has no ecvtf_r or ecvtl_r, and its ecvt_r wants more than
+  # ndigit + 1 bytes
+  'test-ecvt-digits',
 ]
 
 if enable_native_tests
