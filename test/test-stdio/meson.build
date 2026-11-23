@@ -72,6 +72,7 @@ tests_printf = [
   'test-printf-long-double',
   'test-printf-scanf',
   'test-printf-exact',
+  'test-printf-wchar',
   ]
 
 test_extra_c_args = {
@@ -147,6 +148,13 @@ printf_types = [
     'ext' : '-int',
     'c_args' : printf_compile_args_i,
     'link_args' : printf_link_args_i,
+  },
+  {
+    'ext' : '-minimal',
+    'c_args' : printf_compile_args_m,
+    'link_args' : printf_link_args_m,
+    # most printf tests need more than the minimal level offers
+    'tests' : ['test-printf-wchar'],
   },
 ]
 
@@ -233,7 +241,7 @@ foreach params : targets
     _printf_c_args = printf_type['c_args'] + _c_args
     _printf_link_args = printf_type['link_args'] + _link_args
     _ext = printf_type['ext']
-    foreach test : tests_printf
+    foreach test : printf_type.get('tests', tests_printf)
       test_src = test + '.c'
       test_file_name_arg=['-DTEST_FILE_NAME="' + test + _ext + target + '.txt"']
 
