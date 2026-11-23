@@ -57,6 +57,13 @@ __stdio_flags(const char *mode, int *optr)
             ret |= (__SRD | __SWR);
             o = (o & ~O_ACCMODE) | O_RDWR;
             break;
+        case 'e': /* close on exec */
+            o |= O_CLOEXEC;
+            break;
+        case 'x': /* with 'w' or 'a', fail if the file exists */
+            if (o & O_CREAT)
+                o |= O_EXCL;
+            break;
         default:
             break;
         }
