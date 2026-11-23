@@ -139,6 +139,7 @@ struct __file_pipe {
     struct __file_bufio bfile;
     pid_t               child;
     int                *wstatus;
+    struct __file_pipe *next_pipe;
 };
 
 #define IO_VARIANT_IS_FLOAT(v) ((v) == __IO_VARIANT_FLOAT || (v) == __IO_VARIANT_DOUBLE)

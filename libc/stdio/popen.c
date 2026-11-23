@@ -34,9 +34,29 @@
  */
 
 #include "local-stdio.h"
+#include <alloca.h>
+#include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <sys/wait.h>
+
+/* Open popen streams, closed in each new child. Protected by __LIBC_LOCK */
+static struct __file_pipe *__popen_list;
+
+static void
+__popen_remove(struct __file_pipe *pf)
+{
+    struct __file_pipe **prev;
+
+    __LIBC_LOCK();
+    for (prev = &__popen_list; *prev; prev = &(*prev)->next_pipe) {
+        if (*prev == pf) {
+            *prev = pf->next_pipe;
+            break;
+        }
+    }
+    __LIBC_UNLOCK();
+}
 
 static int
 __pipe_close(FILE *file)
@@ -46,9 +66,15 @@ __pipe_close(FILE *file)
     pid_t               child = pf->child;
     int                 ret;
 
+    __popen_remove(pf);
+
     ret = __bufio_close(file);
-    if (waitpid(child, wstatus, 0) < 0)
-        return _FDEV_ERR;
+
+    /* Don't return before the child has terminated */
+    while (waitpid(child, wstatus, 0) < 0) {
+        if (errno != EINTR)
+            return _FDEV_ERR;
+    }
     return ret;
 }
 
@@ -68,20 +94,29 @@ popen(const char *command, const char *type)
     int                 pipe_fd[2];
     int                 my_fd;
     int                 stdio_flags;
+    bool                cloexec = false;
     struct __file_pipe *pf;
+    struct __file_pipe *other;
     char               *buf;
     size_t              buf_size;
 
-    if (strchr(type, 'r')) {
+    switch (type[0]) {
+    case 'r':
         my_fd = 0;
         stdio_flags = __SRD;
-    } else if (strchr(type, 'w')) {
+        break;
+    case 'w':
         my_fd = 1;
         stdio_flags = __SWR;
-    } else {
+        break;
+    default:
         errno = EINVAL;
         return NULL;
     }
+
+    /* 'e' leaves FD_CLOEXEC set on the stream's descriptor */
+    if (strchr(type, 'e'))
+        cloexec = true;
 
     if (pipe(pipe_fd) < 0)
         return NULL;
@@ -101,12 +136,20 @@ popen(const char *command, const char *type)
     pf->bfile.xfile.cfile.close = __pipe_close;
     pf->wstatus = NULL;
 
+    /* List the stream before forking, so the child closes it too */
+    __LIBC_LOCK();
+    pf->next_pipe = __popen_list;
+    __popen_list = pf;
+    __LIBC_UNLOCK();
+
     switch (pf->child = fork()) {
     case -1:
+        __popen_remove(pf);
         goto bail;
     case 0:
-        /* Close parent end */
-        close(pipe_fd[my_fd]);
+        /* Close the streams from popen calls, including this one's end */
+        for (other = __popen_list; other; other = other->next_pipe)
+            close(_FDEV_BUFIO_FD(&other->bfile));
 
         /* Move child end to correct fd */
         my_fd = 1 - my_fd;
@@ -117,15 +160,33 @@ popen(const char *command, const char *type)
 
         /* Set up argv */
         shell = "/bin/sh";
-        argv[0] = shell + 4;
+        argv[0] = shell + 5;
         argv[1] = "-c";
+        /*
+         * POSIX passes "--" so a command starting with '-' or '+' isn't
+         * taken as options, but FreeBSD's sh runs "--" itself as the
+         * command. A leading blank, which the shell skips, works with
+         * every shell.
+         */
+        if (command[0] == '-' || command[0] == '+') {
+            size_t len = strlen(command);
+            char  *blank = alloca(len + 2);
+
+            blank[0] = ' ';
+            memcpy(blank + 1, command, len + 1);
+            command = blank;
+        }
         argv[2] = (char *)command;
         argv[3] = NULL;
 
         /* And we're off */
         execve(shell, argv, environ);
-        _exit(1);
+
+        /* As if the shell had exited with 127 */
+        _exit(127);
     default:
+        if (cloexec)
+            fcntl(pipe_fd[my_fd], F_SETFD, FD_CLOEXEC);
         close(pipe_fd[1 - my_fd]);
         bufio_add_file(&pf->bfile.xfile.cfile.file);
         return &pf->bfile.xfile.cfile.file;
