@@ -34,8 +34,10 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 
 #define check(condition, message)                      \
@@ -45,6 +47,32 @@
             exit(1);                                   \
         }                                              \
     } while (0)
+
+#ifdef __PICOLIBC__
+#include <malloc.h>
+
+/* Let the test make the stream's buffer unable to grow */
+static int fail_realloc;
+
+void *
+realloc(void *ptr, size_t size)
+{
+    void  *new;
+    size_t old;
+
+    if (fail_realloc) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    new = malloc(size);
+    if (new != NULL && ptr != NULL) {
+        old = malloc_usable_size(ptr);
+        memcpy(new, ptr, old < size ? old : size);
+        free(ptr);
+    }
+    return new;
+}
+#endif
 
 int
 main(void)
@@ -73,6 +101,27 @@ main(void)
     free(buf);
 
 #ifdef __PICOLIBC__
+    /*
+     * A wide character that doesn't fit when the buffer can't grow is
+     * not written at all, so those written later stay whole
+     */
+    f = open_wmemstream(&buf, &size);
+    check(f != NULL, "open_wmemstream for no memory");
+    fail_realloc = 1;
+    for (i = 0; i < 100000; i++)
+        if (fputwc(L'a' + i % 26, f) == WEOF)
+            break;
+    fail_realloc = 0;
+    check(i < 100000, "out of memory");
+    clearerr(f);
+    check(fputwc(L'Z', f) == L'Z', "fputwc after no memory");
+    check(fflush(f) == 0, "fflush after no memory");
+    check(size == (size_t)i + 1, "size after no memory");
+    check(buf[i] == L'Z' && buf[i + 1] == L'\0', "wide character after no memory");
+    check(buf[i - 1] == (wchar_t)(L'a' + (i - 1) % 26), "wide character before no memory");
+    check(fclose(f) == 0, "fclose after no memory");
+    free(buf);
+
     /* POSIX allows rejecting null pointers; picolibc does */
     check(open_wmemstream(NULL, &size) == NULL, "no buffer pointer");
     check(open_wmemstream(&buf, NULL) == NULL, "no size pointer");
