@@ -122,6 +122,15 @@ if has_os_posix or use_stdlib
     ]
 endif
 
+# Counting INT_MAX bytes takes too long under emulation
+x86_families = ['x86', 'x86_64']
+unemulated = (host_machine.cpu_family() == build_machine.cpu_family() or
+              (x86_families.contains(host_machine.cpu_family()) and
+               x86_families.contains(build_machine.cpu_family())))
+if (has_os_posix or enable_native_tests) and unemulated
+  tests += ['test-printf-eoverflow']
+endif
+
 if get_option('test-stdin')
   tests += ['test-gets']
   tests_failure += ['test-gets']
