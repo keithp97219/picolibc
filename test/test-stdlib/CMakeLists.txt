@@ -52,6 +52,7 @@ set(tests
   test-rand-sequence
   test-a64l
   test-getsubopt
+  test-realloc-zero
   )
 
 set(tests_fail

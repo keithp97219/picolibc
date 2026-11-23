@@ -51,6 +51,7 @@ tests = [
   'test-qsort-r-posix',
   'test-rand',
   'test-rand-sequence',
+  'test-realloc-zero',
   'test-setenv',
   'test-stdckdint',
   'test-strtod',
@@ -75,7 +76,9 @@ if enable_native_tests and oslib_test_variant == ''
   }
 endif
 
-test_extra_c_args = {}
+# clang assumes the allocation functions never set errno, and reuses the
+# value stored before the call
+test_extra_c_args = {'test-realloc-zero': ['-fno-builtin']}
 
 test_args = {}
 
