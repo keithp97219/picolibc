@@ -35,9 +35,12 @@
 
 /*
  * Check that strtof, strtod and strtold round decimal input correctly,
- * as C23 F.5 and IEEE 754 5.12.2 require: exactly for up to
- * CR_DIG significant digits, and for longer strings by first rounding
- * to CR_DIG digits in the current rounding direction.
+ * as C23 F.5 and IEEE 754 5.12.2 describe: exactly for up to a
+ * number of significant digits for each type (FLT_CR_DIG, DBL_CR_DIG,
+ * LDBL_CR_DIG), and for longer strings by first rounding to that many
+ * digits in the current rounding direction. F.5 asks for
+ * LDBL_DECIMAL_DIG + 3 digits for every type; picolibc supports the
+ * digits its tables allow, at least *_DECIMAL_DIG (see doc/printf.md).
  *
  * Expected values come from an exact decimal expansion of the values
  * and midpoints around a random binary number, computed here with a
@@ -53,14 +56,22 @@
 #include <fenv.h>
 
 #if defined(__PICOLIBC__)
-#ifdef __LDBL_DECIMAL_DIG__
-#define CR_DIG (__LDBL_DECIMAL_DIG__ + 3)
-#else
-#define CR_DIG (__DECIMAL_DIG__ + 3)
-#endif
+/* As in libc/stdio/local-stdio.h */
+#define MANT_CR_DIG(mant_dig)     \
+    ((mant_dig) == 24        ? 27 \
+         : (mant_dig) == 53  ? 17 \
+         : (mant_dig) == 64  ? 50 \
+         : (mant_dig) == 106 ? 39 \
+         : (mant_dig) == 113 ? 36 \
+                             : 0)
+#define FLT_CR_DIG  MANT_CR_DIG(__FLT_MANT_DIG__)
+#define DBL_CR_DIG  MANT_CR_DIG(__DBL_MANT_DIG__)
+#define LDBL_CR_DIG MANT_CR_DIG(__LDBL_MANT_DIG__)
 #else
 /* Assume other C libraries round exactly for any number of digits */
-#define CR_DIG 12499
+#define FLT_CR_DIG  12499
+#define DBL_CR_DIG  12499
+#define LDBL_CR_DIG 12499
 #endif
 
 #ifdef __PICOLIBC__
@@ -265,28 +276,28 @@ dec_dec(struct dec *v)
 #define MAG_DOWN    1
 #define MAG_UP      2
 
-/* Round to CR_DIG digits as C23 F.5p3 specifies */
+/* Round to cr digits as C23 F.5p3 specifies */
 static void
-dec_round_cr(struct dec *v, int mag)
+dec_round_cr(struct dec *v, int mag, int cr)
 {
     int up = 0;
 
-    if (v->len <= CR_DIG)
+    if (v->len <= cr)
         return;
     switch (mag) {
     case MAG_NEAREST:
-        if (v->d[CR_DIG] > '5')
+        if (v->d[cr] > '5')
             up = 1;
-        else if (v->d[CR_DIG] == '5')
-            up = v->len > CR_DIG + 1 || ((v->d[CR_DIG - 1] - '0') & 1);
+        else if (v->d[cr] == '5')
+            up = v->len > cr + 1 || ((v->d[cr - 1] - '0') & 1);
         break;
     case MAG_UP:
         up = 1; /* the discarded digits are not all zero */
         break;
     }
     /* Truncate without normalizing so dec_inc adds one in the last kept place */
-    v->exp += v->len - CR_DIG;
-    v->len = CR_DIG;
+    v->exp += v->len - cr;
+    v->len = cr;
     if (up)
         dec_inc(v);
     else
@@ -378,7 +389,7 @@ mag_mode(int mode, int neg)
  * below and above are its neighbours, the strings tested are near x
  * itself and near the midpoint between x and above.
  */
-#define MAKE_TEST(T, NAME, STRTO, NEXT, FREXP, LDEXP, MANT, MIN_EXP, MAX, PMIN)                 \
+#define MAKE_TEST(T, NAME, STRTO, NEXT, FREXP, LDEXP, MANT, MIN_EXP, MAX, PMIN, CR)             \
     static void decompose_##NAME(T x, uint32_t *m, int *ep)                                     \
     {                                                                                           \
         int         e, i;                                                                       \
@@ -431,7 +442,20 @@ mag_mode(int mode, int neg)
                 T   want;                                                                       \
                 int c;                                                                          \
                 d_s = *s;                                                                       \
-                dec_round_cr(&d_s, mag);                                                        \
+                dec_round_cr(&d_s, mag, CR);                                                    \
+                if (s->len > CR && CR < PMIN + 2) {                                             \
+                    /*                                                                          \
+                     * With so few digits, rounding to CR digits may leave                      \
+                     * the neighbours of x; check that s converts like the                      \
+                     * rounded string instead                                                   \
+                     */                                                                         \
+                    if (fesetround(modes[m].mode) != 0)                                         \
+                        continue;                                                               \
+                    want = STRTO(dec_str(&d_s, neg, style), NULL);                              \
+                    fesetround(FE_TONEAREST);                                                   \
+                    check_##NAME(s, neg, style, m, neg ? -want : want);                         \
+                    continue;                                                                   \
+                }                                                                               \
                 c = dec_cmp(&d_s, at_mid ? &d_mid : &d_x);                                      \
                 if (at_mid) {                                                                   \
                     if (mag == MAG_NEAREST)                                                     \
@@ -458,7 +482,7 @@ mag_mode(int mode, int neg)
     /* Strings near the exact decimal value v */                                                \
     static void near_##NAME(const struct dec *v, T below, T x, T above, int x_even, int at_mid) \
     {                                                                                           \
-        static const int  ks[] = { PMIN + 2, CR_DIG - 1, CR_DIG, CR_DIG + 1, CR_DIG + 3 };      \
+        static const int  ks[] = { PMIN + 2, CR - 1, CR, CR + 1, CR + 3 };                      \
         static struct dec t;                                                                    \
         unsigned          i;                                                                    \
         int               style = rnd() & 1;                                                    \
@@ -474,7 +498,7 @@ mag_mode(int mode, int neg)
             try_##NAME(&t, style, below, x, above, x_even, at_mid);                             \
         }                                                                                       \
         for (i = 0; i < sizeof(ks) / sizeof(ks[0]); i++) {                                      \
-            if (v->len <= ks[i])                                                                \
+            if (v->len <= ks[i] || ks[i] < PMIN + 2)                                            \
                 continue;                                                                       \
             t = *v;                                                                             \
             dec_trunc(&t, ks[i]);                                                               \
@@ -545,18 +569,19 @@ mag_mode(int mode, int neg)
     }
 
 MAKE_TEST(float, float, strtof, nextafterf, frexpf, ldexpf, __FLT_MANT_DIG__, __FLT_MIN_EXP__,
-          __FLT_MAX__, 9)
+          __FLT_MAX__, 9, FLT_CR_DIG)
 MAKE_TEST(double, double, strtod, nextafter, frexp, ldexp, __DBL_MANT_DIG__, __DBL_MIN_EXP__,
-          __DBL_MAX__, 17)
+          __DBL_MAX__, 17, DBL_CR_DIG)
 #ifdef CHECK_LONG_DOUBLE
 MAKE_TEST(long double, long_double, strtold, nextafterl, frexpl, ldexpl, __LDBL_MANT_DIG__,
-          __LDBL_MIN_EXP__, __LDBL_MAX__, __LDBL_DECIMAL_DIG__)
+          __LDBL_MIN_EXP__, __LDBL_MAX__, __LDBL_DECIMAL_DIG__, LDBL_CR_DIG)
 #endif
 
 /*
  * Inputs which were rounded twice before the fix. Strings with more
- * than CR_DIG digits round to CR_DIG digits first (C23 F.5p3), so
- * those carry a second pair of expected values for that case.
+ * than DBL_CR_DIG (FLT_CR_DIG) digits round to that many digits first
+ * (C23 F.5p3), so those carry a second pair of expected values for
+ * that case.
  */
 static const struct {
     const char *s;
@@ -564,17 +589,19 @@ static const struct {
     double      d, d_cr;
     float       f, f_cr;
 } fixed[] = {
-    { "-18.2359332387141588",     18, -0x1.23c661ee85111p+4,  0,             -0x1.23c662p+4f, 0              },
-    { "3879922696742144132e+134", 19, 0x1.da1dde912ac26p+506, 0,             (float)INFINITY, 0              },
-    { "201.189382013492078",      18, 0x1.9260f6ade4cc5p+7,   0,             0x1.9260f6p+7f,  0              },
-    { "16777217.000000001",       17, 0x1.000001p+24,         0,             0x1.000002p+24f, 0              },
-    /* rounds to ...7754 with 20 digits, above the float midpoint */
-    { "1.00000005960464477539",   21, 0x1.000001p+0,          0x1.000001p+0, 0x1p+0f,         0x1.000002p+0f },
-    { "1.00000005960464477540",   21, 0x1.000001p+0,          0x1.000001p+0, 0x1.000002p+0f,  0x1.000002p+0f },
+    { "-18.2359332387141588",     18, -0x1.23c661ee85111p+4,  -0x1.23c661ee85112p+4,  -0x1.23c662p+4f,
+     0                                                                                                                },
+    { "3879922696742144132e+134", 19, 0x1.da1dde912ac26p+506, 0x1.da1dde912ac25p+506,
+     (float)INFINITY,                                                                                  0              },
+    { "201.189382013492078",      18, 0x1.9260f6ade4cc5p+7,   0x1.9260f6ade4cc6p+7,   0x1.9260f6p+7f,  0              },
+    { "16777217.000000001",       17, 0x1.000001p+24,         0,                      0x1.000002p+24f, 0              },
+    /* above the float midpoint when rounded to 20 digits */
+    { "1.00000005960464477539",   21, 0x1.000001p+0,          0x1.000001p+0,          0x1p+0f,         0x1.000002p+0f },
+    { "1.00000005960464477540",   21, 0x1.000001p+0,          0x1.000001p+0,          0x1.000002p+0f,  0x1.000002p+0f },
     /* rounds to the midpoint 2**53 + 1 with up to 22 digits */
-    { "9007199254740993.0000001", 23, 0x1.0000000000001p+53,  0x1p+53,       0x1p+53f,        0x1p+53f       },
-    { "1e400",                    1,  (double)INFINITY,       0,             (float)INFINITY, 0              },
-    { "1e-400",                   1,  0.0,                    0,             0.0f,            0              },
+    { "9007199254740993.0000001", 23, 0x1.0000000000001p+53,  0x1p+53,                0x1p+53f,        0x1p+53f       },
+    { "1e400",                    1,  (double)INFINITY,       0,                      (float)INFINITY, 0              },
+    { "1e-400",                   1,  0.0,                    0,                      0.0f,            0              },
 };
 
 #define NFIXED (int)(sizeof(fixed) / sizeof(fixed[0]))
@@ -587,8 +614,8 @@ check_fixed(void)
     float  f;
 
     for (i = 0; i < NFIXED; i++) {
-        double want_d = fixed[i].ndig > CR_DIG ? fixed[i].d_cr : fixed[i].d;
-        float  want_f = fixed[i].ndig > CR_DIG ? fixed[i].f_cr : fixed[i].f;
+        double want_d = fixed[i].ndig > DBL_CR_DIG ? fixed[i].d_cr : fixed[i].d;
+        float  want_f = fixed[i].ndig > FLT_CR_DIG ? fixed[i].f_cr : fixed[i].f;
 
         d = strtod(fixed[i].s, NULL);
         if (d != want_d) {
@@ -614,12 +641,12 @@ check_fixed(void)
 
     /*
      * 2**53 + 1 is a midpoint. With 39 significant digits, the string
-     * is exact when CR_DIG >= 39; otherwise it rounds to the midpoint
+     * is exact when DBL_CR_DIG >= 39; otherwise it rounds to the midpoint
      * and then to even.
      */
     d = strtod("9007199254740993.00000000000000000000001", NULL);
-    if (d != (CR_DIG >= 39 ? 0x1.0000000000001p+53 : 0x1p+53)) {
-        printf("strtod 2**53+1+tiny with CR_DIG %d: got %a\n", CR_DIG, d);
+    if (d != (DBL_CR_DIG >= 39 ? 0x1.0000000000001p+53 : 0x1p+53)) {
+        printf("strtod 2**53+1+tiny with DBL_CR_DIG %d: got %a\n", DBL_CR_DIG, d);
         errors++;
     }
 
@@ -660,6 +687,7 @@ main(void)
 #ifdef CHECK_LONG_DOUBLE
     test_long_double(NRANDOM);
 #endif
-    printf("CR_DIG %d: %ld checks, %d errors\n", CR_DIG, checks, errors);
+    printf("CR_DIG %d/%d/%d: %ld checks, %d errors\n", FLT_CR_DIG, DBL_CR_DIG, LDBL_CR_DIG, checks,
+           errors);
     return errors != 0;
 }

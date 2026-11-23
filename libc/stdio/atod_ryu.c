@@ -16,170 +16,194 @@
 // KIND, either express or implied.
 
 #include "local-stdio.h"
+#include "ryu/generic_128.h"
 
-#ifdef RYU_DEBUG
-#include <inttypes.h>
-#endif
+/*
+ * Convert a decimal value n * 10^e10 to binary, as Ryu's s2d does, but
+ * for any n of up to *_RYU_DIG digits, for every type, and leaving the
+ * rounding to the caller.
+ *
+ * Like s2d, this picks a binary exponent e2 from the lengths of n and
+ * 5^e10 so that m2 = floor(n * 10^e10 / 2^e2) has mant_dig + 2 or
+ * mant_dig + 3 bits, then computes m2 as the top bits of the product
+ * of n and an approximation of 5^e10 (or 5^-e10): the 125-bit values
+ * from ryu_table.c for float and double, the 251-bit values from
+ * ryu_table_128.c for long double, or, for double-double, those from
+ * ryu_table_atod.c.
+ *
+ * The approximation is low (5^e10) or high (5^-e10) by less than
+ * pow5_err units, so the product is off by less than n * pow5_err
+ * units. Where a multiple of 2^shift lies within that distance, the
+ * value is exact; s2d instead checks whether n is a multiple of a
+ * power of two or five, which needs more work for long n.
+ * mk-ryu-table-128.py checks, for every decimal exponent and every
+ * length of n up to *_RYU_DIG digits, that no inexact value comes that
+ * close to a multiple of 2^shift, so this decides exactness correctly
+ * without a fallback. The caller then rounds m2 with the sticky bit
+ * in any direction.
+ *
+ * Values beyond the type's range, in every rounding direction, return
+ * a small m2 with *sticky set and an exponent out of range for the
+ * type.
+ */
 
-#include "ryu/common.h"
-#include "ryu/d2s_intrinsics.h"
-
-#if __SIZEOF_DOUBLE__ == 8
-#define FLOAT64 double
-#elif __SIZEOF_LONG_DOUBLE__ == 8
-#define FLOAT64 long double
-#endif
-
-#ifdef FLOAT64
-
-#define DOUBLE_MANTISSA_BITS 52
-#define DOUBLE_EXPONENT_BITS 11
-#define DOUBLE_EXPONENT_BIAS 1023
-
-#if defined(_MSC_VER)
-#include <intrin.h>
-
-static inline uint32_t
-floor_log2(const uint64_t value)
-{
-    long index;
-    return _BitScanReverse64(&index, value) ? index : 64;
-}
-
+#ifdef ATOD_RYU_LONG_DOUBLE
+// 80-bit and binary128 long double
+#define ATOD_RYU_FUNC __atold_ryu
+#define POW5_MAX_BITS FLOAT_128_POW5_BITCOUNT
+#elif __LDBL_MANT_DIG__ == 106
+// float, double and double-double
+#define ATOD_RYU_FUNC __atod_ryu
+#define POW5_MAX_BITS ATOD_RYU_BITCOUNT
 #else
+// float and double
+#define ATOD_RYU_FUNC __atod_ryu
+#define POW5_MAX_BITS DOUBLE_POW5_BITCOUNT
+#endif
 
-static inline uint32_t
-floor_log2(const uint64_t value)
+// Words of n, the power of five and their product
+#define N_LIMBS    RYU_LIMBS(32 * ATOD_RYU_NWORDS)
+#define POW5_LIMBS RYU_LIMBS(POW5_MAX_BITS)
+#define P_LIMBS    (N_LIMBS + POW5_LIMBS)
+#define Q_LIMBS    RYU_LIMBS(128)
+
+// Converts n 64-bit words to ryu_limb
+static void
+pow5_limbs(const uint64_t *t, int n, ryu_limb *r)
 {
-    return 63 - __builtin_clzll(value);
+    int j;
+
+    for (j = 0; j < RYU_LIMBS(64 * n); j++)
+        r[j] = (ryu_limb)(t[j * RYU_LIMB_BITS / 64] >> (j * RYU_LIMB_BITS % 64));
 }
 
-#endif
-
-// The max function is already defined on Windows.
-static inline int32_t
-max32(int32_t a, int32_t b)
+int
+ATOD_RYU_FUNC(const uint32_t *n, int nn, int e10, int mant_dig, int min_exp, int max_exp,
+              uint64_t *q, int *sticky)
 {
-    return a < b ? b : a;
-}
+    ryu_limb  m[N_LIMBS + 1], pow5[POW5_LIMBS], p[P_LIMBS], r[P_LIMBS];
+    ryu_limb  qp[Q_LIMBS], qr[Q_LIMBS], low;
+    ryu_dlimb carry;
+    int       nm = RYU_LIMBS(32 * nn);
+    int       np, pow5_bits, pow5_err;
+    int       bits, e2, shift, i, exact;
 
-static inline FLOAT64
-int64Bits2Double(uint64_t bits)
-{
-    FLOAT64 f;
-    memcpy(&f, &bits, sizeof(FLOAT64));
-    return f;
-}
-
-FLOAT64
-__atod_engine(uint64_t m10, int e10)
-{
-#ifdef RYU_DEBUG
-    printf("m10 = %lu\n", m10);
-    printf("e10 = %d\n", e10);
-    printf("m10 * 10^e10 = %" PRIu64 " * 10^%d\n", m10, e10);
-#endif
-#define signedM 0
-#define RYU_OPTIMIZE_SIZE
-
-    // Convert to binary float m2 * 2^e2, while retaining information about whether the conversion
-    // was exact (trailingZeros).
-    int32_t  e2;
-    uint64_t m2;
-    bool     trailingZeros;
-    if (e10 >= 0) {
-        // The length of m * 10^e in bits is:
-        //   log2(m10 * 10^e10) = log2(m10) + e10 log2(10) = log2(m10) + e10 + e10 * log2(5)
-        //
-        // We want to compute the DOUBLE_MANTISSA_BITS + 1 top-most bits (+1 for the implicit
-        // leading one in IEEE format). We therefore choose a binary output exponent of
-        //   log2(m10 * 10^e10) - (DOUBLE_MANTISSA_BITS + 1).
-        //
-        // We use floor(log2(5^e10)) so that we get at least this many bits; better to
-        // have an additional bit than to not have enough bits.
-        e2 = floor_log2(m10) + e10 + log2pow5(e10) - (DOUBLE_MANTISSA_BITS + 1);
-
-        // We now compute [m10 * 10^e10 / 2^e2] = [m10 * 5^e10 / 2^(e2-e10)].
-        // To that end, we use the DOUBLE_POW5_SPLIT table.
-        int j = e2 - e10 - ceil_log2pow5(e10) + DOUBLE_POW5_BITCOUNT;
-        assert(j >= 0);
-#if defined(RYU_OPTIMIZE_SIZE)
-        uint64_t pow5[2];
-        __double_computePow5(e10, pow5);
-        m2 = mulShift64(m10, pow5, j);
-#else
-        assert(e10 < DOUBLE_POW5_TABLE_SIZE);
-        m2 = mulShift64(m10, DOUBLE_POW5_SPLIT[e10], j);
-#endif
-        // We also compute if the result is exact, i.e.,
-        //   [m10 * 10^e10 / 2^e2] == m10 * 10^e10 / 2^e2.
-        // This can only be the case if 2^e2 divides m10 * 10^e10, which in turn requires that the
-        // largest power of 2 that divides m10 + e10 is greater than e2. If e2 is less than e10,
-        // then the result must be exact. Otherwise we use the existing multipleOfPowerOf2 function.
-        trailingZeros = e2 < e10 || (e2 - e10 < 64 && multipleOfPowerOf2(m10, e2 - e10));
-    } else {
-        e2 = floor_log2(m10) + e10 - ceil_log2pow5(-e10) - (DOUBLE_MANTISSA_BITS + 1);
-        int j = e2 - e10 + ceil_log2pow5(-e10) - 1 + DOUBLE_POW5_INV_BITCOUNT;
-#if defined(RYU_OPTIMIZE_SIZE)
-        uint64_t pow5[2];
-        __double_computeInvPow5(-e10, pow5);
-        m2 = mulShift64(m10, pow5, j);
-#else
-        assert(-e10 < DOUBLE_POW5_INV_TABLE_SIZE);
-        m2 = mulShift64(m10, DOUBLE_POW5_INV_SPLIT[-e10], j);
-#endif
-        trailingZeros = multipleOfPowerOf5(m10, -e10);
+    for (i = 0; i < nm; i++) {
+        m[i] = n[i * RYU_LIMB_BITS / 32];
+        if (RYU_LIMB_BITS == 64 && 2 * i + 1 < nn)
+            m[i] |= (ryu_limb)((ryu_dlimb)n[2 * i + 1] << 32);
     }
+    for (bits = nm * RYU_LIMB_BITS; !(m[nm - 1] >> ((bits - 1) % RYU_LIMB_BITS)); bits--)
+        ;
 
-#ifdef RYU_DEBUG
-    printf("m2 * 2^e2 = 0x%" PRIx64 " * 2^%d\n", m2, e2);
-#endif
+    q[0] = 1;
+    q[1] = 0;
+    *sticky = 1;
 
-    // Compute the final IEEE exponent.
-    uint32_t ieee_e2 = (uint32_t)max32(0, e2 + DOUBLE_EXPONENT_BIAS + floor_log2(m2));
+    // Values beyond 10^max_exp or below 10^-(-min_exp + 2 * mant_dig + bits) are out of
+    // range, which also keeps e10 within the range of generic_pow5bits.
+    if (e10 >= max_exp)
+        return max_exp + 1;
+    if (-e10 >= -min_exp + 2 * mant_dig + bits)
+        return min_exp - 2 * mant_dig - 4;
 
-    if (ieee_e2 > 0x7fe) {
-        // Final IEEE exponent is larger than the maximum representable; return +/-Infinity.
-        uint64_t ieee = (((uint64_t)signedM) << (DOUBLE_EXPONENT_BITS + DOUBLE_MANTISSA_BITS))
-            | (0x7ffull << DOUBLE_MANTISSA_BITS);
-        return int64Bits2Double(ieee);
-    }
-
-    // We need to figure out how much we need to shift m2. The tricky part is that we need to take
-    // the final IEEE exponent into account, so we need to reverse the bias and also special-case
-    // the value 0.
-    int32_t shift = (ieee_e2 == 0 ? 1 : ieee_e2) - e2 - DOUBLE_EXPONENT_BIAS - DOUBLE_MANTISSA_BITS;
-    assert(shift >= 0);
-#ifdef RYU_DEBUG
-    printf("ieee_e2 = %d\n", ieee_e2);
-    printf("shift = %d\n", shift);
-#endif
-
-    // We need to round up if the exact value is more than 0.5 above the value we computed. That's
-    // equivalent to checking if the last removed bit was 1 and either the value was not just
-    // trailing zeros or the result would otherwise be odd.
+    // The length of n * 10^e10 in bits is:
+    //   log2(n * 10^e10) = log2(n) + e10 + e10 * log2(5)
     //
-    // We need to update trailingZeros given that we have the exact output exponent ieee_e2 now.
-    trailingZeros &= (m2 & ((1ull << (shift - 1)) - 1)) == 0;
-    uint64_t lastRemovedBit = (m2 >> (shift - 1)) & 1;
-    bool     roundUp = (lastRemovedBit != 0) && (!trailingZeros || (((m2 >> shift) & 1) != 0));
+    // We want to compute the mant_dig + 2 top-most bits (the significand plus a guard
+    // bit). We therefore choose a binary output exponent of
+    //   floor(log2(n)) + e10 + floor(log2(5^e10)) - (mant_dig + 1)
+    // which leaves 2^(mant_dig + 1) <= n * 10^e10 / 2^e2 < 2^(mant_dig + 3)
+    if (e10 >= 0)
+        e2 = bits - 1 + e10 + (int)generic_pow5bits(e10) - 1 - (mant_dig + 1);
+    else
+        e2 = bits - 1 + e10 - (int)generic_pow5bits(-e10) - (mant_dig + 1);
 
-#ifdef RYU_DEBUG
-    printf("roundUp = %d\n", roundUp);
-    printf("ieee_m2 = 0x%" PRIx64 "\n", (m2 >> shift) + roundUp);
+    // Values at least 2^max_exp overflow and values below half the smallest
+    // subnormal underflow in every rounding direction.
+    if (e2 >= max_exp - mant_dig - 1)
+        return max_exp + 1;
+    if (e2 <= min_exp - 2 * mant_dig - 4)
+        return min_exp - 2 * mant_dig - 4;
+
+#ifdef ATOD_RYU_LONG_DOUBLE
+    {
+        uint64_t t[4];
+        if (e10 >= 0)
+            generic_computePow5(e10, t);
+        else
+            generic_computeInvPow5(-e10, t);
+        pow5_limbs(t, 4, pow5);
+        pow5_bits = FLOAT_128_POW5_BITCOUNT;
+        pow5_err = 1;
+    }
+#else
+#if __LDBL_MANT_DIG__ == 106
+    if (mant_dig > 53) {
+        __atod_ryu_pow5(e10 >= 0 ? e10 : -e10, e10 < 0, pow5);
+        pow5_bits = ATOD_RYU_BITCOUNT;
+        pow5_err = ATOD_RYU_ERR;
+    } else
 #endif
-    uint64_t ieee_m2 = (m2 >> shift) + roundUp;
-    assert(ieee_m2 <= (1ull << (DOUBLE_MANTISSA_BITS + 1)));
-    ieee_m2 &= (1ull << DOUBLE_MANTISSA_BITS) - 1;
-    if (ieee_m2 == 0 && roundUp) {
-        // Due to how the IEEE represents +/-Infinity, we don't need to check for overflow here.
-        ieee_e2++;
+    {
+        uint64_t t[2];
+        if (e10 >= 0)
+            __double_computePow5(e10, t);
+        else
+            __double_computeInvPow5(-e10, t);
+        pow5_limbs(t, 2, pow5);
+        pow5_bits = DOUBLE_POW5_BITCOUNT;
+        pow5_err = 1;
+    }
+#endif
+    np = nm + RYU_LIMBS(pow5_bits);
+    ryu_mul(m, nm, pow5, RYU_LIMBS(pow5_bits), p);
+
+    // r = p + n * pow5_err (5^e10 is low) or p - n * pow5_err (5^-e10 is high),
+    // the other end of the range holding the exact product.
+    carry = 0;
+    for (i = 0; i < nm; i++) {
+        carry += (ryu_dlimb)m[i] * pow5_err;
+        m[i] = (ryu_limb)carry;
+        carry >>= RYU_LIMB_BITS;
+    }
+    m[nm] = (ryu_limb)carry;
+    carry = 0;
+    for (i = 0; i < np; i++) {
+        ryu_limb a = i <= nm ? m[i] : 0;
+        if (e10 >= 0)
+            carry = (ryu_dlimb)p[i] + a + carry;
+        else
+            carry = (ryu_dlimb)p[i] - a - carry;
+        r[i] = (ryu_limb)carry;
+        carry = (carry >> RYU_LIMB_BITS) & 1;
     }
 
-    uint64_t ieee = (((((uint64_t)signedM) << DOUBLE_EXPONENT_BITS) | (uint64_t)ieee_e2)
-                     << DOUBLE_MANTISSA_BITS)
-        | ieee_m2;
-    return int64Bits2Double(ieee);
-}
+    // m2 is the product shifted right by bits + pow5_bits - mant_dig - 3, which
+    // leaves mant_dig + 2 or mant_dig + 3 bits.
+    shift = bits + pow5_bits - mant_dig - 3;
+    exact = 0;
+    for (i = 0; i < Q_LIMBS; i++) {
+        qp[i] = ryu_shift_limb(p, np, shift, i);
+        qr[i] = ryu_shift_limb(r, np, shift, i);
+        if (qp[i] != qr[i])
+            exact = 1;
+    }
 
-#endif /* FLOAT64 */
+    if (exact) {
+        // A multiple of 2^shift lies between p and r: the value is exact, and for
+        // e10 >= 0 the larger of the two.
+        if (e10 >= 0)
+            memcpy(qp, qr, sizeof(qp));
+        *sticky = 0;
+    } else if (e10 >= 0) {
+        // The approximation of 5^e10 may also be exact
+        low = p[shift / RYU_LIMB_BITS] << (RYU_LIMB_BITS - 1 - shift % RYU_LIMB_BITS) << 1;
+        for (i = 0; i < shift / RYU_LIMB_BITS; i++)
+            low |= p[i];
+        *sticky = low != 0;
+    }
+    for (i = 0; i < 2; i++)
+        q[i] = RYU_LIMB_BITS == 64 ? qp[i] : qp[2 * i] | (uint64_t)qp[2 * i + 1] << 32;
+    return e2;
+}

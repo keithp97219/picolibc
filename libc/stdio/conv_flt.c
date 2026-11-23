@@ -157,7 +157,6 @@ scanf_ungetc(INT c, FLT_STREAM *s, int *lenp)
 #include <fenv.h>
 
 #ifdef __IO_FLOAT_EXACT
-#include "atof_exact.h"
 #define _NEED_IO_FLOAT_EXACT_DEC
 #endif
 
@@ -285,9 +284,9 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
     int          exp;
     int          rmode;
 #ifdef _NEED_IO_FLOAT_EXACT_DEC
-    uint32_t dw[ATOF_EXACT_NWORDS]; /* decimal significand */
-    int      nn = 0;                /* words in dw */
-    int      ndig = 0;              /* significant digits in dw */
+    uint32_t dw[ATOD_RYU_NWORDS]; /* decimal significand */
+    int      nn = 0;              /* words in dw */
+    int      ndig = 0;            /* significant digits in dw */
 #endif
 
     i = scanf_getc(stream, context); /* after scanf_ungetc()	*/
@@ -402,7 +401,8 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
                     flags |= FL_TWO;
                 flags |= FL_ANY;
 #ifdef _NEED_IO_FLOAT_EXACT_DEC
-#define DIGITS_FULL() ((base) == 10 ? ndig >= ATOF_EXACT_DIG : uintdigits > uintdigitsmax)
+#define RYU_DIG       (CHECK_LONG_LONG() ? LDBL_RYU_DIG : (CHECK_LONG() ? DBL_RYU_DIG : FLT_RYU_DIG))
+#define DIGITS_FULL() ((base) == 10 ? ndig >= RYU_DIG : uintdigits > uintdigitsmax)
 #else
 #define DIGITS_FULL() (uintdigits > uintdigitsmax)
 #endif
@@ -428,7 +428,7 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
 #ifdef _NEED_IO_FLOAT_EXACT_DEC
                     if (base == 10) {
                         if (ndig || c) {
-                            nn = __atof_exact_mul_add(dw, nn, 10, c);
+                            nn = __atod_ryu_mul_add(dw, nn, 10, c);
                             ndig++;
                         }
                     } else
@@ -540,35 +540,37 @@ conv_flt(FLT_STREAM *stream, FLT_CONTEXT *context, width_t width, void *addr, ui
 
 #ifdef _NEED_IO_FLOAT_EXACT_DEC
         if (!IS_HEX()) {
-            uint32_t q[ATOF_EXACT_QWORDS];
+            uint64_t q[2];
             int      sticky;
 
             /*
-             * Round to ATOF_EXACT_DIG digits in the current rounding
+             * Round to RYU_DIG digits in the current rounding
              * direction (C23 F.5p3). overflow is 1 for a discarded
              * part below one half, 2 for exactly one half and 3 above.
              */
             if (overflow
                 && (rmode == RND_UP
                     || (rmode == RND_NEAREST && (overflow == 3 || (overflow == 2 && (dw[0] & 1))))))
-                nn = __atof_exact_mul_add(dw, nn, 1, 1);
+                nn = __atod_ryu_mul_add(dw, nn, 1, 1);
 
-#if __SIZEOF_LONG_DOUBLE__ > 8 && defined(_NEED_IO_LONG_DOUBLE)
             if (CHECK_LONG_LONG())
-                exp = __atof_exact_long_double(dw, nn, exp, q, &sticky);
-            else
+#if __SIZEOF_LONG_DOUBLE__ > 8 && (__LDBL_MANT_DIG__ == 64 || __LDBL_MANT_DIG__ == 113)
+                exp = __atold_ryu(dw, nn, exp, __LDBL_MANT_DIG__, __LDBL_MIN_EXP__,
+                                  __LDBL_MAX_EXP__, q, &sticky);
+#else
+                exp = __atod_ryu(dw, nn, exp, __LDBL_MANT_DIG__, __LDBL_MIN_EXP__, __LDBL_MAX_EXP__,
+                                 q, &sticky);
 #endif
-#if __SIZEOF_DOUBLE__ == 8 || __SIZEOF_LONG_DOUBLE__ == 8
-                if ((CHECK_LONG() && __SIZEOF_DOUBLE__ == 8)
-                    || (CHECK_LONG_LONG() && __SIZEOF_LONG_DOUBLE__ == 8))
-                exp = __atof_exact_double(dw, nn, exp, q, &sticky);
+            else if (CHECK_LONG())
+                exp = __atod_ryu(dw, nn, exp, __DBL_MANT_DIG__, __DBL_MIN_EXP__, __DBL_MAX_EXP__, q,
+                                 &sticky);
             else
-#endif
-                exp = __atof_exact_float(dw, nn, exp, q, &sticky);
+                exp = __atod_ryu(dw, nn, exp, __FLT_MANT_DIG__, __FLT_MIN_EXP__, __FLT_MAX_EXP__, q,
+                                 &sticky);
 
-            uint = U64_TO_UF(((uint64_t)q[1] << 32) | q[0]);
+            uint = U64_TO_UF(q[0]);
 #if FLOAT_MANT_DIG > 53
-            uint = UF_OR(uint, UF_LSHIFT(U64_TO_UF(((uint64_t)q[3] << 32) | q[2]), 64));
+            uint = UF_OR(uint, UF_LSHIFT(U64_TO_UF(q[1]), 64));
 #endif
             overflow = sticky;
         }

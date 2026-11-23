@@ -217,22 +217,31 @@ hence the size) of the library:
    beyond about 16 digits.
 
    With this option, scanf and strtod are correctly rounded, in the
-   current rounding direction, for decimal input of up to
-   LDBL_DECIMAL_DIG + 3 significant digits (20 where long double is
-   64 bits, 24 for 80 bits, 39 for 128 bits), as C23 Annex F.5
-   requires. Longer input is first rounded to that many digits, as
-   F.5 allows. Without it, decimal input uses the smaller inexact
+   current rounding direction, for decimal input of up to 27
+   significant digits for 32-bit floats, 17 for 64-bit floats, 50 for
+   80-bit long doubles, 36 for 128-bit long doubles and 39 for
+   double-double. Longer input is first rounded to that many digits in
+   the current direction, then converted, as C23 Annex F.5 describes.
+   Those are the most digits that the fixed-precision tables of powers
+   of five used for each type (from Ryu, shared with printf) support
+   without arbitrary precision arithmetic, and each is at least the
+   type's `*_DECIMAL_DIG`, so printf output always reads back exactly.
+   Without this option, decimal input uses the smaller inexact
    conversion.
 
-   Known variance: picolibc uses the compiler's `<float.h>`, and GCC's
-   `CR_DECIMAL_DIG` (visible with `__STDC_WANT_IEC_60559_EXT__`) is
-   `UINTMAX_MAX`, claiming correct rounding at every length in both
-   directions. That isn't true here: printf is correctly rounded only
-   to the digit counts above, and decimal input only to
-   LDBL_DECIMAL_DIG + 3 digits. Since printf stops short of the
-   LDBL_DECIMAL_DIG + 3 minimum, no value of `CR_DECIMAL_DIG` would be
-   both accurate and conforming, so picolibc leaves the compiler's
-   definition alone.
+   Known variance: F.5 asks for correct rounding of decimal input up
+   to `CR_DECIMAL_DIG` digits, at least LDBL_DECIMAL_DIG + 3 (20 where
+   long double is 64 bits, 24 for 80 bits, 39 for 128 bits), for
+   every type. 80-bit long doubles meet that, and 32-bit floats do
+   where long double has 64 or 80 bits; double (17 digits), 128-bit
+   long double (36), double-double, and float where long double has
+   128 bits, fall short, as does printf with the digit counts above.
+   picolibc uses the compiler's
+   `<float.h>`, and GCC's `CR_DECIMAL_DIG` (visible with
+   `__STDC_WANT_IEC_60559_EXT__`) is `UINTMAX_MAX`, claiming correct
+   rounding at every length in both directions, which isn't true here
+   either. Since no value of `CR_DECIMAL_DIG` would be both accurate
+   and conforming, picolibc leaves the compiler's definition alone.
 
  * `-Datomic-ungetc=true` This option, which is enabled by default,
    controls whether getc/ungetc use atomic instruction sequences to

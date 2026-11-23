@@ -224,7 +224,7 @@ srcs_stdio = [
 # exact float/string conversion code
 srcs_dtoa_ryu = [
   'atod_ryu.c',
-  'atof_exact.c',
+  'atold_ryu.c',
   'atof_ryu.c',
   'dtoa_ryu.c',
   'ftoa_ryu.c',
@@ -236,6 +236,7 @@ srcs_dtoa_ryu = [
   'ryu_pow5bits.c',
   'ryu_table.c',
   'ryu_table_128.c',
+  'ryu_table_atod.c',
   'ryu_umul128.c',
 ]
 		

@@ -224,7 +224,7 @@ picolibc_sources(
 if(__IO_FLOAT_EXACT)
   picolibc_sources(
     atod_ryu.c
-    atof_exact.c
+    atold_ryu.c
     atof_ryu.c
     dtoa_ryu.c
     ftoa_ryu.c
@@ -236,6 +236,7 @@ if(__IO_FLOAT_EXACT)
     ryu_pow5bits.c
     ryu_table.c
     ryu_table_128.c
+    ryu_table_atod.c
     ryu_umul128.c
     )
 else()

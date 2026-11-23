@@ -377,6 +377,75 @@ __atod_engine(uint64_t m10, int e10);
 
 float __atof_engine(uint32_t m10, int e10);
 
+#ifdef __IO_FLOAT_EXACT
+/*
+ * Decimal to binary conversion for strtod and scanf (atod_ryu.c).
+ *
+ * Decimal strings with up to *_RYU_DIG significant digits are
+ * correctly rounded in the current rounding direction. Longer strings
+ * are first rounded to that many digits in the current rounding
+ * direction, then that value is correctly rounded, as C23 F.5 (and
+ * IEEE 754-2019 5.12.2) describe. *_RYU_DIG is the most digits the
+ * Ryu tables support for the type, which is at least *_DECIMAL_DIG
+ * so printf output reads back exactly, but less than the
+ * LDBL_DECIMAL_DIG + 3 F.5 asks for. See mk-ryu-table-128.py and
+ * doc/printf.md
+ */
+
+#define __ATOD_RYU_DIG(mant_dig)  \
+    ((mant_dig) == 24        ? 27 \
+         : (mant_dig) == 53  ? 17 \
+         : (mant_dig) == 64  ? 50 \
+         : (mant_dig) == 106 ? 39 \
+         : (mant_dig) == 113 ? 36 \
+                             : 0)
+#define FLT_RYU_DIG          __ATOD_RYU_DIG(__FLT_MANT_DIG__)
+#define DBL_RYU_DIG          __ATOD_RYU_DIG(__DBL_MANT_DIG__)
+#define LDBL_RYU_DIG         __ATOD_RYU_DIG(__LDBL_MANT_DIG__)
+#define __ATOD_RYU_MAX(a, b) ((a) > (b) ? (a) : (b))
+#define ATOD_RYU_DIG         __ATOD_RYU_MAX(FLT_RYU_DIG, __ATOD_RYU_MAX(DBL_RYU_DIG, LDBL_RYU_DIG))
+
+/* Upper bound on the bits in a number of ATOD_RYU_DIG digits, plus one for rounding */
+#define ATOD_RYU_BITS (ATOD_RYU_DIG * 3322 / 1000 + 2)
+
+/* 32-bit words needed to hold such a number */
+#define ATOD_RYU_NWORDS ((ATOD_RYU_BITS + 31) / 32)
+
+/*
+ * Multiply the little-endian number a of n words by m and add c,
+ * returning the new length. The caller makes sure there is room for
+ * one more word.
+ */
+static inline int
+__atod_ryu_mul_add(uint32_t *a, int n, uint32_t m, uint32_t c)
+{
+    uint64_t carry = c;
+    int      i;
+
+    for (i = 0; i < n; i++) {
+        carry += (uint64_t)a[i] * m;
+        a[i] = (uint32_t)carry;
+        carry >>= 32;
+    }
+    if (carry)
+        a[n++] = (uint32_t)carry;
+    return n;
+}
+
+/*
+ * Convert n[0..nn) * 10**e10 into q * 2**ret, where q has at least
+ * mant_dig + 2 significant bits. *sticky is set when bits below q
+ * were discarded. Values too large or too small for the type return
+ * a q/ret pair that overflows or underflows it with *sticky set.
+ */
+int __atod_ryu(const uint32_t *n, int nn, int e10, int mant_dig, int min_exp, int max_exp,
+               uint64_t *q, int *sticky);
+
+/* The same for 80-bit and binary128 long double */
+int __atold_ryu(const uint32_t *n, int nn, int e10, int mant_dig, int min_exp, int max_exp,
+                uint64_t *q, int *sticky);
+#endif
+
 #if __SIZEOF_LONG_DOUBLE__ > 8
 static inline _u128
 asuintld(long double f)
