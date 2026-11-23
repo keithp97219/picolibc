@@ -33,7 +33,7 @@
  */
 
 extern char **environ;
-static bool   setenv_alloced; /* if allocated space before */
+static char **setenv_environ; /* the array setenv allocated, if any */
 
 int
 setenv(const char *name, const char *value, int rewrite)
@@ -82,8 +82,9 @@ setenv(const char *name, const char *value, int rewrite)
             size_t n_environ = 0;
             char **env;
 
-            for (env = environ; *env; ++env)
-                n_environ++;
+            if (environ)
+                for (env = environ; *env; ++env)
+                    n_environ++;
 
             __LIBC_UNLOCK();
 
@@ -95,7 +96,8 @@ setenv(const char *name, const char *value, int rewrite)
             if (__environ_sequence != old_sequence)
                 goto retry;
 
-            memcpy(new_environ, environ, n_environ * sizeof(char *));
+            if (n_environ)
+                memcpy(new_environ, environ, n_environ * sizeof(char *));
             new_environ[n_environ + 1] = NULL;
             offset = n_environ;
         }
@@ -130,10 +132,10 @@ setenv(const char *name, const char *value, int rewrite)
     __environ_sequence++;
 
     if (new_environ) {
-        if (setenv_alloced)
+        /* Free only the array setenv allocated, not one the application set */
+        if (environ == setenv_environ)
             old_environ = environ;
-        environ = new_environ;
-        setenv_alloced = true;
+        environ = setenv_environ = new_environ;
     }
 
     environ[offset] = new_entry;
