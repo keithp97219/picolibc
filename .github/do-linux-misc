@@ -9,6 +9,7 @@ HERE=`dirname "$0"`
 "$HERE"/do-test-noopt clang-x86 "$@"
 "$HERE"/do-test-noopt clang-x86_64 "$@"
 "$HERE"/do-test-noopt x86_64-linux-gnu "$@"
+"$HERE"/do-test x86_64-linux-nothreads "$@"
 "$HERE"/do-test-noopt x86 "$@"
 "$HERE"/do-test-noopt native "$@"
 "$HERE"/do-test power9 "$@"
