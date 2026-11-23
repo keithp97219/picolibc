@@ -45,14 +45,14 @@
 #define _FPU_DEFAULT 0x0
 #define _FPU_IEEE    0x1F
 
-__declare_fenv_inline(int) feclearexcept(int excepts)
+__declare_fenv_inline(int) feclearexcept(int __excepts)
 {
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    excepts &= FE_ALL_EXCEPT;
-    _movfcsr2gr(fcsr);
-    fcsr &= ~(excepts | (excepts << _FCSR_CAUSE_LSHIFT));
-    _movgr2fcsr(fcsr);
+    __excepts &= FE_ALL_EXCEPT;
+    __movfcsr2gr(__fcsr);
+    __fcsr &= ~(__excepts | (__excepts << _FCSR_CAUSE_LSHIFT));
+    __movgr2fcsr(__fcsr);
 
     /* Per 'feclearexcept.html
      * "If the argument is zero or if all the specified exceptions were
@@ -74,14 +74,14 @@ __declare_fenv_inline(int) feclearexcept(int excepts)
  *
  */
 
-__declare_fenv_inline(int) fegetenv(fenv_t *envp)
+__declare_fenv_inline(int) fegetenv(fenv_t *__envp)
 {
 
     /* Get the current environment (FCSR) */
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    _movfcsr2gr(fcsr);
-    *envp = fcsr;
+    __movfcsr2gr(__fcsr);
+    *__envp = __fcsr;
 
     /* Per 'fegetenv.html:
      *
@@ -104,14 +104,14 @@ __declare_fenv_inline(int) fegetenv(fenv_t *envp)
  * the object pointed to by the argument flagp."
  */
 
-__declare_fenv_inline(int) fegetexceptflag(fexcept_t *flagp, int excepts)
+__declare_fenv_inline(int) fegetexceptflag(fexcept_t *__flagp, int __excepts)
 {
 
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    _movfcsr2gr(fcsr);
+    __movfcsr2gr(__fcsr);
 
-    *flagp = fcsr & excepts & FE_ALL_EXCEPT;
+    *__flagp = __fcsr & __excepts & FE_ALL_EXCEPT;
 
     /* Per 'fegetexceptflag.html:
      *
@@ -136,9 +136,9 @@ __declare_fenv_inline(int) fegetround(void)
 {
 
     /* Get current rounding mode */
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    _movfcsr2gr(fcsr);
+    __movfcsr2gr(__fcsr);
 
     /* Per 'fegetround.html:
      *
@@ -150,7 +150,7 @@ __declare_fenv_inline(int) fegetround(void)
 
     /* Return the rounding mode */
 
-    return fcsr & FE_RMODE_MASK;
+    return __fcsr & FE_RMODE_MASK;
 }
 
 /* This implementation is intended to comply with the following
@@ -166,18 +166,18 @@ __declare_fenv_inline(int) fegetround(void)
  * floating-point exceptions."
  */
 
-__declare_fenv_inline(int) feholdexcept(fenv_t *envp)
+__declare_fenv_inline(int) feholdexcept(fenv_t *__envp)
 {
 
     /* Store the current FP environment in envp*/
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    _movfcsr2gr(fcsr);
-    *envp = fcsr;
+    __movfcsr2gr(__fcsr);
+    *__envp = __fcsr;
 
     /* Clear all exception enable bits and flags.  */
-    fcsr &= ~(FE_ALL_EXCEPT >> _FCSR_ENABLE_RSHIFT | FE_ALL_EXCEPT);
-    _movgr2fcsr(fcsr);
+    __fcsr &= ~(FE_ALL_EXCEPT >> _FCSR_ENABLE_RSHIFT | FE_ALL_EXCEPT);
+    __movgr2fcsr(__fcsr);
 
     /* Per 'feholdexcept.html:
      *
@@ -207,30 +207,30 @@ __declare_fenv_inline(int) feholdexcept(fenv_t *envp)
  * underflow floating-point exception is implementation-defined."
  */
 
-__declare_fenv_inline(int) feraiseexcept(int excepts)
+__declare_fenv_inline(int) feraiseexcept(int __excepts)
 {
-    const float fp_zero = 0.0f;
-    const float fp_one = 1.0f;
-    const float fp_max = __FLT_MAX__;
-    const float fp_min = __FLT_MIN__;
-    const float fp_1e32 = 1.0e32f;
-    const float fp_two = 2.0f;
-    const float fp_three = 3.0f;
+    const float __fp_zero = 0.0f;
+    const float __fp_one = 1.0f;
+    const float __fp_max = __FLT_MAX__;
+    const float __fp_min = __FLT_MIN__;
+    const float __fp_1e32 = 1.0e32f;
+    const float __fp_two = 2.0f;
+    const float __fp_three = 3.0f;
 
-    if (FE_INVALID & excepts)
-        __asm__ __volatile__("fdiv.s $f0,%0,%0\n\t" : : "f"(fp_zero) : "$f0");
+    if (FE_INVALID & __excepts)
+        __asm__ __volatile__("fdiv.s $f0,%0,%0\n\t" : : "f"(__fp_zero) : "$f0");
 
-    if (FE_DIVBYZERO & excepts)
-        __asm__ __volatile__("fdiv.s $f0,%0,%1\n\t" : : "f"(fp_one), "f"(fp_zero) : "$f0");
+    if (FE_DIVBYZERO & __excepts)
+        __asm__ __volatile__("fdiv.s $f0,%0,%1\n\t" : : "f"(__fp_one), "f"(__fp_zero) : "$f0");
 
-    if (FE_OVERFLOW & excepts)
-        __asm__ __volatile__("fadd.s $f0,%0,%1\n\t" : : "f"(fp_max), "f"(fp_1e32) : "$f0");
+    if (FE_OVERFLOW & __excepts)
+        __asm__ __volatile__("fadd.s $f0,%0,%1\n\t" : : "f"(__fp_max), "f"(__fp_1e32) : "$f0");
 
-    if (FE_UNDERFLOW & excepts)
-        __asm__ __volatile__("fdiv.s $f0,%0,%1\n\t" : : "f"(fp_min), "f"(fp_three) : "$f0");
+    if (FE_UNDERFLOW & __excepts)
+        __asm__ __volatile__("fdiv.s $f0,%0,%1\n\t" : : "f"(__fp_min), "f"(__fp_three) : "$f0");
 
-    if (FE_INEXACT & excepts)
-        __asm__ __volatile__("fdiv.s $f0, %0, %1\n\t" : : "f"(fp_two), "f"(fp_three) : "$f0");
+    if (FE_INEXACT & __excepts)
+        __asm__ __volatile__("fdiv.s $f0, %0, %1\n\t" : : "f"(__fp_two), "f"(__fp_three) : "$f0");
 
     /* Per 'feraiseexcept.html:
      * "If the argument is zero or if all the specified exceptions were
@@ -241,16 +241,18 @@ __declare_fenv_inline(int) feraiseexcept(int excepts)
     return 0;
 }
 
-__declare_fenv_inline(int) fesetexcept(int excepts)
+#if __ISO_C_VISIBLE >= 2023 || defined(__PICOLIBC_FENV_ALL)
+__declare_fenv_inline(int) fesetexcept(int __excepts)
 {
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    _movfcsr2gr(fcsr);
-    fcsr |= excepts & FE_ALL_EXCEPT;
-    _movgr2fcsr(fcsr);
+    __movfcsr2gr(__fcsr);
+    __fcsr |= __excepts & FE_ALL_EXCEPT;
+    __movgr2fcsr(__fcsr);
 
     return 0;
 }
+#endif
 
 /* This implementation is intended to comply with the following
  * specification:
@@ -270,17 +272,17 @@ __declare_fenv_inline(int) fesetexcept(int excepts)
  * status flags represented through its argument."
  */
 
-__declare_fenv_inline(int) fesetenv(const fenv_t *envp)
+__declare_fenv_inline(int) fesetenv(const fenv_t *__envp)
 {
 
     /* Set environment (FCSR) */
 
-    fenv_t fcsr;
+    fenv_t __fcsr;
 
     /* Hazard handling */
-    _movfcsr2gr(fcsr);
-    fcsr = *envp;
-    _movgr2fcsr(fcsr);
+    __movfcsr2gr(__fcsr);
+    __fcsr = *__envp;
+    __movgr2fcsr(__fcsr);
 
     /* Per 'fegetenv.html:
      *
@@ -308,16 +310,16 @@ __declare_fenv_inline(int) fesetenv(const fenv_t *envp)
  *
  */
 
-__declare_fenv_inline(int) fesetexceptflag(const fexcept_t *flagp, int excepts)
+__declare_fenv_inline(int) fesetexceptflag(const fexcept_t *__flagp, int __excepts)
 {
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    _movfcsr2gr(fcsr);
+    __movfcsr2gr(__fcsr);
 
-    excepts &= FE_ALL_EXCEPT;
-    fcsr = (fcsr & ~excepts) | (*flagp & excepts);
+    __excepts &= FE_ALL_EXCEPT;
+    __fcsr = (__fcsr & ~__excepts) | (*__flagp & __excepts);
 
-    _movgr2fcsr(fcsr);
+    __movgr2fcsr(__fcsr);
 
     /* Per 'fesetexceptflag.html:
      *
@@ -341,18 +343,18 @@ __declare_fenv_inline(int) fesetexceptflag(const fexcept_t *flagp, int excepts)
  * not changed."
  */
 
-__declare_fenv_inline(int) fesetround(int round)
+__declare_fenv_inline(int) fesetround(int __round)
 {
 
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    if ((round & ~FE_RMODE_MASK) != 0)
+    if ((__round & ~FE_RMODE_MASK) != 0)
         return -1;
 
-    _movfcsr2gr(fcsr);
-    fcsr &= ~FE_RMODE_MASK;
-    fcsr |= round;
-    _movgr2fcsr(fcsr);
+    __movfcsr2gr(__fcsr);
+    __fcsr &= ~FE_RMODE_MASK;
+    __fcsr |= __round;
+    __movgr2fcsr(__fcsr);
 
     /* Per 'fesetround.html:
      *
@@ -374,11 +376,11 @@ __declare_fenv_inline(int) fesetround(int round)
  * queried."
  */
 
-__declare_fenv_inline(int) fetestexcept(int excepts)
+__declare_fenv_inline(int) fetestexcept(int __excepts)
 {
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    _movfcsr2gr(fcsr);
+    __movfcsr2gr(__fcsr);
 
     /* "The fetestexcept() function shall return the value of the
      * bitwise-inclusive OR of the floating-point exception macros
@@ -386,7 +388,7 @@ __declare_fenv_inline(int) fetestexcept(int excepts)
      * included in excepts."
      */
 
-    return (fcsr & excepts & FE_ALL_EXCEPT);
+    return (__fcsr & __excepts & FE_ALL_EXCEPT);
 }
 
 /* This implementation is intended to comply with the following
@@ -403,15 +405,15 @@ __declare_fenv_inline(int) fetestexcept(int excepts)
  * floating-point environment macro."
  */
 
-__declare_fenv_inline(int) feupdateenv(const fenv_t *envp)
+__declare_fenv_inline(int) feupdateenv(const fenv_t *__envp)
 {
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    _movfcsr2gr(fcsr);
+    __movfcsr2gr(__fcsr);
 
-    fesetenv(envp);
+    fesetenv(__envp);
 
-    feraiseexcept(fcsr & FE_ALL_EXCEPT);
+    feraiseexcept(__fcsr & FE_ALL_EXCEPT);
 
     /* "The feupdateenv() function shall return a zero value if and only
      * if all the required actions were successfully carried out."
@@ -420,42 +422,44 @@ __declare_fenv_inline(int) feupdateenv(const fenv_t *envp)
     return 0;
 }
 
-__declare_fenv_inline(int) feenableexcept(int excepts)
+#if __GNU_VISIBLE || defined(__PICOLIBC_FENV_ALL)
+__declare_fenv_inline(int) feenableexcept(int __excepts)
 {
-    __uint32_t fcsr, old_excepts;
+    __uint32_t __fcsr, __old_excepts;
 
-    _movfcsr2gr(fcsr);
+    __movfcsr2gr(__fcsr);
 
-    old_excepts = (fcsr << _FCSR_ENABLE_RSHIFT) & FE_ALL_EXCEPT;
+    __old_excepts = (__fcsr << _FCSR_ENABLE_RSHIFT) & FE_ALL_EXCEPT;
 
-    excepts &= FE_ALL_EXCEPT;
+    __excepts &= FE_ALL_EXCEPT;
 
-    fcsr |= excepts >> _FCSR_ENABLE_RSHIFT;
-    _movgr2fcsr(fcsr);
+    __fcsr |= __excepts >> _FCSR_ENABLE_RSHIFT;
+    __movgr2fcsr(__fcsr);
 
-    return old_excepts;
+    return __old_excepts;
 }
 
-__declare_fenv_inline(int) fedisableexcept(int excepts)
+__declare_fenv_inline(int) fedisableexcept(int __excepts)
 {
-    __uint32_t fcsr, old_excepts;
+    __uint32_t __fcsr, __old_excepts;
 
-    _movfcsr2gr(fcsr);
+    __movfcsr2gr(__fcsr);
 
-    old_excepts = (fcsr << _FCSR_ENABLE_RSHIFT) & FE_ALL_EXCEPT;
+    __old_excepts = (__fcsr << _FCSR_ENABLE_RSHIFT) & FE_ALL_EXCEPT;
 
-    excepts &= FE_ALL_EXCEPT;
+    __excepts &= FE_ALL_EXCEPT;
 
-    fcsr &= ~(excepts >> _FCSR_ENABLE_RSHIFT);
-    _movgr2fcsr(fcsr);
+    __fcsr &= ~(__excepts >> _FCSR_ENABLE_RSHIFT);
+    __movgr2fcsr(__fcsr);
 
-    return old_excepts;
+    return __old_excepts;
 }
 
 __declare_fenv_inline(int) fegetexcept(void)
 {
-    __uint32_t fcsr;
+    __uint32_t __fcsr;
 
-    _movfcsr2gr(fcsr);
-    return (fcsr << _FCSR_ENABLE_RSHIFT) & FE_ALL_EXCEPT;
+    __movfcsr2gr(__fcsr);
+    return (__fcsr << _FCSR_ENABLE_RSHIFT) & FE_ALL_EXCEPT;
 }
+#endif /* __GNU_VISIBLE */

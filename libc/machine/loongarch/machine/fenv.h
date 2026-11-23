@@ -84,15 +84,15 @@ typedef unsigned int fexcept_t;
 #define FE_ALL_EXCEPT (FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW | FE_UNDERFLOW | FE_INEXACT)
 
 /* Rounding control.  */
-#define FE_TONEAREST    0x000
-#define FE_TOWARDZERO   0x100
-#define FE_UPWARD       0x200
-#define FE_DOWNWARD     0x300
+#define FE_TONEAREST       0x000
+#define FE_TOWARDZERO      0x100
+#define FE_UPWARD          0x200
+#define FE_DOWNWARD        0x300
 
-#define FE_RMODE_MASK   0x300
+#define FE_RMODE_MASK      0x300
 
-#define _movfcsr2gr(cw) __asm__ volatile("movfcsr2gr %0,$fcsr0" : "=r"(cw))
-#define _movgr2fcsr(cw) __asm__ volatile("movgr2fcsr $fcsr0,%0" : : "r"(cw))
+#define __movfcsr2gr(__cw) __asm__ volatile("movfcsr2gr %0,$fcsr0" : "=r"(__cw))
+#define __movgr2fcsr(__cw) __asm__ volatile("movgr2fcsr $fcsr0,%0" : : "r"(__cw))
 
 #else
 #define FE_TONEAREST 0
