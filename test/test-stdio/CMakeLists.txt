@@ -62,6 +62,7 @@ set(tests
   test-ungetc-start-fflush
   test-vfprintf-s
   test-vsnprintf-s
+  test-fputwc
   )
 
 foreach(test IN LISTS tests)

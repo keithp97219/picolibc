@@ -62,6 +62,7 @@ tests = [
   'test-fwrite-flush-recover',
   'test-ftell-write',
   'test-ungetc-start-fflush',
+  'test-fputwc',
 ]
 
 tests_failure = []
