@@ -118,6 +118,7 @@ __open_mem_flush(FILE *f)
     return 0;
 }
 
+/* Positions count elements, while pos and fsize count bytes */
 static off_t
 __open_mem_seek(FILE *f, off_t pos, int whence)
 {
@@ -127,10 +128,10 @@ __open_mem_seek(FILE *f, off_t pos, int whence)
     case SEEK_SET:
         break;
     case SEEK_CUR:
-        pos += mf->pos;
+        pos += mf->pos / mf->unit;
         break;
     case SEEK_END:
-        pos += mf->fsize;
+        pos += mf->fsize / mf->unit;
         break;
     default:
         errno = EINVAL;
@@ -142,8 +143,11 @@ __open_mem_seek(FILE *f, off_t pos, int whence)
         return (off_t)-1;
     }
 
-    _Static_assert(sizeof(off_t) >= sizeof(size_t), "must avoid truncation");
-    size_t offset = pos;
+    if ((uintmax_t)pos > SIZE_MAX / mf->unit) {
+        errno = ENOMEM;
+        return (off_t)-1;
+    }
+    size_t offset = (size_t)pos * mf->unit;
     if (mf->bsize < offset) {
         if (__open_mem_grow(mf, offset - mf->pos) != 0)
             return (off_t)-1;
