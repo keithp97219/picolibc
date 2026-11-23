@@ -40,6 +40,7 @@ set(tests
   test-getdelim
   test-grp
   test-localtime
+  test-mktime
   test-dirent
   test-posix-time
   test-pwd
