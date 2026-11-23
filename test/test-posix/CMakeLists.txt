@@ -40,6 +40,7 @@ set(tests
   test-getdelim
   test-grp
   test-dirent
+  test-langinfo
   test-locale
   test-posix-time
   test-pwd
