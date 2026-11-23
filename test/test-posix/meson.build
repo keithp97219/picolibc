@@ -42,6 +42,7 @@ tests = [
   'test-getrlimit',
   'test-grp',
   'test-dirent',
+  'test-locale',
   'test-posix-time',
   'test-pwd',
   'test-rename',
