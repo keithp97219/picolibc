@@ -61,20 +61,22 @@
 
 #ifndef __MATH_ERRNO
 __declare_extern_inline(double)
-sqrt(double x)
+sqrt(double __x)
 {
-    double result;
-    __asm__ __volatile__("fsqrt\t%d0, %d1" : "=w"(result) : "w"(x));
-    return result;
+    double __result;
+    __asm__ __volatile__("fsqrt\t%d0, %d1" : "=w"(__result) : "w"(__x));
+    return __result;
 }
 #endif
 
 __declare_extern_inline(double)
-fma(double x, double y, double z)
+fma(double __x, double __y, double __z)
 {
-    double result;
-    __asm__ __volatile__("fmadd\t%d0, %d1, %d2, %d3" : "=w"(result) : "w"(x), "w"(y), "w"(z));
-    return result;
+    double __result;
+    __asm__ __volatile__("fmadd\t%d0, %d1, %d2, %d3"
+                         : "=w"(__result)
+                         : "w"(__x), "w"(__y), "w"(__z));
+    return __result;
 }
 
 #endif /* __ARM_FP & 0x8 */
@@ -82,20 +84,22 @@ fma(double x, double y, double z)
 #if __ARM_FP & 0x4
 #ifndef __MATH_ERRNO
 __declare_extern_inline(float)
-sqrtf(float x)
+sqrtf(float __x)
 {
-    float result;
-    __asm__ __volatile__("fsqrt\t%s0, %s1" : "=w"(result) : "w"(x));
-    return result;
+    float __result;
+    __asm__ __volatile__("fsqrt\t%s0, %s1" : "=w"(__result) : "w"(__x));
+    return __result;
 }
 #endif
 
 __declare_extern_inline(float)
-fmaf(float x, float y, float z)
+fmaf(float __x, float __y, float __z)
 {
-    float result;
-    __asm__ __volatile__("fmadd\t%s0, %s1, %s2, %s3" : "=w"(result) : "w"(x), "w"(y), "w"(z));
-    return result;
+    float __result;
+    __asm__ __volatile__("fmadd\t%s0, %s1, %s2, %s3"
+                         : "=w"(__result)
+                         : "w"(__x), "w"(__y), "w"(__z));
+    return __result;
 }
 
 #endif /* __ARM_FP & 0x4 */
