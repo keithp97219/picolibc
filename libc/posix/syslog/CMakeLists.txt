@@ -37,5 +37,6 @@ picolibc_sources(
   openlog.c
   setlogmask.c
   syslog.c
+  syslog_connect.c
   vsyslog.c
   )

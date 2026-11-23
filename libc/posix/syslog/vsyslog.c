@@ -42,7 +42,6 @@
 #include <unistd.h>
 #ifdef __PICOLIBC_NETWORK
 #include <sys/socket.h>
-#include <sys/un.h>
 #endif
 
 const char *__syslog_ident;
@@ -50,23 +49,6 @@ int         __syslog_option;
 int         __syslog_facility = LOG_USER;
 int         __syslog_mask = 0xff;
 int         __syslog_fd = -1;
-
-int
-__syslog_connect(void)
-{
-#ifdef __PICOLIBC_NETWORK
-    static const struct sockaddr_un addr = { .sun_family = AF_UNIX, .sun_path = "/dev/log" };
-    int                             fd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
-
-    if (fd >= 0 && connect(fd, (const struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        close(fd);
-        fd = -1;
-    }
-    return fd;
-#else
-    return -1;
-#endif
-}
 
 /* Copies fmt, replacing %m with the message for errno */
 static void
