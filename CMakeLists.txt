@@ -281,10 +281,6 @@ if(NOT DEFINED __IO_LENGTH_W)
   option(__IO_LENGTH_W "Support wN and wfN lengths in printf" ON)
 endif()
 
-if(NOT DEFINED __IO_WCHAR)
-  option(__IO_WCHAR "Support %ls/%lc formats in printf even without multi-byte" OFF)
-endif()
-
 if(NOT DEFINED __IO_DEFAULT)
   set(__IO_DEFAULT d)
 endif()

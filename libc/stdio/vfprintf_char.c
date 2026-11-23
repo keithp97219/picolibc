@@ -44,8 +44,12 @@
         /* count bytes */
         size = _mbclen(wc);
         if (size == (size_t)-1)
-            goto fail;
+            goto eilseq;
 #else
+#ifdef _NEED_IO_WCHAR_ASCII
+        if ((unsigned long)wc >= 0x80)
+            goto eilseq;
+#endif
         /* count wchar_t */
         size = 1;
 #endif

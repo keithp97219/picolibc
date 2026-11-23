@@ -44,7 +44,16 @@
         /* count bytes */
         size = _mbslen(wstr, size);
         if (size == (size_t)-1)
-            goto fail;
+            goto eilseq;
+#elif defined(_NEED_IO_WCHAR_ASCII)
+        /* count wchar_t, all of which must be ASCII */
+        {
+            size_t len;
+            for (len = 0; len < size && wstr[len] != L'\0'; len++)
+                if ((unsigned long)wstr[len] >= 0x80)
+                    goto eilseq;
+            size = len;
+        }
 #else
         /* count wchar_t */
         size = wcsnlen(wstr, size);

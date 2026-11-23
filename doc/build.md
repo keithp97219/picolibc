@@ -137,7 +137,6 @@ definitions which use the same POSIX I/O functions.
 | minimal-io-long-long        | false   | Support long long values in the minimal ('m') printf and scanf variants              |
 | stderr-buffered             | false   | Line buffer stderr (POSIX console and OS layers) instead of writing each byte        |
 | fast-bufio                  | false   | Improve performance of some I/O operations when using bufio                          |
-| io-wchar                    | false   | Enable wide character support in printf and scanf when mb-capable is not set         |
 
 ### Internationalization options
 

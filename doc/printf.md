@@ -98,6 +98,15 @@ size.
    positional arguments and %b formats that might be selected with
    `io-pos-args` or `io-percent-b`.
 
+The 'd' and 'f' levels (and the wide character printf functions)
+support %lc and %ls, converting the wide characters to multi-byte
+characters in the current locale. Without `mb-capable`, only the C
+locale is available, where only ASCII values can be converted; printf
+fails with `EILSEQ` for any other wide character. To keep them small,
+the 'l', 'i' and 'm' levels don't support %lc and %ls: they consume
+the argument, so the rest of the format is unaffected, but print
+something meaningless in its place.
+
 'f' format requires a special macro for float values:
 `printf_float`. To make it easier to switch between that and the
 default level, that macro is also correctly defined for the other two
@@ -260,10 +269,6 @@ hence the size) of the library:
 
  * `-Dfast-bufio=true` This option directly calls the read and write
    hooks from fread and fwrite when interacting with buffered streams.
-
- * `-Dio-wchar=true` This option enables wide character input and
-   output even when picolibc is built without multi-byte character
-   support.
 
 Picolibc also allows use of the legacy newlib stdio library, but that
 is outside the scope of this documentation.

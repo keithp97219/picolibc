@@ -18,7 +18,6 @@ exec "$(dirname "$0")"/do-clang-x86_64-freebsd-configure \
      -Dfast-bufio=true \
      -Dfstat-bufsiz=true \
      -Dstdio-exit-flush=true \
-     -Dio-wchar=true \
      -Dstdio-locking=true \
      -Dmalloc-small-bucket=1024 \
      -Dtzif=true \
