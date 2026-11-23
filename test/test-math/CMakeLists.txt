@@ -161,6 +161,7 @@ set(tests_complex_other
 set(tests_other
   test-add
   test-fenv
+  test-fenv-names
   test-fma
   test-fp-fast-fma
   test-long-double
