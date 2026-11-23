@@ -46,6 +46,7 @@ set(tests
   test-pwd
   test-signal
   test-stat
+  test-strftime-posix
   )
 
 foreach(test IN LISTS tests)

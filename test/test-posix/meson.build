@@ -50,6 +50,7 @@ tests = [
   'test-setrlimit',
   'test-signal',
   'test-stat',
+  'test-strftime-posix',
   'test-statvfs',
   ]
 
