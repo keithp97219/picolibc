@@ -141,6 +141,9 @@ main(void)
     check(sigaction(SIGCHLD, &sa, NULL) == 0, "sigaction SIGCHLD");
     sa.sa_handler = on_int;
     check(sigaction(SIGINT, &sa, NULL) == 0, "sigaction SIGINT");
+    /* A shell starts background jobs with SIGQUIT ignored; start from the default */
+    sa.sa_handler = SIG_DFL;
+    check(sigaction(SIGQUIT, &sa, NULL) == 0, "sigaction SIGQUIT");
 
     /* SIGUSR1 interrupts system's wait (no SA_RESTART); it must go on waiting */
     rc = system("kill -USR1 $PPID; kill -INT $PPID; kill -QUIT $PPID; sleep 1; exit 5");
