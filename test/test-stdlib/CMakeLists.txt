@@ -38,6 +38,7 @@ set(tests
   test-bsearch
   test-efcvt
   test-mbstowcs-null
+  test-mbsrtowcs-null-ps
   test-malloc
   test-malloc-stress
   test-on_exit
