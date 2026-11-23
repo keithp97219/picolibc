@@ -55,7 +55,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if TEST_CPU && TEST_POSIX_MULTI_PROCESS
+#if TEST_POSIX_MULTI_PROCESS
 #include <sys/wait.h>
 #endif
 #include <time.h>
@@ -100,6 +100,10 @@ spin(long long nsec)
         for (int i = 0; i < 10000; i++)
             sink += i;
 }
+#endif
+
+#if TEST_POSIX_MULTI_PROCESS
+static volatile unsigned child_sink;
 #endif
 
 static volatile sig_atomic_t caught;
@@ -310,26 +314,31 @@ main(void)
     }
 #endif
 
-#if TEST_CPU && TEST_POSIX_MULTI_PROCESS
+#if TEST_POSIX_MULTI_PROCESS
     /* clock() doesn't count waited-for children */
-    if (cputime) {
-        clock_t   k0, k1;
-        long long p0, p1;
-        pid_t     pid;
-        int       status;
+    {
+        clock_t k0, k1;
+        pid_t   pid;
+        int     status;
 
         k0 = clock();
-        p0 = ns(CLOCK_PROCESS_CPUTIME_ID);
+        check(k0 != (clock_t)-1, "clock");
         pid = fork();
         check(pid >= 0, "fork");
         if (pid == 0) {
-            spin(300000000);
+            /* Use 0.3 s of CPU time by the child's own clock() */
+            clock_t c0 = clock();
+
+            if (c0 == (clock_t)-1)
+                _exit(1);
+            while (clock() - c0 < CLOCKS_PER_SEC * 3 / 10)
+                for (int i = 0; i < 10000; i++)
+                    child_sink += i;
             _exit(0);
         }
         check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "waitpid");
         k1 = clock();
-        p1 = ns(CLOCK_PROCESS_CPUTIME_ID);
-        if ((double)(k1 - k0) / CLOCKS_PER_SEC > (double)(p1 - p0) / 1e9 + 0.15) {
+        if ((double)(k1 - k0) / CLOCKS_PER_SEC > 0.15) {
             printf("clock() counted %g s across a child using 0.3 s\n",
                    (double)(k1 - k0) / CLOCKS_PER_SEC);
             exit(1);
