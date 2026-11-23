@@ -43,6 +43,9 @@ if fs.is_dir(machine_dir)
 
   has_os_posix = true
 
+  # The OS provides fcntl
+  conf_data.set('__HAVE_FCNTL', true, description: 'System provides fcntl function')
+
   has_os_fileio = true
 
   has_os_process = true
