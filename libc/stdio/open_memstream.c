@@ -130,8 +130,11 @@ __open_mem_seek(FILE *f, off_t pos, int whence)
         return (off_t)-1;
     }
 
-    _Static_assert(sizeof(off_t) >= sizeof(size_t), "must avoid truncation");
-    size_t offset = pos;
+    if ((uintmax_t)pos > SIZE_MAX) {
+        errno = ENOMEM;
+        return (off_t)-1;
+    }
+    size_t offset = (size_t)pos;
     if (mf->bsize < offset) {
         if (__open_mem_grow(mf, offset - mf->pos) != 0)
             return (off_t)-1;
