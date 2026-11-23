@@ -52,17 +52,24 @@
 #include <unistd.h>
 
 static char base[] = "test-realpath-XXXXXX";
+
+/* Links in the longest chain realpath follows, like Linux */
+#define LINKS 40
 static char top[PATH_MAX];
 
 static void
 cleanup(void)
 {
     char                      path[PATH_MAX + 32];
-    static const char * const names[] = { "loop", "abs", "rel", "d/f" };
+    static const char * const names[] = { "loop", "abs", "rel", "chain", "fits", "long", "d/f" };
     size_t                    i;
 
     for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
         snprintf(path, sizeof(path), "%s/%s", base, names[i]);
+        (void)unlink(path);
+    }
+    for (i = 0; i <= LINKS; i++) {
+        snprintf(path, sizeof(path), "%s/l%u", base, (unsigned)i);
         (void)unlink(path);
     }
     snprintf(path, sizeof(path), "%s/d", base);
@@ -93,6 +100,16 @@ resolves(const char *name, const char *want)
     if (strcmp(got, expect) != 0)
         printf("%s: got %s want %s\n", path, got, expect);
     check(strcmp(got, expect) == 0, path);
+}
+
+/* Make base/name a link to target */
+static void
+link_to(const char *target, const char *name)
+{
+    char path[PATH_MAX + 32];
+
+    snprintf(path, sizeof(path), "%s/%s", base, name);
+    check(symlink(target, path) == 0, path);
 }
 
 /* Resolving base/name fails with err */
@@ -192,6 +209,79 @@ main(void)
         check(chmod(path, 0700) == 0, "chmod back");
         check(alloc == NULL && errno == EACCES, "no search permission");
     }
+
+    /* A link to a link, whose contents join what follows */
+    link_to("rel", "chain");
+    resolves("chain/f", "d/f");
+    resolves("chain/../chain/./f", "d/f");
+
+    /* Failures free the result they would have allocated */
+    snprintf(path, sizeof(path), "%s/rel/missing", base);
+    errno = 0;
+    check(realpath(path, NULL) == NULL && errno == ENOENT, "allocated result on failure");
+    snprintf(path, sizeof(path), "%s/loop", base);
+    errno = 0;
+    check(realpath(path, NULL) == NULL && errno == ELOOP, "allocated result on a loop");
+
+#ifdef __PICOLIBC__
+    /* Each link starts a chain of LINKS ending at d; one more is a loop */
+    {
+        char     target[16];
+        unsigned i;
+
+        for (i = 1; i <= LINKS; i++) {
+            if (i == LINKS)
+                snprintf(target, sizeof(target), "d");
+            else
+                snprintf(target, sizeof(target), "l%u", i + 1);
+            snprintf(got, sizeof(got), "l%u", i);
+            link_to(target, got);
+        }
+        link_to("l1", "l0");
+        resolves("l1/f", "d/f");
+        fails("l0/f", ELOOP);
+        fails("l0", ELOOP);
+    }
+
+    /*
+     * Paths of PATH_MAX bytes or more are too long. So are a link's
+     * contents and the rest of the path together; ".//...//d" with
+     * "/f" after it reaches PATH_MAX - 1 bytes, one more doesn't fit.
+     */
+    {
+        static char long_path[PATH_MAX + 1];
+        size_t      fits = PATH_MAX - 1 - strlen("/f");
+
+        memset(long_path, '/', PATH_MAX - 1);
+        long_path[PATH_MAX - 1] = '\0';
+        check(realpath(long_path, got) == got && strcmp(got, "/") == 0, "PATH_MAX - 1 bytes");
+        alloc = realpath(long_path, NULL);
+        check(alloc != NULL && strcmp(alloc, "/") == 0, "PATH_MAX - 1 bytes allocated");
+        free(alloc);
+        long_path[PATH_MAX - 1] = '/';
+        long_path[PATH_MAX] = '\0';
+        errno = 0;
+        check(realpath(long_path, got) == NULL && errno == ENAMETOOLONG, "PATH_MAX bytes");
+        errno = 0;
+        check(realpath(long_path, NULL) == NULL && errno == ENAMETOOLONG,
+              "PATH_MAX bytes allocated");
+
+        memset(long_path, '/', fits);
+        long_path[0] = '.';
+        long_path[fits - 1] = 'd';
+        long_path[fits] = '\0';
+        link_to(long_path, "fits");
+        resolves("fits/f", "d/f");
+        resolves("fits", "d");
+
+        long_path[fits - 1] = '/';
+        long_path[fits] = 'd';
+        long_path[fits + 1] = '\0';
+        link_to(long_path, "long");
+        fails("long/f", ENAMETOOLONG);
+        resolves("long", "d");
+    }
+#endif
 
     /* Without a buffer, the result is allocated */
     snprintf(path, sizeof(path), "%s/rel/f", base);
