@@ -33,7 +33,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _DEFAULT_SOURCE
+/* An XSI interface */
+#define _GNU_SOURCE
 #include "local-pthread.h"
 
 /*

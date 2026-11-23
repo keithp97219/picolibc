@@ -35,7 +35,9 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+#ifndef _PTHREAD_HAVE_OS_TLS
 #include <picotls.h>
+#endif
 #include <stdalign.h>
 #include <stddef.h>
 
@@ -44,13 +46,20 @@
 void
 _pthread_layout(struct _pthread_layout *layout)
 {
+#ifdef _PTHREAD_HAVE_OS_TLS
+    /* The OS aligns the TLS block it places in the room reserved for it */
+    size_t align = alignof(max_align_t);
+    size_t tls_size = _pthread_os_tls_size();
+#else
     size_t align = _tls_align();
+    size_t tls_size = _tls_size();
 
     /* Either TLS variant puts the block next to the thread pointer; align for both */
     if (align < alignof(max_align_t))
         align = alignof(max_align_t);
+#endif
     layout->align = align;
-    layout->tls_size = round_up(_tls_size(), align);
+    layout->tls_size = round_up(tls_size, align);
     layout->desc_size = round_up(
         sizeof(struct __pthread) + __PTHREAD_KEYS_MAX * sizeof(struct __pthread_specific), align);
     /* Room to align the top of the region down */

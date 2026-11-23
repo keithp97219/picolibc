@@ -34,6 +34,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "local-pthread.h"
 #include "local-cancel.h"
 
 int

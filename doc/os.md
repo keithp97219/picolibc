@@ -797,6 +797,31 @@ fail as POSIX allows:
 | `_PTHREAD_HAVE_SEM_NAMED` | `sem_open` and `sem_unlink` over files | named semaphores |
 | `_PTHREAD_HAVE_RELEASE` | OS objects kept outside the stack, freed when a thread is reclaimed | (kernel-memory thread objects) |
 | `_PTHREAD_HAVE_MAP` | the default stack allocator | |
+| `_PTHREAD_HAVE_OS_TLS` | thread creation that sets up the new thread's TLS itself | |
+| `_PTHREAD_HAVE_LAST_EXIT` | `_pthread_os_last_exit`, for when the last thread exits | |
+
+**TLS placed by the OS.** By default the core places each new
+thread's TLS block below its descriptor at the top of the stack
+region, fills it with `_init_tls` and hands `_pthread_os_create` the
+block (`t->tls`) and the stack below it (`t->stack_top`); Linux and
+FreeBSD pass both to the kernel. An OS whose thread creation sets up
+TLS itself in the stack it is given, as Zephyr's `k_thread_create`
+does, defines `_PTHREAD_HAVE_OS_TLS` and
+`size_t _pthread_os_tls_size(void)`, the stack bytes it takes for
+that. The core then never touches TLS (it needs neither `_init_tls`
+nor the `__tls_size` and `__tls_align` linker symbols): it reserves
+that many bytes in every stack region and in
+`sysconf(_SC_THREAD_STACK_MIN)`, leaves `t->tls` NULL, and gives
+`_pthread_os_create` the whole stack below the descriptor, from
+`t->stack_base` up to `t->stack_top`, for application stacks too.
+
+**The last thread.** When the last thread calls `pthread_exit`, POSIX
+ends the process with `exit(0)`, and so does the core by default. An
+OS with no process to end defines `_PTHREAD_HAVE_LAST_EXIT` and
+`void _pthread_os_last_exit(struct __pthread *self)`, called once the
+thread has run its cleanup handlers and destructors. It may end the
+program itself; if it returns, the thread ends alone like any other,
+and the system keeps running.
 
 **OS mutexes.** A mutex whose protocol is `PTHREAD_PRIO_INHERIT`, or
 which is robust, needs the kernel: to boost its owner, or to mark it
@@ -826,13 +851,26 @@ With the required set, the OS can claim `THREADS`, `THREAD_SAFE_FUNCTIONS`
 `CLOCK_SELECTION`, and the stack attributes; `ASYNCHRONOUS_IO` follows
 from picolibc's own threads.
 
-Not yet settled, for an OS that isn't a Unix-like kernel (they will be
-with the first one, Zephyr): the core sets up each thread's TLS itself
-(an OS whose thread creation does that needs a hook to skip it); it
-uses a `__thread` variable, so the OS needs TLS; `pthread_exit` in the
-last thread ends the process with `exit(0)`; and `libos/fallback`'s
-`sysconf` refers to the core whenever `<sys/_pthread.h>` is on the
-include path.
+The core keeps the calling thread's descriptor in a `__thread`
+variable, so the OS needs TLS. `libos/fallback`'s `sysconf` helper
+reports `_SC_THREAD_STACK_MIN` from the core only when the headers
+claim `_POSIX_THREADS`, so an OS layer built without the core may
+still have `<sys/_pthread.h>` on its include path.
+
+**Building the core with CMake.** The meson build compiles the core
+into each OS library it builds. The CMake build has no OS layer with
+threads, but defines the core as the static library `os-pthread`, for
+an OS layer configured with it (Zephyr's picolibc support, say). That
+layer defines an `INTERFACE` library named `picolibc-pthread-os`
+whose include directories hold its `local-pthread-os.h` and OS
+headers, and links `os-pthread` with its own code providing the
+hooks; the names resolve when the build is generated, so the layer
+may be configured before or after picolibc. `os-pthread` is built
+only when something links it. The source lists are also published as
+`PICOLIBC_PTHREAD_SOURCES`, `PICOLIBC_PTHREAD_AIO_SOURCES`,
+`PICOLIBC_PTHREAD_THREADS_SOURCES` and
+`PICOLIBC_PTHREAD_INCLUDE_DIRECTORIES`, for a layer which builds them
+into a library of its own.
 
 ### `<sys/_signal.h>`: signal stacks
 
