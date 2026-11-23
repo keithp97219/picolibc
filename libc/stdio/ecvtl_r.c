@@ -45,12 +45,18 @@ ecvtl_r(long double invalue, int ndigit, int *decpt, int *sign, char *buf, size_
     struct dtoa dtoa;
     char       *digits = dtoa.digits;
     int         ngot;
+    int         nwant;
 
     if (ndigit < 0)
         ndigit = 0;
 
     if ((size_t)ndigit >= len)
         return -1;
+
+    /* The engine generates no more digits than dtoa.digits holds */
+    nwant = ndigit;
+    if (nwant > (int)sizeof(dtoa.digits))
+        nwant = (int)sizeof(dtoa.digits);
 
     if (!isfinite(invalue)) {
         *sign = invalue < 0;
@@ -65,11 +71,11 @@ ecvtl_r(long double invalue, int ndigit, int *decpt, int *sign, char *buf, size_
         ndigit = ngot;
     } else {
 #ifdef _NEED_IO_FLOAT_LARGE
-        ngot = __ldtoa_engine(invalue, &dtoa, ndigit, false, 0);
+        ngot = __ldtoa_engine(invalue, &dtoa, nwant, false, 0);
 #elif __SIZEOF_LONG_DOUBLE__ == 8
-        ngot = __dtoa_engine((FLOAT64)invalue, &dtoa, ndigit, false, 0);
+        ngot = __dtoa_engine((FLOAT64)invalue, &dtoa, nwant, false, 0);
 #elif __SIZEOF_LONG_DOUBLE__ == 4
-        ngot = __ftoa_engine((float)invalue, &dtoa, ndigit, false, 0);
+        ngot = __ftoa_engine((float)invalue, &dtoa, nwant, false, 0);
 #endif
         *sign = !!(dtoa.flags & DTOA_MINUS);
         *decpt = dtoa.exp + 1;

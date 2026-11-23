@@ -43,6 +43,7 @@ ecvtf_r(float invalue, int ndigit, int *decpt, int *sign, char *buf, size_t len)
 {
     struct dtoa dtoa;
     int         ngot;
+    int         nwant;
 
     if (ndigit < 0)
         ndigit = 0;
@@ -50,7 +51,12 @@ ecvtf_r(float invalue, int ndigit, int *decpt, int *sign, char *buf, size_t len)
     if ((size_t)ndigit >= len)
         return -1;
 
-    ngot = __ftoa_engine(asuint(invalue), &dtoa, ndigit, false, 0);
+    /* The engine generates no more digits than dtoa.digits holds */
+    nwant = ndigit;
+    if (nwant > (int)sizeof(dtoa.digits))
+        nwant = (int)sizeof(dtoa.digits);
+
+    ngot = __ftoa_engine(asuint(invalue), &dtoa, nwant, false, 0);
     *sign = !!(dtoa.flags & DTOA_MINUS);
     *decpt = dtoa.exp + 1;
     memset(buf, '0', ndigit);
