@@ -56,9 +56,11 @@
 
 #ifdef __declare_extern_inline
 
-#ifdef __MATH_ERRNO
-#include <errno.h>
-#endif
+/*
+ * sqrt and sqrtf set errno for negative arguments when __MATH_ERRNO is
+ * defined, which <math.h> can't do without exposing the <errno.h>
+ * names, so they are only inline without it.
+ */
 
 #if defined(__ARM_FP) && (__ARM_FP & 0x8)
 
@@ -66,14 +68,11 @@
  * Double precision routines
  */
 
+#ifndef __MATH_ERRNO
 __declare_extern_inline(double)
 sqrt(double x)
 {
     double result;
-#ifdef __MATH_ERRNO
-    if (isless(x, 0.0))
-        errno = EDOM;
-#endif
 #if __ARM_ARCH >= 6
     __asm__ volatile("vsqrt.f64 %P0, %P1" : "=w"(result) : "w"(x));
 #else
@@ -82,6 +81,7 @@ sqrt(double x)
 #endif
     return result;
 }
+#endif
 
 __declare_extern_inline(double)
 fabs(double x)
@@ -168,14 +168,11 @@ fma(double x, double y, double z)
  * Single precision functions
  */
 
+#ifndef __MATH_ERRNO
 __declare_extern_inline(float)
 sqrtf(float x)
 {
     float result;
-#ifdef __MATH_ERRNO
-    if (isless(x, 0.0f))
-        errno = EDOM;
-#endif
 #if __ARM_ARCH >= 6
     __asm__ volatile("vsqrt.f32 %0, %1" : "=w"(result) : "w"(x));
 #else
@@ -184,6 +181,7 @@ sqrtf(float x)
 #endif
     return result;
 }
+#endif
 
 __declare_extern_inline(float)
 fabsf(float x)

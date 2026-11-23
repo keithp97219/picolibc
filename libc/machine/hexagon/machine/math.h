@@ -44,9 +44,11 @@
 
 #ifdef __declare_extern_inline
 
-#ifdef __MATH_ERRNO
-#include <errno.h>
-#endif
+/*
+ * sqrt and sqrtf set errno for negative arguments when __MATH_ERRNO is
+ * defined, which <math.h> can't do without exposing the <errno.h>
+ * names, so they are only inline without it.
+ */
 
 __declare_extern_inline(double)
 fma(double x, double y, double z)
@@ -77,16 +79,14 @@ fmin(double x, double y)
     return result;
 }
 
+#ifndef __MATH_ERRNO
 __declare_extern_inline(double)
 sqrt(double x)
 {
     extern double __hexagon_sqrt(double);
-#ifdef __MATH_ERRNO
-    if (isless(x, 0.0))
-        errno = EDOM;
-#endif
     return __hexagon_sqrt(x);
 }
+#endif
 
 __declare_extern_inline(float)
 fmaf(float x, float y, float z)
@@ -118,16 +118,14 @@ fminf(float x, float y)
     return result;
 }
 
+#ifndef __MATH_ERRNO
 __declare_extern_inline(float)
 sqrtf(float x)
 {
     extern float __hexagon_sqrtf(float);
-#ifdef __MATH_ERRNO
-    if (isless(x, 0.0f))
-        errno = EDOM;
-#endif
     return __hexagon_sqrtf(x);
 }
+#endif
 
 #endif /* __declare_extern_inline */
 
