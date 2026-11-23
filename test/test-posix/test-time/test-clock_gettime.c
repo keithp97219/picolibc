@@ -163,12 +163,12 @@ main(void)
 
     /* The system may leave the CPU-time clocks to say at run time */
 #if TEST_CPU
-    bool cputime = sysconf(_SC_CPUTIME) > 0;
+    bool cputime = !TEST_POSIX_CPUTIME_RUNTIME || sysconf(_SC_CPUTIME) > 0;
     if (!cputime)
         printf("no CPU-time clock\n");
 #endif
 #if TEST_THREAD_CPU
-    bool thread_cputime = sysconf(_SC_THREAD_CPUTIME) > 0;
+    bool thread_cputime = !TEST_POSIX_THREAD_CPUTIME_RUNTIME || sysconf(_SC_THREAD_CPUTIME) > 0;
     if (!thread_cputime)
         printf("no thread CPU-time clock\n");
 #endif

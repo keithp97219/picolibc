@@ -84,7 +84,7 @@ main(void)
     int       status;
 
     /* The system may leave it to say at run time */
-    if (sysconf(_SC_CPUTIME) <= 0) {
+    if (TEST_POSIX_CPUTIME_RUNTIME && sysconf(_SC_CPUTIME) <= 0) {
         printf("no CPU-time clock, skipping\n");
         return 77;
     }

@@ -94,7 +94,7 @@ main(void)
     pthread_t thread;
 
     /* The system may leave it to say at run time */
-    if (sysconf(_SC_THREAD_CPUTIME) <= 0) {
+    if (TEST_POSIX_THREAD_CPUTIME_RUNTIME && sysconf(_SC_THREAD_CPUTIME) <= 0) {
         printf("no thread CPU-time clock, skipping\n");
         return 77;
     }
