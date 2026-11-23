@@ -41,6 +41,7 @@ tests = [
   'test-getdelim',
   'test-getrlimit',
   'test-grp',
+  'test-localtime',
   'test-dirent',
   'test-posix-time',
   'test-pwd',
