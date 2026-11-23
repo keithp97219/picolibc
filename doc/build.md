@@ -119,7 +119,6 @@ definitions which use the same POSIX I/O functions.
 | printf-percent-n            | false   | Support the dangerous %n format specifier in printf                                  |
 | minimal-io-long-long        | false   | Support long long values in the minimal ('m') printf and scanf variants              |
 | fast-bufio                  | false   | Improve performance of some I/O operations when using bufio                          |
-| io-wchar                    | false   | Enable wide character support in printf and scanf when mb-capable is not set         |
 
 ### Internationalization options
 

@@ -85,8 +85,6 @@
 
 #cmakedefine __IO_LENGTH_W
 
-#cmakedefine __IO_WCHAR
-
 #cmakedefine _LITE_EXIT
 
 #define __MALLOC_SMALL_BUCKET @__MALLOC_SMALL_BUCKET@
