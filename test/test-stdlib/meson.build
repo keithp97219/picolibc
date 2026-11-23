@@ -42,6 +42,7 @@ tests = [
   'test-malloc',
   'test-malloc-stress',
   'test-many-malloc',
+  'test-mb-internal-state',
   'test-mbsrtowcs-null-ps',
   'test-mbstowcs-null',
   'test-memalignment',

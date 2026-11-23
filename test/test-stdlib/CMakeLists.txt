@@ -39,6 +39,7 @@ set(tests
   test-efcvt
   test-mbstowcs-null
   test-mbsrtowcs-null-ps
+  test-mb-internal-state
   test-malloc
   test-malloc-stress
   test-on_exit
