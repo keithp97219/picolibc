@@ -65,8 +65,16 @@ extern char __tls_end[];
 
 void _start(void);
 
-/* This is the application entry point */
-int  main(int, char **);
+/*
+ * This is the application entry point. Hosted (Linux) startup also
+ * passes the environment, the third argument Unix programs expect
+ */
+#ifdef CRT0_LINUX
+int           main(int, char **, char **);
+extern char **environ;
+#else
+int main(int, char **);
+#endif
 
 #ifdef __INIT_FINI_ARRAY
 extern void __libc_init_array(void);
@@ -166,7 +174,11 @@ __start(void)
 #endif
 #endif
 
+#ifdef CRT0_LINUX
+    int ret = main(argc, argv, environ);
+#else
     int ret = main(argc, argv);
+#endif
 #ifdef CRT0_EXIT
     exit(ret);
 #else
