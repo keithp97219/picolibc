@@ -75,6 +75,7 @@ if has_os_posix
     'test-siginfo',
     'test-sigsuspend',
     'test-clock-nanosleep',
+    'test-getdate-posix',
     'test-syscall-name',
     'test-system',
     'test-time64',
