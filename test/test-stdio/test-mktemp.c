@@ -33,9 +33,11 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #define _DEFAULT_SOURCE
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define check(condition, message)                    \
     do {                                             \
@@ -136,8 +138,44 @@ main(void)
     check(f != NULL, "fopen w");
     fputs(MESSAGE, f);
     fclose(f);
+    f = NULL;
     check_contents(template, 1);
     (void)remove(template);
+
+    /* Fewer than six Xs is an error, and the template is left alone */
+    {
+        char short_template[] = "foo-XXXXX\0!";
+
+        errno = 0;
+        check(mkstemp(short_template) == -1 && errno == EINVAL, "five Xs");
+        check(strcmp(short_template, "foo-XXXXX") == 0 && short_template[10] == '!',
+              "five Xs left intact");
+    }
+
+    /* A template that is only Xs keeps its length */
+    {
+        char only_x[] = "XXXXXX\0!";
+
+        check(mktemp(only_x) == only_x, "only Xs");
+        check(strlen(only_x) == 6 && only_x[7] == '!' && strcmp(only_x, "XXXXXX") != 0,
+              "only Xs replaced in place");
+    }
+
+    /* Making a name leaves random's sequence alone */
+    {
+        long r1, r2;
+
+        srandom(7);
+        r1 = random();
+        srandom(7);
+        strcpy(template, NAME_TEMPLATE);
+        i_ret = mkstemp(template);
+        check(i_ret >= 0, "mkstemp between srandom and random");
+        (void)close(i_ret);
+        (void)remove(template);
+        r2 = random();
+        check(r1 == r2, "mkstemp leaves random's sequence alone");
+    }
 
     exit(0);
 }
