@@ -36,6 +36,8 @@
 set(tests
   test-fmemopen
   test-fmemopen-rplus
+  test-fmemopen-seek
+  test-fileno
   test-fopencookie
   test-open_memstream
   test-funopen

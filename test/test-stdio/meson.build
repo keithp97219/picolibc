@@ -37,6 +37,8 @@ tests = [
   'test-fdevopen',
   'test-fmemopen',
   'test-fmemopen-rplus',
+  'test-fmemopen-seek',
+  'test-fileno',
   'test-open_memstream',
   'test-freopen',
   'test-fopencookie',
