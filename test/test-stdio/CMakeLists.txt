@@ -43,6 +43,7 @@ set(tests
   test-put
   test-printf
   test-printf-scanf
+  test-printf-wchar
   test-sprintf-percent-n
   test-sprintf-s
   test-strfromf
