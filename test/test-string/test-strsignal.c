@@ -41,7 +41,8 @@
 /*
  * strsignal: a message for every signal <signal.h> defines, distinct
  * messages for distinct signals, and a string holding the number, never
- * a null pointer, for numbers that aren't signals
+ * a null pointer, for numbers that aren't signals; and psignal, which
+ * mustn't overwrite strsignal's string
  */
 
 #define S(name) { name, #name }
@@ -186,6 +187,32 @@ main(void)
         }
     }
 #endif
+
+    /*
+     * No function calls strsignal: psignal leaves the string strsignal
+     * returned alone, even one built from a number
+     */
+    {
+        static const int pairs[][2] = {
+            { 70, 71 },
+            { 70, -6 },
+            { 70, 2  },
+        };
+
+        for (i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
+            char copy[MSG_MAX];
+
+            p = strsignal(pairs[i][0]);
+            snprintf(copy, sizeof(copy), "%s", p);
+            psignal(pairs[i][1], "psignal, which mustn't call strsignal");
+            if (strcmp(p, copy) != 0) {
+                printf("psignal(%d) changed strsignal(%d)'s string from \"%s\" to \"%s\"\n",
+                       pairs[i][1], pairs[i][0], copy, p);
+                ret = 1;
+            }
+        }
+    }
+
     if (ret == 0)
         printf("success\n");
     return ret;
