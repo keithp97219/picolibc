@@ -51,6 +51,7 @@ tests = [
   'test-stdckdint',
   'test-strtod',
   'test-strtod-round',
+  'test-strtod-hard',
   ]
 
 tests_cpp = [

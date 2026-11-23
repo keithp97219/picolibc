@@ -46,6 +46,7 @@ set(tests
   test-rand
   test-strtod
   test-strtod-round
+  test-strtod-hard
   test-memalignment
   test-call-once
   test-stdckdint
