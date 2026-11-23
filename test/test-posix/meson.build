@@ -81,6 +81,7 @@ if has_os_posix
     'test-fgetc-ebadf',
     'test-getline',
     'test-popen-posix',
+    'test-freopen-posix',
   ]
 elif host_cpu_family == 'hexagon'
   tests += ['test-system']
