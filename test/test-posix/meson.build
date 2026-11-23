@@ -51,6 +51,7 @@ tests = [
   'test-signal',
   'test-stat',
   'test-strftime-posix',
+  'test-strptime',
   'test-statvfs',
   ]
 
