@@ -34,7 +34,7 @@
  */
 
 #define _POSIX_C_SOURCE 202405L
-/* getresuid and setresuid are XSI interfaces */
+/* getresuid and setresuid are XSI_USER_GROUPS interfaces, new in Issue 8 */
 #define _XOPEN_SOURCE 800
 /* glibc declares getresuid and setresuid only with _GNU_SOURCE */
 #ifdef TEST_GLIBC
@@ -43,7 +43,7 @@
 #include "../test-flags.h"
 
 /* Without the system support this test needs, it is skipped */
-#if TEST_POSIX_USER_GROUPS && TEST_POSIX_MULTI_PROCESS
+#if TEST_XSI_USER_GROUPS >= 202405L && TEST_POSIX_USER_GROUPS && TEST_POSIX_MULTI_PROCESS
 
 #include <errno.h>
 #include <stdio.h>
