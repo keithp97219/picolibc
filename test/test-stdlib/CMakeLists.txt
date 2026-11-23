@@ -51,6 +51,7 @@ set(tests
   test-setenv
   test-rand-sequence
   test-a64l
+  test-getsubopt
   )
 
 set(tests_fail

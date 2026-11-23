@@ -40,6 +40,7 @@ tests = [
   'test-call-once',
   'test-double-free',
   'test-efcvt',
+  'test-getsubopt',
   'test-malloc',
   'test-malloc-stress',
   'test-many-malloc',
