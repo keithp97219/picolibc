@@ -857,6 +857,21 @@ reports `_SC_THREAD_STACK_MIN` from the core only when the headers
 claim `_POSIX_THREADS`, so an OS layer built without the core may
 still have `<sys/_pthread.h>` on its include path.
 
+**Building the core with CMake.** The meson build compiles the core
+into each OS library it builds. The CMake build has no OS layer with
+threads, but defines the core as the static library `os-pthread`, for
+an OS layer configured with it (Zephyr's picolibc support, say). That
+layer defines an `INTERFACE` library named `picolibc-pthread-os`
+whose include directories hold its `local-pthread-os.h` and OS
+headers, and links `os-pthread` with its own code providing the
+hooks; the names resolve when the build is generated, so the layer
+may be configured before or after picolibc. `os-pthread` is built
+only when something links it. The source lists are also published as
+`PICOLIBC_PTHREAD_SOURCES`, `PICOLIBC_PTHREAD_AIO_SOURCES`,
+`PICOLIBC_PTHREAD_THREADS_SOURCES` and
+`PICOLIBC_PTHREAD_INCLUDE_DIRECTORIES`, for a layer which builds them
+into a library of its own.
+
 ### `<sys/_signal.h>`: signal stacks
 
 `<signal.h>` includes this header when it exists. It may define

@@ -34,12 +34,11 @@
 #
 
 # POSIX threads code shared by the OS layers which provide them. The
-# CMake build has no OS layer with threads itself, so nothing is built
-# here: an OS layer elsewhere (Zephyr's picolibc POSIX support, for
-# instance) compiles these sources into its own library, with its own
-# local-pthread-os.h first on the include path; see local-pthread.h
-# for that contract. The per-machine pthread_tls_setup.c files under
-# machine/ are optional for such a layer.
+# CMake build has no OS layer with threads itself; an OS layer
+# elsewhere (Zephyr's picolibc POSIX support, for instance) supplies
+# local-pthread-os.h and its OS headers (see local-pthread.h for that
+# contract) and links the os-pthread library defined below, or
+# compiles these sources into a library of its own.
 
 set(PICOLIBC_PTHREAD_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/call_once.c
@@ -235,3 +234,34 @@ set(PICOLIBC_PTHREAD_INCLUDE_DIRECTORIES
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   CACHE INTERNAL "libos/pthread include directories")
+
+# The per-machine thread pointer setup, for OS layers whose core
+# places TLS itself
+set(PICOLIBC_PTHREAD_MACHINE_SOURCES)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/machine/${CMAKE_SYSTEM_PROCESSOR}/pthread_tls_setup.c)
+  list(APPEND PICOLIBC_PTHREAD_MACHINE_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/machine/${CMAKE_SYSTEM_PROCESSOR}/pthread_tls_setup.c)
+endif()
+
+# The thread core as a library, as the meson OS layers build it into
+# theirs. Its OS half comes from an INTERFACE library the OS layer
+# defines, named picolibc-pthread-os, whose include directories hold
+# local-pthread-os.h and the OS headers (<sys/_posix.h>, and its own
+# <sys/_pthread.h> if it has one); they come ahead of picolibc's. The
+# OS layer links os-pthread with its own code, which provides the
+# hooks. Target names resolve when the build is generated, so the OS
+# layer may be configured before or after picolibc (Zephyr's lib/
+# comes before its modules). Nothing builds os-pthread unless
+# something links it, so a build without an OS layer is unaffected.
+add_library(os-pthread-headers INTERFACE)
+target_include_directories(os-pthread-headers SYSTEM INTERFACE
+  ${PICOLIBC_PTHREAD_INCLUDE_DIRECTORIES}
+  ${PICOLIBC_INCLUDE_DIRECTORIES})
+
+add_library(os-pthread STATIC EXCLUDE_FROM_ALL
+  ${PICOLIBC_PTHREAD_SOURCES}
+  ${PICOLIBC_PTHREAD_AIO_SOURCES}
+  ${PICOLIBC_PTHREAD_THREADS_SOURCES}
+  ${PICOLIBC_PTHREAD_MACHINE_SOURCES})
+target_compile_options(os-pthread PRIVATE ${PICOLIBC_COMPILE_OPTIONS})
+target_link_libraries(os-pthread PRIVATE picolibc-pthread-os os-pthread-headers)
