@@ -797,6 +797,22 @@ fail as POSIX allows:
 | `_PTHREAD_HAVE_SEM_NAMED` | `sem_open` and `sem_unlink` over files | named semaphores |
 | `_PTHREAD_HAVE_RELEASE` | OS objects kept outside the stack, freed when a thread is reclaimed | (kernel-memory thread objects) |
 | `_PTHREAD_HAVE_MAP` | the default stack allocator | |
+| `_PTHREAD_HAVE_OS_TLS` | thread creation that sets up the new thread's TLS itself | |
+
+**TLS placed by the OS.** By default the core places each new
+thread's TLS block below its descriptor at the top of the stack
+region, fills it with `_init_tls` and hands `_pthread_os_create` the
+block (`t->tls`) and the stack below it (`t->stack_top`); Linux and
+FreeBSD pass both to the kernel. An OS whose thread creation sets up
+TLS itself in the stack it is given, as Zephyr's `k_thread_create`
+does, defines `_PTHREAD_HAVE_OS_TLS` and
+`size_t _pthread_os_tls_size(void)`, the stack bytes it takes for
+that. The core then never touches TLS (it needs neither `_init_tls`
+nor the `__tls_size` and `__tls_align` linker symbols): it reserves
+that many bytes in every stack region and in
+`sysconf(_SC_THREAD_STACK_MIN)`, leaves `t->tls` NULL, and gives
+`_pthread_os_create` the whole stack below the descriptor, from
+`t->stack_base` up to `t->stack_top`, for application stacks too.
 
 **OS mutexes.** A mutex whose protocol is `PTHREAD_PRIO_INHERIT`, or
 which is robust, needs the kernel: to boost its owner, or to mark it
@@ -827,12 +843,10 @@ With the required set, the OS can claim `THREADS`, `THREAD_SAFE_FUNCTIONS`
 from picolibc's own threads.
 
 Not yet settled, for an OS that isn't a Unix-like kernel (they will be
-with the first one, Zephyr): the core sets up each thread's TLS itself
-(an OS whose thread creation does that needs a hook to skip it); it
-uses a `__thread` variable, so the OS needs TLS; `pthread_exit` in the
-last thread ends the process with `exit(0)`; and `libos/fallback`'s
-`sysconf` refers to the core whenever `<sys/_pthread.h>` is on the
-include path.
+with the first one, Zephyr): the core uses a `__thread` variable, so
+the OS needs TLS; `pthread_exit` in the last thread ends the process
+with `exit(0)`; and `libos/fallback`'s `sysconf` refers to the core
+whenever `<sys/_pthread.h>` is on the include path.
 
 ### `<sys/_signal.h>`: signal stacks
 

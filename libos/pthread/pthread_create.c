@@ -35,7 +35,9 @@
 
 #define _DEFAULT_SOURCE
 #include "local-pthread.h"
+#ifndef _PTHREAD_HAVE_OS_TLS
 #include <picotls.h>
+#endif
 #include <string.h>
 
 #define round_down(v, a) ((v) & ~((uintptr_t)(a) - 1))
@@ -63,7 +65,9 @@ _pthread_start(struct __pthread *self)
 /*
  * Every thread's descriptor, followed by its thread-specific data
  * values, sits at the top of its stack region, with the TLS block
- * just below and the stack below that, growing down. picolibc
+ * just below and the stack below that, growing down (with
+ * _PTHREAD_HAVE_OS_TLS, the OS puts the TLS block in the stack
+ * itself, in room the layout reserves). picolibc
  * allocates the region, with room for both and a guard below, unless
  * the application provided the stack.
  *
@@ -114,13 +118,24 @@ _pthread_create(pthread_t * __restrict thread, const pthread_attr_t * __restrict
     memset(t, 0, layout.desc_size);
     t->tpp_max = _PTHREAD_TPP_NONE;
     t->specific = (struct __pthread_specific *)(t + 1);
+#ifdef _PTHREAD_HAVE_OS_TLS
+    /* The OS places TLS in the stack below the descriptor as it starts the thread */
+    tls = NULL;
+#else
     tls = (char *)round_down((uintptr_t)t - layout.tls_size, layout.align);
     _init_tls(tls);
+#endif
 
     t->map = map;
     t->map_size = map_size;
     t->tls = tls;
+#ifdef _PTHREAD_HAVE_OS_TLS
+    /* The whole region, or the application's stack, below the descriptor */
+    t->stack_base = (void *)(top - attr->__stacksize - (attr->__stackaddr ? 0 : layout.overhead));
+    t->stack_top = (void *)round_down((uintptr_t)t, 16);
+#else
     t->stack_top = (void *)round_down((uintptr_t)tls, 16);
+#endif
     t->start = start_routine;
     t->arg = arg;
     t->detach_state = attr->__detachstate;

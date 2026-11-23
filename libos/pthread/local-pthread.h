@@ -140,6 +140,17 @@
  *                            unlink, fstat and mmap on files that
  *                            local-shm.h names. Without it they report
  *                            ENOSYS.
+ *   _PTHREAD_HAVE_OS_TLS     The OS sets up each new thread's TLS block
+ *                            itself, within the stack it is given
+ *                            (Zephyr's k_thread_create does). The core
+ *                            neither places nor initializes it, and
+ *                            needs no _tls_size, _tls_align or
+ *                            _init_tls; it leaves t->tls NULL and
+ *                            reserves _pthread_os_tls_size() bytes of
+ *                            each stack region for the OS, below
+ *                            t->stack_top. t->stack_base gives the
+ *                            bottom of the stack, for application
+ *                            stacks as well.
  *
  * Waits take a clock and an absolute timeout. An OS layer converting
  * them to relative timeouts may do so: callers loop, recheck their
@@ -248,6 +259,11 @@ struct __pthread {
 
     /* What the OS layer keeps for each thread */
     struct __pthread_os        os;
+
+#ifdef _PTHREAD_HAVE_OS_TLS
+    /* The lowest address of the stack; the OS places TLS between it and stack_top */
+    void *stack_base;
+#endif
 };
 
 extern __thread struct __pthread *_pthread_current;
@@ -723,6 +739,16 @@ _pthread_release(struct __pthread *t)
         _pthread_os_stack_free(map, map_size);
 }
 
+#ifdef _PTHREAD_HAVE_OS_TLS
+/*
+ * The stack bytes the OS uses for a new thread's TLS block and
+ * anything else it places in the stack it is given, which the core
+ * reserves in each thread's stack region. Constant while the program
+ * runs.
+ */
+size_t _pthread_os_tls_size(void);
+#endif
+
 /*
  * Initialize the thread control block for a new TLS block (already
  * filled by _init_tls) and return the thread pointer value the kernel
@@ -737,7 +763,10 @@ void           *_pthread_tls_setup(void *tls, void *arg_space);
  * Start a thread for t, sharing the creator's address space, files
  * and signal handlers, with every signal blocked, which calls
  * _pthread_start(t). Set t->tid before either thread can use it.
- * Returns 0, ENOMEM or EAGAIN.
+ * Its stack grows down from t->stack_top; its TLS block is t->tls,
+ * or with _PTHREAD_HAVE_OS_TLS one the OS sets up itself in the stack
+ * between t->stack_base and t->stack_top. Returns 0, ENOMEM or
+ * EAGAIN.
  */
 int             _pthread_os_create(struct __pthread *t);
 
