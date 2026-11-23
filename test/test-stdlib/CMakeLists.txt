@@ -48,6 +48,7 @@ set(tests
   test-memalignment
   test-call-once
   test-stdckdint
+  test-setenv
   )
 
 set(tests_fail
