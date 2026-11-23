@@ -77,6 +77,7 @@ if has_os_posix
     'test-fopen-flags',
     'test-fdopen',
     'test-stdin-offset',
+    'test-fseek',
   ]
 elif host_cpu_family == 'hexagon'
   tests += ['test-system']
