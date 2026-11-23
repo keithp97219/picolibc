@@ -122,6 +122,13 @@ __retarget_lock_acquire_recursive(_LOCK_T lock)
     (void)lock;
 }
 
+int __no_thread_safety_analysis
+__retarget_lock_try_acquire_recursive(_LOCK_T lock)
+{
+    (void)lock;
+    return 0;
+}
+
 void __no_thread_safety_analysis
 __retarget_lock_release(_LOCK_T lock)
 {

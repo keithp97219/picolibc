@@ -35,18 +35,35 @@
 
 #include "local-stdio.h"
 
-/*
- * We don't have any try-lock ability in the picolibc lock API, so
- * we're stuck just blocking.
- */
+#ifndef __SINGLE_THREAD
+/* Lock implementations need not provide this; without it, ftrylockfile blocks */
+extern int __retarget_lock_try_acquire_recursive(_LOCK_T lock) __weak;
+
+static int __no_thread_safety_analysis
+try_lock(_LOCK_T lock)
+{
+    if (__retarget_lock_try_acquire_recursive)
+        return __retarget_lock_try_acquire_recursive(lock);
+    __lock_acquire_recursive(lock);
+    return 0;
+}
+#endif
+
+/* Returns zero when the lock was acquired, non-zero when another thread holds it */
 int
 ftrylockfile(FILE *f) __stdio_try_acquire_file(0, f) __no_thread_safety_analysis
 {
-#ifdef __STDIO_LOCKING
-    __flockfile(f);
+#ifdef __SINGLE_THREAD
+    (void)f;
+    return 0;
+#elif defined(__STDIO_LOCKING)
+    if (!f->lock)
+        __flockfile_init(f);
+    if (f->lock == __LOCK_NONE)
+        return 0;
+    return try_lock(f->lock);
 #else
     (void)f;
-    __LIBC_LOCK();
+    return try_lock(&__lock___libc_recursive_mutex);
 #endif
-    return 0;
 }

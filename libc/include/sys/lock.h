@@ -39,6 +39,8 @@ void                   __retarget_lock_acquire(_LOCK_T lock) __acquire_capabilit
 void                   __retarget_lock_acquire_recursive(_LOCK_T lock) __acquire_capability(lock);
 void                   __retarget_lock_release(_LOCK_T lock) __release_capability(lock);
 void                   __retarget_lock_release_recursive(_LOCK_T lock) __release_capability(lock);
+/* Returns 0 when the lock was acquired. Optional: callers check that it is defined. */
+int __retarget_lock_try_acquire_recursive(_LOCK_T lock) __try_acquire_capability(0, lock);
 
 #define __lock_init(lock)              __retarget_lock_init(&lock)
 #define __lock_init_recursive(lock)    __retarget_lock_init_recursive(&lock)
