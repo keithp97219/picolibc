@@ -302,7 +302,11 @@ const struct tm tmyrzp = {
     .tm_wday = 3, .tm_yday = 183, .tm_isdst = 1
 };
 #define YEAR CQ("7") /* Design intent:  %Y=%C%y */
-#define CENT CQ("0")
+#ifdef __PICOLIBC__
+#define CENT CQ("00") /* POSIX.1-2024: two digits for years 0 to 9999 */
+#else
+#define CENT CQ("0") /* glibc gives one digit */
+#endif
 #define Year CQ("07")
 const struct test Vecyrzp[] = {
 /* Testing fields one at a time, expecting to pass, using a larger
