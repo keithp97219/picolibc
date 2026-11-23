@@ -127,6 +127,7 @@ __bufio_lock_close(FILE *f)
     if (bf->lock) {
         __lock_release(bf->lock);
         __lock_close(bf->lock);
+        bf->lock = NULL;
     }
 #endif
     (void)f;
