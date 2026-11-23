@@ -42,17 +42,29 @@ unsetenv(const char *name)
         return -1;
     }
 
-    __LIBC_LOCK();
+    /* Remove every definition, freeing those setenv allocated */
+    for (;;) {
+        char *entry;
+        bool  owned;
 
-    while (__findenv(name, &offset)) /* if set multiple times */
-    {
+        __LIBC_LOCK();
+        if (!__findenv(name, &offset)) {
+            ++__environ_sequence;
+            __LIBC_UNLOCK();
+            break;
+        }
+        entry = environ[offset];
         for (env = &(environ)[offset];; ++env)
             if (!(*env = *(env + 1)))
                 break;
+        ++__environ_sequence;
+        owned = __env_disown(entry);
+        __LIBC_UNLOCK();
+
+        /* free takes the lock too */
+        if (owned)
+            free(entry);
     }
 
-    ++__environ_sequence;
-
-    __LIBC_UNLOCK();
     return 0;
 }

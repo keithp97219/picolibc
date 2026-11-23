@@ -69,19 +69,12 @@ permit '=' to be in identifiers.
 
 uint32_t __environ_sequence; /* incremented each time env changes */
 
-/* libc lock must be held on entry */
+/* libc lock must be held on entry; name is name_len bytes long */
 char *
-__findenv(const char *name, size_t *offset)
+__findenv_n(const char *name, size_t name_len, size_t *offset)
 {
     char **env;
     char  *entry;
-    size_t name_len;
-
-    /* Identifiers may not contain an '=', so cannot match if does */
-    if (strchr(name, '='))
-        return NULL;
-
-    name_len = strlen(name);
 
     if (!environ)
         return NULL;
@@ -93,4 +86,15 @@ __findenv(const char *name, size_t *offset)
         }
     }
     return NULL;
+}
+
+/* libc lock must be held on entry */
+char *
+__findenv(const char *name, size_t *offset)
+{
+    /* Identifiers may not contain an '=', so cannot match if does */
+    if (strchr(name, '='))
+        return NULL;
+
+    return __findenv_n(name, strlen(name), offset);
 }
