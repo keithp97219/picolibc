@@ -66,6 +66,7 @@ if has_os_posix
     'test-dprintf-leak',
     'test-fclose-std',
     'test-fflush-all',
+    'test-fopencookie-flush',
     'test-mmap',
     'test-pclose',
     'test-popen',
