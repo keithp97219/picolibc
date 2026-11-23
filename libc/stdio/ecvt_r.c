@@ -45,12 +45,18 @@ ecvt_r(double invalue, int ndigit, int *decpt, int *sign, char *buf, size_t len)
     struct dtoa dtoa;
     char       *digits = dtoa.digits;
     int         ngot;
+    int         nwant;
 
     if (ndigit < 0)
         ndigit = 0;
 
     if ((size_t)ndigit >= len)
         return -1;
+
+    /* The engine generates no more digits than dtoa.digits holds */
+    nwant = ndigit;
+    if (nwant > (int)sizeof(dtoa.digits))
+        nwant = (int)sizeof(dtoa.digits);
 
     if (!isfinite(invalue)) {
         *sign = invalue < 0;
@@ -64,7 +70,7 @@ ecvt_r(double invalue, int ndigit, int *decpt, int *sign, char *buf, size_t len)
             ngot = ndigit;
         ndigit = ngot;
     } else {
-        ngot = __dtoa_engine(asuint64(invalue), &dtoa, ndigit, false, 0);
+        ngot = __dtoa_engine(asuint64(invalue), &dtoa, nwant, false, 0);
         *sign = !!(dtoa.flags & DTOA_MINUS);
         *decpt = dtoa.exp + 1;
     }
