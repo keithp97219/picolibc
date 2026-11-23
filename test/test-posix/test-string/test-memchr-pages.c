@@ -62,7 +62,10 @@ static void *(* volatile p_memcpy)(void *, const void *, size_t) = memcpy;
 static void *(* volatile p_memmove)(void *, const void *, size_t) = memmove;
 static void *(* volatile p_memset)(void *, int, size_t) = memset;
 static void *(* volatile p_memccpy)(void *, const void *, int, size_t) = memccpy;
+/* memmem is new in POSIX.1-2024 */
+#if TEST_POSIX_C_LIB_EXT >= 202405L
 static void *(* volatile p_memmem)(const void *, size_t, const void *, size_t) = memmem;
+#endif
 
 /* Bytes the pattern never uses */
 #define MARK1  0x90
@@ -475,6 +478,7 @@ test_memccpy(void)
             }
 }
 
+#if TEST_POSIX_C_LIB_EXT >= 202405L
 static const unsigned char *
 ref_memmem(const volatile unsigned char *h, size_t hl, const volatile unsigned char *n, size_t nl)
 {
@@ -572,6 +576,7 @@ test_memmem(void)
         }
     }
 }
+#endif
 
 int
 main(void)
@@ -584,7 +589,9 @@ main(void)
     test_memmove();
     test_memset();
     test_memccpy();
+#if TEST_POSIX_C_LIB_EXT >= 202405L
     test_memmem();
+#endif
     if (failures)
         return 1;
     printf("success\n");
