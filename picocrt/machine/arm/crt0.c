@@ -46,7 +46,8 @@ char      **__argv;
 extern char __tls_base[];
 void        _set_tls(void *tls);
 
-int         main(int argc, char **argv);
+/* Unix programs expect the environment as a third argument */
+int         main(int argc, char **argv, char **envp);
 
 __noreturn __disable_sanitizer void __used
 _start(void)
@@ -70,7 +71,7 @@ _start(void)
 
     int ret;
 
-    ret = main(argc, argv);
+    ret = main(argc, argv, environ);
     exit(ret);
 }
 
