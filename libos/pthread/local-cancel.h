@@ -44,7 +44,12 @@
 
 #include <picolibc.h>
 
-#ifdef __PICOLIBC_PTHREADS
+/*
+ * The thread core (and an OS layer building it outside picolibc's own
+ * build, whose picolibc.h may not say __PICOLIBC_PTHREADS) includes
+ * local-pthread.h first
+ */
+#if defined(__PICOLIBC_PTHREADS) || defined(_LOCAL_PTHREAD_H_)
 
 #include "local-pthread.h"
 

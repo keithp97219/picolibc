@@ -158,7 +158,7 @@
 
 #ifndef _PTHREAD_HAVE_SIGNALS
 typedef char _pthread_sigset_t;
-#define _pthread_sigblock_all(old)   ((void)(old))
+#define _pthread_sigblock_all(old)   (*(old) = 0)
 #define _pthread_sigsetmask(set)     ((void)(set))
 #define _pthread_sigcancel_unblock() ((void)0)
 #endif
