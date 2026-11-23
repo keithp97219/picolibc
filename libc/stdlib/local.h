@@ -26,10 +26,13 @@ extern uint32_t __environ_sequence;
 
 extern __THREAD_LOCAL uint64_t _rand_next;
 
-#ifdef __AVR__
-typedef unsigned int uwchar_t;
+/* wchar_t as an unsigned type, so that negative values are out of range */
+#if __SIZEOF_WCHAR_T__ == 4
+typedef __uint32_t uwchar_t;
+#elif __SIZEOF_WCHAR_T__ == 2
+typedef __uint16_t uwchar_t;
 #else
-typedef wchar_t uwchar_t;
+typedef unsigned int uwchar_t;
 #endif
 
 mbtowc_f __ascii_mbtowc;
