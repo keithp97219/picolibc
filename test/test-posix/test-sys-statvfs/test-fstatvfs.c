@@ -96,12 +96,16 @@ has_option(const char *options, const char *option)
 
 /*
  * On Linux, ST_RDONLY and ST_NOSUID match the "ro" and "nosuid" options
- * in /proc/self/mountinfo. Only the last mount on each mount point is
- * visible, and mount points with escaped characters are skipped.
+ * in /proc/self/mountinfo. A file system is read-only when either the
+ * mount or the file system itself (the super options, after the "-"
+ * separator) is "ro"; systemd mounts its credential directories that way.
+ * Only the last mount on each mount point is visible, and mount points
+ * with escaped characters are skipped.
  */
 #define MAX_MOUNTS 256
 static char mounts[MAX_MOUNTS][256];
 static char options[MAX_MOUNTS][256];
+static char super_options[MAX_MOUNTS][256];
 
 static void
 check_mount_flags(void)
@@ -116,9 +120,14 @@ check_mount_flags(void)
         return;
     }
     while (n < MAX_MOUNTS && fgets(line, sizeof(line), f)) {
+        char *sep = strstr(line, " - ");
+
         if (sscanf(line, "%*s %*s %*s %*s %255s %255s", mounts[n], options[n]) == 2
-            && !strchr(mounts[n], '\\'))
+            && !strchr(mounts[n], '\\')) {
+            if (!sep || sscanf(sep + 3, "%*s %*s %255s", super_options[n]) != 1)
+                super_options[n][0] = '\0';
             n++;
+        }
     }
     fclose(f);
     for (i = 0; i < n; i++) {
@@ -128,8 +137,10 @@ check_mount_flags(void)
         if (j < n || statvfs(mounts[i], &sv) != 0)
             continue;
         check_counts(&sv);
-        if (!(sv.f_flag & ST_RDONLY) != !has_option(options[i], "ro")) {
-            printf("%s: options %s, f_flag %#lx\n", mounts[i], options[i], sv.f_flag);
+        if (!(sv.f_flag & ST_RDONLY)
+            != !(has_option(options[i], "ro") || has_option(super_options[i], "ro"))) {
+            printf("%s: options %s super %s, f_flag %#lx\n", mounts[i], options[i],
+                   super_options[i], sv.f_flag);
             check(0, "ST_RDONLY matches the ro option");
         }
         if (!(sv.f_flag & ST_NOSUID) != !has_option(options[i], "nosuid")) {
