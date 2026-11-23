@@ -130,7 +130,8 @@ address_space(void)
     return pages < 0 ? -1 : pages * sysconf(_SC_PAGESIZE);
 }
 
-#define SIZE 8192
+/* Not a whole number of pages, so shm_segsz shows whether it is rounded */
+#define SIZE 12345
 
 /* The shm_segsz of a segment made with size bytes */
 static size_t

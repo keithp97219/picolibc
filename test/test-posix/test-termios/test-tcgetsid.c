@@ -111,16 +111,10 @@ main(void)
         if (ioctl(fd, TIOCSCTTY, 0) != 0)
             _exit(5);
 #endif
-        if (tcgetsid(fd) == getsid(0))
-            _exit(0);
-        /* Whether opening it makes it the controlling terminal is up to the system */
-        _exit(errno == ENOTTY ? 4 : 3);
+        _exit(tcgetsid(fd) == getsid(0) ? 0 : 3);
     }
     check(waitpid(pid, &status, 0) == pid && WIFEXITED(status), "child");
-    if (!TEST_VARIANCE_CTTY_TIOCSCTTY && WEXITSTATUS(status) == 4)
-        printf("opening a terminal doesn't make it the controlling terminal\n");
-    else
-        check(WEXITSTATUS(status) == 0, "tcgetsid in the session");
+    check(WEXITSTATUS(status) == 0, "tcgetsid in the session");
     check(close(subsidiary) == 0 && close(manager) == 0, "close");
     printf("success\n");
     return 0;

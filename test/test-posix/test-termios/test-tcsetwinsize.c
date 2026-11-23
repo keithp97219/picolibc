@@ -125,8 +125,7 @@ session(const char *name)
     /* Opening it doesn't make it the controlling terminal; TIOCSCTTY does */
     check(fd >= 0 && ioctl(fd, TIOCSCTTY, 0) == 0, "TIOCSCTTY");
 #endif
-    if (fd < 0 || tcgetsid(fd) != getpid())
-        return 77;
+    check(fd >= 0 && tcgetsid(fd) == getpid(), "the controlling terminal");
     /*
      * SIGWINCH is ignored by default, and an ignored signal may be
      * discarded even while blocked (FreeBSD's is), so catch it

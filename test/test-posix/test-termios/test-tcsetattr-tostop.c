@@ -96,7 +96,7 @@ open_pty(int *subsidiary)
 /*
  * Makes the pseudo-terminal the controlling terminal of a new session
  * led by the calling process, returning a descriptor for it, or exits
- * with 77 when the system won't do that
+ * with 77 when there can be no new session
  */
 static int
 take_ctty(const char *name)
@@ -112,10 +112,7 @@ take_ctty(const char *name)
     /* Opening it doesn't make it the controlling terminal; TIOCSCTTY does */
     check(fd >= 0 && ioctl(fd, TIOCSCTTY, 0) == 0, "TIOCSCTTY");
 #endif
-    if (fd < 0 || tcgetsid(fd) != getpid()) {
-        printf("no controlling terminal, skipping\n");
-        exit(77);
-    }
+    check(fd >= 0 && tcgetsid(fd) == getpid(), "the controlling terminal");
     return fd;
 }
 
