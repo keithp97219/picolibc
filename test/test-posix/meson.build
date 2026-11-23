@@ -65,6 +65,7 @@ if has_os_posix
     'test-alarm',
     'test-dprintf-leak',
     'test-fclose-std',
+    'test-fflush-all',
     'test-mmap',
     'test-pclose',
     'test-popen',
