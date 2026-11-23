@@ -25,11 +25,11 @@ starting with a given value of the random seed always produces the
 same sequence of numbers in successive calls to <<random>>.
 
 You can set the random seed using <<srandom>>; it does nothing beyond
-storing its argument in the static variable used by <<rand>>.  You can
+storing its argument in the static variable used by <<random>>.  You can
 exploit this to make the pseudo-random sequence less predictable, if
 you wish, by using some other unpredictable value (often the least
 significant parts of a time-varying value) as the random seed before
-beginning a sequence of calls to <<rand>>; or, if you wish to ensure
+beginning a sequence of calls to <<random>>; or, if you wish to ensure
 (for example, while debugging) that successive runs of your program
 use the same ``random'' numbers, you can use <<srandom>> to set the same
 random seed at the outset.
@@ -57,7 +57,7 @@ algorithm as <<rand>>.
 #include <stdint.h>
 #include "local.h"
 
-__THREAD_LOCAL uint64_t _rand_next = 1;
+__THREAD_LOCAL uint64_t _random_next = 1;
 
 long int
 random(void)
@@ -65,6 +65,6 @@ random(void)
     /* This multiplier was obtained from Knuth, D.E., "The Art of
        Computer Programming," Vol 2, Seminumerical Algorithms, Third
        Edition, Addison-Wesley, 1998, p. 106 (line 26) & p. 108 */
-    _rand_next = _rand_next * 6364136223846793005ULL + 1;
-    return (long int)((_rand_next >> 32) & 0x7fffffffL);
+    _random_next = _random_next * 6364136223846793005ULL + 1;
+    return (long int)((_random_next >> 32) & 0x7fffffffL);
 }

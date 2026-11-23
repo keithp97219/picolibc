@@ -59,9 +59,19 @@ on two different systems.
 
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
+#include "local.h"
+
+/*
+ * rand keeps a sequence of its own: POSIX says implementations behave
+ * as if no other function calls rand() or srand(), so random(),
+ * srandom() and mkstemp mustn't move it.
+ */
+__THREAD_LOCAL uint64_t _rand_next = 1;
 
 int
 rand(void)
 {
-    return (int)(random() & RAND_MAX);
+    /* The same generator as random */
+    _rand_next = _rand_next * 6364136223846793005ULL + 1;
+    return (int)((_rand_next >> 32) & RAND_MAX);
 }

@@ -25,11 +25,11 @@ starting with a given value of the random seed always produces the
 same sequence of numbers in successive calls to <<random>>.
 
 You can set the random seed using <<srandom>>; it does nothing beyond
-storing its argument in the static variable used by <<rand>>.  You can
+storing its argument in the static variable used by <<random>>.  You can
 exploit this to make the pseudo-random sequence less predictable, if
 you wish, by using some other unpredictable value (often the least
 significant parts of a time-varying value) as the random seed before
-beginning a sequence of calls to <<rand>>; or, if you wish to ensure
+beginning a sequence of calls to <<random>>; or, if you wish to ensure
 (for example, while debugging) that successive runs of your program
 use the same ``random'' numbers, you can use <<srandom>> to set the same
 random seed at the outset.
@@ -59,5 +59,5 @@ algorithm as <<rand>>.
 void
 srandom(unsigned int seed)
 {
-    _rand_next = seed;
+    _random_next = seed;
 }

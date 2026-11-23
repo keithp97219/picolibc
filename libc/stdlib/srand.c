@@ -59,9 +59,10 @@ on two different systems.
 
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
+#include "local.h"
 
 void
 srand(unsigned int seed)
 {
-    srandom(seed);
+    _rand_next = seed;
 }
