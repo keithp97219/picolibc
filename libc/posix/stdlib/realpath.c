@@ -46,18 +46,22 @@
 
 /*
  * Resolve path one component at a time. 'out' holds the resolved
- * prefix, and 'rest' the components still to go; following a link
- * replaces 'rest' with the link's contents followed by what remained.
+ * prefix, and 'next' the components still to go. Those sit at the end
+ * of 'work', so following a link reads its contents into the space
+ * before them and moves them down to join what remained; the extra
+ * byte lets readlink show when the two together don't fit in
+ * PATH_MAX. 'out' is the caller's buffer, which POSIX leaves undefined
+ * on failure, or an allocation trimmed to fit at the end.
  */
 char *
 realpath(const char * __restrict path, char * __restrict resolved)
 {
-    char        out[PATH_MAX];
-    char        rest[PATH_MAX];
-    char        link[PATH_MAX];
-    size_t      out_len;
-    const char *next;
-    int         links = 0;
+    char   work[PATH_MAX + 1];
+    char  *out;
+    size_t out_len;
+    size_t len;
+    char  *next;
+    int    links = 0;
 
     if (path == NULL) {
         errno = EINVAL;
@@ -67,28 +71,38 @@ realpath(const char * __restrict path, char * __restrict resolved)
         errno = ENOENT;
         return NULL;
     }
-    if (strlen(path) >= sizeof(rest)) {
+    len = strlen(path);
+    if (len >= PATH_MAX) {
         errno = ENAMETOOLONG;
         return NULL;
     }
-    strcpy(rest, path);
+    next = work + sizeof(work) - (len + 1);
+    memcpy(next, path, len + 1);
 
-    if (rest[0] == '/') {
+    out = resolved;
+    if (out == NULL) {
+        out = malloc(PATH_MAX);
+        if (out == NULL)
+            return NULL;
+    }
+
+    if (*next == '/') {
         out[0] = '\0';
     } else {
-        if (getcwd(out, sizeof(out)) == NULL)
-            return NULL;
+        if (getcwd(out, PATH_MAX) == NULL)
+            goto fail;
         if (strcmp(out, "/") == 0)
             out[0] = '\0';
     }
     out_len = strlen(out);
 
-    next = rest;
     for (;;) {
         const char *name;
         size_t      name_len;
         struct stat st;
         ssize_t     link_len;
+        size_t      room;
+        int         absolute;
 
         /* Find the next component */
         while (*next == '/')
@@ -112,16 +126,16 @@ realpath(const char * __restrict path, char * __restrict resolved)
         }
 
         /* Append it */
-        if (out_len + 1 + name_len >= sizeof(out)) {
+        if (out_len + 1 + name_len >= PATH_MAX) {
             errno = ENAMETOOLONG;
-            return NULL;
+            goto fail;
         }
         out[out_len] = '/';
         memcpy(out + out_len + 1, name, name_len);
         out[out_len + 1 + name_len] = '\0';
 
         if (lstat(out, &st) != 0)
-            return NULL;
+            goto fail;
 
         if (!S_ISLNK(st.st_mode)) {
             out_len += 1 + name_len;
@@ -133,7 +147,7 @@ realpath(const char * __restrict path, char * __restrict resolved)
                     more++;
                 if (*more != '\0' || *next == '/') {
                     errno = ENOTDIR;
-                    return NULL;
+                    goto fail;
                 }
             }
             continue;
@@ -142,20 +156,22 @@ realpath(const char * __restrict path, char * __restrict resolved)
         /* A link: resolve its contents in place of this component */
         if (++links > REALPATH_SYMLOOP_MAX) {
             errno = ELOOP;
-            return NULL;
+            goto fail;
         }
-        link_len = readlink(out, link, sizeof(link));
+        room = (size_t)(next - work);
+        link_len = readlink(out, work, room);
         if (link_len < 0)
-            return NULL;
-        if ((size_t)link_len >= sizeof(link) || (size_t)link_len + strlen(next) >= sizeof(rest)) {
+            goto fail;
+        /* Filling the room means the link and the rest reach PATH_MAX */
+        if ((size_t)link_len >= room) {
             errno = ENAMETOOLONG;
-            return NULL;
+            goto fail;
         }
-        memmove(rest + link_len, next, strlen(next) + 1);
-        memcpy(rest, link, (size_t)link_len);
-        next = rest;
+        absolute = work[0] == '/';
+        next -= link_len;
+        memmove(next, work, (size_t)link_len);
 
-        if (link[0] == '/')
+        if (absolute)
             out_len = 0;
         out[out_len] = '\0';
     }
@@ -165,7 +181,16 @@ realpath(const char * __restrict path, char * __restrict resolved)
         out[1] = '\0';
     }
 
+    if (resolved == NULL) {
+        char *trimmed = realloc(out, strlen(out) + 1);
+
+        if (trimmed != NULL)
+            out = trimmed;
+    }
+    return out;
+
+fail:
     if (resolved == NULL)
-        return strdup(out);
-    return strcpy(resolved, out);
+        free(out);
+    return NULL;
 }
