@@ -851,10 +851,11 @@ With the required set, the OS can claim `THREADS`, `THREAD_SAFE_FUNCTIONS`
 `CLOCK_SELECTION`, and the stack attributes; `ASYNCHRONOUS_IO` follows
 from picolibc's own threads.
 
-Not yet settled, for an OS that isn't a Unix-like kernel (they will be
-with the first one, Zephyr): the core uses a `__thread` variable, so
-the OS needs TLS; and `libos/fallback`'s `sysconf` refers to the core
-whenever `<sys/_pthread.h>` is on the include path.
+The core keeps the calling thread's descriptor in a `__thread`
+variable, so the OS needs TLS. `libos/fallback`'s `sysconf` helper
+reports `_SC_THREAD_STACK_MIN` from the core only when the headers
+claim `_POSIX_THREADS`, so an OS layer built without the core may
+still have `<sys/_pthread.h>` on its include path.
 
 ### `<sys/_signal.h>`: signal stacks
 

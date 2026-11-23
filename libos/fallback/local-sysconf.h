@@ -119,7 +119,15 @@ __sysconf_common(int name)
         return -1;
 #endif
     case _SC_THREAD_STACK_MIN:
-#ifdef __PTHREAD_STACK_MIN
+        /*
+         * picolibc's __PTHREAD_STACK_MIN calls into its thread code,
+         * which isn't there when <sys/_pthread.h> is on the include
+         * path but the headers don't claim threads (an OS layer built
+         * without them, or __baremetal_sysconf, which describes
+         * picolibc alone). No <limits.h> value applies then, as
+         * PTHREAD_STACK_MIN isn't a POSIX constant.
+         */
+#if defined(_POSIX_THREADS) && _POSIX_THREADS > 0 && defined(__PTHREAD_STACK_MIN)
         return __PTHREAD_STACK_MIN;
 #else
         return -1;
