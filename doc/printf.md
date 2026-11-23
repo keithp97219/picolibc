@@ -207,6 +207,24 @@ hence the size) of the library:
    option is disabled, uses a smaller conversion with inexact results
    beyond about 16 digits.
 
+   With this option, scanf and strtod are correctly rounded, in the
+   current rounding direction, for decimal input of up to
+   LDBL_DECIMAL_DIG + 3 significant digits (20 where long double is
+   64 bits, 24 for 80 bits, 39 for 128 bits), as C23 Annex F.5
+   requires. Longer input is first rounded to that many digits, as
+   F.5 allows. Without it, decimal input uses the smaller inexact
+   conversion.
+
+   Known variance: picolibc uses the compiler's `<float.h>`, and GCC's
+   `CR_DECIMAL_DIG` (visible with `__STDC_WANT_IEC_60559_EXT__`) is
+   `UINTMAX_MAX`, claiming correct rounding at every length in both
+   directions. That isn't true here: printf is correctly rounded only
+   to the digit counts above, and decimal input only to
+   LDBL_DECIMAL_DIG + 3 digits. Since printf stops short of the
+   LDBL_DECIMAL_DIG + 3 minimum, no value of `CR_DECIMAL_DIG` would be
+   both accurate and conforming, so picolibc leaves the compiler's
+   definition alone.
+
  * `-Datomic-ungetc=true` This option, which is enabled by default,
    controls whether getc/ungetc use atomic instruction sequences to
    make them re-entrant. Without this option, multiple threads using
