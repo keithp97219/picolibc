@@ -851,13 +851,15 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p, 
                 char *pos = "";
                 int   year = tim_p->tm_year + YEAR_BASE;
                 int   century = year / 100 - (year % 100 < 0);
-                if (pad) /* '0' or '+' */
-                {
-                    if (century >= 100 && pad == CQ('+'))
-                        pos = "+";
+                /* '+' adds a sign when the field is wider than two bytes */
+                if (pad == CQ('+') && century >= 0 && (century >= 100 || width > 2)) {
+                    pos = "+";
+                    if (width)
+                        --width;
                 }
+                /* Years from 0 to 9999 give two digits by default */
                 if (width < 1)
-                    width = 1;
+                    width = century >= 0 ? 2 : 1;
                 len = t_snprintf(&s[count], maxsize - count, CQ("%s%.*d"), pos, (int)width,
                                  century);
             }
@@ -900,7 +902,18 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p, 
             break;
         case CQ('F'): { /* %F is equivalent to "%Y-%m-%d", flags and width can change
                            that.  Recurse to avoid need to replicate %Y formation. */
-            len = __strftime(&s[count], maxsize - count, CQ("%Y-%m-%d"), tim_p, locale, era_info,
+            /* A width of x formats the year with the flag and a width of x-6 */
+            CHAR fmtbuf[32], *fmt = fmtbuf;
+            *fmt++ = CQ('%');
+            if (pad)
+                *fmt++ = pad;
+            if (width > 6) {
+                len = t_snprintf(fmt, fmtbuf + 32 - fmt, CQ("%lu"), width - 6);
+                if (len > 0)
+                    fmt += len;
+            }
+            STRCPY(fmt, CQ("Y-%m-%d"));
+            len = __strftime(&s[count], maxsize - count, fmtbuf, tim_p, locale, era_info,
                              alt_digits);
             if (len > 0)
                 count += len;
@@ -950,7 +963,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p, 
             unsigned p_year = century * 100 + year;
             if (sign)
                 *fmt++ = CQ('-');
-            else if (pad == CQ('+') && p_year >= 10000) {
+            else if (pad == CQ('+') && (p_year >= 10000 || width > 4)) {
                 *fmt++ = CQ('+');
                 sign = 1;
             }
@@ -1255,7 +1268,7 @@ __strftime(CHAR *s, size_t maxsize, const CHAR *format, const struct tm *tim_p, 
                 if (sign) {
                     *fmt++ = CQ('-');
                     year = UINT_MAX - year + 1;
-                } else if (pad == CQ('+') && year >= 10000) {
+                } else if (pad == CQ('+') && (year >= 10000 || width > 4)) {
                     *fmt++ = CQ('+');
                     sign = 1;
                 }
