@@ -730,6 +730,7 @@ __printf_float(float __f)
 #endif
 #elif _PICOLIBC_PRINTF == __IO_VARIANT_FLOAT
 #define printf_float(x) __printf_float(x)
+#define _HAS_IO_WCHAR
 #define _HAS_IO_LONG_LONG
 #define _HAS_IO_POS_ARGS
 #define _HAS_IO_C99_FORMATS
@@ -746,9 +747,7 @@ __printf_float(float __f)
 #define _HAS_IO_POS_ARGS
 #define _HAS_IO_C99_FORMATS
 #define _HAS_IO_DOUBLE
-#if defined(__MB_CAPABLE) || defined(__IO_WCHAR)
 #define _HAS_IO_WCHAR
-#endif
 #ifdef __MB_CAPABLE
 #define _HAS_IO_MBCHAR
 #endif

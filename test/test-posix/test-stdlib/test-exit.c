@@ -44,6 +44,13 @@
 #include <string.h>
 #include <sys/wait.h>
 
+/* quick_exit and at_quick_exit are new in POSIX.1-2024 */
+#if TEST_POSIX_MULTI_PROCESS >= 202405L
+#define TEST_QUICK_EXIT 1
+#else
+#define TEST_QUICK_EXIT 0
+#endif
+
 /*
  * exit, quick_exit and _Exit, in children that report through a pipe:
  * the order of the atexit and at_quick_exit functions (including one
@@ -102,6 +109,7 @@ f_registers(void)
         put('!');
 }
 
+#if TEST_QUICK_EXIT
 static void
 q_registers(void)
 {
@@ -109,6 +117,7 @@ q_registers(void)
     if (at_quick_exit(f_late) != 0)
         put('!');
 }
+#endif
 
 static void
 f_exits(void)
@@ -180,6 +189,7 @@ run(enum test test, char *buf, size_t size)
             atexit(f_exits);
             atexit(f_c);
             exit(0);
+#if TEST_QUICK_EXIT
         case QUICK_ORDER:
             at_quick_exit(f_a);
             at_quick_exit(f_b);
@@ -190,20 +200,28 @@ run(enum test test, char *buf, size_t size)
             at_quick_exit(q_registers);
             at_quick_exit(f_c);
             quick_exit(0);
+#endif
         case EXIT_ONLY_ATEXIT:
             atexit(f_a);
+#if TEST_QUICK_EXIT
             at_quick_exit(f_b);
+#endif
             exit(3);
+#if TEST_QUICK_EXIT
         case QUICK_ONLY_AT_QUICK_EXIT:
             atexit(f_a);
             at_quick_exit(f_b);
             quick_exit(4);
+#endif
         case UNDERSCORE_EXIT:
             atexit(f_a);
+#if TEST_QUICK_EXIT
             at_quick_exit(f_b);
+#endif
             _Exit(5);
         case STATUS:
             exit(0x1234);
+#if TEST_QUICK_EXIT
         case QUICK_STDIO: {
             /* quick_exit ends as _Exit does: stdout isn't flushed */
             static char vbuf[256];
@@ -215,6 +233,9 @@ run(enum test test, char *buf, size_t size)
             printf("unflushed");
             quick_exit(6);
         }
+#endif
+        default:
+            break;
         }
         _exit(100);
     }
@@ -256,18 +277,23 @@ main(void)
     check(exited(status, 7) && strcmp(buf, "cx") == 0,
           "a function that doesn't return ends the processing");
 
+#if TEST_QUICK_EXIT
     status = run(QUICK_ORDER, buf, sizeof(buf));
     check(exited(status, 0) && strcmp(buf, "cba") == 0, "at_quick_exit functions in reverse order");
 
     status = run(QUICK_LATE, buf, sizeof(buf));
     check(exited(status, 0) && strcmp(buf, "crLa") == 0, "a function registered during quick_exit");
 
+#endif
+
     status = run(EXIT_ONLY_ATEXIT, buf, sizeof(buf));
     check(exited(status, 3) && strcmp(buf, "a") == 0, "exit calls only the atexit functions");
 
+#if TEST_QUICK_EXIT
     status = run(QUICK_ONLY_AT_QUICK_EXIT, buf, sizeof(buf));
     check(exited(status, 4) && strcmp(buf, "b") == 0,
           "quick_exit calls only the at_quick_exit functions");
+#endif
 
     status = run(UNDERSCORE_EXIT, buf, sizeof(buf));
     check(exited(status, 5) && strcmp(buf, "") == 0, "_Exit calls no functions");
@@ -275,8 +301,10 @@ main(void)
     status = run(STATUS, buf, sizeof(buf));
     check(exited(status, 0x34), "waitpid sees status & 0377");
 
+#if TEST_QUICK_EXIT
     status = run(QUICK_STDIO, buf, sizeof(buf));
     check(exited(status, 6) && strcmp(buf, "") == 0, "quick_exit doesn't flush streams");
+#endif
 
     printf("success\n");
     return 0;

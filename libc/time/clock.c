@@ -70,8 +70,9 @@ clock(void)
     struct tms tim_s;
     clock_t    res;
 
+    /* The process's own time: tms_cutime and tms_cstime are its waited-for children's */
     if ((res = (clock_t)times(&tim_s)) != (clock_t)-1)
-        res = (clock_t)(tim_s.tms_utime + tim_s.tms_stime + tim_s.tms_cutime + tim_s.tms_cstime);
+        res = (clock_t)(tim_s.tms_utime + tim_s.tms_stime);
 
     return res;
 }

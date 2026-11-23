@@ -69,8 +69,11 @@ static char  *( *volatile p_strncpy)(char *, const char *, size_t) = strncpy;
 static char  *( *volatile p_stpncpy)(char *, const char *, size_t) = stpncpy;
 static char  *( *volatile p_strcat)(char *, const char *) = strcat;
 static char  *( *volatile p_strncat)(char *, const char *, size_t) = strncat;
+/* strlcpy and strlcat are new in POSIX.1-2024 */
+#if TEST_POSIX_C_LIB_EXT >= 202405L
 static size_t (* volatile p_strlcpy)(char *, const char *, size_t) = strlcpy;
 static size_t (* volatile p_strlcat)(char *, const char *, size_t) = strlcat;
+#endif
 static size_t (* volatile p_strspn)(const char *, const char *) = strspn;
 static size_t (* volatile p_strcspn)(const char *, const char *) = strcspn;
 static char  *( *volatile p_strpbrk)(const char *, const char *) = strpbrk;
@@ -521,6 +524,7 @@ test_strcat(void)
     }
 }
 
+#if TEST_POSIX_C_LIB_EXT >= 202405L
 /* strlcpy into dst of dstsize bytes from a string of len bytes */
 static void
 one_strlcpy(const char *where, char *dst, size_t dstsize, const char *src, size_t len)
@@ -607,6 +611,7 @@ test_strlcpy(void)
         }
     }
 }
+#endif
 
 static size_t
 ref_spn(const volatile unsigned char *s, const volatile unsigned char *set, int accept)
@@ -809,7 +814,9 @@ main(void)
     test_strcpy();
     test_strncpy();
     test_strcat();
+#if TEST_POSIX_C_LIB_EXT >= 202405L
     test_strlcpy();
+#endif
     test_strspn();
     test_strstr();
     test_strdup();

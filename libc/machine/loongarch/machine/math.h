@@ -46,9 +46,11 @@
 
 #ifndef __loongarch_soft_float
 
-#ifdef __MATH_ERRNO
-#include <errno.h>
-#endif
+/*
+ * sqrt and sqrtf set errno for negative arguments when __MATH_ERRNO is
+ * defined, which <math.h> can't do without exposing the <errno.h>
+ * names, so they are only inline without it.
+ */
 
 #define _FCLASS_SNAN     (1 << 0)
 #define _FCLASS_QNAN     (1 << 1)
@@ -182,17 +184,15 @@ __fpclassifyd(double x)
         return FP_NAN;
 }
 
+#ifndef __MATH_ERRNO
 __declare_extern_inline(double)
 sqrt(double x)
 {
     double result;
-#ifdef __MATH_ERRNO
-    if (isless(x, 0.0))
-        errno = EDOM;
-#endif
     __asm__ volatile("fsqrt.d %0, %1" : "=f"(result) : "f"(x));
     return result;
 }
+#endif
 
 __declare_extern_inline(double)
 fma(double x, double y, double z)
@@ -289,17 +289,15 @@ __fpclassifyf(float x)
         return FP_NAN;
 }
 
+#ifndef __MATH_ERRNO
 __declare_extern_inline(float)
 sqrtf(float x)
 {
     float result;
-#ifdef __MATH_ERRNO
-    if (isless(x, 0.0f))
-        errno = EDOM;
-#endif
     __asm__ volatile("fsqrt.s %0, %1" : "=f"(result) : "f"(x));
     return result;
 }
+#endif
 
 __declare_extern_inline(float)
 fmaf(float x, float y, float z)

@@ -28,12 +28,26 @@
 #define _POSIX_DEVCTL_h_
 
 #include <sys/cdefs.h>
+#include <sys/_types.h>
 
 /*
- * Nothing in this file should be visible unless _POSIX_26_C_SOURCE is
- * defined.
+ * posix_devctl is part of POSIX.1-2024 (the DEVICE_CONTROL option),
+ * derived from POSIX 1003.26-2003, whose applications define
+ * _POSIX_26_C_SOURCE.
  */
-#ifdef _POSIX_26_C_SOURCE
+#if __POSIX_VISIBLE >= 202405 || defined(_POSIX_26_C_SOURCE)
+
+#if !defined(_SIZE_T_DECLARED) && !defined(_SIZE_T)
+typedef __picolibc_size_t size_t;
+#endif
+
+#ifndef _SIZE_T_DECLARED
+#define _SIZE_T_DECLARED
+#endif
+
+#ifndef _SIZE_T
+#define _SIZE_T
+#endif
 
 _BEGIN_STD_C
 
@@ -60,10 +74,10 @@ _BEGIN_STD_C
  *   + application must define _POSIX_26_C_SOURCE to use posix_devctl().
  *   + posix_devctl() is prototyped in <devctl.h>
  */
-int posix_devctl(int fd, int dcmd, void * __restrict dev_data_ptr, size_t nbyte,
-                 int * __restrict dev_info_ptr);
+int posix_devctl(int __fd, int __dcmd, void * __restrict __dev_data_ptr, size_t __nbyte,
+                 int * __restrict __dev_info_ptr);
 
 _END_STD_C
 
-#endif /* _POSIX_26_C_SOURCE */
+#endif /* __POSIX_VISIBLE >= 202405 || _POSIX_26_C_SOURCE */
 #endif /*_POSIX_DEVCTL_h_ */

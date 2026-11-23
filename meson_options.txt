@@ -187,8 +187,6 @@ option('minimal-io-long-long', type: 'boolean', value: false,
        description: 'enable long long type support in minimal printf/scanf')
 option('fast-bufio', type: 'boolean', value: false,
        description: 'enable some faster buffered i/o operations')
-option('io-wchar', type: 'boolean', value: false,
-       description: 'enable wide character support in printf/scanf (requires multi-byte support)')
 option('stdio-locking', type: 'boolean', value: false,
        description: 'perform POSIX-conforming file locking for all stdio operations (always on with an os layer)')
 option('have-fcntl', type: 'boolean', value: false,

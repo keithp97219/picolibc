@@ -51,23 +51,23 @@
 
 #ifdef __declare_extern_inline
 
-#ifdef __MATH_ERRNO
-#include <errno.h>
-#endif
+/*
+ * sqrt and sqrtf set errno for negative arguments when __MATH_ERRNO is
+ * defined, which <math.h> can't do without exposing the <errno.h>
+ * names, so they are only inline without it.
+ */
 
 #if __ARM_FP & 0x8
 
+#ifndef __MATH_ERRNO
 __declare_extern_inline(double)
 sqrt(double x)
 {
     double result;
-#ifdef __MATH_ERRNO
-    if (isless(x, 0.0))
-        errno = EDOM;
-#endif
     __asm__ __volatile__("fsqrt\t%d0, %d1" : "=w"(result) : "w"(x));
     return result;
 }
+#endif
 
 __declare_extern_inline(double)
 fma(double x, double y, double z)
@@ -80,17 +80,15 @@ fma(double x, double y, double z)
 #endif /* __ARM_FP & 0x8 */
 
 #if __ARM_FP & 0x4
+#ifndef __MATH_ERRNO
 __declare_extern_inline(float)
 sqrtf(float x)
 {
     float result;
-#ifdef __MATH_ERRNO
-    if (isless(x, 0.0f))
-        errno = EDOM;
-#endif
     __asm__ __volatile__("fsqrt\t%s0, %s1" : "=w"(result) : "w"(x));
     return result;
 }
+#endif
 
 __declare_extern_inline(float)
 fmaf(float x, float y, float z)

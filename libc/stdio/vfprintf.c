@@ -131,15 +131,14 @@
 #define _NEED_IO_PERCENT_B
 #endif
 #define _NEED_IO_FLOAT
+#define _NEED_IO_WCHAR
 
 #elif PRINTF_VARIANT == __IO_VARIANT_DOUBLE
 
 #if __SIZEOF_LONG_LONG__ > __SIZEOF_LONG__
 #define _NEED_IO_LONG_LONG
 #endif
-#if defined(_HAS_IO_WCHAR) || defined(WIDE_CHARS)
 #define _NEED_IO_WCHAR
-#endif
 #define _NEED_IO_POS_ARGS
 #define _NEED_IO_C99_FORMATS
 #ifdef __IO_PERCENT_B
@@ -154,6 +153,14 @@
 
 #error invalid PRINTF_VARIANT
 
+#endif
+
+/*
+ * Without multi-byte support, narrow output converts %lc and %ls in
+ * the C locale, where only ASCII values are representable
+ */
+#if defined(_NEED_IO_WCHAR) && !defined(WIDE_CHARS) && !defined(__MB_CAPABLE)
+#define _NEED_IO_WCHAR_ASCII
 #endif
 
 /* Figure out which multi-byte char support we need */
@@ -937,6 +944,12 @@ ret:
 overflow:
     /* The count would be more than INT_MAX */
     errno = EOVERFLOW;
+#if defined(_NEED_IO_WIDETOMB) || defined(_NEED_IO_WCHAR_ASCII)
+    goto fail;
+eilseq:
+    /* A wide character isn't representable in the current locale */
+    errno = EILSEQ;
+#endif
 fail:
     stream->flags |= __SERR;
     stream_len = -1;

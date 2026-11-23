@@ -38,6 +38,7 @@
 #ifdef TEST_GLIBC
 #define _DEFAULT_SOURCE
 #endif
+#include "../test-flags.h"
 #include <stdlib.h>
 
 #include <errno.h>
@@ -118,7 +119,8 @@ main(void)
     for (i = 0; i < 32; i++)
         check(c[i] == 'a', "a failed realloc keeps the object");
 
-    /* reallocarray: overflow is ENOMEM, and the old object stays */
+#if TEST_POSIX_C_LIB_EXT >= 202405L
+    /* reallocarray (new in POSIX.1-2024): overflow is ENOMEM, and the old object stays */
     errno = 0;
     p = reallocarray(q, half, 3);
     check(p == NULL && errno == ENOMEM, "reallocarray overflow");
@@ -129,6 +131,9 @@ main(void)
     c = p;
     for (i = 0; i < 32; i++)
         check(c[i] == 'a', "reallocarray keeps the contents");
+#else
+    p = q;
+#endif
 
 #ifndef __GLIBC__
     /*
@@ -139,12 +144,14 @@ main(void)
     q = realloc(p, 0);
     check(q != NULL || errno == EINVAL, "realloc(ptr, 0)");
     free(q);
+#if TEST_POSIX_C_LIB_EXT >= 202405L
     p = malloc(8);
     check(p != NULL, "malloc");
     errno = 0;
     q = reallocarray(p, 0, 8);
     check(q != NULL || errno == EINVAL, "reallocarray(ptr, 0, n)");
     free(q);
+#endif
 #else
     free(p);
 #endif

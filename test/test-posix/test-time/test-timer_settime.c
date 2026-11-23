@@ -240,7 +240,7 @@ main(void)
 
 #if TEST_POSIX_CPUTIME
     /* A timer on the process CPU-time clock, which the system may leave to run time */
-    if (sysconf(_SC_CPUTIME) > 0) {
+    if (!TEST_POSIX_CPUTIME_RUNTIME || sysconf(_SC_CPUTIME) > 0) {
         ev.sigev_value.sival_int = 7;
         check(timer_create(CLOCK_PROCESS_CPUTIME_ID, &ev, &t1) == 0, "CPU-time timer");
         memset(&its, 0, sizeof(its));
@@ -257,7 +257,7 @@ main(void)
 
 #if TEST_POSIX_THREAD_CPUTIME
     /* A timer on the thread CPU-time clock, which the system may leave to run time */
-    if (sysconf(_SC_THREAD_CPUTIME) > 0) {
+    if (!TEST_POSIX_THREAD_CPUTIME_RUNTIME || sysconf(_SC_THREAD_CPUTIME) > 0) {
         ev.sigev_value.sival_int = 8;
         check(timer_create(CLOCK_THREAD_CPUTIME_ID, &ev, &t1) == 0, "thread CPU-time timer");
         memset(&its, 0, sizeof(its));

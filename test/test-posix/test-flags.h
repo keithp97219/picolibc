@@ -60,7 +60,11 @@
  *
  * An option whose value is 0 is there only if sysconf says so at run
  * time. That counts as present only for the CPU-time clocks, whose
- * tests ask sysconf; any other comes out 0.
+ * tests ask sysconf; any other comes out 0. TEST_POSIX_CPUTIME_RUNTIME
+ * and TEST_POSIX_THREAD_CPUTIME_RUNTIME are 1 then, so the tests skip
+ * what sysconf says is missing. Otherwise (a library claiming the
+ * option outright, or TEST_CLAIM_ALL) they are 0 and the tests don't
+ * ask: the clocks must be there.
  *
  * Defining TEST_CLAIM_ALL claims everything at POSIX.1-2024, to see
  * that the tests of what the library lacks fail.
@@ -575,6 +579,7 @@
 #define TEST_POSIX_CLOCK_SELECTION     200809L
 /* glibc says 0, leaving it to sysconf, which the tests ask */
 #define TEST_POSIX_CPUTIME             200809L
+#define TEST_POSIX_CPUTIME_RUNTIME     1
 #define TEST_POSIX_FSYNC               200809L
 #define TEST_POSIX_IPV6                200809L
 #define TEST_POSIX_JOB_CONTROL         1
@@ -610,6 +615,7 @@
 #define TEST_POSIX_THREAD_ATTR_STACKSIZE      200809L
 /* glibc says 0, leaving it to sysconf, which the tests ask */
 #define TEST_POSIX_THREAD_CPUTIME             200809L
+#define TEST_POSIX_THREAD_CPUTIME_RUNTIME     1
 #define TEST_POSIX_THREAD_PRIO_INHERIT        200809L
 #define TEST_POSIX_THREAD_PRIO_PROTECT        200809L
 #define TEST_POSIX_THREAD_PRIORITY_SCHEDULING 200809L
@@ -781,7 +787,8 @@
 #define TEST_POSIX_CPUTIME _POSIX_CPUTIME
 #elif defined(_POSIX_CPUTIME) && _POSIX_CPUTIME == 0 && defined(_POSIX_VERSION)
 /* Its tests ask sysconf */
-#define TEST_POSIX_CPUTIME _POSIX_VERSION
+#define TEST_POSIX_CPUTIME         _POSIX_VERSION
+#define TEST_POSIX_CPUTIME_RUNTIME 1
 #endif
 #if defined(_POSIX_DEVICE_CONTROL) && _POSIX_DEVICE_CONTROL > 0
 #define TEST_POSIX_DEVICE_CONTROL _POSIX_DEVICE_CONTROL
@@ -865,7 +872,8 @@
 #define TEST_POSIX_THREAD_CPUTIME _POSIX_THREAD_CPUTIME
 #elif defined(_POSIX_THREAD_CPUTIME) && _POSIX_THREAD_CPUTIME == 0 && defined(_POSIX_VERSION)
 /* Its tests ask sysconf */
-#define TEST_POSIX_THREAD_CPUTIME _POSIX_VERSION
+#define TEST_POSIX_THREAD_CPUTIME         _POSIX_VERSION
+#define TEST_POSIX_THREAD_CPUTIME_RUNTIME 1
 #endif
 #if defined(_POSIX_THREAD_PRIO_INHERIT) && _POSIX_THREAD_PRIO_INHERIT > 0
 #define TEST_POSIX_THREAD_PRIO_INHERIT _POSIX_THREAD_PRIO_INHERIT
@@ -1078,6 +1086,9 @@
 #ifndef TEST_POSIX_CPUTIME
 #define TEST_POSIX_CPUTIME 0
 #endif
+#ifndef TEST_POSIX_CPUTIME_RUNTIME
+#define TEST_POSIX_CPUTIME_RUNTIME 0
+#endif
 #ifndef TEST_POSIX_DEVICE_CONTROL
 #define TEST_POSIX_DEVICE_CONTROL 0
 #endif
@@ -1158,6 +1169,9 @@
 #endif
 #ifndef TEST_POSIX_THREAD_CPUTIME
 #define TEST_POSIX_THREAD_CPUTIME 0
+#endif
+#ifndef TEST_POSIX_THREAD_CPUTIME_RUNTIME
+#define TEST_POSIX_THREAD_CPUTIME_RUNTIME 0
 #endif
 #ifndef TEST_POSIX_THREAD_PRIO_INHERIT
 #define TEST_POSIX_THREAD_PRIO_INHERIT 0

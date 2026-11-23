@@ -36,6 +36,7 @@
 set(tests
   test-atexit
   test-bsearch
+  test-ecvt-digits
   test-efcvt
   test-malloc
   test-malloc-stress
