@@ -64,6 +64,7 @@ if has_os_posix
   tests += [
     'test-alarm',
     'test-dprintf-leak',
+    'test-fclose-std',
     'test-mmap',
     'test-pclose',
     'test-popen',
