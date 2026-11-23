@@ -32,10 +32,6 @@
 #include <machine/ieeefp.h> /* floating point macros */
 #include <sys/features.h>   /* POSIX defs */
 
-#ifdef __aarch64__
-#define MALLOC_ALIGNMENT 16
-#endif
-
 /* exceptions first */
 #if defined(__H8500__) || defined(__W65__)
 #define __SMALL_BITFIELDS
@@ -124,11 +120,10 @@
 #define __SMALL_BITFIELDS
 #undef INT_MAX
 #undef UINT_MAX
-#define INT_MAX          __INT_MAX__
-#define UINT_MAX         (__INT_MAX__ * 2U + 1)
-#define MALLOC_ALIGNMENT 8
-#define _POINTER_INT     short
-#define __BUFSIZ__       16
+#define INT_MAX      __INT_MAX__
+#define UINT_MAX     (__INT_MAX__ * 2U + 1)
+#define _POINTER_INT short
+#define __BUFSIZ__   16
 #endif
 
 #if defined __MSP430__
@@ -147,9 +142,8 @@
 #define __SMALL_BITFIELDS
 #undef INT_MAX
 #undef UINT_MAX
-#define INT_MAX          __INT_MAX__
-#define UINT_MAX         (__INT_MAX__ * 2U + 1)
-#define MALLOC_ALIGNMENT 8
+#define INT_MAX  __INT_MAX__
+#define UINT_MAX (__INT_MAX__ * 2U + 1)
 #if defined(__r8c_cpu__) || defined(__m16c_cpu__)
 #define _POINTER_INT short
 #else
@@ -159,7 +153,6 @@
 #endif /* __m32c__ */
 
 #ifdef __SPU__
-#define MALLOC_ALIGNMENT 16
 #define __CUSTOM_FILE_IO__
 #endif
 
