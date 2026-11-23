@@ -53,6 +53,7 @@ tests = [
   'test-rand',
   'test-stdckdint',
   'test-strtod',
+  'test-wcrtomb-invalid',
   ]
 
 tests_cpp = [

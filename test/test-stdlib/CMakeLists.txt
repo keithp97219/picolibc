@@ -40,6 +40,7 @@ set(tests
   test-mbstowcs-null
   test-mbsrtowcs-null-ps
   test-mb-internal-state
+  test-wcrtomb-invalid
   test-malloc
   test-malloc-stress
   test-on_exit
