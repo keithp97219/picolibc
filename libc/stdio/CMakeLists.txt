@@ -112,6 +112,7 @@ picolibc_sources(
   gcvtl.c
   getchar.c
   getdelim.c
+  gettemp.c
   getline.c
   gets.c
   getwchar.c
