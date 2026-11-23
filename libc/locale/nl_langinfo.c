@@ -43,7 +43,7 @@ nl_langinfo_l(nl_item item, locale_t locale)
     switch (item) {
     case CODESET:
         /* The codeset, not the locale: "ASCII" for C, the part after "C." otherwise */
-        if (locale == locale_C)
+        if (__locale_id(locale) == locale_C)
             return "ASCII";
         return (char *)__locale_name(locale) + 2;
     case D_T_FMT:
