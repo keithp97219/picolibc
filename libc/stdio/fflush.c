@@ -51,13 +51,15 @@ fflush(FILE *stream)
     if (stream == NULL) {
         extern FILE * const stdout __weak;
         extern FILE * const stderr __weak;
-        if (_bufio_exit_flush)
-            _bufio_exit_flush();
-        if (&stdout)
-            fflush_unlocked(stdout);
-        if (&stderr)
-            fflush_unlocked(stderr);
-        return 0;
+        int                 ret = 0;
+        /* Streams stay open, so they are still flushed later */
+        if (__bufio_flush_all && __bufio_flush_all() != 0)
+            ret = EOF;
+        if (&stdout && fflush_unlocked(stdout) != 0)
+            ret = EOF;
+        if (&stderr && fflush_unlocked(stderr) != 0)
+            ret = EOF;
+        return ret;
     }
 #endif
     return fflush_unlocked(stream);
