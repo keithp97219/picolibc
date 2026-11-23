@@ -35,6 +35,7 @@
 
 tests = [
   'test-access',
+  'test-clocks-per-sec',
   'test-fnmatch',
   'test-ftrunc',
   'test-getcwd',
