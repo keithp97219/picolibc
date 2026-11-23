@@ -79,6 +79,7 @@ if has_os_posix
     'test-stdin-offset',
     'test-fseek',
     'test-fgetc-ebadf',
+    'test-getline',
   ]
 elif host_cpu_family == 'hexagon'
   tests += ['test-system']
