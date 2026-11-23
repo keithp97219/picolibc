@@ -82,11 +82,16 @@
 #define __PICOLIBC_OS_SYMBOLIC_LINKS_FD  202405L
 #define __PICOLIBC_OS_USER_GROUPS        202405L
 
-/* XSI option groups */
+/*
+ * XSI option groups. gethostid reports kern.hostid (gethostid.c), and
+ * syslog reaches syslogd through /dev/log or /var/run/log
+ */
 #define __PICOLIBC_OS_XSI_DEVICE_IO            202405L
 #define __PICOLIBC_OS_XSI_FILE_SYSTEM          202405L
 #define __PICOLIBC_OS_XSI_MULTI_PROCESS        202405L
 #define __PICOLIBC_OS_XSI_SIGNALS              202405L
+#define __PICOLIBC_OS_XSI_SINGLE_PROCESS       202405L
+#define __PICOLIBC_OS_XSI_SYSTEM_LOGGING       202405L
 #define __PICOLIBC_OS_XSI_USER_GROUPS          202405L
 
 /*
