@@ -99,18 +99,33 @@ clobber_and_jump(int sig, int val)
                      : "x19", "x20", "x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28", "d8",
                        "d9", "d10", "d11", "d12", "d13", "d14", "d15");
 #elif defined(__arm__)
+#if defined(__thumb__) && !defined(__thumb2__)
+    /* Thumb-1 only sets lo registers from immediates; copy to the hi ones */
+    __asm__ volatile("movs r4, #8\n\tmov r8, r4\n\tmovs r4, #9\n\tmov r9, r4\n\t"
+                     "movs r4, #10\n\tmov r10, r4\n\t"
+                     "movs r4, #4\n\tmovs r5, #5\n\tmovs r6, #6"
+                     :
+                     :
+                     : "r4", "r5", "r6", "r8", "r9", "r10", "cc");
+#else
     __asm__ volatile("mov r4, #4\n\tmov r5, #5\n\tmov r6, #6\n\tmov r8, #8\n\t"
                      "mov r9, #9\n\tmov r10, #10"
                      :
                      :
                      : "r4", "r5", "r6", "r8", "r9", "r10");
+#endif
 #if defined(__ARM_FP) && (__ARM_FP & 8)
-    __asm__ volatile("vmov.f64 d8, #1.0\n\tvmov.f64 d9, #2.0\n\tvmov.f64 d10, #3.0\n\t"
-                     "vmov.f64 d11, #4.0\n\tvmov.f64 d12, #5.0\n\tvmov.f64 d13, #6.0\n\t"
-                     "vmov.f64 d14, #7.0\n\tvmov.f64 d15, #8.0"
-                     :
-                     :
-                     : "d8", "d9", "d10", "d11", "d12", "d13", "d14", "d15");
+    {
+        /* vmov with an immediate needs VFPv3; vldr works on every VFP */
+        static const double junk[8] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0 };
+
+        __asm__ volatile("vldr d8, [%0]\n\tvldr d9, [%0, #8]\n\tvldr d10, [%0, #16]\n\t"
+                         "vldr d11, [%0, #24]\n\tvldr d12, [%0, #32]\n\tvldr d13, [%0, #40]\n\t"
+                         "vldr d14, [%0, #48]\n\tvldr d15, [%0, #56]"
+                         :
+                         : "r"(junk), "m"(junk)
+                         : "d8", "d9", "d10", "d11", "d12", "d13", "d14", "d15");
+    }
 #endif
 #endif
     if (sig)
