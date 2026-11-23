@@ -46,11 +46,11 @@
 #endif
 
 #ifdef _HAVE_FPSCR_BUILTINS
-#define _vmrs_fpscr(__r) ((__r) = __builtin_arm_get_fpscr())
-#define _vmsr_fpscr(__r) __builtin_arm_set_fpscr(__r)
+#define __vmrs_fpscr(__r) ((__r) = __builtin_arm_get_fpscr())
+#define __vmsr_fpscr(__r) __builtin_arm_set_fpscr(__r)
 #else
-#define _vmrs_fpscr(__r) __asm__ __volatile__("vmrs %0, fpscr" : "=&r"(__r))
-#define _vmsr_fpscr(__r) __asm__ __volatile__("vmsr fpscr, %0" : : "r"(__r))
+#define __vmrs_fpscr(__r) __asm__ __volatile__("vmrs %0, fpscr" : "=&r"(__r))
+#define __vmsr_fpscr(__r) __asm__ __volatile__("vmsr fpscr, %0" : : "r"(__r))
 #endif
 
 #define _FPU_MASK_SHIFT 8
@@ -60,9 +60,9 @@ __declare_fenv_inline(int) feclearexcept(int __excepts)
 {
     fexcept_t __fpsr;
 
-    _vmrs_fpscr(__fpsr);
+    __vmrs_fpscr(__fpsr);
     __fpsr &= ~__excepts;
-    _vmsr_fpscr(__fpsr);
+    __vmsr_fpscr(__fpsr);
     return (0);
 }
 
@@ -72,19 +72,19 @@ __declare_fenv_inline(int) fedisableexcept(int __mask)
 {
     fenv_t __old_fpsr, __new_fpsr;
 
-    _vmrs_fpscr(__old_fpsr);
+    __vmrs_fpscr(__old_fpsr);
     __new_fpsr = __old_fpsr & ~((__mask & FE_ALL_EXCEPT) << _FPU_MASK_SHIFT);
-    _vmsr_fpscr(__new_fpsr);
+    __vmsr_fpscr(__new_fpsr);
     return ((__old_fpsr >> _FPU_MASK_SHIFT) & FE_ALL_EXCEPT);
 }
 __declare_fenv_inline(int) feenableexcept(int __mask)
 {
     fenv_t __old_fpsr, __new_fpsr, __check_fpsr;
 
-    _vmrs_fpscr(__old_fpsr);
+    __vmrs_fpscr(__old_fpsr);
     __new_fpsr = __old_fpsr | ((__mask & FE_ALL_EXCEPT) << _FPU_MASK_SHIFT);
-    _vmsr_fpscr(__new_fpsr);
-    _vmrs_fpscr(__check_fpsr);
+    __vmsr_fpscr(__new_fpsr);
+    __vmrs_fpscr(__check_fpsr);
     if (__check_fpsr != __new_fpsr)
         return -1;
     return ((__old_fpsr >> _FPU_MASK_SHIFT) & FE_ALL_EXCEPT);
@@ -93,7 +93,7 @@ __declare_fenv_inline(int) feenableexcept(int __mask)
 
 __declare_fenv_inline(int) fegetenv(fenv_t *__envp)
 {
-    _vmrs_fpscr(*__envp);
+    __vmrs_fpscr(*__envp);
     return (0);
 }
 
@@ -102,7 +102,7 @@ __declare_fenv_inline(int) fegetexcept(void)
 {
     fenv_t __fpsr;
 
-    _vmrs_fpscr(__fpsr);
+    __vmrs_fpscr(__fpsr);
     return (__fpsr & FE_ALL_EXCEPT);
 }
 #endif
@@ -111,7 +111,7 @@ __declare_fenv_inline(int) fegetexceptflag(fexcept_t *__flagp, int __excepts)
 {
     fexcept_t __fpsr;
 
-    _vmrs_fpscr(__fpsr);
+    __vmrs_fpscr(__fpsr);
     *__flagp = __fpsr & __excepts;
     return (0);
 }
@@ -120,23 +120,23 @@ __declare_fenv_inline(int) fegetround(void)
 {
     fenv_t __fpsr;
 
-    _vmrs_fpscr(__fpsr);
+    __vmrs_fpscr(__fpsr);
     return (__fpsr & _ROUND_MASK);
 }
 __declare_fenv_inline(int) feholdexcept(fenv_t *__envp)
 {
     fenv_t __env;
 
-    _vmrs_fpscr(__env);
+    __vmrs_fpscr(__env);
     *__envp = __env;
     __env &= ~(FE_ALL_EXCEPT);
-    _vmsr_fpscr(__env);
+    __vmsr_fpscr(__env);
     return (0);
 }
 
 __declare_fenv_inline(int) fesetenv(const fenv_t *__envp)
 {
-    _vmsr_fpscr(*__envp);
+    __vmsr_fpscr(*__envp);
     return (0);
 }
 
@@ -144,10 +144,10 @@ __declare_fenv_inline(int) fesetexceptflag(const fexcept_t *__flagp, int __excep
 {
     fexcept_t __fpsr;
 
-    _vmrs_fpscr(__fpsr);
+    __vmrs_fpscr(__fpsr);
     __fpsr &= ~__excepts;
     __fpsr |= *__flagp & __excepts;
-    _vmsr_fpscr(__fpsr);
+    __vmsr_fpscr(__fpsr);
     return (0);
 }
 
@@ -173,10 +173,10 @@ __declare_fenv_inline(int) fesetround(int __round)
     /* Check for invalid rounding modes */
     if (__round & ~(_ROUND_MASK))
         return 1;
-    _vmrs_fpscr(__fpsr);
+    __vmrs_fpscr(__fpsr);
     __fpsr &= ~(_ROUND_MASK);
     __fpsr |= __round;
-    _vmsr_fpscr(__fpsr);
+    __vmsr_fpscr(__fpsr);
     return (0);
 }
 
@@ -184,7 +184,7 @@ __declare_fenv_inline(int) fetestexcept(int __excepts)
 {
     fexcept_t __fpsr;
 
-    _vmrs_fpscr(__fpsr);
+    __vmrs_fpscr(__fpsr);
     return (__fpsr & __excepts);
 }
 
@@ -192,8 +192,8 @@ __declare_fenv_inline(int) feupdateenv(const fenv_t *__envp)
 {
     fexcept_t __fpsr;
 
-    _vmrs_fpscr(__fpsr);
-    _vmsr_fpscr(*__envp);
+    __vmrs_fpscr(__fpsr);
+    __vmsr_fpscr(*__envp);
     feraiseexcept(__fpsr & FE_ALL_EXCEPT);
     return (0);
 }
