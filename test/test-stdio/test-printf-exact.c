@@ -447,6 +447,32 @@ main(void)
         test_bits(to_bits(v));
     }
 
+#if MAX_DIG == 9
+    /*
+     * The float conversion uses a separate multiplier for each
+     * exponent; check each one with the smallest, largest and a
+     * random significand.
+     */
+    for (i = 0; i < (1 << EXP_BITS) - 1; i++) {
+        test_bits_t mask = ((test_bits_t)1 << MANT_BITS) - 1;
+        test_bits_t e = (test_bits_t)i << MANT_BITS;
+
+        test_bits(e);
+        test_bits(e | mask);
+        test_bits(e | ((test_bits_t)next_rand() & mask));
+    }
+
+    /* Ties near the ninth digit: full significands with few fraction bits */
+    for (i = 0; i < NUM_RANDOM / 4; i++) {
+        uint32_t m = ((uint32_t)next_rand() & 0x7fffff) | 0x800000;
+        int      shift = (int)(next_rand() % 12) + 1;
+        v = (test_t)(m | 1);
+        for (j = 0; j < shift; j++)
+            v /= 2;
+        test_bits(to_bits(v));
+    }
+#endif
+
     /* Smallest and largest values */
     test_bits(1);
     test_bits(2);
