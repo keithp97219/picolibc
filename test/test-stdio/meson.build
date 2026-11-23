@@ -51,6 +51,7 @@ tests = [
   'test-vfprintf-s',
   'test-vfscanf-percent-a',
   'test-vsnprintf-s',
+  'test-stdin-stream',
   'test-ungetc',
   'test-ungetc-reposition',
   'test-fseek-failure',
