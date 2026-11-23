@@ -92,8 +92,12 @@ __open_mem_put(char c, FILE *f)
      *
      * Allocation will zero fill the extended part of the buffer.
      * No need to set null terminator character explicitly.
+     *
+     * The first byte of a wide character makes room for all of it,
+     * so that running out of memory never leaves part of one behind
+     * to misalign those written after.
      */
-    int                     ret = __open_mem_grow(mf, 1 + mf->unit);
+    int ret = __open_mem_grow(mf, mf->unit - (mf->pos & (mf->unit - 1)) + mf->unit);
     if (ret != 0)
         return ret;
 
