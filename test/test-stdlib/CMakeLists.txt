@@ -53,6 +53,7 @@ set(tests
   test-a64l
   test-getsubopt
   test-realloc-zero
+  test-optind
   )
 
 set(tests_fail

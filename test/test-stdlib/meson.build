@@ -46,6 +46,7 @@ tests = [
   'test-many-malloc',
   'test-memalignment',
   'test-on_exit',
+  'test-optind',
   'test-quick-exit',
   'test-qsort-r',
   'test-qsort-r-posix',
@@ -79,6 +80,11 @@ endif
 # clang assumes the allocation functions never set errno, and reuses the
 # value stored before the call
 test_extra_c_args = {'test-realloc-zero': ['-fno-builtin']}
+
+# Reading getopt's diagnostics back needs dup2 and files
+if has_os_posix
+  test_extra_c_args += {'test-optind': ['-DTEST_OPTIND_DIAGNOSTICS']}
+endif
 
 test_args = {}
 
