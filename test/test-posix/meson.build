@@ -68,6 +68,7 @@ endif
 if has_os_posix
   tests += [
     'test-alarm',
+    'test-clock-children',
     'test-mmap',
     'test-pclose',
     'test-popen',
