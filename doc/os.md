@@ -798,6 +798,7 @@ fail as POSIX allows:
 | `_PTHREAD_HAVE_RELEASE` | OS objects kept outside the stack, freed when a thread is reclaimed | (kernel-memory thread objects) |
 | `_PTHREAD_HAVE_MAP` | the default stack allocator | |
 | `_PTHREAD_HAVE_OS_TLS` | thread creation that sets up the new thread's TLS itself | |
+| `_PTHREAD_HAVE_LAST_EXIT` | `_pthread_os_last_exit`, for when the last thread exits | |
 
 **TLS placed by the OS.** By default the core places each new
 thread's TLS block below its descriptor at the top of the stack
@@ -813,6 +814,14 @@ that many bytes in every stack region and in
 `sysconf(_SC_THREAD_STACK_MIN)`, leaves `t->tls` NULL, and gives
 `_pthread_os_create` the whole stack below the descriptor, from
 `t->stack_base` up to `t->stack_top`, for application stacks too.
+
+**The last thread.** When the last thread calls `pthread_exit`, POSIX
+ends the process with `exit(0)`, and so does the core by default. An
+OS with no process to end defines `_PTHREAD_HAVE_LAST_EXIT` and
+`void _pthread_os_last_exit(struct __pthread *self)`, called once the
+thread has run its cleanup handlers and destructors. It may end the
+program itself; if it returns, the thread ends alone like any other,
+and the system keeps running.
 
 **OS mutexes.** A mutex whose protocol is `PTHREAD_PRIO_INHERIT`, or
 which is robust, needs the kernel: to boost its owner, or to mark it
@@ -844,8 +853,7 @@ from picolibc's own threads.
 
 Not yet settled, for an OS that isn't a Unix-like kernel (they will be
 with the first one, Zephyr): the core uses a `__thread` variable, so
-the OS needs TLS; `pthread_exit` in the last thread ends the process
-with `exit(0)`; and `libos/fallback`'s `sysconf` refers to the core
+the OS needs TLS; and `libos/fallback`'s `sysconf` refers to the core
 whenever `<sys/_pthread.h>` is on the include path.
 
 ### `<sys/_signal.h>`: signal stacks

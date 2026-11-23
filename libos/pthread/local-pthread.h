@@ -151,6 +151,13 @@
  *                            t->stack_top. t->stack_base gives the
  *                            bottom of the stack, for application
  *                            stacks as well.
+ *   _PTHREAD_HAVE_LAST_EXIT  _pthread_os_last_exit decides what
+ *                            happens when the last thread calls
+ *                            pthread_exit. Without it the process
+ *                            exits with exit(0), as POSIX requires;
+ *                            an OS where there is no process to end
+ *                            may instead return, and the thread then
+ *                            ends alone like any other.
  *
  * Waits take a clock and an absolute timeout. An OS layer converting
  * them to relative timeouts may do so: callers loop, recheck their
@@ -747,6 +754,18 @@ _pthread_release(struct __pthread *t)
  * runs.
  */
 size_t _pthread_os_tls_size(void);
+#endif
+
+#ifdef _PTHREAD_HAVE_LAST_EXIT
+/*
+ * Called by pthread_exit in the last thread, once it has run its
+ * cleanup handlers and thread-specific data destructors and left the
+ * thread list. It may end the program without returning; if it
+ * returns, the thread exits as any other does (_pthread_os_exit), and
+ * a later pthread_create from a thread the OS started otherwise
+ * counts again from there.
+ */
+void _pthread_os_last_exit(struct __pthread *self);
 #endif
 
 /*

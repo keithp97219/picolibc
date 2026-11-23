@@ -37,6 +37,11 @@
 #include "local-pthread.h"
 #include <stdlib.h>
 
+#ifndef _PTHREAD_HAVE_LAST_EXIT
+/* The process exits normally once its last thread does */
+#define _pthread_os_last_exit(self) exit(0)
+#endif
+
 void
 pthread_exit(void *value_ptr)
 {
@@ -63,9 +68,8 @@ pthread_exit(void *value_ptr)
     _pthread_all_remove(self);
     pthread_mutex_unlock(&_pthread_all_lock);
 
-    /* The process exits normally once its last thread does */
     if (__atomic_sub_fetch(&_pthread_count, 1, __ATOMIC_ACQ_REL) == 0)
-        exit(0);
+        _pthread_os_last_exit(self);
 
     if (!__atomic_compare_exchange_n(&self->detach_state, &state, __PTHREAD_EXITING, false,
                                      __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)
