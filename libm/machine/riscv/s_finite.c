@@ -44,8 +44,8 @@
 int
 finite64(__float64 x)
 {
-    long fclass = _fclass_d(x);
-    return (fclass & (FCLASS_INF | FCLASS_NAN)) == 0;
+    long fclass = __fclass_d(x);
+    return (fclass & (__FCLASS_INF | __FCLASS_NAN)) == 0;
 }
 
 #ifdef __strong_reference

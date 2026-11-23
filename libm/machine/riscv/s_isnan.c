@@ -45,8 +45,8 @@
 int
 isnan(double x)
 {
-    long fclass = _fclass_d(x);
-    return (fclass & FCLASS_NAN);
+    long fclass = __fclass_d(x);
+    return (fclass & __FCLASS_NAN);
 }
 
 #ifdef __strong_reference

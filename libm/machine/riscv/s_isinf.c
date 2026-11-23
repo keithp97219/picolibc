@@ -45,8 +45,8 @@
 int
 isinf64(__float64 x)
 {
-    long fclass = _fclass_d(x);
-    return (fclass & FCLASS_INF);
+    long fclass = __fclass_d(x);
+    return (fclass & __FCLASS_INF);
 }
 
 #ifdef __strong_reference

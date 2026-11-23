@@ -45,8 +45,8 @@
 int
 isnanf(float x)
 {
-    long fclass = _fclass_f(x);
-    return (fclass & FCLASS_NAN);
+    long fclass = __fclass_f(x);
+    return (fclass & __FCLASS_NAN);
 }
 
 #ifdef __strong_reference

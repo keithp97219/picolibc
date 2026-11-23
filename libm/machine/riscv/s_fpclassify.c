@@ -42,15 +42,15 @@
 int
 __fpclassify64(__float64 x)
 {
-    long fclass = _fclass_d(x);
+    long fclass = __fclass_d(x);
 
-    if (fclass & FCLASS_ZERO)
+    if (fclass & __FCLASS_ZERO)
         return FP_ZERO;
-    else if (fclass & FCLASS_NORMAL)
+    else if (fclass & __FCLASS_NORMAL)
         return FP_NORMAL;
-    else if (fclass & FCLASS_SUBNORMAL)
+    else if (fclass & __FCLASS_SUBNORMAL)
         return FP_SUBNORMAL;
-    else if (fclass & FCLASS_INF)
+    else if (fclass & __FCLASS_INF)
         return FP_INFINITE;
     else
         return FP_NAN;

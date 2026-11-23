@@ -45,8 +45,8 @@
 int
 isinff(float x)
 {
-    long fclass = _fclass_f(x);
-    return (fclass & FCLASS_INF);
+    long fclass = __fclass_f(x);
+    return (fclass & __FCLASS_INF);
 }
 
 #ifdef __strong_reference

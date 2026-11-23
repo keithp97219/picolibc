@@ -40,8 +40,8 @@
 int
 finitef(float x)
 {
-    long fclass = _fclass_f(x);
-    return (fclass & (FCLASS_INF | FCLASS_NAN)) == 0;
+    long fclass = __fclass_f(x);
+    return (fclass & (__FCLASS_INF | __FCLASS_NAN)) == 0;
 }
 
 #ifdef __strong_reference

@@ -40,15 +40,15 @@
 int
 __fpclassifyf(float x)
 {
-    long fclass = _fclass_f(x);
+    long fclass = __fclass_f(x);
 
-    if (fclass & FCLASS_ZERO)
+    if (fclass & __FCLASS_ZERO)
         return FP_ZERO;
-    else if (fclass & FCLASS_NORMAL)
+    else if (fclass & __FCLASS_NORMAL)
         return FP_NORMAL;
-    else if (fclass & FCLASS_SUBNORMAL)
+    else if (fclass & __FCLASS_SUBNORMAL)
         return FP_SUBNORMAL;
-    else if (fclass & FCLASS_INF)
+    else if (fclass & __FCLASS_INF)
         return FP_INFINITE;
     else
         return FP_NAN;
