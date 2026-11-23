@@ -36,6 +36,7 @@
 #define _POSIX_C_SOURCE 202405L
 #include <errno.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
@@ -98,6 +99,26 @@ main(void)
     check(fclose(f) == 0, "fclose");
     check(size == 1006, "size after fclose");
     check(buf[1005] == L'x' && buf[1006] == L'\0', "terminated after fclose");
+    free(buf);
+
+    /* Positions count wide characters too */
+    f = open_wmemstream(&buf, &size);
+    check(f != NULL, "open_wmemstream for positions");
+    check(fputws(L"abcdef", f) >= 0, "fputws");
+    check(ftell(f) == 6, "ftell after fputws");
+    check(fseek(f, 2, SEEK_SET) == 0 && ftell(f) == 2, "fseek SEEK_SET");
+    check(fputwc(L'X', f) == L'X', "fputwc after fseek");
+    check(fseek(f, -1, SEEK_CUR) == 0 && ftell(f) == 2, "fseek SEEK_CUR");
+    check(fseek(f, 1, SEEK_CUR) == 0 && ftell(f) == 3, "fseek SEEK_CUR forward");
+    check(fflush(f) == 0, "fflush after fseek");
+    check(size == 3, "size after fseek");
+    check(wmemcmp(buf, L"abXdef", 6) == 0, "contents after fseek");
+    if (sizeof(off_t) > sizeof(size_t)) {
+        /* More wide characters than memory has room for */
+        check(fseeko(f, (off_t)SIZE_MAX + 1, SEEK_SET) != 0, "fseeko too far");
+        check(ftell(f) == 3, "ftell after fseeko too far");
+    }
+    check(fclose(f) == 0, "fclose after fseek");
     free(buf);
 
 #ifdef __PICOLIBC__

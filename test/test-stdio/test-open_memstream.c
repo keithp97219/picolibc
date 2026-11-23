@@ -34,6 +34,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -99,6 +100,8 @@ main(void)
     fseek(stream, 0, SEEK_END);
     fprintf(stream, MESSAGE);
     check(fseek(stream, 0, 12345) != 0, "invalid whence");
+    if (sizeof(off_t) > sizeof(size_t))
+        check(fseeko(stream, (off_t)SIZE_MAX + 1, SEEK_SET) != 0, "fseeko past SIZE_MAX");
     fclose(stream);
     check(strcmp(buf, MESSAGE MESSAGE) == 0, "SEEK_END uses unflushed stream size");
     check(len == strlen(MESSAGE) * 2, "unflushed SEEK_END length");
