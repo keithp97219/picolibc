@@ -50,8 +50,10 @@
 
 /*
  * gethostid returns the same 32-bit identifier each time, in every
- * process, and the one in /etc/hostid when that file has one. The
- * identifier itself is never printed.
+ * process, and the one in /etc/hostid when that file has one, except
+ * on FreeBSD, where the file holds the host's UUID as text and the
+ * identifier is the kern.hostid sysctl. The identifier itself is never
+ * printed.
  */
 
 #define check(condition, message)                      \
@@ -70,11 +72,15 @@ main(void)
     long    id;
     pid_t   pid;
 
+#ifndef __FreeBSD__
     fd = open("/etc/hostid", O_RDONLY);
     if (fd >= 0) {
         have_file = read(fd, &file_id, sizeof(file_id)) == (ssize_t)sizeof(file_id);
         close(fd);
     }
+#else
+    (void)fd;
+#endif
 #ifdef __GLIBC__
     /* Without /etc/hostid, glibc looks the host name up, perhaps in DNS */
     if (!have_file) {

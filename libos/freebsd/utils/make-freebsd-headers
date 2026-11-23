@@ -174,7 +174,7 @@ CONSTANTS = [
     ("ipc", ["sys/ipc.h", "sys/msg.h", "sys/sem.h", "sys/shm.h"], r"(IPC_[A-Z]+|MSG_NOERROR|SEM_[A-Z]+|GET(PID|VAL|ALL|NCNT|ZCNT)|SET(VAL|ALL)|SHM_[A-Z]+|SHMLBA)", False),
     ("fflags", ["sys/fcntl.h"], r"F(READ|WRITE)", True),
     ("param", ["machine/param.h"], r"PAGE_(SIZE|SHIFT|MASK)", False),
-    ("sysctl", ["sys/sysctl.h"], r"(CTL_(KERN|HW)|KERN_(OSTYPE|OSRELEASE|VERSION|HOSTNAME|ARND)|HW_(MACHINE|PAGESIZE|NCPU))", False),
+    ("sysctl", ["sys/sysctl.h"], r"(CTL_(KERN|HW)|KERN_(OSTYPE|OSRELEASE|VERSION|HOSTID|HOSTNAME|ARND)|HW_(MACHINE|PAGESIZE|NCPU))", False),
     ("fadvise", ["sys/fcntl.h"], r"POSIX_FADV_[A-Z]+", False),
     ("pathconf", ["sys/unistd.h"], r"_PC_[A-Z0-9_]+", False),
     ("utime", ["sys/stat.h"], r"UTIME_(NOW|OMIT)", False),
