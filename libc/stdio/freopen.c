@@ -66,8 +66,14 @@ freopen(const char *pathname, const char *mode, FILE *stream)
          */
         (void)bufio_close(pf);
         fd = open(pathname, open_flags, 0666);
-    } else
+    } else {
         fd = _FDEV_BUFIO_FD(pf);
+#ifdef __HAVE_FCNTL
+        /* Fail with EBADF when the descriptor isn't valid */
+        if (fcntl(fd, F_GETFD) < 0)
+            fd = -1;
+#endif
+    }
 
     /* Errors and end-of-file are cleared, as is the orientation */
     stream->flags &= ~(__SRD | __SWR | __SERR | __SEOF | __SWIDE);
