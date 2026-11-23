@@ -160,6 +160,7 @@ tests_complex_other = [
 
 tests_other = [
   'test-fenv',
+  'test-fenv-names',
   'test-fma',
   'test-fp-fast-fma',
   'test-long-double',
