@@ -59,10 +59,12 @@ libc_test_tests = [
   'regression/sem_close-unmap',
 ]
 
-# These need features picolibc doesn't have yet
+# picolibc doesn't run these: they need features it lacks, or rely on
+# behavior POSIX leaves undefined
 libc_test_picolibc_skip = [
-  'functional/pthread_robust',                  # robust mutexes
-  'regression/pthread-robust-detach',           # robust mutexes
+  # It destroys a robust mutex it holds, which POSIX leaves undefined;
+  # glibc and musl allow that, picolibc reports EBUSY
+  'functional/pthread_robust',
   'regression/pthread_atfork-errno-clobber',    # RLIMIT_NPROC
   'regression/pthread_condattr_setclock',       # CPU-time clocks
   'regression/raise-race',                      # real-time signals
@@ -70,6 +72,33 @@ libc_test_picolibc_skip = [
 
 # The OS layer lacks what these need besides the threads it has
 libc_test_os_skip = []
+
+# Robust mutexes are part of POSIX threads; this test uses
+# process-shared ones too. QEMU's user-mode emulation has no robust
+# futex lists, so cross builds run it only on x86 hosts, which run the
+# tests directly. <unistd.h> takes _POSIX_THREAD_PROCESS_SHARED from
+# the OS layer's <sys/_posix.h>. That doesn't need picolibc.h, not yet
+# generated here, only __PICOLIBC_PTHREADS, which posix_threads sets
+libc_test_robust = {
+  'regression/pthread-robust-detach' : ['__PICOLIBC_OS_THREAD_PROCESS_SHARED'],
+}
+foreach t1, _options : libc_test_robust
+  _run = posix_threads and (not meson.is_cross_build()
+                            or host_cpu_family in ['x86', 'x86_64'])
+  foreach _option : _options
+    if _run
+      _value = cc.get_define(_option, prefix: '#include <sys/_posix.h>',
+                             include_directories: inc,
+                             args: c_args + ['-D__PICOLIBC_PTHREADS'])
+      _run = _value != '' and _value != '0' and _value != '-1'
+    endif
+  endforeach
+  if _run
+    libc_test_tests += [t1]
+  else
+    libc_test_picolibc_skip += [t1]
+  endif
+endforeach
 
 # glibc fails this one: it forks in a signal handler while raise runs
 libc_test_native_skip = [
