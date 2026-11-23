@@ -42,6 +42,7 @@ set(tests
   test-dirent
   test-langinfo
   test-locale
+  test-locale_t
   test-posix-time
   test-pwd
   test-signal
