@@ -34,6 +34,7 @@
 #
 
 tests = [
+  'test-a64l',
   'test-atexit',
   'test-bsearch',
   'test-call-once',

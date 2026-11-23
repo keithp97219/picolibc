@@ -50,6 +50,7 @@ set(tests
   test-stdckdint
   test-setenv
   test-rand-sequence
+  test-a64l
   )
 
 set(tests_fail
