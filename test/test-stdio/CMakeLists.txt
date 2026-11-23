@@ -65,6 +65,7 @@ set(tests
   test-fputwc
   test-fwide
   test-printf-a-prec
+  test-unlocked-args
   )
 
 foreach(test IN LISTS tests)
