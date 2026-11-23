@@ -63,6 +63,7 @@ set(tests
   test-vfprintf-s
   test-vsnprintf-s
   test-fputwc
+  test-fwide
   )
 
 foreach(test IN LISTS tests)

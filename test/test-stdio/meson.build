@@ -63,6 +63,7 @@ tests = [
   'test-ftell-write',
   'test-ungetc-start-fflush',
   'test-fputwc',
+  'test-fwide',
 ]
 
 tests_failure = []
@@ -77,6 +78,10 @@ tests_printf = [
 test_extra_c_args = {
   'test-sprintf-time' : arg_fnobuiltin
 }
+
+if tests_enable_posix_io
+  test_extra_c_args += { 'test-fwide' : ['-DTESTS_ENABLE_POSIX_IO'] }
+endif
 
 test_extra_libs = {}
 
