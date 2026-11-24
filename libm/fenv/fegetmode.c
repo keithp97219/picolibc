@@ -42,7 +42,7 @@
 int
 fegetmode(femode_t *modep)
 {
-    modep->round = fegetround();
-    modep->except = fegetexcept();
+    modep->__round = fegetround();
+    modep->__except = fegetexcept();
     return 0;
 }

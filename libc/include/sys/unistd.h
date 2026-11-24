@@ -109,7 +109,7 @@ int daemon(int nochdir, int noclose) __picolibc_export;
 int dup(int __fildes) __picolibc_export;
 int dup2(int __fildes, int __fildes2) __picolibc_export;
 #if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
-int dup3(int __fildes, int __fildes2, int flags) __picolibc_export;
+int dup3(int __fildes, int __fildes2, int __flag) __picolibc_export;
 #endif
 #if __GNU_VISIBLE
 int eaccess(const char *__path, int __mode) __picolibc_export;
@@ -177,7 +177,7 @@ long gethostid(void) __picolibc_export;
 #endif
 char *getlogin(void) __picolibc_export;
 #if defined(_POSIX_THREAD_SAFE_FUNCTIONS)
-int getlogin_r(char *name, size_t namesize) __picolibc_export;
+int getlogin_r(char *__name, size_t __namesize) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || (__XSI_VISIBLE && __POSIX_VISIBLE < 200112)
 char *getpass(const char *__prompt) __picolibc_export;
@@ -237,7 +237,7 @@ int pthread_atfork(void (*)(void), void (*)(void), void (*)(void)) __picolibc_ex
 #endif
 int pipe(int __fildes[2]) __picolibc_export;
 #if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
-int pipe2(int __fildes[2], int flags) __picolibc_export;
+int pipe2(int __fildes[2], int __flag) __picolibc_export;
 #endif
 #if __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 500
 ssize_t pread(int __fd, void *__buf, size_t __nbytes, off_t __offset) __picolibc_export;

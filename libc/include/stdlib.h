@@ -103,22 +103,22 @@ void free(void *) __nothrow __picolibc_export;
 
 #if __ISO_C_VISIBLE >= 2023
 
-void free_aligned_sized(void *ptr, size_t alignment, size_t size) __picolibc_export;
-void free_sized(void *ptr, size_t size) __picolibc_export;
+void free_aligned_sized(void *__ptr, size_t __alignment, size_t __size) __picolibc_export;
+void free_sized(void *__ptr, size_t __size) __picolibc_export;
 
 __declare_extern_inline(void)
-free_aligned_sized(void *ptr, size_t alignment, size_t size)
+free_aligned_sized(void *__ptr, size_t __alignment, size_t __size)
 {
-    (void)alignment;
-    (void)size;
-    free(ptr);
+    (void)__alignment;
+    (void)__size;
+    free(__ptr);
 }
 
 __declare_extern_inline(void)
-free_sized(void *ptr, size_t size)
+free_sized(void *__ptr, size_t __size)
 {
-    (void)size;
-    free(ptr);
+    (void)__size;
+    free(__ptr);
 }
 #endif
 
@@ -191,7 +191,7 @@ extern __picolibc_export char *suboptarg; /* getsubopt(3) external variable */
 int getsubopt(char ** __restrict, char * const * __restrict, char ** __restrict) __picolibc_export;
 #endif
 #if __XSI_VISIBLE >= 500
-int grantpt(int fd) __picolibc_export;
+int grantpt(int __fd) __picolibc_export;
 #endif
 #if __SVID_VISIBLE || __XSI_VISIBLE >= 4 || __BSD_VISIBLE
 char *initstate(unsigned, char *, size_t) __picolibc_export;
@@ -309,7 +309,7 @@ reallocf(void *, size_t)
 __warn_unused_result __alloc_size(2) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || __XSI_VISIBLE >= 4
-char *realpath(const char * __restrict path, char * __restrict resolved_path) __picolibc_export;
+char *realpath(const char * __restrict __path, char * __restrict __resolved_path) __picolibc_export;
 #endif
 #if __BSD_VISIBLE
 int rpmatch(const char *response) __picolibc_export;
@@ -336,18 +336,18 @@ void _srand48_r(struct _rand48 *, long) __picolibc_export;
 void srandom(unsigned) __picolibc_export;
 #endif
 double strtod(const char * __restrict __n, char ** __restrict __end_PTR) __picolibc_export;
-int    strfromd(char    *__restrict str, size_t n, const char    *__restrict format, double fp)
+int    strfromd(char    *__restrict __str, size_t __n, const char    *__restrict __format, double __fp)
     __picolibc_export;
 #if __ISO_C_VISIBLE >= 1999
 float strtof(const char * __restrict __n, char ** __restrict __end_PTR) __picolibc_export;
 #ifdef __HAVE_LONG_DOUBLE
 long double strtold(const char * __restrict __n, char ** __restrict __end_PTR) __picolibc_export;
 #endif
-int strfromf(char * __restrict str, size_t n, const char * __restrict format, float fp)
+int strfromf(char * __restrict __str, size_t __n, const char * __restrict __format, float __fp)
     __picolibc_export;
 #ifdef __HAVE_LONG_DOUBLE
-int strfroml(char * __restrict str, size_t n, const char * __restrict format, long double fp)
-    __picolibc_export;
+int strfroml(char * __restrict __str, size_t __n, const char * __restrict __format,
+             long double __fp) __picolibc_export;
 #endif
 #endif
 #if __MISC_VISIBLE
@@ -469,13 +469,13 @@ typedef __rsize_t rsize_t;
 #define _RSIZE_T_DEFINED
 #endif
 
-typedef void         (*constraint_handler_t)(const char         *__restrict msg, void         *__restrict ptr,
-                                     __errno_t error);
+typedef void         (*constraint_handler_t)(const char         *__restrict __msg, void         *__restrict __ptr,
+                                     __errno_t __error);
 
-constraint_handler_t set_constraint_handler_s(constraint_handler_t handler) __picolibc_export;
-void abort_handler_s(const char * __restrict msg, void * __restrict ptr, __errno_t error)
+constraint_handler_t set_constraint_handler_s(constraint_handler_t __handler) __picolibc_export;
+void abort_handler_s(const char * __restrict __msg, void * __restrict __ptr, __errno_t __error)
     __picolibc_export;
-void ignore_handler_s(const char * __restrict msg, void * __restrict ptr, __errno_t error)
+void ignore_handler_s(const char * __restrict __msg, void * __restrict __ptr, __errno_t __error)
     __picolibc_export;
 #endif
 

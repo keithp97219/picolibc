@@ -27,9 +27,9 @@ _BEGIN_STD_C
 #ifdef __declare_fenv_inline
 
 #if __ISO_C_VISIBLE >= 2023 || __GNU_VISIBLE
-__declare_fenv_inline(int) fetestexceptflag(const fexcept_t *flagp, int excepts)
+__declare_fenv_inline(int) fetestexceptflag(const fexcept_t *__flagp, int __excepts)
 {
-    return *flagp & excepts & FE_ALL_EXCEPT;
+    return *__flagp & __excepts & FE_ALL_EXCEPT;
 }
 #endif
 
@@ -39,25 +39,25 @@ __declare_fenv_inline(int) fetestexceptflag(const fexcept_t *flagp, int excepts)
  * already provided inline definitions via __declare_fenv_inline. */
 
 /* Exception */
-int feclearexcept(int excepts) __picolibc_export;
-int fegetexceptflag(fexcept_t *flagp, int excepts) __picolibc_export;
-int feraiseexcept(int excepts) __picolibc_export;
-int fesetexceptflag(const fexcept_t *flagp, int excepts) __picolibc_export;
-int fetestexcept(int excepts) __picolibc_export;
+int feclearexcept(int __excepts) __picolibc_export;
+int fegetexceptflag(fexcept_t *__flagp, int __excepts) __picolibc_export;
+int feraiseexcept(int __excepts) __picolibc_export;
+int fesetexceptflag(const fexcept_t *__flagp, int __excepts) __picolibc_export;
+int fetestexcept(int __excepts) __picolibc_export;
 #if __ISO_C_VISIBLE >= 2023 || __GNU_VISIBLE
-int fesetexcept(int excepts) __picolibc_export;
-int fetestexceptflag(const fexcept_t *flagp, int excepts) __picolibc_export;
+int fesetexcept(int __excepts) __picolibc_export;
+int fetestexceptflag(const fexcept_t *__flagp, int __excepts) __picolibc_export;
 #endif
 
 /* Rounding mode */
 int fegetround(void) __picolibc_export;
-int fesetround(int rounding_mode) __picolibc_export;
+int fesetround(int __round) __picolibc_export;
 
 /* Float environment */
-int fegetenv(fenv_t *envp) __picolibc_export;
-int feholdexcept(fenv_t *envp) __picolibc_export;
-int fesetenv(const fenv_t *envp) __picolibc_export;
-int feupdateenv(const fenv_t *envp) __picolibc_export;
+int fegetenv(fenv_t *__envp) __picolibc_export;
+int feholdexcept(fenv_t *__envp) __picolibc_export;
+int fesetenv(const fenv_t *__envp) __picolibc_export;
+int feupdateenv(const fenv_t *__envp) __picolibc_export;
 
 #if __GNU_VISIBLE
 int feenableexcept(int) __picolibc_export;
@@ -84,13 +84,13 @@ extern __picolibc_export fenv_t _fe_dfl_env;
 
 #ifndef FE_DFL_MODE
 typedef struct {
-    int round, except;
+    int __round, __except;
 } femode_t;
 #define FE_DFL_MODE ((femode_t *)0)
 #endif
 
-int fegetmode(femode_t *modep) __picolibc_export;
-int fesetmode(femode_t *modep) __picolibc_export;
+int fegetmode(femode_t *__modep) __picolibc_export;
+int fesetmode(femode_t *__modep) __picolibc_export;
 
 #endif
 

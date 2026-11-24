@@ -56,12 +56,12 @@
 #define _FPU_MASK_SHIFT 8
 #define _ROUND_MASK     (FE_TONEAREST | FE_DOWNWARD | FE_UPWARD | FE_TOWARDZERO)
 
-__declare_fenv_inline(int) feclearexcept(int excepts)
+__declare_fenv_inline(int) feclearexcept(int __excepts)
 {
     fexcept_t __fpsr;
 
     _vmrs_fpscr(__fpsr);
-    __fpsr &= ~excepts;
+    __fpsr &= ~__excepts;
     _vmsr_fpscr(__fpsr);
     return (0);
 }
@@ -90,9 +90,9 @@ __declare_fenv_inline(int) feenableexcept(int __mask)
 }
 #endif
 
-__declare_fenv_inline(int) fegetenv(fenv_t *envp)
+__declare_fenv_inline(int) fegetenv(fenv_t *__envp)
 {
-    _vmrs_fpscr(*envp);
+    _vmrs_fpscr(*__envp);
     return (0);
 }
 
@@ -106,12 +106,12 @@ __declare_fenv_inline(int) fegetexcept(void)
 }
 #endif
 
-__declare_fenv_inline(int) fegetexceptflag(fexcept_t *flagp, int excepts)
+__declare_fenv_inline(int) fegetexceptflag(fexcept_t *__flagp, int __excepts)
 {
     fexcept_t __fpsr;
 
     _vmrs_fpscr(__fpsr);
-    *flagp = __fpsr & excepts;
+    *__flagp = __fpsr & __excepts;
     return (0);
 }
 
@@ -122,76 +122,76 @@ __declare_fenv_inline(int) fegetround(void)
     _vmrs_fpscr(__fpsr);
     return (__fpsr & _ROUND_MASK);
 }
-__declare_fenv_inline(int) feholdexcept(fenv_t *envp)
+__declare_fenv_inline(int) feholdexcept(fenv_t *__envp)
 {
     fenv_t __env;
 
     _vmrs_fpscr(__env);
-    *envp = __env;
+    *__envp = __env;
     __env &= ~(FE_ALL_EXCEPT);
     _vmsr_fpscr(__env);
     return (0);
 }
 
-__declare_fenv_inline(int) fesetenv(const fenv_t *envp)
+__declare_fenv_inline(int) fesetenv(const fenv_t *__envp)
 {
-    _vmsr_fpscr(*envp);
+    _vmsr_fpscr(*__envp);
     return (0);
 }
 
-__declare_fenv_inline(int) fesetexceptflag(const fexcept_t *flagp, int excepts)
+__declare_fenv_inline(int) fesetexceptflag(const fexcept_t *__flagp, int __excepts)
 {
     fexcept_t __fpsr;
 
     _vmrs_fpscr(__fpsr);
-    __fpsr &= ~excepts;
-    __fpsr |= *flagp & excepts;
+    __fpsr &= ~__excepts;
+    __fpsr |= *__flagp & __excepts;
     _vmsr_fpscr(__fpsr);
     return (0);
 }
 
-__declare_fenv_inline(int) feraiseexcept(int excepts)
+__declare_fenv_inline(int) feraiseexcept(int __excepts)
 {
-    fexcept_t __ex = excepts;
+    fexcept_t __ex = __excepts;
 
-    return fesetexceptflag(&__ex, excepts);
+    return fesetexceptflag(&__ex, __excepts);
 }
 
 #if __ISO_C_VISIBLE >= 2023 || __GNU_VISIBLE
-__declare_fenv_inline(int) fesetexcept(int excepts)
+__declare_fenv_inline(int) fesetexcept(int __excepts)
 {
-    return feraiseexcept(excepts);
+    return feraiseexcept(__excepts);
 }
 #endif
 
-__declare_fenv_inline(int) fesetround(int round)
+__declare_fenv_inline(int) fesetround(int __round)
 {
     fenv_t __fpsr;
 
     /* Check for invalid rounding modes */
-    if (round & ~(_ROUND_MASK))
+    if (__round & ~(_ROUND_MASK))
         return 1;
     _vmrs_fpscr(__fpsr);
     __fpsr &= ~(_ROUND_MASK);
-    __fpsr |= round;
+    __fpsr |= __round;
     _vmsr_fpscr(__fpsr);
     return (0);
 }
 
-__declare_fenv_inline(int) fetestexcept(int excepts)
+__declare_fenv_inline(int) fetestexcept(int __excepts)
 {
     fexcept_t __fpsr;
 
     _vmrs_fpscr(__fpsr);
-    return (__fpsr & excepts);
+    return (__fpsr & __excepts);
 }
 
-__declare_fenv_inline(int) feupdateenv(const fenv_t *envp)
+__declare_fenv_inline(int) feupdateenv(const fenv_t *__envp)
 {
     fexcept_t __fpsr;
 
     _vmrs_fpscr(__fpsr);
-    _vmsr_fpscr(*envp);
+    _vmsr_fpscr(*__envp);
     feraiseexcept(__fpsr & FE_ALL_EXCEPT);
     return (0);
 }

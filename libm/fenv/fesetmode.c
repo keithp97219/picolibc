@@ -44,8 +44,8 @@ fesetmode(femode_t *modep)
 {
     int round = FE_TONEAREST, except = 0;
     if (modep) {
-        round = modep->round;
-        except = modep->except;
+        round = modep->__round;
+        except = modep->__except;
     }
     /* assume any failure indicates that there isn't hw support,
      * so we wouldn't be affecting anything

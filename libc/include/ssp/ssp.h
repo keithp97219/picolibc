@@ -77,7 +77,7 @@
 _BEGIN_STD_C
 __noreturn void __stack_chk_fail(void) __picolibc_export;
 __noreturn void __chk_fail(void) __picolibc_export;
-void            set_fortify_handler(void (*handler)(int sig)) __picolibc_export;
+void            set_fortify_handler(void (*)(int)) __picolibc_export;
 _END_STD_C
 
 #endif /* _SSP_SSP_H_ */

@@ -80,11 +80,11 @@ char * __nonnull((1)) basename(const char *) _ASMNAME("__gnu_basename");
 #if __MISC_VISIBLE || __XSI_VISIBLE || __ISO_C_VISIBLE >= 2023
 void *memccpy(void * __restrict, const void * __restrict, int, size_t) __picolibc_export;
 #endif
-void *memchr(const void *s, int c, size_t n) __picolibc_export;
+void *memchr(const void *, int, size_t) __picolibc_export;
 int   memcmp(const void *, const void *, size_t) __picolibc_export;
 void *memcpy(void * __restrict, const void * __restrict, size_t) __picolibc_export;
 #if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
-void *memmem(const void *h, size_t h_n, const void *n, size_t n_n) __picolibc_export;
+void *memmem(const void *, size_t, const void *, size_t) __picolibc_export;
 #endif
 void *memmove(void *, const void *, size_t) __picolibc_export;
 #if __GNU_VISIBLE
@@ -106,7 +106,7 @@ char *stpncpy(char * __restrict, const char * __restrict, size_t) __picolibc_exp
 char *strcasestr(const char *, const char *) __picolibc_export;
 #endif
 char *strcat(char * __restrict, const char * __restrict) __picolibc_export;
-char *strchr(const char *s, int c) __picolibc_export;
+char *strchr(const char *, int) __picolibc_export;
 #if __GNU_VISIBLE
 char *strchrnul(const char *, int) __picolibc_export;
 #endif
@@ -156,8 +156,8 @@ int __xpg_strerror_r(int, char *, size_t) __picolibc_export;
 #endif
 #endif
 #if __GNU_VISIBLE
-const char *strerrorname_np(int errnum) __picolibc_export;
-const char *strerrordesc_np(int errnum) __picolibc_export;
+const char *strerrorname_np(int) __picolibc_export;
+const char *strerrordesc_np(int) __picolibc_export;
 #endif
 #if __BSD_VISIBLE || __POSIX_VISIBLE >= 202405
 size_t strlcat(char *, const char *, size_t) __picolibc_export;
@@ -185,8 +185,8 @@ char *
 strnstr(const char *, const char *, size_t)
 __pure __picolibc_export;
 #endif
-char *strpbrk(const char *s, const char *a) __picolibc_export;
-char *strrchr(const char *s, int c) __picolibc_export;
+char *strpbrk(const char *, const char *) __picolibc_export;
+char *strrchr(const char *, int) __picolibc_export;
 #if __BSD_VISIBLE
 char *strsep(char **, const char *) __picolibc_export;
 #endif
@@ -194,7 +194,7 @@ char *strsep(char **, const char *) __picolibc_export;
 char *strsignal(int __signo) __picolibc_export;
 #endif
 size_t strspn(const char *, const char *) __picolibc_export;
-char  *strstr(const char *h, const char *n) __picolibc_export;
+char  *strstr(const char *, const char *) __picolibc_export;
 char  *strtok(char  *__restrict, const char  *__restrict) __picolibc_export;
 #if __MISC_VISIBLE || __POSIX_VISIBLE || __ZEPHYR_VISIBLE
 char *strtok_r(char * __restrict, const char * __restrict, char ** __restrict) __picolibc_export;

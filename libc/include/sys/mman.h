@@ -131,17 +131,17 @@ typedef __off_t off_t;
 /*
  * Function declarations.
  */
-void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
-int   munmap(void *addr, size_t len);
-int   mprotect(void *addr, size_t len, int prot);
-int   msync(void *addr, size_t len, int flags);
-int   mlock(const void *addr, size_t len);
-int   munlock(const void *addr, size_t len);
-int   mlockall(int flags);
+void *mmap(void *__addr, size_t __len, int __prot, int __flags, int __fd, off_t __offset);
+int   munmap(void *__addr, size_t __len);
+int   mprotect(void *__addr, size_t __len, int __prot);
+int   msync(void *__addr, size_t __len, int __flags);
+int   mlock(const void *__addr, size_t __len);
+int   munlock(const void *__addr, size_t __len);
+int   mlockall(int __flags);
 int   munlockall(void);
-int   posix_madvise(void *addr, size_t len, int advice);
+int   posix_madvise(void *__addr, size_t __len, int __advice);
 #if __GNU_VISIBLE
-int madvise(void *addr, size_t len, int advice);
+int madvise(void *__addr, size_t __len, int __advice);
 #endif
 
 _END_STD_C

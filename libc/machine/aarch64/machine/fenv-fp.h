@@ -67,9 +67,9 @@ __declare_fenv_inline(int) feraiseexcept(int __excepts)
 }
 
 #if __ISO_C_VISIBLE >= 2023 || __GNU_VISIBLE
-__declare_fenv_inline(int) fesetexcept(int excepts)
+__declare_fenv_inline(int) fesetexcept(int __excepts)
 {
-    return feraiseexcept(excepts);
+    return feraiseexcept(__excepts);
 }
 #endif
 
