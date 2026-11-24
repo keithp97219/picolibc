@@ -64,7 +64,7 @@
 #endif
 
 #if !defined(__LONG_WIDTH__)
-#if __have_long32
+#ifdef __have_long32
 #define __LONG_WIDTH__ 32
 #elif __have_long64
 #define __LONG_WIDTH__ 64
@@ -72,7 +72,7 @@
 #endif
 
 #if !defined(__LONG_LONG_WIDTH__)
-#if __have_longlong64
+#ifdef __have_longlong64
 #define __LONG_LONG_WIDTH__ 64
 #endif
 #endif

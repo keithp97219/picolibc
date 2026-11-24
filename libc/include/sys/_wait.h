@@ -33,7 +33,7 @@ SUCH DAMAGE.
 
 #define WNOHANG   1
 #define WUNTRACED 2
-#if (_XOPEN_SOURCE - 0) >= 500
+#if __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 500
 #define WCONTINUED 4
 #endif
 

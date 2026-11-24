@@ -36,19 +36,19 @@ _BEGIN_STD_C
 typedef int fenv_t;
 typedef int fexcept_t;
 
-#if (__ARM_FP & 0x8) == 0
+#if !defined(__ARM_FP) || (__ARM_FP & 0x8) == 0
 #define __DOUBLE_NOROUND
 #define __DOUBLE_NOEXCEPT
 #define __LONG_DOUBLE_NOROUND
 #define __LONG_DOUBLE_NOEXCEPT
 #endif
 
-#if (__ARM_FP & 0x4) == 0
+#if !defined(__ARM_FP) || (__ARM_FP & 0x4) == 0
 #define __FLOAT_NOROUND
 #define __FLOAT_NOEXCEPT
 #endif
 
-#if __ARM_FP != 0
+#if defined(__ARM_FP) && __ARM_FP != 0
 
 /* Exception flags */
 #define FE_INVALID   0x0001
@@ -77,7 +77,7 @@ typedef int fexcept_t;
 _END_STD_C
 
 #ifdef __declare_fenv_inline
-#if __ARM_FP == 0
+#if !defined(__ARM_FP) || __ARM_FP == 0
 #include <machine/fenv-softfloat.h>
 #else
 #include <machine/fenv-fp.h>

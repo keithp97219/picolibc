@@ -35,8 +35,7 @@
 
 #include "fdlibm.h"
 
-#if __HAVE_FAST_FMAF
-
+#ifdef __HAVE_FAST_FMAF
 float
 fmaf(float x, float y, float z)
 {

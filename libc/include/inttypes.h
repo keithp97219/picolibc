@@ -312,7 +312,7 @@ typedef wchar_t _wchar_t;
 #endif
 
 /* max-bit types */
-#if __have_long64
+#ifdef __have_long64
 #define __PRIMAX(x) __STRINGIFY(l##x)
 #define __SCNMAX(x) __STRINGIFY(l##x)
 #elif __have_longlong64

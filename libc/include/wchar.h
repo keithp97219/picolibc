@@ -304,7 +304,7 @@ int wscanf(const wchar_t * __restrict, ...) __picolibc_export;
 #define wcsstr(_h, _n)      __preserve_const(wchar_t *, wcsstr, _h, (_h, _n))
 #endif
 
-#if __STDC_WANT_LIB_EXT1__ == 1
+#if defined(__STDC_WANT_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__ == 1
 #ifndef __STDC_LIB_EXT1__
 #define __STDC_LIB_EXT1__ 1
 #endif

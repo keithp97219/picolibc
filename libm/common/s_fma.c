@@ -44,8 +44,7 @@ ANSI C, POSIX.
 
 #include "fdlibm.h"
 
-#if !__HAVE_FAST_FMA
-
+#ifndef __HAVE_FAST_FMA
 #ifdef _NEED_FLOAT64
 
 #if __FLT_EVAL_METHOD__ == 2 && defined(__HAVE_LONG_DOUBLE)

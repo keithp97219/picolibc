@@ -55,7 +55,8 @@
 #define strtoi_utype strtoi_type
 #endif
 
-#if __HAVE_BUILTIN_MUL_OVERFLOW && __HAVE_BUILTIN_ADD_OVERFLOW && !defined(strtoi_signed)
+#if defined(__HAVE_BUILTIN_MUL_OVERFLOW) && defined(__HAVE_BUILTIN_ADD_OVERFLOW) \
+    && !defined(strtoi_signed)
 #define USE_OVERFLOW
 #endif
 

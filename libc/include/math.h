@@ -217,7 +217,8 @@ int __issignalingl(long double __x) __picolibc_export;
  * its builtin fpclassify also raises INVALID for snan, so always use
  * our version for that.
  */
-#if __GNUC_PREREQ(4, 4) && (FE_INVALID != 0) && !defined(__SUPPORT_SNAN__) && !defined(__clang__)
+#if __GNUC_PREREQ(4, 4) && (defined(FE_INVALID) && FE_INVALID != 0) && !defined(__SUPPORT_SNAN__) \
+    && !defined(__clang__)
 #define fpclassify(__x)                                                                \
     (__builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL, FP_SUBNORMAL, FP_ZERO, __x))
 #define isfinite(__x)      (__builtin_isfinite(__x))
@@ -952,13 +953,13 @@ int(isnan)(double __x) __picolibc_export;
 #include <machine/math.h>
 
 /* machine/math.h sets __HAVE_FAST_FMA* for targets with fast fma */
-#if !defined(FP_FAST_FMA) && (__HAVE_FAST_FMA || defined(__FP_FAST_FMA))
+#if !defined(FP_FAST_FMA) && (defined(__HAVE_FAST_FMA) || defined(__FP_FAST_FMA))
 #define FP_FAST_FMA 1
 #endif
-#if !defined(FP_FAST_FMAF) && (__HAVE_FAST_FMAF || defined(__FP_FAST_FMAF))
+#if !defined(FP_FAST_FMAF) && (defined(__HAVE_FAST_FMAF) || defined(__FP_FAST_FMAF))
 #define FP_FAST_FMAF 1
 #endif
-#if !defined(FP_FAST_FMAL) && (__HAVE_FAST_FMAL || defined(__FP_FAST_FMAL))
+#if !defined(FP_FAST_FMAL) && (defined(__HAVE_FAST_FMAL) || defined(__FP_FAST_FMAL))
 #define FP_FAST_FMAL 1
 #endif
 

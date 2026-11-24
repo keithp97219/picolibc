@@ -130,7 +130,7 @@ _BEGIN_STD_C
 #define INT64_MAX  (__INT64_MAX__)
 #define UINT64_MAX (__UINT64_MAX__)
 #elif defined(__int64_t_defined)
-#if __have_long64
+#ifdef __have_long64
 #define INT64_MIN  (-9223372036854775807L - 1L)
 #define INT64_MAX  (9223372036854775807L)
 #define UINT64_MAX (18446744073709551615U)
@@ -146,7 +146,7 @@ _BEGIN_STD_C
 #define INT_LEAST64_MAX  (__INT_LEAST64_MAX__)
 #define UINT_LEAST64_MAX (__UINT_LEAST64_MAX__)
 #elif defined(__int_least64_t_defined)
-#if __have_long64
+#ifdef __have_long64
 #define INT_LEAST64_MIN  (-9223372036854775807L - 1L)
 #define INT_LEAST64_MAX  (9223372036854775807L)
 #define UINT_LEAST64_MAX (18446744073709551615U)
@@ -336,7 +336,7 @@ _BEGIN_STD_C
 #define UINT64_C(x) __UINT64_C(x)
 #else
 #if __int64_t_defined
-#if __have_long64
+#ifdef __have_long64
 #define INT64_C(x)  x##L
 #define UINT64_C(x) x##UL
 #else
@@ -351,7 +351,7 @@ _BEGIN_STD_C
 #define INTMAX_C(x)  __INTMAX_C(x)
 #define UINTMAX_C(x) __UINTMAX_C(x)
 #else
-#if __have_long64
+#ifdef __have_long64
 #define INTMAX_C(x)  x##L
 #define UINTMAX_C(x) x##UL
 #else
@@ -360,7 +360,7 @@ _BEGIN_STD_C
 #endif
 #endif
 
-#if __STDC_WANT_LIB_EXT1__ == 1
+#if defined(__STDC_WANT_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__ == 1
 #ifndef __STDC_LIB_EXT1__
 #define __STDC_LIB_EXT1__ 1
 #endif

@@ -38,19 +38,19 @@
 #ifndef _MACHINE_MATH_H_
 #define _MACHINE_MATH_H_
 
-#if __ARM_FP & 4
+#if defined(__ARM_FP) && (__ARM_FP & 4)
 #define __HAVE_HW_FLOAT 1
 #endif
 
-#if __ARM_FP & 8
+#if defined(__ARM_FP) && (__ARM_FP & 8)
 #define __HAVE_HW_DOUBLE 1
 #endif
 
-#if (__ARM_FEATURE_FMA && (__ARM_FP & 8))
+#if defined(__ARM_FEATURE_FMA) && __ARM_FEATURE_FMA && defined(__ARM_FP) && (__ARM_FP & 8)
 #define __HAVE_FAST_FMA 1
 #endif
 
-#if (__ARM_FEATURE_FMA && (__ARM_FP & 4))
+#if defined(__ARM_FEATURE_FMA) && __ARM_FEATURE_FMA && defined(__ARM_FP) && (__ARM_FP & 4)
 #define __HAVE_FAST_FMAF 1
 #endif
 
@@ -60,7 +60,7 @@
 #include <errno.h>
 #endif
 
-#if (__ARM_FP & 0x8)
+#if defined(__ARM_FP) && (__ARM_FP & 0x8)
 
 /*
  * Double precision routines
@@ -149,7 +149,7 @@ trunc(double x)
 }
 #endif /* __ARM_ARCH >= 8 */
 
-#if __HAVE_FAST_FMA
+#ifdef __HAVE_FAST_FMA
 
 __declare_extern_inline(double)
 fma(double x, double y, double z)
@@ -162,7 +162,7 @@ fma(double x, double y, double z)
 
 #endif /* (__ARM_FP & 0x8) */
 
-#if (__ARM_FP & 0x4)
+#if defined(__ARM_FP) && (__ARM_FP & 0x4)
 
 /*
  * Single precision functions
@@ -251,7 +251,7 @@ truncf(float x)
 }
 #endif /* __ARM_ARCH >= 8 */
 
-#if __HAVE_FAST_FMAF
+#ifdef __HAVE_FAST_FMAF
 
 __declare_extern_inline(float)
 fmaf(float x, float y, float z)

@@ -65,7 +65,7 @@ _BEGIN_STD_C
  */
 
 #ifdef __ATOMIC_UNGETC
-#if defined(__riscv) || defined(__MICROBLAZE__) || (__loongarch__)
+#if defined(__riscv) || defined(__MICROBLAZE__) || defined(__loongarch__)
 /*
  * Use 32-bit ungetc storage when doing atomic ungetc on RISC-V and
  * MicroBlaze, which have 4-byte swap intrinsics but not 2-byte swap
@@ -579,7 +579,7 @@ int ungetc_unlocked(int c, FILE *) __nonnull((2)) __picolibc_export;
 #endif
 #endif
 
-#if __STDC_WANT_LIB_EXT1__ == 1
+#if defined(__STDC_WANT_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__ == 1
 #ifndef __STDC_LIB_EXT1__
 #define __STDC_LIB_EXT1__ 1
 #endif

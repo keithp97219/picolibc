@@ -452,7 +452,7 @@ char *__ldtoa(long double, int, int, int *, int *, char **) __picolibc_export;
 void  __eprintf(const char *, const char *, unsigned int, const char *) __picolibc_export;
 #endif
 
-#if __STDC_WANT_LIB_EXT1__ == 1
+#if defined(__STDC_WANT_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__ == 1
 #ifndef __STDC_LIB_EXT1__
 #define __STDC_LIB_EXT1__ 1
 #endif

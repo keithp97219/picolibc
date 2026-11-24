@@ -265,7 +265,7 @@
 #endif
 
 /* For interfaces that C23 deprecates but earlier versions of C don't */
-#if (__STDC_VERSION__ - 0) > 201710L
+#if (defined(__STDC_VERSION__) && __STDC_VERSION__ > 201710L)
 #define __deprecated_c23 __deprecated
 #else
 #define __deprecated_c23
@@ -427,31 +427,31 @@
  * Provide some optimizing builtins; these don't affect the sematics
  * of the generated code, they just guide optimization.
  */
-#if !__HAVE_BUILTIN_EXPECT
+#ifndef __HAVE_BUILTIN_EXPECT
 #define __builtin_expect(cond, exp) (cond)
 #endif
 
-#if !__HAVE_BUILTIN_UNREACHABLE
+#ifndef __HAVE_BUILTIN_UNREACHABLE
 #define __builtin_unreachable()
 #endif
 
 /* Alignment builtins for better type checking and improved code generation. */
 /* Provide fallback versions for other compilers (GCC/Clang < 10): */
 
-#if __HAVE_BUILTIN_ALIGN_UP
+#ifdef __HAVE_BUILTIN_ALIGN_UP
 #define __align_up(x, y) __builtin_align_up(x, y)
 #else
 #define __align_up(x, align)                                                 \
     ((__typeof__(x))(((__uintptr_t)(x) + ((align) - 1)) & (~((align) - 1))))
 #endif
 
-#if __HAVE_BUILTIN_ALIGN_DOWN
+#ifdef __HAVE_BUILTIN_ALIGN_DOWN
 #define __align_down(x, y) __builtin_align_down(x, y)
 #else
 #define __align_down(x, align) ((__typeof__(x))((x) & (~((align) - 1))))
 #endif
 
-#if __HAVE_BUILTIN_IS_ALIGNED
+#ifdef __HAVE_BUILTIN_IS_ALIGNED
 #define __is_aligned(x, y) __builtin_is_aligned(x, y)
 #else
 #define __is_aligned(x, align) (((__uintptr_t)x & ((align) - 1)) == 0)
@@ -731,7 +731,8 @@
 /*
  * fall-through case statement annotations
  */
-#if __cplusplus >= 201703L || __STDC_VERSION__ > 201710L
+#if (defined(__cplusplus) && __cplusplus >= 201703L)             \
+    || (defined(__STDC_VERSION__) && __STDC_VERSION__ > 201710L)
 /* Standard C++17/C23 attribute */
 #define __fallthrough [[fallthrough]]
 #elif __has_attribute(__fallthrough__)
