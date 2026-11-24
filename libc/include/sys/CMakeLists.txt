@@ -44,6 +44,7 @@ picolibc_headers(sys
   _exactint.h
   _fastint.h
   fcntl.h
+  _fcntl_flags.h
   features.h
   file.h
   iconvnls.h

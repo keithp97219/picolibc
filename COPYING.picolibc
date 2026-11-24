@@ -3973,6 +3973,7 @@ Copyright: 2017 Yaakov Selkowitz <yselkowi@redhat.com>
 License: Default-1
 
 Files: libc/include/sys/_default_fcntl.h
+ libc/include/sys/_fcntl_flags.h
  libc/include/sys/custom_file.h
  libc/machine/x86/machine/fastmath.h
 Copyright: 2007 Jeff Johnston  <jjohnstn@redhat.com>

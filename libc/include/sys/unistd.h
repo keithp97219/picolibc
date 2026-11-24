@@ -357,6 +357,12 @@ int     symlinkat(const char *, int, const char *) __picolibc_export;
 int     unlinkat(int, const char *, int) __picolibc_export;
 #endif
 
+/* As in <fcntl.h>, for dup3 and pipe2 */
+#if __POSIX_VISIBLE >= 202405
+#include <sys/_fcntl_flags.h>
+#define O_CLOEXEC _FNOINHERIT
+#endif
+
 #define F_OK     0
 #define R_OK     4
 #define W_OK     2
