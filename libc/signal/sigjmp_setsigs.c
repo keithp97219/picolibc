@@ -41,6 +41,6 @@
 void
 __sigjmp_setsigs(sigjmp_buf jmpb)
 {
-    if (jmpb[0].savesigs)
-        sigprocmask(SIG_SETMASK, &jmpb[0].sigs, NULL);
+    if (jmpb[0].__savesigs)
+        sigprocmask(SIG_SETMASK, &jmpb[0].__sigs, NULL);
 }

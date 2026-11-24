@@ -46,19 +46,22 @@ SUCH DAMAGE.
 
 _BEGIN_STD_C
 
-typedef struct {
-    int        savesigs;
-    __sigset_t sigs;
-    jmp_buf    jmpb;
-} sigjmp_buf[1];
-
 __noreturn void     longjmp(jmp_buf __jmpb, int __retval) __picolibc_export;
 __returns_twice int setjmp(jmp_buf __jmpb) __picolibc_export;
-void                __sigjmp_getsigs(sigjmp_buf jmpb, int savesigs) __picolibc_export;
-void                __sigjmp_setsigs(sigjmp_buf jmpb) __picolibc_export;
 
-#define sigsetjmp(__e, __s)  (__sigjmp_getsigs((__e), (__s)), setjmp((__e)[0].jmpb))
-#define siglongjmp(__e, __v) (__sigjmp_setsigs((__e)), longjmp((__e)[0].jmpb, (__v)))
+#if __POSIX_VISIBLE
+typedef struct {
+    int        __savesigs;
+    __sigset_t __sigs;
+    jmp_buf    __jmpb;
+} sigjmp_buf[1];
+
+__noreturn void siglongjmp(sigjmp_buf __jmpb, int __retval) __picolibc_export;
+void            __sigjmp_getsigs(sigjmp_buf __jmpb, int __savesigs) __picolibc_export;
+void            __sigjmp_setsigs(sigjmp_buf __jmpb) __picolibc_export;
+
+#define sigsetjmp(__e, __s) (__sigjmp_getsigs((__e), (__s)), setjmp((__e)[0].__jmpb))
+#endif
 
 _END_STD_C
 
