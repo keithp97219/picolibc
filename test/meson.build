@@ -51,6 +51,7 @@ tests = [
   'test-hosted-exit-fail',
   'test-ilp32',
   'test-libgen-basename',
+  'test-math-generic',
   'test-raise',
   'test-regex',
   'test-riscv-jvt',
@@ -128,6 +129,7 @@ test_extra_c_args = {
   'test-thread-safety': test_thread_safety_cflags,
   'test-ubsan': test_ubsan_cflags,
   'test-ubsan-no-flash': test_ubsan_cflags,
+  'test-math-generic': ['-std=c99', '-pedantic-errors'],
   # A <stddef.h> that ignores __need_wint_t
   'test-wint_t': ['-I' + meson.current_source_dir() / 'stddef-wrapper'],
 }
@@ -174,6 +176,7 @@ endif
 
 test_skip_native = [
   'test-libgen-basename',
+  'test-math-generic',
   'test-stack-smash',
   'test-strict-posix',
   'test-strict-xsi',
@@ -188,6 +191,7 @@ test_skip_native = [
 
 test_skip_lockvalid = [
   'test-hello',
+  'test-math-generic',
   'test-thread-safety',
   ]
 
@@ -415,6 +419,32 @@ foreach params : targets
          depends: bios_bin,
          suite: 'test',
          env: test_env)
+
+    # The C++ math names in the default and C++98 modes, and left to the
+    # application in strict C++98 and C++20 (which turns on C23 in C)
+    foreach t1, _math_std : {'test-cplusplus-math': '',
+                             'test-cplusplus-math-gnu++98': 'gnu++98',
+                             'test-cplusplus-math-strict-c++98': 'c++98',
+                             'test-cplusplus-math-strict-c++20': 'c++20'}
+      _math_args = _cpp_args
+      if _math_std != ''
+        if not cpp.has_argument('-std=' + _math_std)
+          continue
+        endif
+        _math_args += ['-std=' + _math_std]
+      endif
+      _math_src = t1.contains('strict') ? 'test-cplusplus-math-strict.cpp' : 'test-cplusplus-math.cpp'
+      test(t1 + target,
+           executable(t1 + target, _math_src,
+                      cpp_args: _math_args,
+                      link_args: _math_args + _link_args,
+                      objects: _objs,
+                      link_depends: _link_depends,
+                      include_directories: inc),
+           depends: bios_bin,
+           suite: 'test',
+           env: test_env)
+    endforeach
   endif
 
   foreach t1 : tests

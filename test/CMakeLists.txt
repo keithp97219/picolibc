@@ -44,6 +44,7 @@ set(tests
   test-header-param-names
   test-hosted-exit
   test-libgen-basename
+  test-math-generic
   test-raise
   test-regex
   test-scmpu
