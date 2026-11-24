@@ -139,5 +139,12 @@ if enable_cdefs_tests
            args: [meson.current_source_dir() / header] + cc.cmd_array() + c_args + inc_args,
            suite: 'headers')
     endif
+    # regdef.h and utmp.h need headers only some systems supply
+    if not header.startswith('_') and header not in ['regdef.h', 'utmp.h']
+      test('check-wundef-' + header,
+           check_wundef,
+           args: [meson.current_source_dir() / header] + cc.cmd_array() + c_args + inc_args,
+           suite: 'headers')
+    endif
   endforeach
 endif

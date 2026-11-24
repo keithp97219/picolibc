@@ -583,6 +583,7 @@ endif
 
 if enable_cdefs_tests
   validate_cdefs = find_program ('scripts/validate-cdefs', required : true)
+  check_wundef = find_program ('scripts/check-wundef', required : true)
 endif
 
 # Shared stdio options

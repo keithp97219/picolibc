@@ -109,5 +109,12 @@ if enable_cdefs_tests
            args: [meson.current_source_dir() / header] + cc.cmd_array() + c_args + inc_args,
            suite: 'headers')
     endif
+    # custom_file.h is an error unless the system supplies its own
+    if not header.startswith('_') and header != 'custom_file.h'
+      test('check-wundef-sys-' + header,
+           check_wundef,
+           args: [meson.current_source_dir() / header] + cc.cmd_array() + c_args + inc_args,
+           suite: 'headers')
+    endif
   endforeach
 endif
