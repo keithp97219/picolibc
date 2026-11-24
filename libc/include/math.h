@@ -195,18 +195,32 @@ int __issignalingl(long double __x) __picolibc_export;
 
 /*
  * Pick the float, double or long double version of a function by the
- * size of the argument.
+ * type of the argument; other types, such as integers, use double.
+ * C++ has no _Generic, but there the argument has one of the three
+ * types (the C++ functions below convert to it, and the C++ library
+ * replaces the C99 macros), so its size is enough.
  */
+#ifdef _DOUBLE_IS_32BITS
+#define __float_generic3(__f, __d, __l, __x) __f((float)(__x))
+#elif defined(__cplusplus)
 #ifdef __HAVE_LONG_DOUBLE
 #define __float_generic3(__f, __d, __l, __x)                          \
-    ((sizeof(__x) == sizeof(float))        ? __f(__x)                 \
+    ((sizeof(__x) == sizeof(float))        ? __f((float)(__x))        \
          : (sizeof(__x) == sizeof(double)) ? __d((double)(__x))       \
                                            : __l((long double)(__x)))
-#elif defined(_DOUBLE_IS_32BITS)
-#define __float_generic3(__f, __d, __l, __x) __f((float)(__x))
 #else
-#define __float_generic3(__f, __d, __l, __x)                         \
-    ((sizeof(__x) == sizeof(float)) ? __f(__x) : __d((double)(__x)))
+#define __float_generic3(__f, __d, __l, __x)                                  \
+    ((sizeof(__x) == sizeof(float)) ? __f((float)(__x)) : __d((double)(__x)))
+#endif
+#elif defined(__HAVE_LONG_DOUBLE)
+#define __float_generic3(__f, __d, __l, __x)   \
+    (__extension__ _Generic((__x),             \
+         float: __f((float)(__x)),             \
+         long double: __l((long double)(__x)), \
+         default: __d((double)(__x))))
+#else
+#define __float_generic3(__f, __d, __l, __x)                                               \
+    (__extension__ _Generic((__x), float: __f((float)(__x)), default: __d((double)(__x))))
 #endif
 #define __float_generic(__p, __x) __float_generic3(__p##f, __p##d, __p##l, __x)
 
@@ -221,29 +235,23 @@ int __issignalingl(long double __x) __picolibc_export;
     && !defined(__clang__)
 #define fpclassify(__x)                                                                \
     (__builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL, FP_SUBNORMAL, FP_ZERO, __x))
-#define isfinite(__x)      (__builtin_isfinite(__x))
-#define isinf(__x)         (__builtin_isinf_sign(__x))
-#define isnan(__x)         (__builtin_isnan(__x))
-#define isnormal(__x)      (__builtin_isnormal(__x))
-#define __issubnormal(__x) (__builtin_issubnormal(__x))
-#define __iszero(__x)      (__builtin_iszero(__x))
+#define isfinite(__x)         (__builtin_isfinite(__x))
+#define isinf(__x)            (__builtin_isinf_sign(__x))
+#define isnan(__x)            (__builtin_isnan(__x))
+#define isnormal(__x)         (__builtin_isnormal(__x))
+#define __fp_issubnormal(__x) (__builtin_issubnormal(__x))
+#define __fp_iszero(__x)      (__builtin_iszero(__x))
 #else
-#define fpclassify(__x)    __float_generic(__fpclassify, __x)
-#define isfinite(__x)      __float_generic3(__finitef, __finite, __finitel, __x)
-#define isinf(__x)         __float_generic(__isinf, __x)
-#define isnan(__x)         __float_generic(__isnan, __x)
-#define isnormal(__x)      (fpclassify(__x) == FP_NORMAL)
-#define __issubnormal(__x) (fpclassify(__x) == FP_SUBNORMAL)
-#define __iszero(__x)      (fpclassify(__x) == FP_ZERO)
+#define fpclassify(__x)       __float_generic(__fpclassify, __x)
+#define isfinite(__x)         __float_generic3(__finitef, __finite, __finitel, __x)
+#define isinf(__x)            __float_generic(__isinf, __x)
+#define isnan(__x)            __float_generic(__isnan, __x)
+#define isnormal(__x)         (fpclassify(__x) == FP_NORMAL)
+#define __fp_issubnormal(__x) (fpclassify(__x) == FP_SUBNORMAL)
+#define __fp_iszero(__x)      (fpclassify(__x) == FP_ZERO)
 #endif
 
-#if __MISC_VISIBLE || __ISO_C_VISIBLE >= 2023
-#define issubnormal(__x) __issubnormal(__x)
-#define iszero(__x)      __iszero(__x)
-#ifndef issignaling
-#define issignaling(__x) __float_generic3(__issignalingf, __issignaling, __issignalingl, __x)
-#endif
-#endif
+#define __fp_issignaling(__x) __float_generic3(__issignalingf, __issignaling, __issignalingl, __x)
 
 #if __GNUC_PREREQ(4, 0)
 #define signbit(__x)                                                                 \
@@ -252,31 +260,21 @@ int __issignalingl(long double __x) __picolibc_export;
 #define signbit(__x) __float_generic(__signbit, __x)
 #endif
 
-#if __GNU_VISIBLE || __ISO_C_VISIBLE >= 2023
+/* Only 80-bit and double-double long doubles have non-canonical values */
 #ifdef __LONG_DOUBLE_NON_CANONICAL
 int __iscanonicall(long double __x) __picolibc_export;
-#define iscanonical(__x)                                                                        \
-    _Generic((__x), long double: __iscanonicall(__x), default: ((void)(__typeof(__x))(__x), 1))
+#ifdef __cplusplus
+#define __fp_iscanonical(__x)                                                                      \
+    ((sizeof(__x) == sizeof(long double)) ? __iscanonicall((long double)(__x)) : ((void)(__x), 1))
 #else
-#define iscanonical(x) ((void)(__typeof(x))(x), 1)
+#define __fp_iscanonical(__x)                             \
+    (__extension__ _Generic((__x),                        \
+         long double: __iscanonicall((long double)(__x)), \
+         default: ((void)(__x), 1)))
 #endif
+#else
+#define __fp_iscanonical(__x) ((void)(__x), 1)
 #endif
-
-/* picolibc extensions */
-#if __MISC_VISIBLE
-#define isfinitef(x) isfinite((float)(x))
-#define isinff(x)    isinf((float)(x))
-#define isnanf(x)    isnan((float)(x))
-#define isnormalf(x) isnormal((float)(x))
-#define iszerof(x)   iszero((float)(x))
-#ifdef __HAVE_LONG_DOUBLE
-#define isfinitel(x) isfinite((long double)(x))
-#define isinfl(x)    isinf((long double)(x))
-#define isnanl(x)    isnan((long double)(x))
-#define isnormall(x) isnormal((long double)(x))
-#define iszerol(x)   iszero((long double)(x))
-#endif
-#endif /* __MISC_VISIBLE */
 
 /* 7.12.15 Comparison macros */
 
@@ -332,19 +330,191 @@ int __iseqsigf(float __x, float __y) __picolibc_export;
 int __iseqsigl(long double __x, long double __y) __picolibc_export;
 #endif
 
-#if __MISC_VISIBLE || __ISO_C_VISIBLE >= 2023
+/* Compare in the type of x + y, as <tgmath.h> would; integers use double */
+#ifdef __cplusplus
 #ifdef __HAVE_LONG_DOUBLE
-#define iseqsig(__x, __y)                                                \
-    ((sizeof((__x) + (__y)) == sizeof(float)) ? __iseqsigf((__x), (__y)) \
-         : (sizeof((__x) + (__y)) == sizeof(double))                     \
-         ? __iseqsig((double)(__x), (double)(__y))                       \
+#define __fp_iseqsig(__x, __y)                                                         \
+    ((sizeof((__x) + (__y)) == sizeof(float)) ? __iseqsigf((float)(__x), (float)(__y)) \
+         : (sizeof((__x) + (__y)) == sizeof(double))                                   \
+         ? __iseqsig((double)(__x), (double)(__y))                                     \
          : __iseqsigl((long double)(__x), (long double)(__y)))
 #else
-#define iseqsig(__x, __y)                                                                \
-    ((sizeof((__x) + (__y)) == sizeof(float)) ? __iseqsigf((__x), (__y))                 \
+#define __fp_iseqsig(__x, __y)                                                           \
+    ((sizeof((__x) + (__y)) == sizeof(float)) ? __iseqsigf((float)(__x), (float)(__y))   \
                                               : __iseqsig((double)(__x), (double)(__y)))
 #endif
+#elif defined(__HAVE_LONG_DOUBLE)
+#define __fp_iseqsig(__x, __y)                                            \
+    (__extension__ _Generic((__x) + (__y),                                \
+         float: __iseqsigf((float)(__x), (float)(__y)),                   \
+         long double: __iseqsigl((long double)(__x), (long double)(__y)), \
+         default: __iseqsig((double)(__x), (double)(__y))))
+#else
+#define __fp_iseqsig(__x, __y)                              \
+    (__extension__ _Generic((__x) + (__y),                  \
+         float: __iseqsigf((float)(__x), (float)(__y)),     \
+         default: __iseqsig((double)(__x), (double)(__y))))
 #endif
+
+/*
+ * The C23 classification macros, the GNU issignaling, iscanonical and
+ * iseqsig, and the BSD and picolibc type-suffixed forms. The __fp_
+ * macros above implement them for both languages. C gets function-like
+ * macros. C++ reserves none of these names, so it gets functions
+ * instead, in the style of <cmath>: templates for each floating and
+ * integer type, integers being classified as double, and plain
+ * functions for the suffixed forms (isinff, isnanf, isinfl and isnanl
+ * are library functions, declared below). No C++ standard has the C23
+ * names, so C++ sees them only as extensions.
+ */
+#ifndef __cplusplus
+
+#if __MISC_VISIBLE || __ISO_C_VISIBLE >= 2023
+#define issubnormal(__x) __fp_issubnormal(__x)
+#define iszero(__x)      __fp_iszero(__x)
+#ifndef issignaling
+#define issignaling(__x) __fp_issignaling(__x)
+#endif
+#define iseqsig(__x, __y) __fp_iseqsig(__x, __y)
+#endif
+
+#if __GNU_VISIBLE || __ISO_C_VISIBLE >= 2023
+#define iscanonical(__x) __fp_iscanonical(__x)
+#endif
+
+#if __MISC_VISIBLE
+#define isfinitef(x) isfinite((float)(x))
+#define isinff(x)    isinf((float)(x))
+#define isnanf(x)    isnan((float)(x))
+#define isnormalf(x) isnormal((float)(x))
+#define iszerof(x)   iszero((float)(x))
+#ifdef __HAVE_LONG_DOUBLE
+#define isfinitel(x) isfinite((long double)(x))
+#define isinfl(x)    isinf((long double)(x))
+#define isnanl(x)    isnan((long double)(x))
+#define isnormall(x) isnormal((long double)(x))
+#define iszerol(x)   iszero((long double)(x))
+#endif
+#endif /* __MISC_VISIBLE */
+
+#elif __MISC_VISIBLE
+
+extern "C++" {
+
+/* The type an argument is classified in, defined only for arithmetic types */
+template <class __T> struct __fp_arg { };
+#define __fp_arg_type(__t, __as)       \
+    template <> struct __fp_arg<__t> { \
+        typedef __as __type;           \
+    }
+__fp_arg_type(float, float);
+__fp_arg_type(double, double);
+__fp_arg_type(long double, long double);
+__fp_arg_type(bool, double);
+__fp_arg_type(char, double);
+__fp_arg_type(signed char, double);
+__fp_arg_type(unsigned char, double);
+__fp_arg_type(wchar_t, double);
+__fp_arg_type(short, double);
+__fp_arg_type(unsigned short, double);
+__fp_arg_type(int, double);
+__fp_arg_type(unsigned int, double);
+__fp_arg_type(long, double);
+__fp_arg_type(unsigned long, double);
+#if __cplusplus >= 201103L
+__fp_arg_type(long long, double);
+__fp_arg_type(unsigned long long, double);
+__fp_arg_type(char16_t, double);
+__fp_arg_type(char32_t, double);
+#endif
+#ifdef __cpp_char8_t
+__fp_arg_type(char8_t, double);
+#endif
+#undef __fp_arg_type
+
+/* int, for argument types that __fp_arg accepts */
+template <class __A, class __B = __A> struct __fp_int {
+    typedef int __type;
+};
+
+template <class __T>
+inline typename __fp_int<typename __fp_arg<__T>::__type>::__type
+issubnormal(__T __x)
+{
+    return __fp_issubnormal((typename __fp_arg<__T>::__type)__x);
+}
+
+template <class __T>
+inline typename __fp_int<typename __fp_arg<__T>::__type>::__type
+iszero(__T __x)
+{
+    return __fp_iszero((typename __fp_arg<__T>::__type)__x);
+}
+
+template <class __T>
+inline typename __fp_int<typename __fp_arg<__T>::__type>::__type
+issignaling(__T __x)
+{
+    return __fp_issignaling((typename __fp_arg<__T>::__type)__x);
+}
+
+#if __GNU_VISIBLE
+template <class __T>
+inline typename __fp_int<typename __fp_arg<__T>::__type>::__type
+iscanonical(__T __x)
+{
+    return __fp_iscanonical((typename __fp_arg<__T>::__type)__x);
+}
+#endif
+
+template <class __A, class __B>
+inline typename __fp_int<typename __fp_arg<__A>::__type, typename __fp_arg<__B>::__type>::__type
+iseqsig(__A __x, __B __y)
+{
+    return __fp_iseqsig((typename __fp_arg<__A>::__type)__x, (typename __fp_arg<__B>::__type)__y);
+}
+
+inline int
+isfinitef(float __x)
+{
+    return isfinite(__x);
+}
+
+inline int
+isnormalf(float __x)
+{
+    return isnormal(__x);
+}
+
+inline int
+iszerof(float __x)
+{
+    return __fp_iszero(__x);
+}
+
+#ifdef __HAVE_LONG_DOUBLE
+inline int
+isfinitel(long double __x)
+{
+    return isfinite(__x);
+}
+
+inline int
+isnormall(long double __x)
+{
+    return isnormal(__x);
+}
+
+inline int
+iszerol(long double __x)
+{
+    return __fp_iszero(__x);
+}
+#endif
+
+} /* extern "C++" */
+
+#endif /* __MISC_VISIBLE */
 
 #endif /* __ISO_C_VISIBLE >= 1999 */
 
