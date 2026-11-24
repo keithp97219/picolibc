@@ -60,12 +60,17 @@ static int errors;
         }                                                                                      \
     } while (0)
 
-#define CHECKS(type, func)                                    \
+/*
+ * With -ffinite-math-only, the compiler assumes there are no
+ * infinities or NaNs, so checks using them aren't meaningful
+ */
+#if defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__
+#define NONFINITE_CHECKS(type, func) \
+    do {                             \
+    } while (0)
+#else
+#define NONFINITE_CHECKS(type, func)                          \
     do {                                                      \
-        CHECK(type, func, -4, 0.0, 0, 2);                     \
-        CHECK(type, func, -4, -0.0, 0, -2);                   \
-        CHECK(type, func, 4, -0.0, 2, -0.0);                  \
-        CHECK(type, func, 0.0, -0.0, 0, -0.0);                \
         CHECK(type, func, 1, INFINITY, INFINITY, INFINITY);   \
         CHECK(type, func, 1, -INFINITY, INFINITY, -INFINITY); \
         CHECK(type, func, NAN, INFINITY, INFINITY, INFINITY); \
@@ -76,6 +81,16 @@ static int errors;
         CHECK(type, func, INFINITY, NAN, INFINITY, NAN);      \
         CHECK(type, func, 1, NAN, NAN, NAN);                  \
         CHECK(type, func, NAN, 1, NAN, NAN);                  \
+    } while (0)
+#endif
+
+#define CHECKS(type, func)                     \
+    do {                                       \
+        CHECK(type, func, -4, 0.0, 0, 2);      \
+        CHECK(type, func, -4, -0.0, 0, -2);    \
+        CHECK(type, func, 4, -0.0, 2, -0.0);   \
+        CHECK(type, func, 0.0, -0.0, 0, -0.0); \
+        NONFINITE_CHECKS(type, func);          \
     } while (0)
 
 int
