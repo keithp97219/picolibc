@@ -77,7 +77,7 @@ typedef struct __file __FILE;
 #define ___FILE_DECLARED
 #endif
 
-#if __POSIX_VISIBLE >= 200809 || _XSI_VISIBLE
+#if __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE
 
 #ifndef _FILE_DECLARED
 typedef __FILE FILE;
@@ -191,8 +191,8 @@ wchar_t *wcscpy(wchar_t * __restrict, const wchar_t * __restrict) __picolibc_exp
 size_t   wcscspn(const wchar_t *, const wchar_t *) __picolibc_export;
 
 #if __POSIX_VISIBLE >= 200809
-void     free(void *) __nothrow __picolibc_export;
-wchar_t *wcsdup(const wchar_t *) __malloc_like __warn_unused_result __picolibc_export;
+wchar_t *wcsdup(const wchar_t *) __malloc_like_with_free(__builtin_free, 1) __warn_unused_result
+__picolibc_export;
 #endif
 size_t wcsftime(wchar_t * __restrict, size_t, const wchar_t * __restrict,
                 const struct tm * __restrict) __picolibc_export;

@@ -51,18 +51,22 @@ typedef __mbstate_t mbstate_t;
 #define _MBSTATE_DECLARED
 #endif
 
+#if __ISO_C_VISIBLE >= 2023 || __MISC_VISIBLE
 #ifndef __cpp_char8_t
 typedef unsigned char char8_t;
+#endif
 #endif
 #if !defined __cplusplus || __cplusplus < 201103L
 typedef __uint_least16_t char16_t;
 typedef __uint_least32_t char32_t;
 #endif
 
+#if __ISO_C_VISIBLE >= 2023 || __MISC_VISIBLE
 size_t mbrtoc8(char8_t * __restrict pc8, const char * __restrict s, size_t n,
                mbstate_t * __restrict ps) __picolibc_export;
 
 size_t c8rtomb(char * __restrict s, char8_t c8, mbstate_t * __restrict ps) __picolibc_export;
+#endif
 
 size_t mbrtoc16(char16_t * __restrict pc16, const char * __restrict s, size_t n,
                 mbstate_t * __restrict ps) __picolibc_export;

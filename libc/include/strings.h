@@ -64,7 +64,7 @@ void explicit_bzero(void *, size_t) __picolibc_export;
 #if __MISC_VISIBLE || __POSIX_VISIBLE < 200809 || __XSI_VISIBLE >= 700
 int ffs(int) __const __picolibc_export;
 #endif
-#if __BSD_VISIBLE || __POSIX_VISIBLE >= 202405
+#if __BSD_VISIBLE || __XSI_VISIBLE >= 800
 int ffsl(long) __const __picolibc_export;
 int ffsll(long long) __const __picolibc_export;
 #endif

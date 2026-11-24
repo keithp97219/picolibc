@@ -66,10 +66,12 @@ __declare_fenv_inline(int) feraiseexcept(int __excepts)
     return (0);
 }
 
+#if __ISO_C_VISIBLE >= 2023 || __GNU_VISIBLE
 __declare_fenv_inline(int) fesetexcept(int excepts)
 {
     return feraiseexcept(excepts);
 }
+#endif
 
 __declare_fenv_inline(int) fetestexcept(int __excepts)
 {
@@ -138,6 +140,7 @@ __declare_fenv_inline(int) feupdateenv(const fenv_t *__envp)
     return (0);
 }
 
+#if __GNU_VISIBLE
 __declare_fenv_inline(int) feenableexcept(int __mask)
 {
     fenv_t __old_r, __new_r, __test_r;
@@ -168,3 +171,4 @@ __declare_fenv_inline(int) fegetexcept(void)
     __mrs_fpcr(__r);
     return ((__r & _ENABLE_MASK) >> _FPUSW_SHIFT);
 }
+#endif /* __GNU_VISIBLE */

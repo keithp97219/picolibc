@@ -289,13 +289,18 @@ int vsprintf(char *__s, const char *__fmt, __gnuc_va_list ap) __PRINTF_ATTRIBUTE
     __picolibc_export;
 int vsnprintf(char *__s, size_t __n, const char *__fmt, __gnuc_va_list ap)
     __PRINTF_ATTRIBUTE__(3, 0) __picolibc_export;
-int   asprintf(char **strp, const char *fmt, ...) __PRINTF_ATTRIBUTE__(2, 3) __picolibc_export;
-char *asnprintf(char *str, size_t *lenp, const char *fmt, ...) __PRINTF_ATTRIBUTE__(3, 4)
+#if __POSIX_VISIBLE >= 202405 || __MISC_VISIBLE
+int asprintf(char ** __restrict __strp, const char * __restrict __fmt, ...)
+    __PRINTF_ATTRIBUTE__(2, 3) __picolibc_export;
+int vasprintf(char ** __restrict __strp, const char * __restrict __fmt, __gnuc_va_list __ap)
+    __PRINTF_ATTRIBUTE__(2, 0) __picolibc_export;
+#endif
+#if __MISC_VISIBLE
+char *asnprintf(char *__str, size_t *__lenp, const char *__fmt, ...) __PRINTF_ATTRIBUTE__(3, 4)
     __picolibc_export;
-int vasprintf(char **strp, const char *fmt, __gnuc_va_list ap) __PRINTF_ATTRIBUTE__(2, 0)
-    __picolibc_export;
-char *vasnprintf(char *str, size_t *lenp, const char *fmt, __gnuc_va_list ap)
+char *vasnprintf(char *__str, size_t *__lenp, const char *__fmt, __gnuc_va_list __ap)
     __PRINTF_ATTRIBUTE__(3, 0) __picolibc_export;
+#endif
 
 int    fputs(const char *__str, FILE *__stream) __nonnull((2)) __picolibc_export;
 int    puts(const char *__str) __picolibc_export;
@@ -330,7 +335,7 @@ __picolibc_export;
 void clearerr(FILE *__stream) __nonnull((1)) __picolibc_export;
 int  ferror(FILE *__stream) __nonnull((1)) __picolibc_export;
 int  feof(FILE *__stream) __nonnull((1)) __picolibc_export;
-#ifdef __MISC_VISIBLE
+#if __MISC_VISIBLE
 void __fseterr(FILE *__stream) __nonnull((1)) __picolibc_export;
 #endif
 
@@ -345,13 +350,13 @@ void __fseterr(FILE *__stream) __nonnull((1)) __picolibc_export;
 #define clearerr(s) __clearerr_unlocked(s)
 #define ferror(s)   __ferror_unlocked(s)
 #define feof(s)     __feof_unlocked(s)
-#ifdef __MISC_VISIBLE
+#if __MISC_VISIBLE
 #define __fseterr(s) ____fseterr_unlocked(s)
 #endif
 #endif
 
 /* Expose the unlocked symbols when requested */
-#ifdef __MISC_VISIBLE
+#if __MISC_VISIBLE
 void clearerr_unlocked(FILE *__stream) __nonnull((1)) __picolibc_export;
 int  ferror_unlocked(FILE *__stream) __nonnull((1)) __picolibc_export;
 int  feof_unlocked(FILE *__stream) __nonnull((1)) __picolibc_export;
@@ -363,7 +368,7 @@ void __fseterr_unlocked(FILE *__stream) __nonnull((1)) __picolibc_export;
 #endif
 
 /* Expose printf variants */
-#ifdef __GNU_VISIBLE
+#if __GNU_VISIBLE
 int __d_vfprintf(FILE *__stream, const char *__fmt, __gnuc_va_list __ap)
     __FORMAT_ATTRIBUTE__(printf, 2, 0) __picolibc_export;
 int __f_vfprintf(FILE *__stream, const char *__fmt, __gnuc_va_list __ap)
@@ -491,17 +496,19 @@ __picolibc_export;
 FILE *open_memstream(char **bufp, size_t *sizep) __malloc_like_with_free(fclose, 1)
 __picolibc_export;
 #endif
-int   fseek(FILE *stream, long offset, int whence) __nonnull((1)) __picolibc_export;
-int   fsetpos(FILE *stream, const fpos_t *pos) __nonnull((1)) __picolibc_export;
-long  ftell(FILE *stream) __nonnull((1)) __picolibc_export;
-int   fileno(FILE *stream) __nonnull((1)) __picolibc_export;
-void  perror(const char *s) __picolibc_export;
-int   remove(const char *pathname) __picolibc_export;
-int   rename(const char *oldpath, const char *newpath) __picolibc_export;
-void  rewind(FILE *stream) __nonnull((1)) __picolibc_export;
-void  setbuf(FILE *stream, char *buf) __nonnull((1)) __picolibc_export;
-void  setbuffer(FILE *stream, char *buf, size_t size) __nonnull((1)) __picolibc_export;
-void  setlinebuf(FILE *stream) __nonnull((1)) __picolibc_export;
+int  fseek(FILE *stream, long offset, int whence) __nonnull((1)) __picolibc_export;
+int  fsetpos(FILE *stream, const fpos_t *pos) __nonnull((1)) __picolibc_export;
+long ftell(FILE *stream) __nonnull((1)) __picolibc_export;
+int  fileno(FILE *stream) __nonnull((1)) __picolibc_export;
+void perror(const char *s) __picolibc_export;
+int  remove(const char *pathname) __picolibc_export;
+int  rename(const char *oldpath, const char *newpath) __picolibc_export;
+void rewind(FILE *stream) __nonnull((1)) __picolibc_export;
+void setbuf(FILE *stream, char *buf) __nonnull((1)) __picolibc_export;
+#if __MISC_VISIBLE
+void setbuffer(FILE *stream, char *buf, size_t size) __nonnull((1)) __picolibc_export;
+void setlinebuf(FILE *stream) __nonnull((1)) __picolibc_export;
+#endif
 int   setvbuf(FILE *stream, char *buf, int mode, size_t size) __nonnull((1)) __picolibc_export;
 FILE *tmpfile(void) __picolibc_export;
 char *tmpnam(char *s) __picolibc_export;
@@ -608,7 +615,8 @@ int vfprintf_s(FILE * __restrict stream, const char * __restrict fmt, va_list ap
 #define L_tmpnam 8
 #endif
 
-#if __MISC_VISIBLE || XSI_VISIBLE
+/* P_tmpdir was removed from XSI in Issue 8 */
+#if __MISC_VISIBLE || (__XSI_VISIBLE && __XSI_VISIBLE < 800)
 #ifdef __P_tmpdir
 #define P_tmpdir __P_tmpdir
 #else

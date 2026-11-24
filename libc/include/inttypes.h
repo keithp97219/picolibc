@@ -32,10 +32,15 @@ typedef struct {
 
 /*
  * In C++, wchar_t is a distinct built-in type, even when __WCHAR_TYPE__
- * names an integer type. In C, avoid defining wchar_t when possible.
+ * names an integer type. ISO C doesn't define wchar_t here, so avoid it
+ * when possible; POSIX does.
  */
 
 #ifdef __cplusplus
+typedef wchar_t _wchar_t;
+#elif __POSIX_VISIBLE
+#define __need_wchar_t
+#include <stddef.h>
 typedef wchar_t _wchar_t;
 #elif defined(__WCHAR_TYPE__)
 typedef __WCHAR_TYPE__ _wchar_t;

@@ -49,7 +49,6 @@
  * define fenv_t and fexcept_t to match the hardware ABI.  Otherwise, it
  * doesn't matter how you define them.
  */
-#include <errno.h>
 
 __declare_fenv_inline(int) feclearexcept(int excepts)
 {
@@ -76,10 +75,12 @@ __declare_fenv_inline(int) feraiseexcept(int excepts)
     return (excepts != 0);
 }
 
+#if __ISO_C_VISIBLE >= 2023 || __GNU_VISIBLE
 __declare_fenv_inline(int) fesetexcept(int excepts)
 {
     return (excepts != 0);
 }
+#endif
 
 __declare_fenv_inline(int) fetestexcept(int excepts)
 {
@@ -129,7 +130,7 @@ __declare_fenv_inline(int) feupdateenv(const fenv_t *envp)
     return (0);
 }
 
-#if __BSD_VISIBLE
+#if __GNU_VISIBLE
 
 __declare_fenv_inline(int) feenableexcept(int __mask)
 {
@@ -149,4 +150,4 @@ __declare_fenv_inline(int) fegetexcept(void)
     return (0);
 }
 
-#endif /* __BSD_VISIBLE */
+#endif /* __GNU_VISIBLE */

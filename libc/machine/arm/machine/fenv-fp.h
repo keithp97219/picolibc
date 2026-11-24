@@ -66,6 +66,7 @@ __declare_fenv_inline(int) feclearexcept(int excepts)
     return (0);
 }
 
+#if __GNU_VISIBLE
 __declare_fenv_inline(int) fedisableexcept(int __mask)
 {
     fenv_t __old_fpsr, __new_fpsr;
@@ -87,6 +88,7 @@ __declare_fenv_inline(int) feenableexcept(int __mask)
         return -1;
     return ((__old_fpsr >> _FPU_MASK_SHIFT) & FE_ALL_EXCEPT);
 }
+#endif
 
 __declare_fenv_inline(int) fegetenv(fenv_t *envp)
 {
@@ -94,6 +96,7 @@ __declare_fenv_inline(int) fegetenv(fenv_t *envp)
     return (0);
 }
 
+#if __GNU_VISIBLE
 __declare_fenv_inline(int) fegetexcept(void)
 {
     fenv_t __fpsr;
@@ -101,6 +104,7 @@ __declare_fenv_inline(int) fegetexcept(void)
     _vmrs_fpscr(__fpsr);
     return (__fpsr & FE_ALL_EXCEPT);
 }
+#endif
 
 __declare_fenv_inline(int) fegetexceptflag(fexcept_t *flagp, int excepts)
 {
@@ -153,10 +157,12 @@ __declare_fenv_inline(int) feraiseexcept(int excepts)
     return fesetexceptflag(&__ex, excepts);
 }
 
+#if __ISO_C_VISIBLE >= 2023 || __GNU_VISIBLE
 __declare_fenv_inline(int) fesetexcept(int excepts)
 {
     return feraiseexcept(excepts);
 }
+#endif
 
 __declare_fenv_inline(int) fesetround(int round)
 {

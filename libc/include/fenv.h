@@ -42,10 +42,10 @@ __declare_fenv_inline(int) fetestexceptflag(const fexcept_t *flagp, int excepts)
 int feclearexcept(int excepts) __picolibc_export;
 int fegetexceptflag(fexcept_t *flagp, int excepts) __picolibc_export;
 int feraiseexcept(int excepts) __picolibc_export;
-int fesetexcept(int excepts) __picolibc_export;
 int fesetexceptflag(const fexcept_t *flagp, int excepts) __picolibc_export;
 int fetestexcept(int excepts) __picolibc_export;
-#if __ISO_C_VISIBLE >= 2023
+#if __ISO_C_VISIBLE >= 2023 || __GNU_VISIBLE
+int fesetexcept(int excepts) __picolibc_export;
 int fetestexceptflag(const fexcept_t *flagp, int excepts) __picolibc_export;
 #endif
 

@@ -77,7 +77,7 @@ char * __nonnull((1)) basename(const char *) _ASMNAME("__gnu_basename");
 #endif
 #endif
 
-#if __MISC_VISIBLE || __POSIX_VISIBLE || __ISO_C_VISIBLE >= 2023
+#if __MISC_VISIBLE || __XSI_VISIBLE || __ISO_C_VISIBLE >= 2023
 void *memccpy(void * __restrict, const void * __restrict, int, size_t) __picolibc_export;
 #endif
 void *memchr(const void *s, int c, size_t n) __picolibc_export;
@@ -118,7 +118,6 @@ int strcoll_l(const char *, const char *, locale_t) __picolibc_export;
 char  *strcpy(char  *__restrict, const char  *__restrict) __picolibc_export;
 size_t strcspn(const char *, const char *) __picolibc_export;
 #if __MISC_VISIBLE || __POSIX_VISIBLE >= 200809 || __XSI_VISIBLE >= 4 || __ISO_C_VISIBLE >= 2023
-void  free(void *) __nothrow __picolibc_export; /* for __malloc_like */
 char *strdup(const char *) __malloc_like __warn_unused_result __picolibc_export;
 #endif
 #if __GNU_VISIBLE && defined(__GNUC__)

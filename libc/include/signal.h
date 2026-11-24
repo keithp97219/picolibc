@@ -119,8 +119,10 @@ struct sigaction {
 /*
  * Possible values for ss_flags in stack_t below.
  */
+#if __XSI_VISIBLE || __MISC_VISIBLE
 #define SS_ONSTACK 0x1
 #define SS_DISABLE 0x2
+#endif
 
 /*
  * Structure used in sigaltstack call.
@@ -137,7 +139,7 @@ typedef struct sigaltstack {
 
 #endif /* __POSIX_VISIBLE */
 
-#if defined(_POSIX_REALTIME_SIGNALS) || __POSIX_VISIBLE >= 199309
+#if __POSIX_VISIBLE >= 199309
 
 /* sigev_notify values
    NOTE: P1003.1c/D10, p. 34 adds SIGEV_THREAD.  */
@@ -162,9 +164,9 @@ struct sigevent {
     /* Notification function */
     void        *sigev_notify_attributes; /* Notification Attributes */
 };
-#endif /* defined(_POSIX_REALTIME_SIGNALS) || __POSIX_VISIBLE >= 199309 */
+#endif /* __POSIX_VISIBLE >= 199309 */
 
-#if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 200809
+#if __XSI_VISIBLE || __MISC_VISIBLE
 
 /*
  * Minimum and default signal stack constants. Allow for target overrides
@@ -215,7 +217,7 @@ struct sigevent {
 #define SIGUSR2   31    /* user defined signal 2 */
 #define _NSIG     32
 
-#ifdef __GNU_VISIBLE
+#if __MISC_VISIBLE
 #define NSIG _NSIG
 #endif
 
@@ -269,7 +271,7 @@ __sigaddset(sigset_t *what, int sig)
 #define sigaddset(what, sig) __sigaddset(what, sig)
 
 #endif
-#if __BSD_VISIBLE || __XSI_VISIBLE >= 4 || __POSIX_VISIBLE >= 200809
+#if __XSI_VISIBLE || __MISC_VISIBLE
 int sigaltstack(const stack_t * __restrict, stack_t * __restrict) __picolibc_export;
 #endif
 #if __POSIX_VISIBLE
