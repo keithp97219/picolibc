@@ -144,20 +144,10 @@ _start(void)
 #endif
     __asm__("msr CONTROL, %0" : : "r"(control));
 #endif
-#ifdef CRT0_LINUX
-    __start(0, NULL);
-#else
     __start();
-#endif
 }
 
 #else /*  __ARM_ARCH_PROFILE == 'M' */
-
-#ifdef CRT0_LINUX
-
-char **environ;
-
-#else
 
 #ifdef __PICOCRT_ENABLE_MMU
 
@@ -411,7 +401,6 @@ _start(void)
     __asm__("b _cstart");
 }
 
-#endif
 #endif
 
 #if defined(CRT0_SEMIHOST) && defined(__SEMIHOST)
