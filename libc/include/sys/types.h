@@ -71,6 +71,8 @@ typedef __intptr_t register_t;
 #define _SYS_TYPES_H
 #include <sys/_types.h>
 #include <sys/_stdint.h>
+#define __need_size_t
+#include <stddef.h>
 
 #if __BSD_VISIBLE
 #include <machine/endian.h>

@@ -38,15 +38,12 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <sys/cdefs.h>
 #include <sys/_types.h>
+#define __need_size_t
+#include <stddef.h>
 /* For O_RDONLY, O_RDWR, O_CREAT, O_EXCL and O_TRUNC */
 #include <fcntl.h>
 
 _BEGIN_STD_C
-
-#ifndef _SIZE_T_DECLARED
-typedef __size_t size_t;
-#define _SIZE_T_DECLARED
-#endif
 
 #ifndef _OFF_T_DECLARED
 typedef __off_t off_t;

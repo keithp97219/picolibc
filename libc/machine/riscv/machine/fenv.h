@@ -95,8 +95,8 @@
  * floating-point unit."
  */
 
-typedef __size_t fenv_t;
-typedef __size_t fexcept_t;
+typedef __picolibc_size_t fenv_t;
+typedef __picolibc_size_t fexcept_t;
 
 #if !defined(__declare_fenv_inline) && defined(__declare_extern_inline)
 #define __declare_fenv_inline(type) __declare_extern_inline(type)

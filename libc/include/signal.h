@@ -34,9 +34,11 @@ SUCH DAMAGE.
 #define _SIGNAL_H_
 
 #include <sys/cdefs.h>
+#include <sys/_types.h>
+#if __POSIX_VISIBLE
 #define __need_size_t
 #include <stddef.h>
-#include <sys/_types.h>
+#endif
 #include <sys/_sigset.h>
 #include <sys/_timespec.h>
 

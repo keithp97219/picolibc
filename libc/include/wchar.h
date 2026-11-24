@@ -37,6 +37,12 @@ SUCH DAMAGE.
 
 /* For __mbstate_t definition. */
 #include <sys/_types.h>
+
+/* For a <stddef.h> that ignores __need_wint_t, as gnulib's and the Arm Compiler's do */
+#ifndef _WINT_T
+#define _WINT_T
+typedef __wint_t wint_t;
+#endif
 #define __need___va_list
 #include <stdarg.h>
 

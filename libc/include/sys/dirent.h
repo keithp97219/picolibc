@@ -38,6 +38,8 @@
 
 #include <sys/cdefs.h>
 #include <sys/_types.h>
+#define __need_size_t
+#include <stddef.h>
 
 _BEGIN_STD_C
 

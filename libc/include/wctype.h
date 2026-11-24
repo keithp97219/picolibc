@@ -8,6 +8,12 @@
 #define __need_wint_t
 #include <stddef.h>
 
+/* For a <stddef.h> that ignores __need_wint_t, as gnulib's and the Arm Compiler's do */
+#ifndef _WINT_T
+#define _WINT_T
+typedef __wint_t wint_t;
+#endif
+
 #if __POSIX_VISIBLE >= 200809
 #include <sys/_locale.h>
 #endif
