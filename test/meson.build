@@ -37,31 +37,44 @@ tests = [
   'test-argv',
   'test-assert',
   'test-atomic',
+  'test-c17-names',
   'test-environ',
   'test-except',
   'test-getdate',
   'test-getopt',
   'test-hello',
+  'test-header-param-names',
   'test-hosted-exit',
   'test-lseek64-linux',
   'test-lseek-overflow',
   'test-ssize-max',
   'test-hosted-exit-fail',
   'test-ilp32',
+  'test-libgen-basename',
   'test-raise',
   'test-regex',
   'test-riscv-jvt',
   'test-scmpu',
   'test-setjmp',
+  'test-setjmp-iso',
+  'test-siglongjmp',
   'test-strftime',
+  'test-strict-posix',
+  'test-strict-xsi',
   'test-thread-safety',
   'test-time',
   'test-time2',
   'test-timegm',
   'test-tls',
+  'test-types-size_t',
+  'test-types-wint_t',
   'test-uchar',
+  'test-visibility-iso',
+  'test-visibility-posix',
+  'test-visibility-xsi',
   'test-wcsftime',
   'test-wctomb',
+  'test-wint_t',
 ]
 
 tests_should_fail = [
@@ -115,6 +128,8 @@ test_extra_c_args = {
   'test-thread-safety': test_thread_safety_cflags,
   'test-ubsan': test_ubsan_cflags,
   'test-ubsan-no-flash': test_ubsan_cflags,
+  # A <stddef.h> that ignores __need_wint_t
+  'test-wint_t': ['-I' + meson.current_source_dir() / 'stddef-wrapper'],
 }
 
 if oslib_test_variant == 'linux'
@@ -158,10 +173,17 @@ if cc.has_argument('-std=c23') and cc.has_function_attribute('deprecated')
 endif
 
 test_skip_native = [
+  'test-libgen-basename',
   'test-stack-smash',
+  'test-strict-posix',
+  'test-strict-xsi',
   'test-thread-safety',
   'test-tls',
   'test-ubsan',
+  'test-c17-names',
+  'test-header-param-names',
+  'test-types-size_t',
+  'test-types-wint_t',
 ]
 
 test_skip_lockvalid = [

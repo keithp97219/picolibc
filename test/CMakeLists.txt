@@ -36,23 +36,36 @@
 set(tests
   test-argv
   test-atomic
+  test-c17-names
   test-environ
   test-getdate
   test-getopt
   test-hello
+  test-header-param-names
   test-hosted-exit
+  test-libgen-basename
   test-raise
   test-regex
   test-scmpu
   test-setjmp
+  test-setjmp-iso
+  test-siglongjmp
   test-strftime
+  test-strict-posix
+  test-strict-xsi
   test-time
   test-time2
   test-timegm
   test-tls
+  test-types-size_t
+  test-types-wint_t
   test-uchar
+  test-visibility-iso
+  test-visibility-posix
+  test-visibility-xsi
   test-wcsftime
   test-wctomb
+  test-wint_t
   )
 
 set(tests_fail
@@ -79,6 +92,9 @@ endfunction()
 foreach(test IN LISTS tests)
   picolibc_test(${test})
 endforeach()
+
+# A <stddef.h> that ignores __need_wint_t
+target_include_directories(test-wint_t BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stddef-wrapper)
 
 foreach(test IN LISTS tests_fail)
   picolibc_test(${test})
